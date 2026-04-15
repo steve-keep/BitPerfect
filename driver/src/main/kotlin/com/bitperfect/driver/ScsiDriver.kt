@@ -1,7 +1,7 @@
 package com.bitperfect.driver
 
-class ScsiDriver {
-    external fun getDriverVersion(): String
+class ScsiDriver : IScsiDriver {
+    override external fun getDriverVersion(): String
 
     /**
      * Executes a raw SCSI command.
@@ -13,18 +13,24 @@ class ScsiDriver {
      * @param timeout The timeout in milliseconds.
      * @return The response bytes from the device.
      */
-    external fun executeScsiCommand(
+    override external fun executeScsiCommand(
         fd: Int,
         command: ByteArray,
         expectedResponseLength: Int,
-        endpointIn: Int = 0x81,
-        endpointOut: Int = 0x01,
-        timeout: Int = 5000
+        endpointIn: Int,
+        endpointOut: Int,
+        timeout: Int
     ): ByteArray?
 
     companion object {
+        private var isLibraryLoaded = false
         init {
-            System.loadLibrary("bitperfect-driver")
+            try {
+                System.loadLibrary("bitperfect-driver")
+                isLibraryLoaded = true
+            } catch (e: UnsatisfiedLinkError) {
+                // Ignore for unit tests
+            }
         }
     }
 }
