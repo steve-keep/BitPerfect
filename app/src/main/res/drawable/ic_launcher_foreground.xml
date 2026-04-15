@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="18"
+        android:translateY="18">
+        <!-- CD Disc -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36,36m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0" />
+
+        <!-- Tonal Accent Ring -->
+        <path
+            android:fillColor="#B9F6CA"
+            android:pathData="M36,36m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0" />
+
+        <!-- Center Hole -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36,36m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+
+        <!-- Bit-like square patterns -->
+        <path
+            android:fillColor="#00C853"
+            android:pathData="M48,22h4v4h-4z M58,34h4v4h-4z M48,46h4v4h-4z M34,58h4v4h-4z M22,46h4v4h-4z M12,34h4v4h-4z M22,22h4v4h-4z M34,12h4v4h-4z" />
+
+        <!-- Center Checkmark for "Perfect" -->
+        <path
+            android:fillColor="#00C853"
+            android:pathData="M34,40.17l-3.17,-3.17 -1.42,1.41 4.59,4.59 10,-10 -1.41,-1.41z" />
+    </group>
+</vector>
