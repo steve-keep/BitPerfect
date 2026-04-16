@@ -11,14 +11,42 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.DiagnosticDashboard
+import com.bitperfect.app.ui.theme.BitPerfectTheme
 import com.bitperfect.core.engine.RipState
 import com.bitperfect.core.engine.RippingEngine
 import com.bitperfect.core.usb.UsbDeviceManager
@@ -58,8 +86,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         usbDeviceManager = UsbDeviceManager(this)
 
         val filter = IntentFilter(ACTION_USB_PERMISSION)
@@ -78,32 +108,101 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
-                Surface(
+            BitPerfectTheme {
+                val windowSizeClass = calculateWindowSizeClass(this)
+                val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+
+                Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (selectedDevice == null) {
-                        DeviceList(devices = devices, onDeviceClick = { device ->
-                            if (usbDeviceManager.hasPermission(device)) {
-                                runDiagnostics(device)
-                            } else {
-                                val permissionIntent = PendingIntent.getBroadcast(
-                                    this, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE
+                    bottomBar = {
+                        if (!isExpanded) {
+                            NavigationBar {
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                                    label = { Text("Home") },
+                                    selected = true,
+                                    onClick = { }
                                 )
-                                usbDeviceManager.requestPermission(device, permissionIntent)
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                    label = { Text("Settings") },
+                                    selected = false,
+                                    onClick = { }
+                                )
+                                NavigationBarItem(
+                                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                    label = { Text("About") },
+                                    selected = false,
+                                    onClick = { }
+                                )
                             }
-                        })
-                    } else {
-                        DiagnosticDashboard(
-                            inquiryData = inquiryData,
-                            capabilities = capabilities,
-                            ripState = ripState,
-                            logs = logs,
-                            onStartRip = {
-                                selectedDevice?.let { startRip(it) }
+                        }
+                    }
+                ) { innerPadding ->
+                    Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                        if (isExpanded) {
+                            NavigationRail(
+                                modifier = Modifier.fillMaxHeight()
+                            ) {
+                                NavigationRailItem(
+                                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                                    label = { Text("Home") },
+                                    selected = true,
+                                    onClick = { }
+                                )
+                                NavigationRailItem(
+                                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                    label = { Text("Settings") },
+                                    selected = false,
+                                    onClick = { }
+                                )
+                                NavigationRailItem(
+                                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                    label = { Text("About") },
+                                    selected = false,
+                                    onClick = { }
+                                )
                             }
-                        )
+                        }
+
+                        Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
+                            AnimatedContent(
+                                targetState = selectedDevice,
+                                transitionSpec = {
+                                    if (targetState != null) {
+                                        (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
+                                            slideOutHorizontally { width -> -width } + fadeOut())
+                                    } else {
+                                        (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
+                                            slideOutHorizontally { width -> width } + fadeOut())
+                                    }.using(SizeTransform(clip = false))
+                                },
+                                label = "ScreenTransition"
+                            ) { targetDevice ->
+                                if (targetDevice == null) {
+                                    DeviceList(devices = devices, onDeviceClick = { device ->
+                                        if (usbDeviceManager.hasPermission(device)) {
+                                            runDiagnostics(device)
+                                        } else {
+                                            val permissionIntent = PendingIntent.getBroadcast(
+                                                this@MainActivity, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE
+                                            )
+                                            usbDeviceManager.requestPermission(device, permissionIntent)
+                                        }
+                                    })
+                                } else {
+                                    DiagnosticDashboard(
+                                        inquiryData = inquiryData,
+                                        capabilities = capabilities,
+                                        ripState = ripState,
+                                        logs = logs,
+                                        onStartRip = {
+                                            selectedDevice?.let { startRip(it) }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
