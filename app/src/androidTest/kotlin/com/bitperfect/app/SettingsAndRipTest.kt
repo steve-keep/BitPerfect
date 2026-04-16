@@ -1,10 +1,13 @@
 package com.bitperfect.app
 
+import android.Manifest
 import android.content.Context
+import android.os.Build
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -15,6 +18,13 @@ class SettingsAndRipTest {
 
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
+
+    @get:Rule
+    val permissionRule: GrantPermissionRule = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        GrantPermissionRule.grant(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        GrantPermissionRule.grant()
+    }
 
     @Before
     fun setup() {
