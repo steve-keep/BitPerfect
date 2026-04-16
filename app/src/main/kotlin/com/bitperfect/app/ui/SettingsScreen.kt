@@ -15,7 +15,8 @@ import com.bitperfect.core.utils.SettingsManager
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onCopyDebugReport: () -> Unit
 ) {
     var isVirtualDriveEnabled by remember { mutableStateOf(settingsManager.isVirtualDriveEnabled) }
     var selectedTestCdIndex by remember { mutableStateOf(settingsManager.selectedTestCdIndex) }
@@ -93,6 +94,23 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            item {
+                Text(
+                    text = "Support & Debug",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+
+            item {
+                PreferenceItem(
+                    title = "Copy Debug Report",
+                    description = "Copy system info, logs, and crash reports to clipboard",
+                    onClick = onCopyDebugReport
+                )
             }
 
             item {

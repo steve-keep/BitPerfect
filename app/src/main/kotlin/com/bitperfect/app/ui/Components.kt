@@ -195,7 +195,8 @@ fun DiagnosticDashboard(
     capabilities: List<String>,
     ripState: RipState,
     logs: List<String>,
-    onStartRip: () -> Unit
+    onStartRip: () -> Unit,
+    onCopyDebugReport: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         ElevatedCard(
@@ -245,11 +246,19 @@ fun DiagnosticDashboard(
             }
         }
 
-        Text(
-            text = "Live Terminal",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Live Terminal",
+                style = MaterialTheme.typography.titleMedium
+            )
+            TextButton(onClick = onCopyDebugReport) {
+                Text("Copy Debug Report")
+            }
+        }
 
         Surface(
             modifier = Modifier

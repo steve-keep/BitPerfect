@@ -53,6 +53,8 @@ import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.DiagnosticDashboard
 import com.bitperfect.app.ui.SettingsScreen
 import com.bitperfect.app.ui.theme.BitPerfectTheme
+import android.content.ClipboardManager
+import android.widget.Toast
 import com.bitperfect.core.engine.*
 import com.bitperfect.core.usb.UsbDeviceManager
 import com.bitperfect.core.utils.SettingsManager
@@ -97,6 +99,7 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class, ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        CrashReporter.initialize(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         usbDeviceManager = UsbDeviceManager(this)
@@ -178,6 +181,9 @@ class MainActivity : ComponentActivity() {
                                 onBack = {
                                     isShowingSettings = false
                                     refreshDevices()
+                                },
+                                onCopyDebugReport = {
+                                    copyDebugReportToClipboard()
                                 }
                             )
                         }
@@ -248,6 +254,9 @@ class MainActivity : ComponentActivity() {
                                             logs = logs,
                                             onStartRip = {
                                                 selectedDevice?.let { startRip(it) }
+                                            },
+                                            onCopyDebugReport = {
+                                                copyDebugReportToClipboard()
                                             }
                                         )
                                     }
@@ -363,6 +372,14 @@ class MainActivity : ComponentActivity() {
         } else {
             addLog("Mode Sense Failed")
         }
+    }
+
+    private fun copyDebugReportToClipboard() {
+        val report = DebugReportManager.generateFullReport(this, logs)
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = android.content.ClipData.newPlainText("BitPerfect Debug Report", report)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "Debug report copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
     private fun startRip(drive: BitPerfectDrive) {
