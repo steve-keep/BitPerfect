@@ -16,7 +16,7 @@ class SettingsAndRipTest {
     @Test
     fun testVirtualDriveToggleAndSelection() {
         // 1. Go to Settings
-        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+        composeTestRule.onNodeWithText("Settings").performClick()
 
         // 2. Toggle "Enable Virtual Drive"
         // Initially it should be off (assuming fresh install/clear prefs)
@@ -48,7 +48,7 @@ class SettingsAndRipTest {
     @Test
     fun testStartRipCrash() {
         // 1. Enable Virtual Drive
-        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+        composeTestRule.onNodeWithText("Settings").performClick()
         composeTestRule.onNodeWithText("Enable Virtual Drive").performClick()
         // Ensure it is enabled (might need to fix it first for this test to pass this point)
         // If it doesn't update, this test might get stuck here.
