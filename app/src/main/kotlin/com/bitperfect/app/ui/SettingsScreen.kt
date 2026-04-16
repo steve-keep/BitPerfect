@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bitperfect.core.utils.SettingsManager
@@ -17,6 +17,9 @@ fun SettingsScreen(
     settingsManager: SettingsManager,
     onBack: () -> Unit
 ) {
+    var isVirtualDriveEnabled by remember { mutableStateOf(settingsManager.isVirtualDriveEnabled) }
+    var selectedTestCdIndex by remember { mutableStateOf(settingsManager.selectedTestCdIndex) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -47,12 +50,15 @@ fun SettingsScreen(
                 PreferenceSwitch(
                     title = "Enable Virtual Drive",
                     description = "Simulate a CD drive for UI testing",
-                    checked = settingsManager.isVirtualDriveEnabled,
-                    onCheckedChange = { settingsManager.isVirtualDriveEnabled = it }
+                    checked = isVirtualDriveEnabled,
+                    onCheckedChange = {
+                        isVirtualDriveEnabled = it
+                        settingsManager.isVirtualDriveEnabled = it
+                    }
                 )
             }
 
-            if (settingsManager.isVirtualDriveEnabled) {
+            if (isVirtualDriveEnabled) {
                 item {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     Text(
@@ -71,8 +77,11 @@ fun SettingsScreen(
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = settingsManager.selectedTestCdIndex == index,
-                            onClick = { settingsManager.selectedTestCdIndex = index }
+                            selected = selectedTestCdIndex == index,
+                            onClick = {
+                                selectedTestCdIndex = index
+                                settingsManager.selectedTestCdIndex = index
+                            }
                         )
                         Column(
                             modifier = Modifier

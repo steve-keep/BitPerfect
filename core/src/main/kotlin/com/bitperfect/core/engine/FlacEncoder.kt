@@ -17,13 +17,20 @@ class FlacEncoder {
         format.setInteger(MediaFormat.KEY_FLAC_COMPRESSION_LEVEL, 5)
 
         val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-        val encoderName = codecList.findEncoderForFormat(format)
+        val encoderName = codecList.findEncoderForFormat(format) ?: run {
+            android.util.Log.e("FlacEncoder", "No FLAC encoder found")
+            return
+        }
 
-        encoder = MediaCodec.createByCodecName(encoderName)
-        encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        encoder?.start()
-
-        outputStream = FileOutputStream(outputPath)
+        try {
+            encoder = MediaCodec.createByCodecName(encoderName)
+            encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            encoder?.start()
+            outputStream = FileOutputStream(outputPath)
+        } catch (e: Exception) {
+            android.util.Log.e("FlacEncoder", "Error initializing encoder: ${e.message}")
+            encoder = null
+        }
     }
 
     fun encode(data: ByteArray, isEndOfStream: Boolean = false) {

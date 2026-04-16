@@ -366,6 +366,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRip(drive: BitPerfectDrive) {
+        if (ripState.isRunning) {
+            addLog("Rip already in progress")
+            return
+        }
+
         val driverToUse = if (drive is BitPerfectDrive.Virtual) {
             virtualScsiDriver.testCd = settingsManager.getSelectedTestCd()
             virtualScsiDriver

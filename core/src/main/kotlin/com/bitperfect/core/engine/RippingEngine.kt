@@ -315,9 +315,13 @@ class RippingEngine(
         val trackResults = mutableListOf<TrackRipResult>()
 
         for (t in firstTrack..lastTrack) {
+            if (t !in 1..99 || trackOffsets[t] == 0) continue
+
             val startLba = trackOffsets[t].toLong()
-            val endLba = if (t < lastTrack) trackOffsets[t + 1].toLong() else trackOffsets[0].toLong()
+            val endLba = if (t < lastTrack && trackOffsets[t+1] != 0) trackOffsets[t + 1].toLong() else trackOffsets[0].toLong()
             val totalTrackSectors = (endLba - startLba).toInt()
+
+            if (totalTrackSectors <= 0) continue
 
             _ripState.value = _ripState.value.copy(
                 currentTrack = t,
@@ -326,7 +330,7 @@ class RippingEngine(
                 status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
             )
 
-            val trackPath = "${basePath}/${metadata.artist}/${metadata.album}/${t.toString().padStart(2, '0')} - ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}.flac"
+            val trackPath = "${basePath}/${metadata.artist}/${metadata.album}/${t.toString().padStart(2, '0')} - ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}.flac".replace(":", "_").replace("*", "_").replace("?", "_")
             File(trackPath).parentFile?.mkdirs()
             flacEncoder.prepare(trackPath, 44100, 2)
 
