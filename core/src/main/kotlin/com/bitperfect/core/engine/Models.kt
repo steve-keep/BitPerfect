@@ -25,9 +25,12 @@ data class TestCd(
     val album: String,
     val tracks: List<String>,
     val firstTrack: Int = 1,
-    val lastTrack: Int = tracks.size
+    val lastTrack: Int = tracks.size,
+    val customTrackOffsets: IntArray? = null
 ) {
     val trackOffsets: IntArray by lazy {
+        if (customTrackOffsets != null) return@lazy customTrackOffsets
+
         val offsets = IntArray(100)
         // Simulate tracks of varying lengths (approx 3-5 mins = 13500-22500 sectors)
         var currentOffset = 150 // Standard Pregap

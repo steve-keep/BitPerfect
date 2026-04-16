@@ -3,15 +3,15 @@ package com.bitperfect.core.engine
 import android.media.MediaCodec
 import android.media.MediaCodecList
 import android.media.MediaFormat
-import java.io.FileOutputStream
+import java.io.OutputStream
 import java.nio.ByteBuffer
 
 class FlacEncoder {
     private var encoder: MediaCodec? = null
-    private var outputStream: FileOutputStream? = null
+    private var outputStream: OutputStream? = null
     private val bufferInfo = MediaCodec.BufferInfo()
 
-    fun prepare(outputPath: String, sampleRate: Int, channels: Int) {
+    fun prepare(outputStream: OutputStream, sampleRate: Int, channels: Int) {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_FLAC, sampleRate, channels)
         format.setInteger(MediaFormat.KEY_BIT_RATE, 128000)
         format.setInteger(MediaFormat.KEY_FLAC_COMPRESSION_LEVEL, 5)
@@ -26,7 +26,7 @@ class FlacEncoder {
             encoder = MediaCodec.createByCodecName(encoderName)
             encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             encoder?.start()
-            outputStream = FileOutputStream(outputPath)
+            this.outputStream = outputStream
         } catch (e: Exception) {
             android.util.Log.e("FlacEncoder", "Error initializing encoder: ${e.message}")
             encoder = null

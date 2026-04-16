@@ -7,10 +7,14 @@ import com.bitperfect.driver.ScsiDriver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import android.content.Context
+import android.net.Uri
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 
 data class RipState(
     val isRunning: Boolean = false,
@@ -40,6 +44,7 @@ class RippingEngine(
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
     suspend fun startBurstRip(
+        context: Context,
         fd: Int,
         outputPath: String,
         scsiDriver: IScsiDriver = defaultScsiDriver,
@@ -65,7 +70,8 @@ class RippingEngine(
         val totalSectors = endLba - startLba
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
-        flacEncoder.prepare(outputPath, 44100, 2)
+        val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
+        flacEncoder.prepare(outputStream, 44100, 2)
 
         for (lba in startLba until endLba) {
             val sectorData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut)
@@ -89,6 +95,7 @@ class RippingEngine(
     }
 
     suspend fun startSecureRip(
+        context: Context,
         fd: Int,
         outputPath: String,
         capabilities: DriveCapabilities,
@@ -113,7 +120,8 @@ class RippingEngine(
         val totalSectors = endLba - startLba
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
-        flacEncoder.prepare(outputPath, 44100, 2)
+        val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
+        flacEncoder.prepare(outputStream, 44100, 2)
 
         for (lba in startLba until endLba) {
             val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
@@ -274,6 +282,7 @@ class RippingEngine(
     }
 
     suspend fun fullRip(
+        context: Context,
         fd: Int,
         basePath: String,
         driveModel: String,
@@ -330,9 +339,15 @@ class RippingEngine(
                 status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
             )
 
-            val trackPath = "${basePath}/${metadata.artist}/${metadata.album}/${t.toString().padStart(2, '0')} - ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}.flac".replace(":", "_").replace("*", "_").replace("?", "_")
-            File(trackPath).parentFile?.mkdirs()
-            flacEncoder.prepare(trackPath, 44100, 2)
+            val sanitizedArtist = sanitizeFileName(metadata.artist)
+            val sanitizedAlbum = sanitizeFileName(metadata.album)
+            val sanitizedTitle = sanitizeFileName(metadata.tracks.getOrNull(t - 1) ?: "Track $t")
+            val fileName = "${t.toString().padStart(2, '0')} - $sanitizedTitle.flac"
+
+            val relativePath = "$sanitizedArtist/$sanitizedAlbum/$fileName"
+            val outputStream = getOutputStreamForPath(context, basePath, relativePath) ?: return@withContext
+
+            flacEncoder.prepare(outputStream, 44100, 2)
 
             val crc32Generator = java.util.zip.CRC32()
             var trackArCrc = 0L
@@ -400,9 +415,45 @@ class RippingEngine(
         )
 
         val logContent = LogGenerator.generateLog(ripSessionInfo)
-        LogGenerator.saveLogToFile("${basePath}/${metadata.artist}/${metadata.album}/rip_log.txt", logContent)
+        val sanitizedArtist = sanitizeFileName(metadata.artist)
+        val sanitizedAlbum = sanitizeFileName(metadata.album)
+        val logRelativePath = "$sanitizedArtist/$sanitizedAlbum/rip_log.txt"
+
+        getOutputStreamForPath(context, basePath, logRelativePath)?.use { it.write(logContent.toByteArray()) }
 
         _ripState.value = _ripState.value.copy(isRunning = false, status = "Full Rip Complete", progress = 1f)
+    }
+
+    private fun sanitizeFileName(name: String): String {
+        return name.replace(":", "_").replace("*", "_").replace("?", "_").replace("/", "_").replace("\\", "_")
+    }
+
+    private fun getOutputStreamForPath(context: Context, basePath: String, relativePath: String? = null): java.io.OutputStream? {
+        val fullPath = if (relativePath != null) "$basePath/$relativePath" else basePath
+
+        return if (basePath.startsWith("content://")) {
+            val rootUri = Uri.parse(basePath)
+            var currentDoc = DocumentFile.fromTreeUri(context, rootUri) ?: return null
+
+            relativePath?.split("/")?.forEachIndexed { index, part ->
+                if (part.isEmpty()) return@forEachIndexed
+                val nextDoc = currentDoc.findFile(part)
+                currentDoc = if (nextDoc == null) {
+                    if (index == relativePath.split("/").lastIndex) {
+                        currentDoc.createFile("application/octet-stream", part) ?: return null
+                    } else {
+                        currentDoc.createDirectory(part) ?: return null
+                    }
+                } else {
+                    nextDoc
+                }
+            }
+            context.contentResolver.openOutputStream(currentDoc.uri)
+        } else {
+            val file = File(fullPath)
+            file.parentFile?.mkdirs()
+            FileOutputStream(file)
+        }
     }
 
     private fun readTocFull(fd: Int, scsiDriver: IScsiDriver, endpointIn: Int, endpointOut: Int): Triple<Int, Int, IntArray>? {

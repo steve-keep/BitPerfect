@@ -2,6 +2,8 @@ package com.bitperfect.app.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,6 +22,22 @@ fun SettingsScreen(
 ) {
     var isVirtualDriveEnabled by remember { mutableStateOf(settingsManager.isVirtualDriveEnabled) }
     var selectedTestCdIndex by remember { mutableStateOf(settingsManager.selectedTestCdIndex) }
+    var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri?.let {
+            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context.contentResolver.takePersistableUriPermission(it, takeFlags)
+
+            val uriString = it.toString()
+            outputFolderUri = uriString
+            settingsManager.outputFolderUri = uriString
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -38,6 +56,23 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
+            item {
+                Text(
+                    text = "Storage",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+
+            item {
+                PreferenceItem(
+                    title = "Output Folder",
+                    description = outputFolderUri ?: "Not set (using app private storage)",
+                    onClick = { folderPickerLauncher.launch(null) }
+                )
+            }
+
             item {
                 Text(
                     text = "Development & Testing",

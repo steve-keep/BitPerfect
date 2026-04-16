@@ -15,7 +15,21 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("selectedTestCdIndex", 0)
         set(value) = prefs.edit().putInt("selectedTestCdIndex", value).commit().let {}
 
+    var outputFolderUri: String?
+        get() = prefs.getString("outputFolderUri", null)
+        set(value) = prefs.edit().putString("outputFolderUri", value).commit().let {}
+
     val testCds = listOf(
+        TestCd(
+            artist = "Nirvana",
+            album = "Smells Like Teen Spirit (Promo)",
+            tracks = listOf("Smells Like Teen Spirit"),
+            customTrackOffsets = IntArray(100).apply {
+                this[1] = 0
+                this[0] = 22500 // ~5 minutes
+                this[2] = 22500 // End of track 1 if lastTrack > 1
+            }
+        ),
         TestCd(
             artist = "Pink Floyd",
             album = "The Dark Side of the Moon",

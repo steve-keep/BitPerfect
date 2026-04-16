@@ -10,8 +10,10 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -60,13 +62,16 @@ import com.bitperfect.core.usb.UsbDeviceManager
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.driver.ScsiDriver
 import kotlinx.coroutines.launch
+import android.content.ServiceConnection
+import android.os.IBinder
 
 class MainActivity : ComponentActivity() {
     private lateinit var usbDeviceManager: UsbDeviceManager
     private lateinit var settingsManager: SettingsManager
     private val scsiDriver = ScsiDriver()
     private val virtualScsiDriver by lazy { VirtualScsiDriver(settingsManager.getSelectedTestCd()) }
-    private val rippingEngine = RippingEngine(scsiDriver)
+    private var rippingService: RippingService? = null
+    private var isBound = false
     private val ACTION_USB_PERMISSION = "com.bitperfect.app.USB_PERMISSION"
 
     private var devices by mutableStateOf(emptyList<BitPerfectDrive>())
@@ -76,6 +81,25 @@ class MainActivity : ComponentActivity() {
     private var inquiryData by mutableStateOf("N/A")
     private var capabilities by mutableStateOf(emptyList<String>())
     private var ripState by mutableStateOf(RipState())
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: android.content.ComponentName?, service: IBinder?) {
+            val binder = service as RippingService.LocalBinder
+            rippingService = binder.getService()
+            isBound = true
+
+            lifecycleScope.launch {
+                rippingService?.rippingEngine?.ripState?.collect {
+                    ripState = it
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(name: android.content.ComponentName?) {
+            isBound = false
+            rippingService = null
+        }
+    }
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -105,6 +129,10 @@ class MainActivity : ComponentActivity() {
         usbDeviceManager = UsbDeviceManager(this)
         settingsManager = SettingsManager(this)
 
+        val serviceIntent = Intent(this, RippingService::class.java)
+        startService(serviceIntent)
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+
         val filter = IntentFilter(ACTION_USB_PERMISSION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(usbReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -114,15 +142,23 @@ class MainActivity : ComponentActivity() {
 
         refreshDevices()
 
-        lifecycleScope.launch {
-            rippingEngine.ripState.collect {
-                ripState = it
-            }
-        }
-
         setContent {
             BitPerfectTheme {
                 val windowSizeClass = calculateWindowSizeClass(this)
+
+                val requestPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { isGranted: Boolean ->
+                    if (!isGranted) {
+                        Toast.makeText(this, "Notification permission is required for ripping progress", Toast.LENGTH_LONG).show()
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
                 val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
 
                 Scaffold(
@@ -395,7 +431,7 @@ class MainActivity : ComponentActivity() {
             scsiDriver
         }
 
-        val outputDir = getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
+        val outputDir = settingsManager.outputFolderUri ?: getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
         addLog("Starting full rip to $outputDir")
 
         val driveCapabilities = DriveCapabilities(
@@ -417,7 +453,7 @@ class MainActivity : ComponentActivity() {
                     try {
                         val fd = connection.fileDescriptor
                         val (endpointIn, endpointOut) = getEndpoints(device)
-                        rippingEngine.fullRip(fd, outputDir, inquiryData, driveCapabilities, driverToUse, endpointIn, endpointOut)
+                        rippingService?.startRip(fd, outputDir, inquiryData, driveCapabilities, driverToUse, endpointIn, endpointOut)
                     } finally {
                         connection.releaseInterface(iface)
                     }
@@ -426,7 +462,7 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 // Virtual Drive
-                rippingEngine.fullRip(999, outputDir, inquiryData, driveCapabilities, driverToUse)
+                rippingService?.startRip(999, outputDir, inquiryData, driveCapabilities, driverToUse, 0x81, 0x01)
             }
         }
     }
@@ -434,5 +470,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(usbReceiver)
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
     }
 }

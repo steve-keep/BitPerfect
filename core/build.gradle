@@ -31,6 +31,7 @@ android {
 
 dependencies {
     implementation project(':driver')
+    implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'androidx.core:core-ktx:1.13.1'
 
     // Ktor for networking

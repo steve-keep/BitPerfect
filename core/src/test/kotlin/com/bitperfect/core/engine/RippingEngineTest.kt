@@ -1,5 +1,6 @@
 package com.bitperfect.core.engine
 
+import android.content.Context
 import com.bitperfect.driver.IScsiDriver
 import com.bitperfect.driver.ScsiDriver
 import android.util.Log
@@ -15,6 +16,7 @@ class RippingEngineTest {
 
     private val scsiDriver = mockk<IScsiDriver>()
     private val flacEncoder = mockk<FlacEncoder>(relaxed = true)
+    private val context = mockk<Context>(relaxed = true)
     private lateinit var rippingEngine: RippingEngine
 
     @Before
@@ -39,7 +41,7 @@ class RippingEngineTest {
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352, any<Int>(), any<Int>(), any<Int>()) } returns sectorData
 
-        rippingEngine.startSecureRip(fd, "test.flac", capabilities)
+        rippingEngine.startSecureRip(context, fd, "test.flac", capabilities)
 
         val state = rippingEngine.ripState.value
         assertEquals("Secure Rip Complete", state.status)
@@ -75,7 +77,7 @@ class RippingEngineTest {
 
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352, any<Int>(), any<Int>(), any<Int>()) } returnsMany responses
 
-        rippingEngine.startSecureRip(fd, "test.flac", capabilities)
+        rippingEngine.startSecureRip(context, fd, "test.flac", capabilities)
 
         val state = rippingEngine.ripState.value
         assertEquals("Secure Rip Complete", state.status)
@@ -97,7 +99,7 @@ class RippingEngineTest {
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352 + 294, any<Int>(), any<Int>(), any<Int>()) } returns sectorDataWithC2
 
-        rippingEngine.startSecureRip(fd, "test.flac", capabilities)
+        rippingEngine.startSecureRip(context, fd, "test.flac", capabilities)
 
         val state = rippingEngine.ripState.value
         assertEquals("Secure Rip Complete", state.status)
