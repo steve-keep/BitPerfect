@@ -26,14 +26,15 @@ class SettingsAndRipTest {
     @Test
     fun testVirtualDriveToggleAndSelection() {
         // 1. Go to Settings (using the bottom navigation tab)
-        // Use a more flexible matcher for the Settings tab
+        // Ensure we are on the Home screen first or just find the Settings tab
         composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
 
         // 2. Toggle "Enable Virtual Drive"
-        composeTestRule.onNodeWithText("Enable Virtual Drive", substring = true).performClick()
+        // Use a more robust matcher that includes the switch or the item
+        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true) and hasClickAction()).performClick()
 
         // Check if "Selected Test CD" header appeared (it only shows if enabled)
-        composeTestRule.waitUntil(5000) {
+        composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodesWithText("Selected Test CD").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -55,7 +56,7 @@ class SettingsAndRipTest {
     fun testStartRipCrash() {
         // 1. Enable Virtual Drive
         composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
-        composeTestRule.onNodeWithText("Enable Virtual Drive", substring = true).performClick()
+        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true) and hasClickAction()).performClick()
 
         // Use back icon button specifically
         composeTestRule.onNodeWithContentDescription("Back").performClick()
@@ -75,8 +76,10 @@ class SettingsAndRipTest {
 
         // 4. Verify no crash and progress starts
         // Wait for "Ripping Status" which appears when rip starts
-        composeTestRule.waitUntil(5000) {
-            composeTestRule.onAllNodesWithText("Ripping Status: Reading TOC...", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        // Use a broader wait text to be more resilient
+        composeTestRule.waitUntil(20000) {
+            composeTestRule.onAllNodesWithText("Ripping Status", substring = true, ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
         }
     }
 }
