@@ -16,3 +16,6 @@ local.properties
 
 # OS
 .DS_Store
+
+# Explicitly include debug keystore for stable signing
+!app/debug.keystore
