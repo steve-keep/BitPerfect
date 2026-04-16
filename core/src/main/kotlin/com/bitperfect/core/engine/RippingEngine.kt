@@ -1,6 +1,7 @@
 package com.bitperfect.core.engine
 
 import com.bitperfect.core.utils.ChecksumUtils
+import com.bitperfect.core.utils.MusicBrainzUtils
 import com.bitperfect.driver.IScsiDriver
 import com.bitperfect.driver.ScsiDriver
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 data class RipState(
     val isRunning: Boolean = false,
@@ -30,7 +32,9 @@ data class DriveCapabilities(
 
 class RippingEngine(
     private val scsiDriver: IScsiDriver,
-    private val flacEncoder: FlacEncoder = FlacEncoder()
+    private val flacEncoder: FlacEncoder = FlacEncoder(),
+    private val metadataService: MetadataService = MetadataService(),
+    private val accurateRipService: AccurateRipService = AccurateRipService()
 ) {
     private val _ripState = MutableStateFlow(RipState())
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
@@ -264,4 +268,162 @@ class RippingEngine(
         }
         return null
     }
+
+    suspend fun fullRip(
+        fd: Int,
+        basePath: String,
+        driveModel: String,
+        capabilities: DriveCapabilities,
+        endpointIn: Int = 0x81,
+        endpointOut: Int = 0x01
+    ) = withContext(Dispatchers.IO) {
+        _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
+
+        val tocResponse = readTocFull(fd, endpointIn, endpointOut)
+        if (tocResponse == null) {
+            _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
+            return@withContext
+        }
+
+        val (firstTrack, lastTrack, trackOffsets) = tocResponse
+        val numTracks = lastTrack - firstTrack + 1
+        _ripState.value = _ripState.value.copy(totalTracks = numTracks, status = "Found $numTracks tracks")
+
+        // Calculate IDs and fetch metadata
+        val discId = MusicBrainzUtils.calculateDiscId(firstTrack, lastTrack, trackOffsets)
+        _ripState.value = _ripState.value.copy(status = "Fetching metadata...")
+        val metadata = metadataService.fetchMetadata(discId)
+
+        val freeDbId = MusicBrainzUtils.calculateFreeDbId(
+            trackOffsets.slice(1..lastTrack).map { it.toLong() }.toLongArray(),
+            trackOffsets[0].toLong()
+        )
+        val arDiscId = accurateRipService.calculateAccurateRipDiscId(
+            trackOffsets.slice(1..lastTrack).map { it.toLong() }.toLongArray(),
+            trackOffsets[0].toLong(),
+            freeDbId
+        )
+
+        _ripState.value = _ripState.value.copy(status = "Fetching AccurateRip data...")
+        val arData = accurateRipService.fetchAccurateRipData(arDiscId)
+
+        val trackResults = mutableListOf<TrackRipResult>()
+
+        for (t in firstTrack..lastTrack) {
+            val startLba = trackOffsets[t].toLong()
+            val endLba = if (t < lastTrack) trackOffsets[t + 1].toLong() else trackOffsets[0].toLong()
+            val totalTrackSectors = (endLba - startLba).toInt()
+
+            _ripState.value = _ripState.value.copy(
+                currentTrack = t,
+                totalSectors = totalTrackSectors.toLong(),
+                currentSector = 0,
+                status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
+            )
+
+            val trackPath = "${basePath}/${metadata.artist}/${metadata.album}/${t.toString().padStart(2, '0')} - ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}.flac"
+            File(trackPath).parentFile?.mkdirs()
+            flacEncoder.prepare(trackPath, 44100, 2)
+
+            val crc32Generator = java.util.zip.CRC32()
+            var trackArCrc = 0L
+
+            for (sectorIndex in 0 until totalTrackSectors) {
+                val lba = startLba + sectorIndex
+                val sectorData = readSectorSecure(fd, lba, capabilities, endpointIn, endpointOut)
+
+                if (sectorData == null) {
+                    _ripState.value = _ripState.value.copy(isRunning = false, status = "Fatal error at track $t, sector $sectorIndex")
+                    return@withContext
+                }
+
+                flacEncoder.encode(sectorData)
+
+                // Update CRCs
+                crc32Generator.update(sectorData)
+                trackArCrc = (trackArCrc + ChecksumUtils.calculateAccurateRipCrc(
+                    sectorData, sectorIndex, totalTrackSectors, t == firstTrack, t == lastTrack
+                )) and 0xFFFFFFFFL
+
+                _ripState.value = _ripState.value.copy(
+                    currentSector = sectorIndex.toLong() + 1,
+                    progress = (sectorIndex + 1).toFloat() / totalTrackSectors,
+                    status = "Secure Ripping track $t: sector ${sectorIndex + 1}/$totalTrackSectors"
+                )
+            }
+
+            flacEncoder.finish()
+
+            // Verify with AccurateRip
+            val arMatches = arData[t]
+            val arStatus = if (arMatches != null) {
+                val match = arMatches.find { it.crc == trackArCrc || it.crc2 == trackArCrc }
+                if (match != null) {
+                    "Accurate (confidence ${match.confidence})"
+                } else {
+                    "Inaccurate (found ${arMatches.size} other pressings)"
+                }
+            } else {
+                "Track not in database"
+            }
+
+            trackResults.add(TrackRipResult(
+                trackNumber = t,
+                status = "Success",
+                reReads = 0, // Simplified for now
+                crc32 = crc32Generator.value,
+                accurateRipCrc = trackArCrc,
+                accurateRipStatus = arStatus
+            ))
+        }
+
+        // Finalize
+        val ripSessionInfo = RipSessionInfo(
+            appVersion = "1.0",
+            date = java.util.Date(),
+            driveModel = driveModel,
+            capabilities = listOf(
+                "C2: ${if (capabilities.supportsC2) "Yes" else "No"}",
+                "Cache: ${if (capabilities.hasCache) "Yes" else "No"}"
+            ),
+            albumMetadata = metadata,
+            trackResults = trackResults
+        )
+
+        val logContent = LogGenerator.generateLog(ripSessionInfo)
+        LogGenerator.saveLogToFile("${basePath}/${metadata.artist}/${metadata.album}/rip_log.txt", logContent)
+
+        _ripState.value = _ripState.value.copy(isRunning = false, status = "Full Rip Complete", progress = 1f)
+    }
+
+    private fun readTocFull(fd: Int, endpointIn: Int, endpointOut: Int): Triple<Int, Int, IntArray>? {
+        // READ TOC command (0x43), format 0 (standard TOC)
+        val tocCmd = byteArrayOf(0x43, 0, 0, 0, 0, 0, 0, 0x03.toByte(), 0x24.toByte(), 0)
+        // We need more data for full TOC. Each entry is 8 bytes. Max 100 tracks + leadout.
+        val tocResponse = scsiDriver.executeScsiCommand(fd, tocCmd, 804, endpointIn, endpointOut)
+        if (tocResponse == null || tocResponse.size < 4) return null
+
+        val firstTrack = tocResponse[2].toInt() and 0xFF
+        val lastTrack = tocResponse[3].toInt() and 0xFF
+        val offsets = IntArray(100)
+
+        for (i in 0 until (lastTrack - firstTrack + 2)) {
+            val base = 4 + i * 8
+            if (base + 8 > tocResponse.size) break
+            val trackNum = tocResponse[base + 2].toInt() and 0xFF
+            val lba = ((tocResponse[base + 4].toInt() and 0xFF) shl 24) or
+                      ((tocResponse[base + 5].toInt() and 0xFF) shl 16) or
+                      ((tocResponse[base + 6].toInt() and 0xFF) shl 8) or
+                      (tocResponse[base + 7].toInt() and 0xFF)
+
+            if (trackNum == 0xAA) { // Lead-out
+                offsets[0] = lba
+            } else if (trackNum in 1..99) {
+                offsets[trackNum] = lba
+            }
+        }
+
+        return Triple(firstTrack, lastTrack, offsets)
+    }
+
 }

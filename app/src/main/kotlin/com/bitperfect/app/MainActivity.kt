@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.DiagnosticDashboard
 import com.bitperfect.app.ui.theme.BitPerfectTheme
+import com.bitperfect.core.engine.DriveCapabilities
 import com.bitperfect.core.engine.RipState
 import com.bitperfect.core.engine.RippingEngine
 import com.bitperfect.core.usb.UsbDeviceManager
@@ -300,12 +301,16 @@ class MainActivity : ComponentActivity() {
         val (endpointIn, endpointOut) = getEndpoints(device)
 
         val outputDir = getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
-        val outputPath = "$outputDir/track1.flac"
-        addLog("Starting rip to $outputPath")
+        addLog("Starting full rip to $outputDir")
+
+        val driveCapabilities = DriveCapabilities(
+            hasCache = true, // Default assumed
+            supportsC2 = capabilities.any { it.contains("Supported") }
+        )
 
         lifecycleScope.launch {
             try {
-                rippingEngine.startBurstRip(fd, outputPath, endpointIn, endpointOut)
+                rippingEngine.fullRip(fd, outputDir, inquiryData, driveCapabilities, endpointIn, endpointOut)
             } finally {
                 connection.releaseInterface(iface)
                 connection.close()
