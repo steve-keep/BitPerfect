@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 android {
@@ -31,6 +32,14 @@ android {
 dependencies {
     implementation project(':driver')
     implementation 'androidx.core:core-ktx:1.13.1'
+
+    // Ktor for networking
+    def ktor_version = "2.3.10"
+    implementation "io.ktor:ktor-client-core:$ktor_version"
+    implementation "io.ktor:ktor-client-okhttp:$ktor_version"
+    implementation "io.ktor:ktor-client-content-negotiation:$ktor_version"
+    implementation "io.ktor:ktor-serialization-kotlinx-json:$ktor_version"
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation "io.mockk:mockk:1.13.10"
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

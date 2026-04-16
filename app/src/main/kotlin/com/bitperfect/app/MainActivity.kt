@@ -48,6 +48,7 @@ import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.DiagnosticDashboard
 import com.bitperfect.app.ui.SettingsScreen
 import com.bitperfect.app.ui.theme.BitPerfectTheme
+import com.bitperfect.core.engine.DriveCapabilities
 import com.bitperfect.core.engine.RipState
 import com.bitperfect.core.engine.RippingEngine
 import com.bitperfect.core.models.BitPerfectDrive
@@ -347,8 +348,12 @@ class MainActivity : ComponentActivity() {
 
     private fun startRip(drive: BitPerfectDrive) {
         val outputDir = getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
-        val outputPath = "$outputDir/track1.flac"
-        addLog("Starting rip to $outputPath")
+        addLog("Starting full rip to $outputDir")
+
+        val driveCapabilities = DriveCapabilities(
+            hasCache = true, // Default assumed
+            supportsC2 = capabilities.any { it.contains("Supported") }
+        )
 
         lifecycleScope.launch {
             when (drive) {
@@ -363,14 +368,14 @@ class MainActivity : ComponentActivity() {
                     val fd = connection.fileDescriptor
                     val (endpointIn, endpointOut) = getEndpoints(drive.device)
                     try {
-                        rippingEngine.startBurstRip(physicalScsiDriver, fd, outputPath, endpointIn, endpointOut)
+                        rippingEngine.fullRip(physicalScsiDriver, fd, outputDir, inquiryData, driveCapabilities, endpointIn, endpointOut)
                     } finally {
                         connection.releaseInterface(iface)
                         connection.close()
                     }
                 }
                 is BitPerfectDrive.Virtual -> {
-                    rippingEngine.startBurstRip(virtualScsiDriver, -1, outputPath, 0, 0)
+                    rippingEngine.fullRip(virtualScsiDriver, -1, outputDir, inquiryData, driveCapabilities, 0, 0)
                 }
             }
         }
