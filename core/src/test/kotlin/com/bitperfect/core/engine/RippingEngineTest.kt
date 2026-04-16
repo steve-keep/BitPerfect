@@ -21,7 +21,7 @@ class RippingEngineTest {
     fun setUp() {
         mockkStatic(Log::class)
         every { Log.w(any(), any<String>()) } returns 0
-        rippingEngine = RippingEngine(flacEncoder)
+        rippingEngine = RippingEngine(scsiDriver, flacEncoder)
     }
 
     @After
@@ -39,7 +39,7 @@ class RippingEngineTest {
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352, any<Int>(), any<Int>(), any<Int>()) } returns sectorData
 
-        rippingEngine.startSecureRip(scsiDriver, fd, "test.flac", capabilities)
+        rippingEngine.startSecureRip(fd, "test.flac", capabilities)
 
         val state = rippingEngine.ripState.value
         assertEquals("Secure Rip Complete", state.status)
@@ -75,7 +75,7 @@ class RippingEngineTest {
 
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352, any<Int>(), any<Int>(), any<Int>()) } returnsMany responses
 
-        rippingEngine.startSecureRip(scsiDriver, fd, "test.flac", capabilities)
+        rippingEngine.startSecureRip(fd, "test.flac", capabilities)
 
         val state = rippingEngine.ripState.value
         assertEquals("Secure Rip Complete", state.status)
@@ -97,7 +97,7 @@ class RippingEngineTest {
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352 + 294, any<Int>(), any<Int>(), any<Int>()) } returns sectorDataWithC2
 
-        rippingEngine.startSecureRip(scsiDriver, fd, "test.flac", capabilities)
+        rippingEngine.startSecureRip(fd, "test.flac", capabilities)
 
         val state = rippingEngine.ripState.value
         assertEquals("Secure Rip Complete", state.status)

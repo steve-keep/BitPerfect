@@ -31,6 +31,7 @@ data class DriveCapabilities(
 )
 
 class RippingEngine(
+    private val scsiDriver: IScsiDriver,
     private val flacEncoder: FlacEncoder = FlacEncoder(),
     private val metadataService: MetadataService = MetadataService(),
     private val accurateRipService: AccurateRipService = AccurateRipService()
@@ -39,7 +40,6 @@ class RippingEngine(
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
     suspend fun startBurstRip(
-        scsiDriver: IScsiDriver,
         fd: Int,
         outputPath: String,
         endpointIn: Int = 0x81,
@@ -47,7 +47,7 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
 
-        val tocData = readToc(scsiDriver, fd, endpointIn, endpointOut)
+        val tocData = readToc(fd, endpointIn, endpointOut)
         if (tocData == null) {
             _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
             return@withContext
@@ -67,7 +67,7 @@ class RippingEngine(
         flacEncoder.prepare(outputPath, 44100, 2)
 
         for (lba in startLba until endLba) {
-            val sectorData = readSector(scsiDriver, fd, lba, endpointIn, endpointOut)
+            val sectorData = readSector(fd, lba, endpointIn, endpointOut)
             if (sectorData == null) {
                 _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read sector $lba")
                 return@withContext
@@ -88,7 +88,6 @@ class RippingEngine(
     }
 
     suspend fun startSecureRip(
-        scsiDriver: IScsiDriver,
         fd: Int,
         outputPath: String,
         capabilities: DriveCapabilities,
@@ -97,7 +96,7 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.value = RipState(isRunning = true, status = "Initializing Secure Rip...")
 
-        val tocData = readToc(scsiDriver, fd, endpointIn, endpointOut)
+        val tocData = readToc(fd, endpointIn, endpointOut)
         if (tocData == null) {
             _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
             return@withContext
@@ -115,7 +114,7 @@ class RippingEngine(
         flacEncoder.prepare(outputPath, 44100, 2)
 
         for (lba in startLba until endLba) {
-            val sectorData = readSectorSecure(scsiDriver, fd, lba, capabilities, endpointIn, endpointOut)
+            val sectorData = readSectorSecure(fd, lba, capabilities, endpointIn, endpointOut)
             if (sectorData == null) {
                 _ripState.value = _ripState.value.copy(isRunning = false, status = "Fatal error at sector $lba")
                 return@withContext
@@ -135,7 +134,7 @@ class RippingEngine(
         _ripState.value = _ripState.value.copy(isRunning = false, status = "Secure Rip Complete", progress = 1f)
     }
 
-    private fun readToc(scsiDriver: IScsiDriver, fd: Int, endpointIn: Int, endpointOut: Int): Pair<Int, Int>? {
+    private fun readToc(fd: Int, endpointIn: Int, endpointOut: Int): Pair<Int, Int>? {
         val tocCmd = byteArrayOf(0x43, 0, 0, 0, 0, 0, 0, 0, 18, 0)
         val tocResponse = scsiDriver.executeScsiCommand(fd, tocCmd, 18, endpointIn, endpointOut)
         if (tocResponse == null || tocResponse.size < 4) return null
@@ -143,7 +142,6 @@ class RippingEngine(
     }
 
     private fun readSector(
-        scsiDriver: IScsiDriver,
         fd: Int,
         lba: Long,
         endpointIn: Int,
@@ -168,7 +166,6 @@ class RippingEngine(
     }
 
     private fun readSectorSecure(
-        scsiDriver: IScsiDriver,
         fd: Int,
         lba: Long,
         capabilities: DriveCapabilities,
@@ -176,7 +173,7 @@ class RippingEngine(
         endpointOut: Int
     ): ByteArray? {
         // Pass 1
-        var data1 = readSector(scsiDriver, fd, lba, endpointIn, endpointOut, capabilities.supportsC2) ?: return null
+        var data1 = readSector(fd, lba, endpointIn, endpointOut, capabilities.supportsC2) ?: return null
 
         // If C2 is supported, we can potentially trust it if no errors reported
         if (capabilities.supportsC2 && !hasC2Errors(data1)) {
@@ -184,11 +181,11 @@ class RippingEngine(
         }
 
         if (capabilities.hasCache) {
-            flushCache(scsiDriver, fd, lba, capabilities, endpointIn, endpointOut)
+            flushCache(fd, lba, capabilities, endpointIn, endpointOut)
         }
 
         // Pass 2
-        var data2 = readSector(scsiDriver, fd, lba, endpointIn, endpointOut, capabilities.supportsC2) ?: return null
+        var data2 = readSector(fd, lba, endpointIn, endpointOut, capabilities.supportsC2) ?: return null
 
         if (compareSectors(data1, data2)) {
             return if (capabilities.supportsC2) stripC2(data1) else data1
@@ -204,10 +201,10 @@ class RippingEngine(
             _ripState.value = _ripState.value.copy(reReads = i, status = "Re-reading sector $lba (attempt $i)")
 
             if (capabilities.hasCache) {
-                flushCache(scsiDriver, fd, lba, capabilities, endpointIn, endpointOut)
+                flushCache(fd, lba, capabilities, endpointIn, endpointOut)
             }
 
-            val newData = readSector(scsiDriver, fd, lba, endpointIn, endpointOut, capabilities.supportsC2) ?: continue
+            val newData = readSector(fd, lba, endpointIn, endpointOut, capabilities.supportsC2) ?: continue
             attempts.add(newData)
 
             // Statistical majority: find most frequent
@@ -222,11 +219,11 @@ class RippingEngine(
         return if (capabilities.supportsC2) stripC2(data1) else data1 // Fallback
     }
 
-    private fun flushCache(scsiDriver: IScsiDriver, fd: Int, currentLba: Long, @Suppress("UNUSED_PARAMETER") capabilities: DriveCapabilities, endpointIn: Int, endpointOut: Int) {
+    private fun flushCache(fd: Int, currentLba: Long, @Suppress("UNUSED_PARAMETER") capabilities: DriveCapabilities, endpointIn: Int, endpointOut: Int) {
         // Read a sector far away (e.g. currentLba + 1000)
         // In a real implementation, this should be carefully chosen based on cache size
         val flushLba = currentLba + 1000
-        readSector(scsiDriver, fd, flushLba, endpointIn, endpointOut, false)
+        readSector(fd, flushLba, endpointIn, endpointOut, false)
     }
 
     private fun hasC2Errors(data: ByteArray): Boolean {
@@ -273,7 +270,6 @@ class RippingEngine(
     }
 
     suspend fun fullRip(
-        scsiDriver: IScsiDriver,
         fd: Int,
         basePath: String,
         driveModel: String,
@@ -283,7 +279,7 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
 
-        val tocResponse = readTocFull(scsiDriver, fd, endpointIn, endpointOut)
+        val tocResponse = readTocFull(fd, endpointIn, endpointOut)
         if (tocResponse == null) {
             _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
             return@withContext
@@ -334,7 +330,7 @@ class RippingEngine(
 
             for (sectorIndex in 0 until totalTrackSectors) {
                 val lba = startLba + sectorIndex
-                val sectorData = readSectorSecure(scsiDriver, fd, lba, capabilities, endpointIn, endpointOut)
+                val sectorData = readSectorSecure(fd, lba, capabilities, endpointIn, endpointOut)
 
                 if (sectorData == null) {
                     _ripState.value = _ripState.value.copy(isRunning = false, status = "Fatal error at track $t, sector $sectorIndex")
@@ -400,7 +396,7 @@ class RippingEngine(
         _ripState.value = _ripState.value.copy(isRunning = false, status = "Full Rip Complete", progress = 1f)
     }
 
-    private fun readTocFull(scsiDriver: IScsiDriver, fd: Int, endpointIn: Int, endpointOut: Int): Triple<Int, Int, IntArray>? {
+    private fun readTocFull(fd: Int, endpointIn: Int, endpointOut: Int): Triple<Int, Int, IntArray>? {
         // READ TOC command (0x43), format 0 (standard TOC)
         val tocCmd = byteArrayOf(0x43, 0, 0, 0, 0, 0, 0, 0x03.toByte(), 0x24.toByte(), 0)
         // We need more data for full TOC. Each entry is 8 bytes. Max 100 tracks + leadout.

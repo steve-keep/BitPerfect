@@ -46,31 +46,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.DiagnosticDashboard
-import com.bitperfect.app.ui.SettingsScreen
 import com.bitperfect.app.ui.theme.BitPerfectTheme
 import com.bitperfect.core.engine.DriveCapabilities
 import com.bitperfect.core.engine.RipState
 import com.bitperfect.core.engine.RippingEngine
-import com.bitperfect.core.models.BitPerfectDrive
-import com.bitperfect.core.settings.SettingsManager
 import com.bitperfect.core.usb.UsbDeviceManager
-import com.bitperfect.core.virtual.TestCdData
-import com.bitperfect.core.virtual.VirtualScsiDriver
-import com.bitperfect.driver.IScsiDriver
 import com.bitperfect.driver.ScsiDriver
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var usbDeviceManager: UsbDeviceManager
-    private lateinit var settingsManager: SettingsManager
-    private val physicalScsiDriver = ScsiDriver()
-    private val virtualScsiDriver = VirtualScsiDriver { TestCdData.CDs[settingsManager.selectedTestCdIndex] }
-    private val rippingEngine = RippingEngine()
+    private val scsiDriver = ScsiDriver()
+    private val rippingEngine = RippingEngine(scsiDriver)
     private val ACTION_USB_PERMISSION = "com.bitperfect.app.USB_PERMISSION"
 
-    private var devices by mutableStateOf(emptyList<BitPerfectDrive>())
-    private var selectedDevice by mutableStateOf<BitPerfectDrive?>(null)
-    private var showSettings by mutableStateOf(false)
+    private var devices by mutableStateOf(emptyList<UsbDevice>())
+    private var selectedDevice by mutableStateOf<UsbDevice?>(null)
     private var logs by mutableStateOf(listOf("App started"))
     private var inquiryData by mutableStateOf("N/A")
     private var capabilities by mutableStateOf(emptyList<String>())
@@ -87,7 +78,7 @@ class MainActivity : ComponentActivity() {
                         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     }
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        device?.let { runDiagnostics(BitPerfectDrive.Physical(it)) }
+                        device?.let { runDiagnostics(it) }
                     } else {
                         addLog("Permission denied for device $device")
                     }
@@ -101,7 +92,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         usbDeviceManager = UsbDeviceManager(this)
-        settingsManager = SettingsManager(this)
 
         val filter = IntentFilter(ACTION_USB_PERMISSION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -178,69 +168,39 @@ class MainActivity : ComponentActivity() {
 
                         Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
                             AnimatedContent(
-                                targetState = when {
-                                    showSettings -> "settings"
-                                    selectedDevice != null -> "diagnostics"
-                                    else -> "list"
-                                },
+                                targetState = selectedDevice,
                                 transitionSpec = {
-                                    (slideInHorizontally { width -> if (targetState == "list") -width else width } + fadeIn()).togetherWith(
-                                        slideOutHorizontally { width -> if (targetState == "list") width else -width } + fadeOut())
-                                    .using(SizeTransform(clip = false))
+                                    if (targetState != null) {
+                                        (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
+                                            slideOutHorizontally { width -> -width } + fadeOut())
+                                    } else {
+                                        (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
+                                            slideOutHorizontally { width -> width } + fadeOut())
+                                    }.using(SizeTransform(clip = false))
                                 },
                                 label = "ScreenTransition"
-                            ) { screen ->
-                                when (screen) {
-                                    "settings" -> {
-                                        SettingsScreen(
-                                            isVirtualDriveEnabled = settingsManager.isVirtualDriveEnabled,
-                                            onVirtualDriveToggle = {
-                                                settingsManager.isVirtualDriveEnabled = it
-                                                refreshDevices()
-                                            },
-                                            selectedTestCdIndex = settingsManager.selectedTestCdIndex,
-                                            onTestCdSelected = {
-                                                settingsManager.selectedTestCdIndex = it
-                                                refreshDevices()
-                                            },
-                                            onBack = { showSettings = false }
-                                        )
-                                    }
-                                    "list" -> {
-                                        DeviceList(
-                                            devices = devices,
-                                            onDeviceClick = { drive ->
-                                                when (drive) {
-                                                    is BitPerfectDrive.Physical -> {
-                                                        if (usbDeviceManager.hasPermission(drive.device)) {
-                                                            runDiagnostics(drive)
-                                                        } else {
-                                                            val permissionIntent = PendingIntent.getBroadcast(
-                                                                this@MainActivity, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE
-                                                            )
-                                                            usbDeviceManager.requestPermission(drive.device, permissionIntent)
-                                                        }
-                                                    }
-                                                    is BitPerfectDrive.Virtual -> {
-                                                        runDiagnostics(drive)
-                                                    }
-                                                }
-                                            },
-                                            onSettingsClick = { showSettings = true }
-                                        )
-                                    }
-                                    "diagnostics" -> {
-                                        DiagnosticDashboard(
-                                            inquiryData = inquiryData,
-                                            capabilities = capabilities,
-                                            ripState = ripState,
-                                            logs = logs,
-                                            onStartRip = {
-                                                selectedDevice?.let { startRip(it) }
-                                            },
-                                            onBack = { selectedDevice = null }
-                                        )
-                                    }
+                            ) { targetDevice ->
+                                if (targetDevice == null) {
+                                    DeviceList(devices = devices, onDeviceClick = { device ->
+                                        if (usbDeviceManager.hasPermission(device)) {
+                                            runDiagnostics(device)
+                                        } else {
+                                            val permissionIntent = PendingIntent.getBroadcast(
+                                                this@MainActivity, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE
+                                            )
+                                            usbDeviceManager.requestPermission(device, permissionIntent)
+                                        }
+                                    })
+                                } else {
+                                    DiagnosticDashboard(
+                                        inquiryData = inquiryData,
+                                        capabilities = capabilities,
+                                        ripState = ripState,
+                                        logs = logs,
+                                        onStartRip = {
+                                            selectedDevice?.let { startRip(it) }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -251,15 +211,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshDevices() {
-        val physicalDevices = usbDeviceManager.getCompatibleDevices().map { BitPerfectDrive.Physical(it) }
-        val virtualDevices = if (settingsManager.isVirtualDriveEnabled) {
-            val cd = TestCdData.CDs[settingsManager.selectedTestCdIndex]
-            listOf(BitPerfectDrive.Virtual(settingsManager.selectedTestCdIndex, cd.vendor, cd.product))
-        } else {
-            emptyList()
-        }
-        devices = physicalDevices + virtualDevices
-        addLog("Found ${devices.size} compatible devices (${physicalDevices.size} physical, ${virtualDevices.size} virtual)")
+        devices = usbDeviceManager.getCompatibleDevices()
+        addLog("Found ${devices.size} compatible devices")
     }
 
     private fun addLog(message: String) {
@@ -283,40 +236,32 @@ class MainActivity : ComponentActivity() {
         return UsbEndpoints(endpointIn, endpointOut)
     }
 
-    private fun runDiagnostics(drive: BitPerfectDrive) {
-        selectedDevice = drive
-        addLog("Running diagnostics for ${drive.name}")
+    private fun runDiagnostics(device: UsbDevice) {
+        selectedDevice = device
+        addLog("Running diagnostics for ${device.deviceName}")
 
-        var connection: android.hardware.usb.UsbDeviceConnection? = null
-        var iface: android.hardware.usb.UsbInterface? = null
-
-        val (driver, fd, endpointIn, endpointOut) = when (drive) {
-            is BitPerfectDrive.Physical -> {
-                connection = usbDeviceManager.openDevice(drive.device)
-                if (connection == null) {
-                    addLog("Failed to open device connection")
-                    return
-                }
-                iface = drive.device.getInterface(0)
-                if (!connection.claimInterface(iface, true)) {
-                    addLog("Failed to claim interface")
-                    connection.close()
-                    return
-                }
-                val eps = getEndpoints(drive.device)
-                @Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
-                val fd = connection!!.fileDescriptor
-                addLog("Device opened, fd: $fd")
-                Quad(physicalScsiDriver, fd, eps.endpointIn, eps.endpointOut)
-            }
-            is BitPerfectDrive.Virtual -> {
-                Quad(virtualScsiDriver, -1, 0, 0)
-            }
+        val connection = usbDeviceManager.openDevice(device)
+        if (connection == null) {
+            addLog("Failed to open device connection")
+            return
         }
+
+        val iface = device.getInterface(0)
+        if (!connection.claimInterface(iface, true)) {
+            addLog("Failed to claim interface")
+            connection.close()
+            return
+        }
+
+        val fd = connection.fileDescriptor
+        addLog("Device opened, fd: $fd")
+
+        val (endpointIn, endpointOut) = getEndpoints(device)
+        addLog("Endpoints: In=0x${Integer.toHexString(endpointIn)}, Out=0x${Integer.toHexString(endpointOut)}")
 
         // 1. INQUIRY
         val inquiryCmd = byteArrayOf(0x12, 0, 0, 0, 36, 0)
-        val inquiryResponse = driver.executeScsiCommand(fd, inquiryCmd, 36, endpointIn, endpointOut)
+        val inquiryResponse = scsiDriver.executeScsiCommand(fd, inquiryCmd, 36, endpointIn, endpointOut)
         if (inquiryResponse != null) {
             val vendor = String(inquiryResponse.sliceArray(8 until 16)).trim()
             val product = String(inquiryResponse.sliceArray(16 until 32)).trim()
@@ -329,7 +274,7 @@ class MainActivity : ComponentActivity() {
 
         // 2. MODE SENSE (C2 Support)
         val modeSenseCmd = byteArrayOf(0x5A, 0, 0x2A, 0, 0, 0, 0, 0, 30, 0)
-        val modeSenseResponse = driver.executeScsiCommand(fd, modeSenseCmd, 30, endpointIn, endpointOut)
+        val modeSenseResponse = scsiDriver.executeScsiCommand(fd, modeSenseCmd, 30, endpointIn, endpointOut)
         if (modeSenseResponse != null) {
             val c2Support = if (modeSenseResponse[10].toInt() and 0x01 != 0) "Supported" else "Not Supported"
             capabilities = listOf("C2 Error Pointers: $c2Support")
@@ -338,15 +283,23 @@ class MainActivity : ComponentActivity() {
             addLog("Mode Sense Failed")
         }
 
-        if (connection != null && iface != null) {
-            connection.releaseInterface(iface)
-            connection.close()
-        }
+        connection.releaseInterface(iface)
+        connection.close()
     }
 
-    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+    private fun startRip(device: UsbDevice) {
+        val connection = usbDeviceManager.openDevice(device) ?: return
 
-    private fun startRip(drive: BitPerfectDrive) {
+        val iface = device.getInterface(0)
+        if (!connection.claimInterface(iface, true)) {
+            addLog("Failed to claim interface for ripping")
+            connection.close()
+            return
+        }
+
+        val fd = connection.fileDescriptor
+        val (endpointIn, endpointOut) = getEndpoints(device)
+
         val outputDir = getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
         addLog("Starting full rip to $outputDir")
 
@@ -356,27 +309,11 @@ class MainActivity : ComponentActivity() {
         )
 
         lifecycleScope.launch {
-            when (drive) {
-                is BitPerfectDrive.Physical -> {
-                    val connection = usbDeviceManager.openDevice(drive.device) ?: return@launch
-                    val iface = drive.device.getInterface(0)
-                    if (!connection.claimInterface(iface, true)) {
-                        addLog("Failed to claim interface for ripping")
-                        connection.close()
-                        return@launch
-                    }
-                    val fd = connection.fileDescriptor
-                    val (endpointIn, endpointOut) = getEndpoints(drive.device)
-                    try {
-                        rippingEngine.fullRip(physicalScsiDriver, fd, outputDir, inquiryData, driveCapabilities, endpointIn, endpointOut)
-                    } finally {
-                        connection.releaseInterface(iface)
-                        connection.close()
-                    }
-                }
-                is BitPerfectDrive.Virtual -> {
-                    rippingEngine.fullRip(virtualScsiDriver, -1, outputDir, inquiryData, driveCapabilities, 0, 0)
-                }
+            try {
+                rippingEngine.fullRip(fd, outputDir, inquiryData, driveCapabilities, endpointIn, endpointOut)
+            } finally {
+                connection.releaseInterface(iface)
+                connection.close()
             }
         }
     }
