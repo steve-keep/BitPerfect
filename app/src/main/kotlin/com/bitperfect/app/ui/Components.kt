@@ -147,12 +147,6 @@ fun DeviceList(
     onDeviceClick: (UsbDevice) -> Unit
 ) {
     Column {
-        Text(
-            text = "Select USB Drive",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
-
         if (devices.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No USB drives found", style = MaterialTheme.typography.bodyLarge)
@@ -198,12 +192,6 @@ fun DiagnosticDashboard(
     onStartRip: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Drive Diagnostics",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
-
         ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
