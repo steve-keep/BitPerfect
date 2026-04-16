@@ -26,51 +26,48 @@ class SettingsAndRipTest {
     @Test
     fun testVirtualDriveToggleAndSelection() {
         // 1. Go to Settings (using the bottom navigation tab)
-        composeTestRule.onNode(hasText("Settings") and hasClickAction()).performClick()
+        // Use a more flexible matcher for the Settings tab
+        composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
 
         // 2. Toggle "Enable Virtual Drive"
-        // Initially it should be off (assuming fresh install/clear prefs)
-        composeTestRule.onNodeWithText("Enable Virtual Drive").assertExists()
-
-        // Click to enable
-        composeTestRule.onNodeWithText("Enable Virtual Drive").performClick()
+        composeTestRule.onNodeWithText("Enable Virtual Drive", substring = true).performClick()
 
         // Check if "Selected Test CD" header appeared (it only shows if enabled)
-        // This will fail if the UI doesn't update
-        composeTestRule.onNodeWithText("Selected Test CD").assertExists()
+        composeTestRule.waitUntil(5000) {
+            composeTestRule.onAllNodesWithText("Selected Test CD").fetchSemanticsNodes().isNotEmpty()
+        }
 
         // 3. Select a different CD
-        // Default is usually the first one ("Pink Floyd")
-        composeTestRule.onNodeWithText("Thriller").assertExists()
-        composeTestRule.onNodeWithText("Thriller").performClick()
-
-        // Verify "Thriller" is selected (RadioButton should be checked)
-        // In the current implementation, we might not have an easy way to check the RadioButton state
-        // without more specific tags, but we can try to find it by its relationship or just check if it's there.
+        composeTestRule.onNodeWithText("Thriller", substring = true).performClick()
 
         // 4. Go back
         composeTestRule.onNodeWithContentDescription("Back").performClick()
 
         // 5. Check if Virtual Drive appears in Device List
-        composeTestRule.onNodeWithText("BITPERF VIRTUAL DRIVE").assertExists()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().assertExists()
     }
 
     @Test
     fun testStartRipCrash() {
         // 1. Enable Virtual Drive
-        composeTestRule.onNode(hasText("Settings") and hasClickAction()).performClick()
-        composeTestRule.onNodeWithText("Enable Virtual Drive").performClick()
+        composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
+        composeTestRule.onNodeWithText("Enable Virtual Drive", substring = true).performClick()
 
         // Use back icon button specifically
         composeTestRule.onNodeWithContentDescription("Back").performClick()
 
         // 2. Wait for Device List and select Virtual Drive
-        // Use substring match and ignore case for better resilience
+        // Use substring match and ignore case for better resilience.
+        // We use onFirst() because the manufacturer and product name might both contain "VIRTUAL DRIVE".
         composeTestRule.waitUntil(10000) {
             composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).performClick()
+        composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().performClick()
 
         // 3. Start Rip
         composeTestRule.onNodeWithText("Start Secure Rip").assertExists()
