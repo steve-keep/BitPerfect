@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.hardware.usb.UsbDevice
 import com.bitperfect.core.engine.RipState
+import com.bitperfect.core.models.BitPerfectDrive
 
 @Composable
 fun PreferenceItem(
@@ -143,43 +146,52 @@ fun BitPerfectTextField(
 
 @Composable
 fun DeviceList(
-    devices: List<UsbDevice>,
-    onDeviceClick: (UsbDevice) -> Unit
+    devices: List<BitPerfectDrive>,
+    onDeviceClick: (BitPerfectDrive) -> Unit,
+    onSettingsClick: () -> Unit = {}
 ) {
     Column {
-        Text(
-            text = "Select USB Drive",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Select Drive",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            IconButton(onClick = onSettingsClick) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings")
+            }
+        }
 
         if (devices.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No USB drives found", style = MaterialTheme.typography.bodyLarge)
+                Text("No drives found", style = MaterialTheme.typography.bodyLarge)
             }
         }
 
         LazyColumn {
-            items(devices) { device ->
+            items(devices) { drive ->
                 ElevatedCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    onClick = { onDeviceClick(device) }
+                    onClick = { onDeviceClick(drive) }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = device.productName ?: "Unknown Drive",
+                            text = drive.name,
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            text = "${device.manufacturerName} (${device.vendorId}:${device.productId})",
+                            text = drive.manufacturer ?: "Unknown Manufacturer",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Path: ${device.deviceName}",
+                            text = "ID: ${drive.identifier}",
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -195,14 +207,23 @@ fun DiagnosticDashboard(
     capabilities: List<String>,
     ripState: RipState,
     logs: List<String>,
-    onStartRip: () -> Unit
+    onStartRip: () -> Unit,
+    onBack: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Drive Diagnostics",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text(
+                text = "Drive Diagnostics",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
 
         ElevatedCard(
             modifier = Modifier
