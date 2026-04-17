@@ -52,6 +52,10 @@ class RippingEngine(
     private val _ripState = MutableStateFlow(RipState())
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
+    fun reset() {
+        _ripState.value = RipState()
+    }
+
     fun cancel() {
         _ripState.update { it.copy(isRunning = false, status = "Cancelled") }
     }

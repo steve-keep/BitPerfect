@@ -363,7 +363,8 @@ fun DiagnosticDashboard(
                 .verticalScroll(rememberScrollState())
         ) {
             // Ripping Status
-            if (ripState.isRunning || ripState.status.contains("Error") || ripState.status.contains("Complete")) {
+            // Show if running, or if we have an active session (status is not Idle)
+            if (ripState.isRunning || (ripState.status != "Idle" && ripState.status != "Ready")) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -375,7 +376,8 @@ fun DiagnosticDashboard(
                         Text(
                             text = "Ripping Status: ${ripState.status}",
                             style = MaterialTheme.typography.titleMedium,
-                            color = if (ripState.status.contains("Error")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            color = if (ripState.status.contains("Error") || ripState.status.contains("Failed"))
+                                MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                         if (ripState.totalSectors > 0) {
                             LinearProgressIndicator(
@@ -416,7 +418,7 @@ fun DiagnosticDashboard(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    val info = if (driveCapabilities != null) "${driveCapabilities.vendor} ${driveCapabilities.product} (Rev: ${driveCapabilities.revision})" else "Run diagnostics to detect drive"
+                    val info = if (driveCapabilities != null) "${driveCapabilities.vendor} ${driveCapabilities.product} (Rev: ${driveCapabilities.revision})" else "Detecting drive..."
                     Text(text = info, style = MaterialTheme.typography.titleMedium)
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -504,7 +506,7 @@ fun DiagnosticDashboard(
             }
 
             // Rip Button
-            if (!ripState.isRunning) {
+            if (!ripState.isRunning && (ripState.progress == 0f || ripState.progress == 1f || ripState.status.contains("Error") || ripState.status.contains("Failed"))) {
                 Button(
                     onClick = onStartRip,
                     enabled = ripState.driveStatus == "Ready" && !ripState.isTrayOperationInProgress,

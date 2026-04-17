@@ -37,7 +37,7 @@ class TocReader(private val scsiDriver: IScsiDriver) {
             if (base + 8 > response.size) break
 
             val controlAdr = response[base + 1].toInt() and 0xFF
-            val adr = (controlAdr shr 4) and 0x0F
+            // ADR is in bits 4-7, Control is in bits 0-3
             val control = controlAdr and 0x0F
 
             val trackNum = response[base + 2].toInt() and 0xFF
@@ -47,6 +47,7 @@ class TocReader(private val scsiDriver: IScsiDriver) {
             val f = response[base + 7].toInt() and 0xFF
 
             val lba = msfToLba(m, s, f)
+            // Control bit 2 (0x04) indicates data track if set
             val isAudio = (control and 0x04) == 0
 
             if (trackNum == 0xAA) {
