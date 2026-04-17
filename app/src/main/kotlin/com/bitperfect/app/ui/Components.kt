@@ -260,7 +260,8 @@ fun DiagnosticDashboard(
     onStartRip: () -> Unit,
     onEject: () -> Unit,
     onLoadTray: () -> Unit,
-    onCopyDebugReport: () -> Unit
+    onCopyDebugReport: () -> Unit,
+    onRetry: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Tonal Layering: Cards on background
@@ -353,6 +354,83 @@ fun DiagnosticDashboard(
                         Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Load Tray")
+                    }
+                }
+            }
+        }
+
+
+        // Track List / Error State
+        if (ripState.tocError != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.errorContainer
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Close, contentDescription = "Error", tint = MaterialTheme.colorScheme.onErrorContainer)
+                    Spacer(Modifier.height(8.dp))
+                    Text(text = ripState.tocError ?: "Error", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = onRetry) {
+                        Text("Retry")
+                    }
+                }
+            }
+        } else if (ripState.discToc != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) // Take up space instead of terminal
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text(
+                        text = "Track List",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(ripState.discToc?.tracks ?: emptyList()) { track ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = "${track.number}.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(32.dp))
+                                    Text(
+                                        text = if (track.isAudio) "Audio" else "Data",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small).padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                val seconds = track.durationSectors / 75
+                                val m = seconds / 60
+                                val s = seconds % 60
+                                Text(text = String.format("%d:%02d", m, s), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        item {
+                            Spacer(Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(text = "Total Duration", style = MaterialTheme.typography.titleSmall)
+                                val totalSeconds = ripState.discToc?.totalDurationSectors?.div(75) ?: 0
+                                val tm = totalSeconds / 60
+                                val ts = totalSeconds % 60
+                                Text(text = String.format("%d:%02d", tm, ts), style = MaterialTheme.typography.titleSmall)
+                            }
+                        }
                     }
                 }
             }

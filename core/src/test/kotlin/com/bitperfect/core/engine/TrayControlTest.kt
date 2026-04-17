@@ -47,11 +47,17 @@ class TrayControlTest {
         val fd = 1
         val loadCmd = byteArrayOf(0x1B, 0, 0, 0, 0x03, 0)
         val turCmd = byteArrayOf(0, 0, 0, 0, 0, 0)
+        val tocCmd = byteArrayOf(0x43.toByte(), 0x02.toByte(), 0, 0, 0, 0, 0, 0x03.toByte(), 0x24.toByte(), 0)
 
         // Mock successful load command
         every { scsiDriver.executeScsiCommand(fd, loadCmd, 0, any(), any(), any()) } returns ByteArray(0)
         // Mock TUR to return success after load
         every { scsiDriver.executeScsiCommand(fd, turCmd, 0, any(), any(), any()) } returns ByteArray(0)
+        // Mock READ TOC to return a small dummy payload so it doesn't return null
+        val tocResp = ByteArray(804)
+        tocResp[0] = 0 // Length MSB
+        tocResp[1] = 0x0A // Length LSB (valid)
+        every { scsiDriver.executeScsiCommand(fd, match { it.contentEquals(tocCmd) }, 804, any(), any(), any()) } returns tocResp
 
         rippingEngine.loadTray(fd, scsiDriver)
 

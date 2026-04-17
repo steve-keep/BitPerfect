@@ -107,16 +107,18 @@ class RippingService : Service() {
         fd: Int,
         driverToUse: com.bitperfect.driver.IScsiDriver,
         endpointIn: Int,
-        endpointOut: Int
+        endpointOut: Int,
+        forceRefresh: Boolean = false
     ) {
-        rippingEngine.pollDriveStatus(fd, driverToUse, endpointIn, endpointOut)
+        rippingEngine.pollDriveStatus(fd, driverToUse, endpointIn, endpointOut, forceRefresh)
     }
 
     suspend fun ejectDisc(
         fd: Int,
         driverToUse: com.bitperfect.driver.IScsiDriver,
         endpointIn: Int,
-        endpointOut: Int
+        endpointOut: Int,
+        forceRefresh: Boolean = false
     ) {
         rippingEngine.ejectDisc(fd, driverToUse, endpointIn, endpointOut)
     }
@@ -125,7 +127,8 @@ class RippingService : Service() {
         fd: Int,
         driverToUse: com.bitperfect.driver.IScsiDriver,
         endpointIn: Int,
-        endpointOut: Int
+        endpointOut: Int,
+        forceRefresh: Boolean = false
     ) {
         rippingEngine.loadTray(fd, driverToUse, endpointIn, endpointOut)
     }
@@ -141,7 +144,8 @@ class RippingService : Service() {
         capabilities: DriveCapabilities,
         driverToUse: com.bitperfect.driver.IScsiDriver,
         endpointIn: Int,
-        endpointOut: Int
+        endpointOut: Int,
+        forceRefresh: Boolean = false
     ) {
         ripJob = serviceScope.launch {
             rippingEngine.fullRip(this@RippingService, fd, basePath, driveModel, capabilities, driverToUse, endpointIn, endpointOut)
