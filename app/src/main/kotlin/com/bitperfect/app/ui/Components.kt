@@ -359,7 +359,7 @@ fun DiagnosticDashboard(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
             modifier = Modifier
-                .weight(1f, fill = false)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
         ) {
             // Tonal Layering: Cards on background

@@ -80,11 +80,18 @@ class SettingsAndRipTest {
         }
         composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().performClick()
 
-        // 3. Start Rip
-        composeTestRule.onNodeWithText("Start Secure Rip").assertExists()
-        composeTestRule.onNodeWithText("Start Secure Rip").performClick()
+        // 3. Wait for "Ready" status
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("Ready", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
 
-        // 4. Verify no crash and progress starts
+        // 4. Start Rip
+        composeTestRule.onNode(hasText("Start Secure Rip", substring = true) and hasClickAction()).assertExists()
+        composeTestRule.onNode(hasText("Start Secure Rip", substring = true) and hasClickAction()).assertIsEnabled()
+        composeTestRule.onNode(hasText("Start Secure Rip", substring = true) and hasClickAction()).performClick()
+
+        // 5. Verify no crash and progress starts
         // Wait for "Ripping Status" which appears when rip starts
         // Use a broader wait text to be more resilient
         composeTestRule.waitUntil(20000) {

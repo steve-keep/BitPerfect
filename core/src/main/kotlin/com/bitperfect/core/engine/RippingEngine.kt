@@ -317,7 +317,7 @@ class RippingEngine(
         var accurateStream = false
         if (modeSenseResponse != null && modeSenseResponse.size >= 12) {
             supportsC2 = (modeSenseResponse[10].toInt() and 0x01) != 0
-            accurateStream = (modeSenseResponse[11].toInt() and 0x01) != 0 || (modeSenseResponse[11].toInt() and 0x02) != 0
+            accurateStream = (modeSenseResponse[11].toInt() and 0x01) != 0 || (modeSenseResponse[11].toInt() and(0x02)) != 0
         }
 
         Result.success(DriveCapabilities(
