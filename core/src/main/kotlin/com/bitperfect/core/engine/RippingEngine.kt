@@ -66,49 +66,58 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.update { it.copy(isRunning = true, status = "Reading TOC...") }
 
-        val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
-        if (toc == null) {
-            _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
-            return@withContext
-        }
-
-        _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
-
-        // Simplified: Just rip the first track for now
-        val firstTrack = toc.tracks.firstOrNull()
-        if (firstTrack == null) {
-            _ripState.update { it.copy(isRunning = false, status = "No tracks found") }
-            return@withContext
-        }
-
-        val startLba = firstTrack.startLba.toLong()
-        val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L) // Small range for testing
-        val endLba = startLba + totalSectors
-
-        _ripState.update { it.copy(totalSectors = totalSectors, currentTrack = 1) }
-
-        val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
-        flacEncoder.prepare(outputStream, 44100, 2)
-
-        for (lba in startLba until endLba) {
-            val sectorData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut)
-            if (sectorData == null) {
-                _ripState.update { it.copy(isRunning = false, status = "Failed to read sector $lba") }
+        try {
+            val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
+            if (toc == null) {
+                _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
                 return@withContext
             }
 
-            flacEncoder.encode(sectorData)
+            _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
 
-            val currentSector = lba - startLba + 1
-            _ripState.update { it.copy(
-                currentSector = currentSector,
-                progress = currentSector.toFloat() / totalSectors,
-                status = "Ripping sector $currentSector/$totalSectors"
-            ) }
+            val firstTrack = toc.tracks.firstOrNull()
+            if (firstTrack == null) {
+                _ripState.update { it.copy(isRunning = false, status = "No tracks found") }
+                return@withContext
+            }
+
+            val startLba = firstTrack.startLba.toLong()
+            val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L)
+            val endLba = startLba + totalSectors
+
+            _ripState.update { it.copy(totalSectors = totalSectors, currentTrack = 1) }
+
+            val outputStream = getOutputStreamForPath(context, outputPath) ?: run {
+                _ripState.update { it.copy(isRunning = false, status = "Failed to open output file") }
+                return@withContext
+            }
+
+            flacEncoder.prepare(outputStream, 44100, 2)
+
+            for (lba in startLba until endLba) {
+                if (!_ripState.value.isRunning) break
+                val sectorData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut)
+                if (sectorData == null) {
+                    _ripState.update { it.copy(isRunning = false, status = "Failed to read sector $lba") }
+                    return@withContext
+                }
+
+                flacEncoder.encode(sectorData)
+
+                val currentSector = lba - startLba + 1
+                _ripState.update { it.copy(
+                    currentSector = currentSector,
+                    progress = currentSector.toFloat() / totalSectors,
+                    status = "Ripping sector $currentSector/$totalSectors"
+                ) }
+            }
+
+            flacEncoder.finish()
+            _ripState.update { it.copy(isRunning = false, status = "Rip Complete", progress = 1f) }
+        } catch (e: Exception) {
+            Log.e("RippingEngine", "Burst rip failed", e)
+            _ripState.update { it.copy(isRunning = false, status = "Fatal Error: ${e.message}") }
         }
-
-        flacEncoder.finish()
-        _ripState.update { it.copy(isRunning = false, status = "Rip Complete", progress = 1f) }
     }
 
     suspend fun startSecureRip(
@@ -122,47 +131,57 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.update { it.copy(isRunning = true, status = "Initializing Secure Rip...") }
 
-        val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
-        if (toc == null) {
-            _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
-            return@withContext
-        }
-
-        _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
-
-        val firstTrack = toc.tracks.firstOrNull()
-        if (firstTrack == null) {
-            _ripState.update { it.copy(isRunning = false, status = "No tracks found") }
-            return@withContext
-        }
-
-        val startLba = firstTrack.startLba.toLong()
-        val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L) // Small range for testing
-        val endLba = startLba + totalSectors
-        _ripState.update { it.copy(totalSectors = totalSectors, currentTrack = 1) }
-
-        val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
-        flacEncoder.prepare(outputStream, 44100, 2)
-
-        for (lba in startLba until endLba) {
-            val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
-            if (sectorData == null) {
-                _ripState.update { it.copy(isRunning = false, status = "Fatal error at sector $lba") }
+        try {
+            val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
+            if (toc == null) {
+                _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
                 return@withContext
             }
 
-            flacEncoder.encode(sectorData)
+            _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
 
-            val currentSector = lba - startLba + 1
-            _ripState.update { it.copy(
-                currentSector = currentSector,
-                progress = currentSector.toFloat() / totalSectors,
-                status = "Secure Ripping sector $currentSector/$totalSectors"
-            ) }
+            val firstTrack = toc.tracks.firstOrNull()
+            if (firstTrack == null) {
+                _ripState.update { it.copy(isRunning = false, status = "No tracks found") }
+                return@withContext
+            }
+
+            val startLba = firstTrack.startLba.toLong()
+            val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L)
+            val endLba = startLba + totalSectors
+            _ripState.update { it.copy(totalSectors = totalSectors, currentTrack = 1) }
+
+            val outputStream = getOutputStreamForPath(context, outputPath) ?: run {
+                _ripState.update { it.copy(isRunning = false, status = "Failed to open output file") }
+                return@withContext
+            }
+
+            flacEncoder.prepare(outputStream, 44100, 2)
+
+            for (lba in startLba until endLba) {
+                if (!_ripState.value.isRunning) break
+                val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
+                if (sectorData == null) {
+                    _ripState.update { it.copy(isRunning = false, status = "Fatal error at sector $lba") }
+                    return@withContext
+                }
+
+                flacEncoder.encode(sectorData)
+
+                val currentSector = lba - startLba + 1
+                _ripState.update { it.copy(
+                    currentSector = currentSector,
+                    progress = currentSector.toFloat() / totalSectors,
+                    status = "Secure Ripping sector $currentSector/$totalSectors"
+                ) }
+            }
+
+            flacEncoder.finish()
+            _ripState.update { it.copy(isRunning = false, status = "Secure Rip Complete", progress = 1f) }
+        } catch (e: Exception) {
+            Log.e("RippingEngine", "Secure rip failed", e)
+            _ripState.update { it.copy(isRunning = false, status = "Fatal Error: ${e.message}") }
         }
-
-        flacEncoder.finish()
-        _ripState.update { it.copy(isRunning = false, status = "Secure Rip Complete", progress = 1f) }
     }
 
 
@@ -317,7 +336,7 @@ class RippingEngine(
         var accurateStream = false
         if (modeSenseResponse != null && modeSenseResponse.size >= 12) {
             supportsC2 = (modeSenseResponse[10].toInt() and 0x01) != 0
-            accurateStream = (modeSenseResponse[11].toInt() and 0x01) != 0 || (modeSenseResponse[11].toInt() and(0x02)) != 0
+            accurateStream = (modeSenseResponse[11].toInt() and 0x01) != 0 || (modeSenseResponse[11].toInt() and 0x02) != 0
         }
 
         Result.success(DriveCapabilities(
@@ -342,139 +361,142 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.update { it.copy(isRunning = true, status = "Reading TOC...") }
 
-        val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
-        if (toc == null) {
-            _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
-            return@withContext
-        }
+        try {
+            val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
+            if (toc == null) {
+                _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
+                return@withContext
+            }
 
-        _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
+            _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
 
-        // Construct offsets array for legacy utils
-        val trackOffsets = IntArray(100)
-        toc.tracks.forEach { trackOffsets[it.number] = it.startLba }
-        trackOffsets[0] = toc.leadOutLba
+            val trackOffsets = IntArray(100)
+            toc.tracks.forEach { trackOffsets[it.number] = it.startLba }
+            trackOffsets[0] = toc.leadOutLba
 
-        // Calculate IDs and fetch metadata
-        val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
-        _ripState.update { it.copy(status = "Fetching metadata...") }
-        val metadata = metadataService.fetchMetadata(discId)
+            val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
+            _ripState.update { it.copy(status = "Fetching metadata...") }
+            val metadata = metadataService.fetchMetadata(discId)
 
-        val freeDbId = MusicBrainzUtils.calculateFreeDbId(
-            toc.tracks.map { it.startLba.toLong() }.toLongArray(),
-            toc.leadOutLba.toLong()
-        )
-        val arDiscId = accurateRipService.calculateAccurateRipDiscId(
-            toc.tracks.map { it.startLba.toLong() }.toLongArray(),
-            toc.leadOutLba.toLong(),
-            freeDbId
-        )
+            val freeDbId = MusicBrainzUtils.calculateFreeDbId(
+                toc.tracks.map { it.startLba.toLong() }.toLongArray(),
+                toc.leadOutLba.toLong()
+            )
+            val arDiscId = accurateRipService.calculateAccurateRipDiscId(
+                toc.tracks.map { it.startLba.toLong() }.toLongArray(),
+                toc.leadOutLba.toLong(),
+                freeDbId
+            )
 
-        _ripState.update { it.copy(status = "Fetching AccurateRip data...") }
-        val arData = accurateRipService.fetchAccurateRipData(arDiscId)
+            _ripState.update { it.copy(status = "Fetching AccurateRip data...") }
+            val arData = accurateRipService.fetchAccurateRipData(arDiscId)
 
-        val trackResults = mutableListOf<TrackRipResult>()
+            val trackResults = mutableListOf<TrackRipResult>()
 
-        for (track in toc.tracks) {
-            if (!_ripState.value.isRunning) break
-            val t = track.number
-
-            val startLba = track.startLba.toLong()
-            val totalTrackSectors = track.durationSectors
-
-            if (totalTrackSectors <= 0) continue
-
-            _ripState.update { it.copy(
-                currentTrack = t,
-                totalSectors = totalTrackSectors.toLong(),
-                currentSector = 0,
-                status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
-            ) }
-
-            val sanitizedArtist = sanitizeFileName(metadata.artist)
-            val sanitizedAlbum = sanitizeFileName(metadata.album)
-            val sanitizedTitle = sanitizeFileName(metadata.tracks.getOrNull(t - 1) ?: "Track $t")
-            val fileName = "${t.toString().padStart(2, '0')} - $sanitizedTitle.flac"
-
-            val relativePath = "$sanitizedArtist/$sanitizedAlbum/$fileName"
-            val outputStream = getOutputStreamForPath(context, basePath, relativePath) ?: return@withContext
-
-            flacEncoder.prepare(outputStream, 44100, 2)
-
-            val crc32Generator = java.util.zip.CRC32()
-            var trackArCrc = 0L
-
-            for (sectorIndex in 0 until totalTrackSectors) {
+            for (track in toc.tracks) {
                 if (!_ripState.value.isRunning) break
-                val lba = startLba + sectorIndex
-                val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
+                val t = track.number
 
-                if (sectorData == null) {
-                    _ripState.update { it.copy(isRunning = false, status = "Fatal error at track $t, sector $sectorIndex") }
+                val startLba = track.startLba.toLong()
+                val totalTrackSectors = track.durationSectors
+
+                if (totalTrackSectors <= 0) continue
+
+                _ripState.update { it.copy(
+                    currentTrack = t,
+                    totalSectors = totalTrackSectors.toLong(),
+                    currentSector = 0,
+                    status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
+                ) }
+
+                val sanitizedArtist = sanitizeFileName(metadata.artist)
+                val sanitizedAlbum = sanitizeFileName(metadata.album)
+                val sanitizedTitle = sanitizeFileName(metadata.tracks.getOrNull(t - 1) ?: "Track $t")
+                val fileName = "${t.toString().padStart(2, '0')} - $sanitizedTitle.flac"
+
+                val relativePath = "$sanitizedArtist/$sanitizedAlbum/$fileName"
+                val outputStream = getOutputStreamForPath(context, basePath, relativePath) ?: run {
+                    _ripState.update { it.copy(isRunning = false, status = "Failed to open output file for track $t") }
                     return@withContext
                 }
 
-                flacEncoder.encode(sectorData)
+                flacEncoder.prepare(outputStream, 44100, 2)
 
-                // Update CRCs
-                crc32Generator.update(sectorData)
-                trackArCrc = (trackArCrc + ChecksumUtils.calculateAccurateRipCrc(
-                    sectorData, sectorIndex, totalTrackSectors, t == toc.firstTrack, t == toc.lastTrack
-                )) and 0xFFFFFFFFL
+                val crc32Generator = java.util.zip.CRC32()
+                var trackArCrc = 0L
 
-                _ripState.update { it.copy(
-                    currentSector = sectorIndex.toLong() + 1,
-                    progress = (sectorIndex + 1).toFloat() / totalTrackSectors,
-                    status = "Secure Ripping track $t: sector ${sectorIndex + 1}/$totalTrackSectors"
-                ) }
-            }
+                for (sectorIndex in 0 until totalTrackSectors) {
+                    if (!_ripState.value.isRunning) break
+                    val lba = startLba + sectorIndex
+                    val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
 
-            flacEncoder.finish()
+                    if (sectorData == null) {
+                        _ripState.update { it.copy(isRunning = false, status = "Fatal error at track $t, sector $sectorIndex") }
+                        return@withContext
+                    }
 
-            // Verify with AccurateRip
-            val arMatches = arData[t]
-            val arStatus = if (arMatches != null) {
-                val match = arMatches.find { it.crc == trackArCrc || it.crc2 == trackArCrc }
-                if (match != null) {
-                    "Accurate (confidence ${match.confidence})"
-                } else {
-                    "Inaccurate (found ${arMatches.size} other pressings)"
+                    flacEncoder.encode(sectorData)
+
+                    crc32Generator.update(sectorData)
+                    trackArCrc = (trackArCrc + ChecksumUtils.calculateAccurateRipCrc(
+                        sectorData, sectorIndex, totalTrackSectors, t == toc.firstTrack, t == toc.lastTrack
+                    )) and 0xFFFFFFFFL
+
+                    _ripState.update { it.copy(
+                        currentSector = sectorIndex.toLong() + 1,
+                        progress = (sectorIndex + 1).toFloat() / totalTrackSectors,
+                        status = "Secure Ripping track $t: sector ${sectorIndex + 1}/$totalTrackSectors"
+                    ) }
                 }
-            } else {
-                "Track not in database"
+
+                flacEncoder.finish()
+
+                val arMatches = arData[t]
+                val arStatus = if (arMatches != null) {
+                    val match = arMatches.find { it.crc == trackArCrc || it.crc2 == trackArCrc }
+                    if (match != null) {
+                        "Accurate (confidence ${match.confidence})"
+                    } else {
+                        "Inaccurate (found ${arMatches.size} other pressings)"
+                    }
+                } else {
+                    "Track not in database"
+                }
+
+                trackResults.add(TrackRipResult(
+                    trackNumber = t,
+                    status = "Success",
+                    reReads = 0,
+                    crc32 = crc32Generator.value,
+                    accurateRipCrc = trackArCrc,
+                    accurateRipStatus = arStatus
+                ))
             }
 
-            trackResults.add(TrackRipResult(
-                trackNumber = t,
-                status = "Success",
-                reReads = 0, // Simplified for now
-                crc32 = crc32Generator.value,
-                accurateRipCrc = trackArCrc,
-                accurateRipStatus = arStatus
-            ))
+            val ripSessionInfo = RipSessionInfo(
+                appVersion = "1.0",
+                date = java.util.Date(),
+                driveModel = driveModel,
+                capabilities = listOf(
+                    "C2: ${if (capabilities.supportsC2) "Yes" else "No"}",
+                    "Cache: ${if (capabilities.hasCache) "Yes" else "No"}"
+                ),
+                albumMetadata = metadata,
+                trackResults = trackResults
+            )
+
+            val logContent = LogGenerator.generateLog(ripSessionInfo)
+            val sanitizedArtist = sanitizeFileName(metadata.artist)
+            val sanitizedAlbum = sanitizeFileName(metadata.album)
+            val logRelativePath = "$sanitizedArtist/$sanitizedAlbum/rip_log.txt"
+
+            getOutputStreamForPath(context, basePath, logRelativePath)?.use { it.write(logContent.toByteArray()) }
+
+            _ripState.update { it.copy(isRunning = false, status = "Full Rip Complete", progress = 1f) }
+        } catch (e: Exception) {
+            Log.e("RippingEngine", "Full rip failed", e)
+            _ripState.update { it.copy(isRunning = false, status = "Fatal Error: ${e.message}") }
         }
-
-        // Finalize
-        val ripSessionInfo = RipSessionInfo(
-            appVersion = "1.0",
-            date = java.util.Date(),
-            driveModel = driveModel,
-            capabilities = listOf(
-                "C2: ${if (capabilities.supportsC2) "Yes" else "No"}",
-                "Cache: ${if (capabilities.hasCache) "Yes" else "No"}"
-            ),
-            albumMetadata = metadata,
-            trackResults = trackResults
-        )
-
-        val logContent = LogGenerator.generateLog(ripSessionInfo)
-        val sanitizedArtist = sanitizeFileName(metadata.artist)
-        val sanitizedAlbum = sanitizeFileName(metadata.album)
-        val logRelativePath = "$sanitizedArtist/$sanitizedAlbum/rip_log.txt"
-
-        getOutputStreamForPath(context, basePath, logRelativePath)?.use { it.write(logContent.toByteArray()) }
-
-        _ripState.update { it.copy(isRunning = false, status = "Full Rip Complete", progress = 1f) }
     }
 
     private fun sanitizeFileName(name: String): String {
@@ -484,28 +506,33 @@ class RippingEngine(
     private fun getOutputStreamForPath(context: Context, basePath: String, relativePath: String? = null): java.io.OutputStream? {
         val fullPath = if (relativePath != null) "$basePath/$relativePath" else basePath
 
-        return if (basePath.startsWith("content://")) {
-            val rootUri = Uri.parse(basePath)
-            var currentDoc = DocumentFile.fromTreeUri(context, rootUri) ?: return null
+        return try {
+            if (basePath.startsWith("content://")) {
+                val rootUri = Uri.parse(basePath)
+                var currentDoc = DocumentFile.fromTreeUri(context, rootUri) ?: return null
 
-            relativePath?.split("/")?.forEachIndexed { index, part ->
-                if (part.isEmpty()) return@forEachIndexed
-                val nextDoc = currentDoc.findFile(part)
-                currentDoc = if (nextDoc == null) {
-                    if (index == relativePath.split("/").lastIndex) {
-                        currentDoc.createFile("application/octet-stream", part) ?: return null
+                relativePath?.split("/")?.forEachIndexed { index, part ->
+                    if (part.isEmpty()) return@forEachIndexed
+                    val nextDoc = currentDoc.findFile(part)
+                    currentDoc = if (nextDoc == null) {
+                        if (index == relativePath.split("/").lastIndex) {
+                            currentDoc.createFile("application/octet-stream", part) ?: return null
+                        } else {
+                            currentDoc.createDirectory(part) ?: return null
+                        }
                     } else {
-                        currentDoc.createDirectory(part) ?: return null
+                        nextDoc
                     }
-                } else {
-                    nextDoc
                 }
+                context.contentResolver.openOutputStream(currentDoc.uri)
+            } else {
+                val file = File(fullPath)
+                file.parentFile?.mkdirs()
+                FileOutputStream(file)
             }
-            context.contentResolver.openOutputStream(currentDoc.uri)
-        } else {
-            val file = File(fullPath)
-            file.parentFile?.mkdirs()
-            FileOutputStream(file)
+        } catch (e: Exception) {
+            Log.e("RippingEngine", "Error creating output stream for $fullPath", e)
+            null
         }
     }
 

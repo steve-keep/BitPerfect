@@ -3,6 +3,7 @@ package com.bitperfect.core.engine
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
@@ -54,6 +55,11 @@ class MetadataService {
                 ignoreUnknownKeys = true
                 coerceInputValues = true
             })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 5000
+            connectTimeoutMillis = 5000
+            socketTimeoutMillis = 5000
         }
     }
 

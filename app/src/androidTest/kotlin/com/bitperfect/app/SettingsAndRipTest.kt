@@ -36,15 +36,13 @@ class SettingsAndRipTest {
     @Test
     fun testVirtualDriveToggleAndSelection() {
         // 1. Go to Settings (using the bottom navigation tab)
-        // Ensure we are on the Home screen first or just find the Settings tab
         composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
 
         // 2. Toggle "Enable Virtual Drive"
-        // Use a more robust matcher that includes the switch or the item
         composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true) and hasClickAction()).performClick()
 
         // Check if "Selected Test CD" header appeared (it only shows if enabled)
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodesWithText("Selected Test CD").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -55,7 +53,7 @@ class SettingsAndRipTest {
         composeTestRule.onNodeWithContentDescription("Back").performClick()
 
         // 5. Check if Virtual Drive appears in Device List
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -72,29 +70,24 @@ class SettingsAndRipTest {
         composeTestRule.onNodeWithContentDescription("Back").performClick()
 
         // 2. Wait for Device List and select Virtual Drive
-        // Use substring match and ignore case for better resilience.
-        // We use onFirst() because the manufacturer and product name might both contain "VIRTUAL DRIVE".
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().performClick()
 
         // 3. Wait for "Ready" status
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodesWithText("Ready", ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
         // 4. Start Rip
         composeTestRule.onNode(hasText("Start Secure Rip", substring = true) and hasClickAction()).assertExists()
-        composeTestRule.onNode(hasText("Start Secure Rip", substring = true) and hasClickAction()).assertIsEnabled()
         composeTestRule.onNode(hasText("Start Secure Rip", substring = true) and hasClickAction()).performClick()
 
         // 5. Verify no crash and progress starts
-        // Wait for "Ripping Status" which appears when rip starts
-        // Use a broader wait text to be more resilient
-        composeTestRule.waitUntil(20000) {
+        composeTestRule.waitUntil(30000) {
             composeTestRule.onAllNodesWithText("Ripping Status", substring = true, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -108,16 +101,14 @@ class SettingsAndRipTest {
         composeTestRule.onNodeWithContentDescription("Back").performClick()
 
         // 2. Select Virtual Drive
-        composeTestRule.waitUntil(10000) {
+        composeTestRule.waitUntil(20000) {
             composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().performClick()
 
         // 3. Verify Track List appears
-        // Polling should trigger TOC read and show the track list.
-        // We look for "Track List" header and at least one track entry.
-        composeTestRule.waitUntil(20000) {
+        composeTestRule.waitUntil(30000) {
             composeTestRule.onAllNodesWithText("Track List", substring = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }

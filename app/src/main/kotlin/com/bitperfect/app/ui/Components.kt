@@ -359,10 +359,47 @@ fun DiagnosticDashboard(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
             modifier = Modifier
-                .weight(1f)
+                .weight(3f)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Tonal Layering: Cards on background
+            // Ripping Status (moved up for prominence)
+            if (ripState.isRunning || (ripState.progress > 0 && ripState.progress < 1f)) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = "Ripping Status: ${ripState.status}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        LinearProgressIndicator(
+                            progress = { ripState.progress },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                text = "Track ${ripState.currentTrack}/${ripState.totalTracks}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "${(ripState.progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Hardware Information
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -457,48 +494,15 @@ fun DiagnosticDashboard(
                 }
             }
 
+            // Track List
             ripState.discToc?.let { toc ->
                 if (!ripState.isRunning) {
                     TrackList(toc)
                 }
             }
 
-            if (ripState.isRunning || ripState.progress > 0) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Text(
-                            text = "Ripping Status: ${ripState.status}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        LinearProgressIndicator(
-                            progress = { ripState.progress },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                        )
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(
-                                text = "Track ${ripState.currentTrack}/${ripState.totalTracks}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "${(ripState.progress * 100).toInt()}%",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Primary Action: Gradient fill
+            // Rip Button
+            if (!ripState.isRunning && ripState.progress == 0f) {
                 Button(
                     onClick = onStartRip,
                     enabled = ripState.driveStatus == "Ready" && !ripState.isTrayOperationInProgress,
@@ -529,40 +533,43 @@ fun DiagnosticDashboard(
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Live Terminal",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TextButton(onClick = onCopyDebugReport) {
-                Text("Copy Debug Report")
-            }
-        }
-
-        Surface(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f),
-            shape = MaterialTheme.shapes.large
-        ) {
-            LazyColumn(
-                modifier = Modifier.padding(16.dp),
-                reverseLayout = true
+        // Live Terminal (Bottom area)
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(logs.reversed()) { log ->
-                    Text(
-                        text = "> $log",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        color = if (log.contains("Failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Text(
+                    text = "Live Terminal",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = onCopyDebugReport) {
+                    Text("Copy Debug Report")
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f),
+                shape = MaterialTheme.shapes.large
+            ) {
+                LazyColumn(
+                    modifier = Modifier.padding(16.dp),
+                    reverseLayout = true
+                ) {
+                    items(logs.reversed()) { log ->
+                        Text(
+                            text = "> $log",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = if (log.contains("Fatal", true) || log.contains("Failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

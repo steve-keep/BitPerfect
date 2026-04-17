@@ -2,6 +2,7 @@ package com.bitperfect.core.engine
 
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import android.util.Log
@@ -15,7 +16,13 @@ data class AccurateRipMatch(
 )
 
 class AccurateRipService {
-    private val client = HttpClient(OkHttp)
+    private val client = HttpClient(OkHttp) {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 5000
+            connectTimeoutMillis = 5000
+            socketTimeoutMillis = 5000
+        }
+    }
 
     /**
      * Calculates the AccurateRip DiscID parts used for the query URL.
