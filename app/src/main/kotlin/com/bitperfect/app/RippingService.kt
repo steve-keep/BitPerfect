@@ -31,6 +31,8 @@ class RippingService : Service() {
 
     private val binder = LocalBinder()
 
+    private var ripJob: Job? = null
+
     override fun onBind(intent: Intent): IBinder = binder
 
     override fun onCreate() {
@@ -111,6 +113,11 @@ class RippingService : Service() {
         rippingEngine.pollDriveStatus(fd, driverToUse, endpointIn, endpointOut)
     }
 
+    fun cancelRip() {
+        ripJob?.cancel()
+        rippingEngine.cancel()
+    }
+
     fun startRip(
         fd: Int,
         basePath: String,
@@ -120,7 +127,7 @@ class RippingService : Service() {
         endpointIn: Int,
         endpointOut: Int
     ) {
-        serviceScope.launch {
+        ripJob = serviceScope.launch {
             rippingEngine.fullRip(this@RippingService, fd, basePath, driveModel, capabilities, driverToUse, endpointIn, endpointOut)
             stopSelfIfFinished()
         }

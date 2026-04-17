@@ -32,7 +32,7 @@
 ---
 
 ### Story 1.2 — Request USB permission from the user
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** to be asked for permission to access the CD drive once,
@@ -48,7 +48,7 @@
 ---
 
 ### Story 1.3 — Open and maintain a USB bulk-transfer connection
-- [ ] **Done**
+- [x] **Done**
 
 **As a** developer,
 **I want** a robust USB BOT (Bulk-Only Transport) transport layer,
@@ -68,7 +68,7 @@
 ---
 
 ### Story 1.4 — Detect drive disconnection and notify the user
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** the app to gracefully handle an unexpected drive disconnection,
