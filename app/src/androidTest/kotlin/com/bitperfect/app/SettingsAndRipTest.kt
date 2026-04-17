@@ -81,8 +81,12 @@ class SettingsAndRipTest {
         composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().performClick()
 
         // 3. Start Rip
-        composeTestRule.onNodeWithText("Start Secure Rip").assertExists()
-        composeTestRule.onNodeWithText("Start Secure Rip").performClick()
+        // Wait for TOC to load so Rip button becomes enabled/visible
+        composeTestRule.waitUntil(30000) {
+            composeTestRule.onAllNodesWithText("Start Secure Rip", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText("Start Secure Rip").performScrollTo().performClick()
 
         // 4. Verify no crash and progress starts
         // Wait for "Ripping Status" which appears when rip starts
@@ -119,6 +123,8 @@ class SettingsAndRipTest {
         composeTestRule.onNodeWithText("Disc Contents", ignoreCase = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("01").assertIsDisplayed()
         composeTestRule.onNodeWithText("Audio Track", substring = true).assertIsDisplayed()
-        composeTestRule.onNodeWithText("Total Duration:", substring = true).assertIsDisplayed()
+
+        // Scroll to the bottom to see total duration
+        composeTestRule.onNodeWithText("Total Duration:", substring = true).performScrollTo().assertIsDisplayed()
     }
 }
