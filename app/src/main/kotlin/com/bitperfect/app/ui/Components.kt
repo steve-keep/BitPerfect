@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -239,6 +241,8 @@ fun DiagnosticDashboard(
     ripState: RipState,
     logs: List<String>,
     onStartRip: () -> Unit,
+    onEject: () -> Unit,
+    onLoadTray: () -> Unit,
     onCopyDebugReport: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -268,7 +272,7 @@ fun DiagnosticDashboard(
                 )
                 capabilities.forEach { capability ->
                     Text(
-                        text = "• $capability",
+                        text = "• ",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -281,15 +285,57 @@ fun DiagnosticDashboard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text(
-                    text = ripState.driveStatus,
-                    style = MaterialTheme.typography.displaySmall, // Large for status
-                    color = when (ripState.driveStatus) {
-                        "Ready" -> MaterialTheme.colorScheme.primary
-                        "No Disc / Tray Open" -> MaterialTheme.colorScheme.tertiary // Warn instead of Alarm
-                        else -> MaterialTheme.colorScheme.onSurface
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = ripState.driveStatus,
+                        style = MaterialTheme.typography.displaySmall, // Large for status
+                        color = when (ripState.driveStatus) {
+                            "Ready" -> MaterialTheme.colorScheme.primary
+                            "No Disc / Tray Open" -> MaterialTheme.colorScheme.tertiary // Warn instead of Alarm
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+
+                    if (ripState.isTrayOperationInProgress) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
-                )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onEject,
+                        enabled = !ripState.isRunning && !ripState.isTrayOperationInProgress,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Icon(Icons.Default.ArrowForward, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Eject")
+                    }
+                    OutlinedButton(
+                        onClick = onLoadTray,
+                        enabled = !ripState.isRunning && !ripState.isTrayOperationInProgress,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Load Tray")
+                    }
+                }
             }
         }
 
@@ -331,6 +377,7 @@ fun DiagnosticDashboard(
             // Primary Action: Gradient fill
             Button(
                 onClick = onStartRip,
+                enabled = ripState.driveStatus == "Ready" && !ripState.isTrayOperationInProgress,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
@@ -345,8 +392,8 @@ fun DiagnosticDashboard(
                         .background(
                             brush = Brush.linearGradient(
                                 colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.primaryContainer
+                                    if (ripState.driveStatus == "Ready") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    if (ripState.driveStatus == "Ready") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                                 )
                             )
                         ),

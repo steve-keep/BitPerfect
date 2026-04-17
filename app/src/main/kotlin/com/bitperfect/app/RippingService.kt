@@ -103,7 +103,6 @@ class RippingService : Service() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, createNotification(state))
     }
-
     suspend fun pollStatus(
         fd: Int,
         driverToUse: com.bitperfect.driver.IScsiDriver,
@@ -113,6 +112,23 @@ class RippingService : Service() {
         rippingEngine.pollDriveStatus(fd, driverToUse, endpointIn, endpointOut)
     }
 
+    suspend fun ejectDisc(
+        fd: Int,
+        driverToUse: com.bitperfect.driver.IScsiDriver,
+        endpointIn: Int,
+        endpointOut: Int
+    ) {
+        rippingEngine.ejectDisc(fd, driverToUse, endpointIn, endpointOut)
+    }
+
+    suspend fun loadTray(
+        fd: Int,
+        driverToUse: com.bitperfect.driver.IScsiDriver,
+        endpointIn: Int,
+        endpointOut: Int
+    ) {
+        rippingEngine.loadTray(fd, driverToUse, endpointIn, endpointOut)
+    }
     fun cancelRip() {
         ripJob?.cancel()
         rippingEngine.cancel()

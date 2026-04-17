@@ -339,6 +339,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         })
                                     } else {
+
                                         DiagnosticDashboard(
                                             inquiryData = inquiryData,
                                             capabilities = capabilities,
@@ -346,6 +347,12 @@ class MainActivity : ComponentActivity() {
                                             logs = logs,
                                             onStartRip = {
                                                 selectedDevice?.let { startRip(it) }
+                                            },
+                                            onEject = {
+                                                selectedDevice?.let { ejectDisc(it) }
+                                            },
+                                            onLoadTray = {
+                                                selectedDevice?.let { loadTray(it) }
                                             },
                                             onCopyDebugReport = {
                                                 copyDebugReportToClipboard()
@@ -527,6 +534,74 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, "Debug report copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
+
+    private fun ejectDisc(drive: BitPerfectDrive) {
+        if (ripState.isRunning) return
+
+        val driverToUse = if (drive is BitPerfectDrive.Virtual) {
+            virtualScsiDriver.testCd = settingsManager.getSelectedTestCd()
+            virtualScsiDriver
+        } else {
+            scsiDriver
+        }
+
+        lifecycleScope.launch {
+            if (drive is BitPerfectDrive.Physical) {
+                val device = drive.device
+                val connection = usbDeviceManager.openDevice(device) ?: return@launch
+                try {
+                    val iface = device.getInterface(0)
+                    if (connection.claimInterface(iface, true)) {
+                        try {
+                            val fd = connection.fileDescriptor
+                            val endpoints = getEndpoints(device)
+                            rippingService?.ejectDisc(fd, driverToUse, endpoints.endpointIn, endpoints.endpointOut)
+                        } finally {
+                            connection.releaseInterface(iface)
+                        }
+                    }
+                } finally {
+                    connection.close()
+                }
+            } else {
+                rippingService?.ejectDisc(999, driverToUse, 0x81, 0x01)
+            }
+        }
+    }
+
+    private fun loadTray(drive: BitPerfectDrive) {
+        if (ripState.isRunning) return
+
+        val driverToUse = if (drive is BitPerfectDrive.Virtual) {
+            virtualScsiDriver.testCd = settingsManager.getSelectedTestCd()
+            virtualScsiDriver
+        } else {
+            scsiDriver
+        }
+
+        lifecycleScope.launch {
+            if (drive is BitPerfectDrive.Physical) {
+                val device = drive.device
+                val connection = usbDeviceManager.openDevice(device) ?: return@launch
+                try {
+                    val iface = device.getInterface(0)
+                    if (connection.claimInterface(iface, true)) {
+                        try {
+                            val fd = connection.fileDescriptor
+                            val endpoints = getEndpoints(device)
+                            rippingService?.loadTray(fd, driverToUse, endpoints.endpointIn, endpoints.endpointOut)
+                        } finally {
+                            connection.releaseInterface(iface)
+                        }
+                    }
+                } finally {
+                    connection.close()
+                }
+            } else {
+                rippingService?.loadTray(999, driverToUse, 0x81, 0x01)
+            }
+        }
+    }
     private fun startRip(drive: BitPerfectDrive) {
         if (ripState.isRunning) {
             addLog("Rip already in progress")

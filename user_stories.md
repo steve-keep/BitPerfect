@@ -108,7 +108,7 @@
 ---
 
 ### Story 2.2 — Open and close the drive tray
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** to open and close the CD tray from within the app,

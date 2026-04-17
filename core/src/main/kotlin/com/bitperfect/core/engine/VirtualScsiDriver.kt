@@ -5,6 +5,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
+    private var isTrayOpen: Boolean = false
+
     override fun getDriverVersion(): String = "Virtual-1.0"
 
     override fun executeScsiCommand(
@@ -18,13 +20,51 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
         if (command.isEmpty()) return null
         val opcode = command[0].toInt() and 0xFF
 
+        // If tray is open, most commands should return null (Check Condition) except these
+        if (isTrayOpen && opcode != 0x03 && opcode != 0x1B && opcode != 0x12) {
+            return null
+        }
+
         return when (opcode) {
+            0x00 -> handleTestUnitReady()
+            0x03 -> handleRequestSense(expectedResponseLength)
             0x12 -> handleInquiry(expectedResponseLength)
+            0x1B -> handleStartStopUnit(command)
             0x5A -> handleModeSense10(expectedResponseLength)
             0x43 -> handleReadToc(command, expectedResponseLength)
             0xBE -> handleReadCd(command, expectedResponseLength)
             else -> ByteArray(expectedResponseLength) // Dummy response for unsupported commands
         }
+    }
+
+    private fun handleTestUnitReady(): ByteArray? {
+        return if (isTrayOpen) null else ByteArray(0)
+    }
+
+    private fun handleRequestSense(length: Int): ByteArray {
+        val response = ByteArray(length.coerceAtLeast(18))
+        if (isTrayOpen) {
+            response[0] = 0x70.toByte() // Current errors
+            response[2] = 0x02.toByte() // Sense Key: NOT READY
+            response[7] = 10           // Additional Sense Length
+            response[12] = 0x3A.toByte() // ASC: MEDIUM NOT PRESENT
+            response[13] = 0x00.toByte() // ASCQ
+        } else {
+            response[0] = 0x70.toByte()
+            response[2] = 0x00.toByte() // NO SENSE
+        }
+        return response.take(length).toByteArray()
+    }
+
+    private fun handleStartStopUnit(command: ByteArray): ByteArray {
+        val loej = (command[4].toInt() and 0x02) != 0
+        val start = (command[4].toInt() and 0x01) != 0
+
+        if (loej) {
+            isTrayOpen = !start
+        }
+
+        return ByteArray(0)
     }
 
     private fun handleInquiry(length: Int): ByteArray {

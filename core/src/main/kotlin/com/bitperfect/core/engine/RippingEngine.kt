@@ -21,6 +21,7 @@ data class RipState(
     val currentTrack: Int = 0,
     val totalTracks: Int = 0,
     val currentSector: Long = 0,
+    val isTrayOperationInProgress: Boolean = false,
     val totalSectors: Long = 0,
     val progress: Float = 0f,
     val status: String = "Idle",
@@ -461,6 +462,42 @@ class RippingEngine(
             file.parentFile?.mkdirs()
             FileOutputStream(file)
         }
+    }
+
+    suspend fun ejectDisc(
+        fd: Int,
+        scsiDriver: IScsiDriver = defaultScsiDriver,
+        endpointIn: Int = 0x81,
+        endpointOut: Int = 0x01
+    ) = withContext(Dispatchers.IO) {
+        if (_ripState.value.isRunning) return@withContext
+        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = true, status = "Ejecting...")
+
+        // START STOP UNIT (0x1B), LoEj=1, Start=0 (eject)
+        val ejectCmd = byteArrayOf(0x1B, 0, 0, 0, 0x02, 0)
+        scsiDriver.executeScsiCommand(fd, ejectCmd, 0, endpointIn, endpointOut)
+
+        // Re-poll to update status immediately
+        pollDriveStatus(fd, scsiDriver, endpointIn, endpointOut)
+        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = false)
+    }
+
+    suspend fun loadTray(
+        fd: Int,
+        scsiDriver: IScsiDriver = defaultScsiDriver,
+        endpointIn: Int = 0x81,
+        endpointOut: Int = 0x01
+    ) = withContext(Dispatchers.IO) {
+        if (_ripState.value.isRunning) return@withContext
+        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = true, status = "Loading Tray...")
+
+        // START STOP UNIT (0x1B), LoEj=1, Start=1 (load)
+        val loadCmd = byteArrayOf(0x1B, 0, 0, 0, 0x03, 0)
+        scsiDriver.executeScsiCommand(fd, loadCmd, 0, endpointIn, endpointOut)
+
+        // Re-poll to update status immediately
+        pollDriveStatus(fd, scsiDriver, endpointIn, endpointOut)
+        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = false)
     }
 
     suspend fun pollDriveStatus(
