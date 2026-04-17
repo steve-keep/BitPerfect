@@ -128,10 +128,30 @@ class MainActivity : ComponentActivity() {
                             device?.let { runDiagnostics(BitPerfectDrive.Physical(it)) }
                         } else {
                             addLog("Permission denied for device $device")
+                            Toast.makeText(context, "USB permission is required to access the CD drive", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
-                UsbManager.ACTION_USB_DEVICE_ATTACHED, UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                    refreshDevices()
+                }
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    val device: UsbDevice? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                    }
+                    device?.let { detachedDevice ->
+                        val current = selectedDevice
+                        if (current is BitPerfectDrive.Physical && current.device.deviceName == detachedDevice.deviceName) {
+                            rippingService?.cancelRip()
+                            stopPolling()
+                            selectedDevice = null
+                            addLog("Drive disconnected: ${detachedDevice.deviceName}")
+                            Toast.makeText(context, "Drive disconnected", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     refreshDevices()
                 }
             }
@@ -308,7 +328,7 @@ class MainActivity : ComponentActivity() {
                                                         runDiagnostics(drive)
                                                     } else {
                                                         val permissionIntent = PendingIntent.getBroadcast(
-                                                            this@MainActivity, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_IMMUTABLE
+                                                            this@MainActivity, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_MUTABLE
                                                         )
                                                         usbDeviceManager.requestPermission(drive.device, permissionIntent)
                                                     }

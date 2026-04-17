@@ -44,6 +44,10 @@ class RippingEngine(
     private val _ripState = MutableStateFlow(RipState())
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
+    fun cancel() {
+        _ripState.value = _ripState.value.copy(isRunning = false, status = "Cancelled")
+    }
+
     suspend fun startBurstRip(
         context: Context,
         fd: Int,
@@ -325,6 +329,7 @@ class RippingEngine(
         val trackResults = mutableListOf<TrackRipResult>()
 
         for (t in firstTrack..lastTrack) {
+            if (!_ripState.value.isRunning) break
             if (t !in 1..99 || trackOffsets[t] == 0) continue
 
             val startLba = trackOffsets[t].toLong()
@@ -354,6 +359,7 @@ class RippingEngine(
             var trackArCrc = 0L
 
             for (sectorIndex in 0 until totalTrackSectors) {
+                if (!_ripState.value.isRunning) break
                 val lba = startLba + sectorIndex
                 val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
 
