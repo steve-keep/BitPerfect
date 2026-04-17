@@ -2,6 +2,7 @@ package com.bitperfect.core.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.bitperfect.core.engine.DriveCapabilities
 import com.bitperfect.core.engine.TestCd
 
 class SettingsManager(context: Context) {
@@ -9,15 +10,42 @@ class SettingsManager(context: Context) {
 
     var isVirtualDriveEnabled: Boolean
         get() = prefs.getBoolean("isVirtualDriveEnabled", false)
-        set(value) = prefs.edit().putBoolean("isVirtualDriveEnabled", value).commit().let {}
+        set(value) = prefs.edit().putBoolean("isVirtualDriveEnabled", value).apply()
 
     var selectedTestCdIndex: Int
         get() = prefs.getInt("selectedTestCdIndex", 0)
-        set(value) = prefs.edit().putInt("selectedTestCdIndex", value).commit().let {}
+        set(value) = prefs.edit().putInt("selectedTestCdIndex", value).apply()
 
     var outputFolderUri: String?
         get() = prefs.getString("outputFolderUri", null)
-        set(value) = prefs.edit().putString("outputFolderUri", value).commit().let {}
+        set(value) = prefs.edit().putString("outputFolderUri", value).apply()
+
+    fun saveDriveCapabilities(id: String, caps: DriveCapabilities) {
+        prefs.edit()
+            .putString("caps_${id}_vendor", caps.vendor)
+            .putString("caps_${id}_product", caps.product)
+            .putString("caps_${id}_revision", caps.revision)
+            .putBoolean("caps_${id}_accurateStream", caps.accurateStream)
+            .putInt("caps_${id}_readOffset", caps.readOffset)
+            .putBoolean("caps_${id}_hasCache", caps.hasCache)
+            .putInt("caps_${id}_cacheSizeKb", caps.cacheSizeKb)
+            .putBoolean("caps_${id}_supportsC2", caps.supportsC2)
+            .apply()
+    }
+
+    fun getDriveCapabilities(id: String): DriveCapabilities? {
+        if (!prefs.contains("caps_${id}_vendor")) return null
+        return DriveCapabilities(
+            vendor = prefs.getString("caps_${id}_vendor", "") ?: "",
+            product = prefs.getString("caps_${id}_product", "") ?: "",
+            revision = prefs.getString("caps_${id}_revision", "") ?: "",
+            accurateStream = prefs.getBoolean("caps_${id}_accurateStream", false),
+            readOffset = prefs.getInt("caps_${id}_readOffset", 0),
+            hasCache = prefs.getBoolean("caps_${id}_hasCache", false),
+            cacheSizeKb = prefs.getInt("caps_${id}_cacheSizeKb", 0),
+            supportsC2 = prefs.getBoolean("caps_${id}_supportsC2", false)
+        )
+    }
 
     val testCds = listOf(
         TestCd(

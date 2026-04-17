@@ -124,7 +124,7 @@
 ---
 
 ### Story 2.3 — Display drive model and capability summary
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** to see basic information about the connected drive,

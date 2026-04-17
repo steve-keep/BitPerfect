@@ -10,6 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bitperfect.core.engine.BitPerfectDrive
+import com.bitperfect.core.engine.DriveCapabilities
 import com.bitperfect.core.engine.RipState
 
 @Composable
@@ -234,10 +237,24 @@ fun DeviceList(
     }
 }
 
+
+@Composable
+fun CapabilityBadge(label: String, supported: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = if (supported) Icons.Default.Check else Icons.Default.Close,
+            contentDescription = null,
+            tint = if (supported) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
 @Composable
 fun DiagnosticDashboard(
-    inquiryData: String,
-    capabilities: List<String>,
+    driveCapabilities: DriveCapabilities?,
     ripState: RipState,
     logs: List<String>,
     onStartRip: () -> Unit,
@@ -261,7 +278,8 @@ fun DiagnosticDashboard(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = inquiryData, style = MaterialTheme.typography.titleMedium)
+                val info = if (driveCapabilities != null) "${driveCapabilities.vendor} ${driveCapabilities.product} (Rev: ${driveCapabilities.revision})" else "Run diagnostics to detect drive"
+                Text(text = info, style = MaterialTheme.typography.titleMedium)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -270,12 +288,13 @@ fun DiagnosticDashboard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
-                capabilities.forEach { capability ->
-                    Text(
-                        text = "• ",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                if (driveCapabilities != null) {
+                    CapabilityBadge("Accurate Stream", driveCapabilities.accurateStream)
+                    CapabilityBadge("C2 Error Pointers", driveCapabilities.supportsC2)
+                    CapabilityBadge("Cache detected", driveCapabilities.hasCache)
+                    Text(text = "Read Offset: ${driveCapabilities.readOffset}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text(text = "No capabilities detected yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))

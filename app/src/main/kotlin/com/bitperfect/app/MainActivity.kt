@@ -85,8 +85,8 @@ class MainActivity : ComponentActivity() {
     private var selectedDevice by mutableStateOf<BitPerfectDrive?>(null)
     private var isShowingSettings by mutableStateOf(false)
     private var logs by mutableStateOf(listOf("App started"))
-    private var inquiryData by mutableStateOf("N/A")
-    private var capabilities by mutableStateOf(emptyList<String>())
+    private var driveCapabilities by mutableStateOf<DriveCapabilities?>(null)
+
     private var ripState by mutableStateOf(RipState())
 
     private val serviceConnection = object : ServiceConnection {
@@ -341,8 +341,7 @@ class MainActivity : ComponentActivity() {
                                     } else {
 
                                         DiagnosticDashboard(
-                                            inquiryData = inquiryData,
-                                            capabilities = capabilities,
+                                            driveCapabilities = driveCapabilities,
                                             ripState = ripState,
                                             logs = logs,
                                             onStartRip = {
@@ -454,6 +453,7 @@ class MainActivity : ComponentActivity() {
 
     private fun runDiagnostics(drive: BitPerfectDrive) {
         selectedDevice = drive
+        driveCapabilities = settingsManager.getDriveCapabilities(drive.identifier)
         startPolling(drive)
         addLog("Running diagnostics for ${drive.name}")
 
@@ -501,28 +501,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun performDiagnostics(driver: com.bitperfect.driver.IScsiDriver, fd: Int, endpointIn: Int, endpointOut: Int) {
-        // 1. INQUIRY
-        val inquiryCmd = byteArrayOf(0x12, 0, 0, 0, 36, 0)
-        val inquiryResponse = driver.executeScsiCommand(fd, inquiryCmd, 36, endpointIn, endpointOut)
-        if (inquiryResponse != null) {
-            val vendor = String(inquiryResponse.sliceArray(8 until 16)).trim()
-            val product = String(inquiryResponse.sliceArray(16 until 32)).trim()
-            val revision = String(inquiryResponse.sliceArray(32 until 36)).trim()
-            inquiryData = "$vendor $product (Rev: $revision)"
-            addLog("Inquiry Success: $inquiryData")
-        } else {
-            addLog("Inquiry Failed")
-        }
-
-        // 2. MODE SENSE (C2 Support)
-        val modeSenseCmd = byteArrayOf(0x5A, 0, 0x2A, 0, 0, 0, 0, 0, 30, 0)
-        val modeSenseResponse = driver.executeScsiCommand(fd, modeSenseCmd, 30, endpointIn, endpointOut)
-        if (modeSenseResponse != null) {
-            val c2Support = if (modeSenseResponse[10].toInt() and 0x01 != 0) "Supported" else "Not Supported"
-            capabilities = listOf("C2 Error Pointers: $c2Support")
-            addLog("Mode Sense Success, C2: $c2Support")
-        } else {
-            addLog("Mode Sense Failed")
+        lifecycleScope.launch {
+            val result = rippingService?.rippingEngine?.detectCapabilities(fd, driver, endpointIn, endpointOut)
+            if (result != null && result.isSuccess) {
+                val caps = result.getOrThrow()
+                driveCapabilities = caps
+                addLog("Diagnostics Success: ${caps.vendor} ${caps.product} (Rev: ${caps.revision})")
+                // Cache it
+                selectedDevice?.let { drive ->
+                    settingsManager.saveDriveCapabilities(drive.identifier, caps)
+                }
+            } else {
+                addLog("Diagnostics Failed: ${result?.exceptionOrNull()?.message}")
+            }
         }
     }
 
@@ -618,10 +609,7 @@ class MainActivity : ComponentActivity() {
         val outputDir = settingsManager.outputFolderUri ?: getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
         addLog("Starting full rip to $outputDir")
 
-        val driveCapabilities = DriveCapabilities(
-            hasCache = true, // Default assumed
-            supportsC2 = capabilities.any { it.contains("Supported") }
-        )
+        val caps = driveCapabilities ?: DriveCapabilities(hasCache = true)
 
         lifecycleScope.launch {
             if (drive is BitPerfectDrive.Physical) {
@@ -637,7 +625,8 @@ class MainActivity : ComponentActivity() {
                     try {
                         val fd = connection.fileDescriptor
                         val (endpointIn, endpointOut) = getEndpoints(device)
-                        rippingService?.startRip(fd, outputDir, inquiryData, driveCapabilities, driverToUse, endpointIn, endpointOut)
+                        val driveModel = "${caps.vendor} ${caps.product}".trim()
+                        rippingService?.startRip(fd, outputDir, driveModel, caps, driverToUse, endpointIn, endpointOut)
                     } finally {
                         connection.releaseInterface(iface)
                     }
@@ -646,11 +635,11 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 // Virtual Drive
-                rippingService?.startRip(999, outputDir, inquiryData, driveCapabilities, driverToUse, 0x81, 0x01)
+                val driveModel = "${caps.vendor} ${caps.product}".trim()
+                rippingService?.startRip(999, outputDir, driveModel, caps, driverToUse, 0x81, 0x01)
             }
         }
     }
-
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(usbReceiver)
