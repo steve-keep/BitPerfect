@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #121212;
+  --foreground: #ededed;
+  --primary: #00E676; /* The green accent from the screenshot */
+  --surface: #1e1e1e;
+  --surface-elevated: #2c2c2c;
+  --text-muted: #a0a0a0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+@layer utilities {
+  .bg-surface {
+    background-color: var(--surface);
+  }
+  .bg-surface-elevated {
+    background-color: var(--surface-elevated);
+  }
+  .text-primary {
+    color: var(--primary);
+  }
+  .text-muted {
+    color: var(--text-muted);
+  }
+  .border-primary {
+    border-color: var(--primary);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
