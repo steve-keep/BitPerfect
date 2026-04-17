@@ -64,21 +64,25 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
 
-        val tocData = readToc(fd, scsiDriver, endpointIn, endpointOut)
-        if (tocData == null) {
+        val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
+        if (toc == null) {
             _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
             return@withContext
         }
 
-        val (firstTrack, lastTrack) = tocData
-        val numTracks = lastTrack - firstTrack + 1
-        _ripState.value = _ripState.value.copy(totalTracks = numTracks, status = "Found $numTracks tracks")
+        _ripState.value = _ripState.value.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks")
 
         // Simplified: Just rip the first track for now
-        val startLba = 0L // Mocked
-        val endLba = 50L   // Mocked small range for testing
+        val firstTrack = toc.tracks.firstOrNull()
+        if (firstTrack == null) {
+            _ripState.value = _ripState.value.copy(isRunning = false, status = "No tracks found")
+            return@withContext
+        }
 
-        val totalSectors = endLba - startLba
+        val startLba = firstTrack.startLba.toLong()
+        val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L) // Small range for testing
+        val endLba = startLba + totalSectors
+
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
         val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
@@ -116,19 +120,23 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.value = RipState(isRunning = true, status = "Initializing Secure Rip...")
 
-        val tocData = readToc(fd, scsiDriver, endpointIn, endpointOut)
-        if (tocData == null) {
+        val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
+        if (toc == null) {
             _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
             return@withContext
         }
 
-        val (firstTrack, lastTrack) = tocData
-        val numTracks = lastTrack - firstTrack + 1
-        _ripState.value = _ripState.value.copy(totalTracks = numTracks, status = "Found $numTracks tracks")
+        _ripState.value = _ripState.value.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks")
 
-        val startLba = 0L // Mocked
-        val endLba = 50L   // Mocked
-        val totalSectors = endLba - startLba
+        val firstTrack = toc.tracks.firstOrNull()
+        if (firstTrack == null) {
+            _ripState.value = _ripState.value.copy(isRunning = false, status = "No tracks found")
+            return@withContext
+        }
+
+        val startLba = firstTrack.startLba.toLong()
+        val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L) // Small range for testing
+        val endLba = startLba + totalSectors
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
         val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
@@ -155,12 +163,6 @@ class RippingEngine(
         _ripState.value = _ripState.value.copy(isRunning = false, status = "Secure Rip Complete", progress = 1f)
     }
 
-    private fun readToc(fd: Int, scsiDriver: IScsiDriver, endpointIn: Int, endpointOut: Int): Pair<Int, Int>? {
-        val tocCmd = byteArrayOf(0x43, 0, 0, 0, 0, 0, 0, 0, 18, 0)
-        val tocResponse = scsiDriver.executeScsiCommand(fd, tocCmd, 18, endpointIn, endpointOut)
-        if (tocResponse == null || tocResponse.size < 4) return null
-        return Pair(tocResponse[2].toInt(), tocResponse[3].toInt())
-    }
 
     private fun readSector(
         fd: Int,
@@ -338,28 +340,31 @@ class RippingEngine(
     ) = withContext(Dispatchers.IO) {
         _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
 
-        val tocResponse = readTocFull(fd, scsiDriver, endpointIn, endpointOut)
-        if (tocResponse == null) {
+        val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
+        if (toc == null) {
             _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
             return@withContext
         }
 
-        val (firstTrack, lastTrack, trackOffsets) = tocResponse
-        val numTracks = lastTrack - firstTrack + 1
-        _ripState.value = _ripState.value.copy(totalTracks = numTracks, status = "Found $numTracks tracks")
+        _ripState.value = _ripState.value.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks")
+
+        // Construct offsets array for legacy utils
+        val trackOffsets = IntArray(100)
+        toc.tracks.forEach { trackOffsets[it.number] = it.startLba }
+        trackOffsets[0] = toc.leadOutLba
 
         // Calculate IDs and fetch metadata
-        val discId = MusicBrainzUtils.calculateDiscId(firstTrack, lastTrack, trackOffsets)
+        val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
         _ripState.value = _ripState.value.copy(status = "Fetching metadata...")
         val metadata = metadataService.fetchMetadata(discId)
 
         val freeDbId = MusicBrainzUtils.calculateFreeDbId(
-            trackOffsets.slice(1..lastTrack).map { it.toLong() }.toLongArray(),
-            trackOffsets[0].toLong()
+            toc.tracks.map { it.startLba.toLong() }.toLongArray(),
+            toc.leadOutLba.toLong()
         )
         val arDiscId = accurateRipService.calculateAccurateRipDiscId(
-            trackOffsets.slice(1..lastTrack).map { it.toLong() }.toLongArray(),
-            trackOffsets[0].toLong(),
+            toc.tracks.map { it.startLba.toLong() }.toLongArray(),
+            toc.leadOutLba.toLong(),
             freeDbId
         )
 
@@ -368,13 +373,12 @@ class RippingEngine(
 
         val trackResults = mutableListOf<TrackRipResult>()
 
-        for (t in firstTrack..lastTrack) {
+        for (track in toc.tracks) {
             if (!_ripState.value.isRunning) break
-            if (t !in 1..99 || trackOffsets[t] == 0) continue
+            val t = track.number
 
-            val startLba = trackOffsets[t].toLong()
-            val endLba = if (t < lastTrack && trackOffsets[t+1] != 0) trackOffsets[t + 1].toLong() else trackOffsets[0].toLong()
-            val totalTrackSectors = (endLba - startLba).toInt()
+            val startLba = track.startLba.toLong()
+            val totalTrackSectors = track.durationSectors
 
             if (totalTrackSectors <= 0) continue
 
@@ -413,7 +417,7 @@ class RippingEngine(
                 // Update CRCs
                 crc32Generator.update(sectorData)
                 trackArCrc = (trackArCrc + ChecksumUtils.calculateAccurateRipCrc(
-                    sectorData, sectorIndex, totalTrackSectors, t == firstTrack, t == lastTrack
+                    sectorData, sectorIndex, totalTrackSectors, t == toc.firstTrack, t == toc.lastTrack
                 )) and 0xFFFFFFFFL
 
                 _ripState.value = _ripState.value.copy(
@@ -575,34 +579,5 @@ class RippingEngine(
         }
     }
 
-    private fun readTocFull(fd: Int, scsiDriver: IScsiDriver, endpointIn: Int, endpointOut: Int): Triple<Int, Int, IntArray>? {
-        // READ TOC command (0x43), format 0 (standard TOC)
-        val tocCmd = byteArrayOf(0x43, 0, 0, 0, 0, 0, 0, 0x03.toByte(), 0x24.toByte(), 0)
-        // We need more data for full TOC. Each entry is 8 bytes. Max 100 tracks + leadout.
-        val tocResponse = scsiDriver.executeScsiCommand(fd, tocCmd, 804, endpointIn, endpointOut)
-        if (tocResponse == null || tocResponse.size < 4) return null
-
-        val firstTrack = tocResponse[2].toInt() and 0xFF
-        val lastTrack = tocResponse[3].toInt() and 0xFF
-        val offsets = IntArray(100)
-
-        for (i in 0 until (lastTrack - firstTrack + 2)) {
-            val base = 4 + i * 8
-            if (base + 8 > tocResponse.size) break
-            val trackNum = tocResponse[base + 2].toInt() and 0xFF
-            val lba = ((tocResponse[base + 4].toInt() and 0xFF) shl 24) or
-                      ((tocResponse[base + 5].toInt() and 0xFF) shl 16) or
-                      ((tocResponse[base + 6].toInt() and 0xFF) shl 8) or
-                      (tocResponse[base + 7].toInt() and 0xFF)
-
-            if (trackNum == 0xAA) { // Lead-out
-                offsets[0] = lba
-            } else if (trackNum in 1..99) {
-                offsets[trackNum] = lba
-            }
-        }
-
-        return Triple(firstTrack, lastTrack, offsets)
-    }
 
 }

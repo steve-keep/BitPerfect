@@ -91,6 +91,7 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
     }
 
     private fun handleReadToc(command: ByteArray, length: Int): ByteArray {
+        val msf = (command[1].toInt() and 0x02) != 0
         val format = command[2].toInt() and 0x0F
         val response = ByteArray(length)
         val buffer = ByteBuffer.wrap(response).order(ByteOrder.BIG_ENDIAN)
@@ -115,7 +116,17 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
                 buffer.put(base + 2, trackNum.toByte())
 
                 val lba = if (trackNum == 0xAA) testCd.trackOffsets[0] else testCd.trackOffsets[trackNum]
-                buffer.putInt(base + 4, lba)
+
+                if (msf) {
+                    val m = (lba + 150) / 4500
+                    val s = ((lba + 150) / 75) % 60
+                    val f = (lba + 150) % 75
+                    buffer.put(base + 5, m.toByte())
+                    buffer.put(base + 6, s.toByte())
+                    buffer.put(base + 7, f.toByte())
+                } else {
+                    buffer.putInt(base + 4, lba)
+                }
             }
         }
         return response

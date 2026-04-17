@@ -35,10 +35,20 @@ class RippingEngineTest {
     fun testSecureRip_SuccessfulTwoPass() = runBlocking {
         val fd = 1
         val capabilities = DriveCapabilities(hasCache = false, supportsC2 = false)
-        val tocResponse = byteArrayOf(0, 18, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+        // Mock response for a CD with 1 track
+        val tocResponse = ByteArray(804)
+        tocResponse[1] = 0x02 // MSF bit
+        tocResponse[2] = 1 // First track
+        tocResponse[3] = 1 // Last track
+        tocResponse[4+2] = 1 // Track 1
+        tocResponse[4+6] = 2 // 00:02:00 -> LBA 0
+        tocResponse[12+2] = 0xAA.toByte() // Lead-out
+        tocResponse[12+5] = 10 // 10:00:00 -> LBA 44850
+
         val sectorData = ByteArray(2352) { 0xAA.toByte() }
 
-        every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
+        every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 804, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352, any<Int>(), any<Int>(), any<Int>()) } returns sectorData
 
         rippingEngine.startSecureRip(context, fd, "test.flac", capabilities)
@@ -56,12 +66,19 @@ class RippingEngineTest {
     fun testSecureRip_WithMismatchAndRecovery() = runBlocking {
         val fd = 1
         val capabilities = DriveCapabilities(hasCache = false, supportsC2 = false)
-        val tocResponse = byteArrayOf(0, 18, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        val tocResponse = ByteArray(804)
+        tocResponse[1] = 0x02 // MSF bit
+        tocResponse[2] = 1 // First track
+        tocResponse[3] = 1 // Last track
+        tocResponse[4+2] = 1 // Track 1
+        tocResponse[4+6] = 2 // 00:02:00 -> LBA 0
+        tocResponse[12+2] = 0xAA.toByte() // Lead-out
+        tocResponse[12+5] = 10 // 10:00:00 -> LBA 44850
 
         val goodData = ByteArray(2352) { 0xAA.toByte() }
         val badData = ByteArray(2352) { 0xBB.toByte() }
 
-        every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
+        every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 804, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
 
         // Mocking behavior for sector 0
         // Pass 1: goodData
@@ -90,13 +107,20 @@ class RippingEngineTest {
     fun testSecureRip_WithC2() = runBlocking {
         val fd = 1
         val capabilities = DriveCapabilities(hasCache = false, supportsC2 = true)
-        val tocResponse = byteArrayOf(0, 18, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        val tocResponse = ByteArray(804)
+        tocResponse[1] = 0x02 // MSF bit
+        tocResponse[2] = 1 // First track
+        tocResponse[3] = 1 // Last track
+        tocResponse[4+2] = 1 // Track 1
+        tocResponse[4+6] = 2 // 00:02:00 -> LBA 0
+        tocResponse[12+2] = 0xAA.toByte() // Lead-out
+        tocResponse[12+5] = 10 // 10:00:00 -> LBA 44850
 
         // Sector data with C2 (all zeros)
         val sectorDataWithC2 = ByteArray(2352 + 294) { 0 }
         sectorDataWithC2[0] = 0xAA.toByte()
 
-        every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 18, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
+        every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 804, any<Int>(), any<Int>(), any<Int>()) } returns tocResponse
         every { scsiDriver.executeScsiCommand(fd, any<ByteArray>(), 2352 + 294, any<Int>(), any<Int>(), any<Int>()) } returns sectorDataWithC2
 
         rippingEngine.startSecureRip(context, fd, "test.flac", capabilities)

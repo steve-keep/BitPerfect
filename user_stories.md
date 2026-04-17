@@ -146,7 +146,7 @@
 ---
 
 ### Story 3.1 — Issue READ TOC command and parse the response
-- [ ] **Done**
+- [x] **Done**
 
 **As a** developer,
 **I want** a `TocReader` component that sends `READ TOC/PMA/ATIP (0x43)` and parses the binary response,

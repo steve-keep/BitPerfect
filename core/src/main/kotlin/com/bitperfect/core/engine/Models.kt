@@ -42,3 +42,20 @@ data class TestCd(
         offsets
     }
 }
+
+data class TrackEntry(
+    val number: Int,
+    val startLba: Int,
+    val durationSectors: Int,
+    val isAudio: Boolean
+)
+
+data class DiscToc(
+    val firstTrack: Int,
+    val lastTrack: Int,
+    val tracks: List<TrackEntry>,
+    val leadOutLba: Int,
+    val totalDurationSectors: Int
+) {
+    val trackCount: Int get() = tracks.size
+}
