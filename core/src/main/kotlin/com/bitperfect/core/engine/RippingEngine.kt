@@ -7,6 +7,7 @@ import com.bitperfect.driver.ScsiDriver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -52,7 +53,7 @@ class RippingEngine(
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
     fun cancel() {
-        _ripState.value = _ripState.value.copy(isRunning = false, status = "Cancelled")
+        _ripState.update { it.copy(isRunning = false, status = "Cancelled") }
     }
 
     suspend fun startBurstRip(
@@ -63,20 +64,20 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
+        _ripState.update { it.copy(isRunning = true, status = "Reading TOC...") }
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
-            _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
+            _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
             return@withContext
         }
 
-        _ripState.value = _ripState.value.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks")
+        _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
 
         // Simplified: Just rip the first track for now
         val firstTrack = toc.tracks.firstOrNull()
         if (firstTrack == null) {
-            _ripState.value = _ripState.value.copy(isRunning = false, status = "No tracks found")
+            _ripState.update { it.copy(isRunning = false, status = "No tracks found") }
             return@withContext
         }
 
@@ -84,7 +85,7 @@ class RippingEngine(
         val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L) // Small range for testing
         val endLba = startLba + totalSectors
 
-        _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
+        _ripState.update { it.copy(totalSectors = totalSectors, currentTrack = 1) }
 
         val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
         flacEncoder.prepare(outputStream, 44100, 2)
@@ -92,22 +93,22 @@ class RippingEngine(
         for (lba in startLba until endLba) {
             val sectorData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut)
             if (sectorData == null) {
-                _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read sector $lba")
+                _ripState.update { it.copy(isRunning = false, status = "Failed to read sector $lba") }
                 return@withContext
             }
 
             flacEncoder.encode(sectorData)
 
             val currentSector = lba - startLba + 1
-            _ripState.value = _ripState.value.copy(
+            _ripState.update { it.copy(
                 currentSector = currentSector,
                 progress = currentSector.toFloat() / totalSectors,
                 status = "Ripping sector $currentSector/$totalSectors"
-            )
+            ) }
         }
 
         flacEncoder.finish()
-        _ripState.value = _ripState.value.copy(isRunning = false, status = "Rip Complete", progress = 1f)
+        _ripState.update { it.copy(isRunning = false, status = "Rip Complete", progress = 1f) }
     }
 
     suspend fun startSecureRip(
@@ -119,26 +120,26 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Initializing Secure Rip...")
+        _ripState.update { it.copy(isRunning = true, status = "Initializing Secure Rip...") }
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
-            _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
+            _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
             return@withContext
         }
 
-        _ripState.value = _ripState.value.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks")
+        _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
 
         val firstTrack = toc.tracks.firstOrNull()
         if (firstTrack == null) {
-            _ripState.value = _ripState.value.copy(isRunning = false, status = "No tracks found")
+            _ripState.update { it.copy(isRunning = false, status = "No tracks found") }
             return@withContext
         }
 
         val startLba = firstTrack.startLba.toLong()
         val totalSectors = firstTrack.durationSectors.toLong().coerceAtMost(50L) // Small range for testing
         val endLba = startLba + totalSectors
-        _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
+        _ripState.update { it.copy(totalSectors = totalSectors, currentTrack = 1) }
 
         val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
         flacEncoder.prepare(outputStream, 44100, 2)
@@ -146,22 +147,22 @@ class RippingEngine(
         for (lba in startLba until endLba) {
             val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
             if (sectorData == null) {
-                _ripState.value = _ripState.value.copy(isRunning = false, status = "Fatal error at sector $lba")
+                _ripState.update { it.copy(isRunning = false, status = "Fatal error at sector $lba") }
                 return@withContext
             }
 
             flacEncoder.encode(sectorData)
 
             val currentSector = lba - startLba + 1
-            _ripState.value = _ripState.value.copy(
+            _ripState.update { it.copy(
                 currentSector = currentSector,
                 progress = currentSector.toFloat() / totalSectors,
                 status = "Secure Ripping sector $currentSector/$totalSectors"
-            )
+            ) }
         }
 
         flacEncoder.finish()
-        _ripState.value = _ripState.value.copy(isRunning = false, status = "Secure Rip Complete", progress = 1f)
+        _ripState.update { it.copy(isRunning = false, status = "Secure Rip Complete", progress = 1f) }
     }
 
 
@@ -224,7 +225,7 @@ class RippingEngine(
         attempts.add(data2)
 
         for (i in 1..80) {
-            _ripState.value = _ripState.value.copy(reReads = i, status = "Re-reading sector $lba (attempt $i)")
+            _ripState.update { it.copy(reReads = i, status = "Re-reading sector $lba (attempt $i)") }
 
             if (capabilities.hasCache) {
                 flushCache(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
@@ -236,12 +237,12 @@ class RippingEngine(
             // Statistical majority: find most frequent
             val majority = findMajority(attempts)
             if (majority != null) {
-                _ripState.value = _ripState.value.copy(reReads = 0)
+                _ripState.update { it.copy(reReads = 0) }
                 return if (capabilities.supportsC2) stripC2(majority) else majority
             }
         }
 
-        _ripState.value = _ripState.value.copy(errorCount = _ripState.value.errorCount + 1)
+        _ripState.update { it.copy(errorCount = it.errorCount + 1) }
         return if (capabilities.supportsC2) stripC2(data1) else data1 // Fallback
     }
 
@@ -339,15 +340,15 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
+        _ripState.update { it.copy(isRunning = true, status = "Reading TOC...") }
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
-            _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read TOC")
+            _ripState.update { it.copy(isRunning = false, status = "Failed to read TOC") }
             return@withContext
         }
 
-        _ripState.value = _ripState.value.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks")
+        _ripState.update { it.copy(totalTracks = toc.trackCount, status = "Found ${toc.trackCount} tracks") }
 
         // Construct offsets array for legacy utils
         val trackOffsets = IntArray(100)
@@ -356,7 +357,7 @@ class RippingEngine(
 
         // Calculate IDs and fetch metadata
         val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
-        _ripState.value = _ripState.value.copy(status = "Fetching metadata...")
+        _ripState.update { it.copy(status = "Fetching metadata...") }
         val metadata = metadataService.fetchMetadata(discId)
 
         val freeDbId = MusicBrainzUtils.calculateFreeDbId(
@@ -369,7 +370,7 @@ class RippingEngine(
             freeDbId
         )
 
-        _ripState.value = _ripState.value.copy(status = "Fetching AccurateRip data...")
+        _ripState.update { it.copy(status = "Fetching AccurateRip data...") }
         val arData = accurateRipService.fetchAccurateRipData(arDiscId)
 
         val trackResults = mutableListOf<TrackRipResult>()
@@ -383,12 +384,12 @@ class RippingEngine(
 
             if (totalTrackSectors <= 0) continue
 
-            _ripState.value = _ripState.value.copy(
+            _ripState.update { it.copy(
                 currentTrack = t,
                 totalSectors = totalTrackSectors.toLong(),
                 currentSector = 0,
                 status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
-            )
+            ) }
 
             val sanitizedArtist = sanitizeFileName(metadata.artist)
             val sanitizedAlbum = sanitizeFileName(metadata.album)
@@ -409,7 +410,7 @@ class RippingEngine(
                 val sectorData = readSectorSecure(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
 
                 if (sectorData == null) {
-                    _ripState.value = _ripState.value.copy(isRunning = false, status = "Fatal error at track $t, sector $sectorIndex")
+                    _ripState.update { it.copy(isRunning = false, status = "Fatal error at track $t, sector $sectorIndex") }
                     return@withContext
                 }
 
@@ -421,11 +422,11 @@ class RippingEngine(
                     sectorData, sectorIndex, totalTrackSectors, t == toc.firstTrack, t == toc.lastTrack
                 )) and 0xFFFFFFFFL
 
-                _ripState.value = _ripState.value.copy(
+                _ripState.update { it.copy(
                     currentSector = sectorIndex.toLong() + 1,
                     progress = (sectorIndex + 1).toFloat() / totalTrackSectors,
                     status = "Secure Ripping track $t: sector ${sectorIndex + 1}/$totalTrackSectors"
-                )
+                ) }
             }
 
             flacEncoder.finish()
@@ -473,7 +474,7 @@ class RippingEngine(
 
         getOutputStreamForPath(context, basePath, logRelativePath)?.use { it.write(logContent.toByteArray()) }
 
-        _ripState.value = _ripState.value.copy(isRunning = false, status = "Full Rip Complete", progress = 1f)
+        _ripState.update { it.copy(isRunning = false, status = "Full Rip Complete", progress = 1f) }
     }
 
     private fun sanitizeFileName(name: String): String {
@@ -515,7 +516,7 @@ class RippingEngine(
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
         if (_ripState.value.isRunning) return@withContext
-        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = true, status = "Ejecting...")
+        _ripState.update { it.copy(isTrayOperationInProgress = true, status = "Ejecting...") }
 
         // START STOP UNIT (0x1B), LoEj=1, Start=0 (eject)
         val ejectCmd = byteArrayOf(0x1B, 0, 0, 0, 0x02, 0)
@@ -523,7 +524,7 @@ class RippingEngine(
 
         // Re-poll to update status immediately
         pollDriveStatus(fd, scsiDriver, endpointIn, endpointOut)
-        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = false)
+        _ripState.update { it.copy(isTrayOperationInProgress = false) }
     }
 
     suspend fun loadTray(
@@ -533,7 +534,7 @@ class RippingEngine(
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
         if (_ripState.value.isRunning) return@withContext
-        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = true, status = "Loading Tray...")
+        _ripState.update { it.copy(isTrayOperationInProgress = true, status = "Loading Tray...") }
 
         // START STOP UNIT (0x1B), LoEj=1, Start=1 (load)
         val loadCmd = byteArrayOf(0x1B, 0, 0, 0, 0x03, 0)
@@ -541,7 +542,7 @@ class RippingEngine(
 
         // Re-poll to update status immediately
         pollDriveStatus(fd, scsiDriver, endpointIn, endpointOut)
-        _ripState.value = _ripState.value.copy(isTrayOperationInProgress = false)
+        _ripState.update { it.copy(isTrayOperationInProgress = false) }
     }
 
     suspend fun pollDriveStatus(
@@ -557,12 +558,10 @@ class RippingEngine(
         val response = scsiDriver.executeScsiCommand(fd, turCmd, 0, endpointIn, endpointOut)
 
         if (response != null) {
-            val currentToc = _ripState.value.discToc
-            if (currentToc == null) {
+            _ripState.update { it.copy(driveStatus = "Ready") }
+            if (_ripState.value.discToc == null) {
                 val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
-                _ripState.value = _ripState.value.copy(driveStatus = "Ready", discToc = toc)
-            } else {
-                _ripState.value = _ripState.value.copy(driveStatus = "Ready")
+                _ripState.update { it.copy(discToc = toc) }
             }
         } else {
             // CHECK CONDITION -> REQUEST SENSE (0x03)
@@ -579,9 +578,9 @@ class RippingEngine(
                     senseKey == 0x02 -> "Not Ready"
                     else -> "Error (Key: $senseKey, ASC: $asc)"
                 }
-                _ripState.value = _ripState.value.copy(driveStatus = status, discToc = null)
+                _ripState.update { it.copy(driveStatus = status, discToc = null) }
             } else {
-                _ripState.value = _ripState.value.copy(driveStatus = "Communication Error", discToc = null)
+                _ripState.update { it.copy(driveStatus = "Communication Error", discToc = null) }
             }
         }
     }

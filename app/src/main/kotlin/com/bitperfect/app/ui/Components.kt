@@ -3,11 +3,13 @@ package com.bitperfect.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Check
@@ -355,168 +357,174 @@ fun DiagnosticDashboard(
     onCopyDebugReport: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Tonal Layering: Cards on background
-        Surface(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerLow
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Hardware Information",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                val info = if (driveCapabilities != null) "${driveCapabilities.vendor} ${driveCapabilities.product} (Rev: ${driveCapabilities.revision})" else "Run diagnostics to detect drive"
-                Text(text = info, style = MaterialTheme.typography.titleMedium)
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Detected Capabilities",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (driveCapabilities != null) {
-                    CapabilityBadge("Accurate Stream", driveCapabilities.accurateStream)
-                    CapabilityBadge("C2 Error Pointers", driveCapabilities.supportsC2)
-                    CapabilityBadge("Cache detected", driveCapabilities.hasCache)
-                    Text(text = "Read Offset: ${driveCapabilities.readOffset}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Text(text = "No capabilities detected yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Drive Status",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = ripState.driveStatus,
-                        style = MaterialTheme.typography.displaySmall, // Large for status
-                        color = when (ripState.driveStatus) {
-                            "Ready" -> MaterialTheme.colorScheme.primary
-                            "No Disc / Tray Open" -> MaterialTheme.colorScheme.tertiary // Warn instead of Alarm
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                    )
-
-                    if (ripState.isTrayOperationInProgress) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onEject,
-                        enabled = !ripState.isRunning && !ripState.isTrayOperationInProgress,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Icon(Icons.Default.ArrowForward, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Eject")
-                    }
-                    OutlinedButton(
-                        onClick = onLoadTray,
-                        enabled = !ripState.isRunning && !ripState.isTrayOperationInProgress,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Load Tray")
-                    }
-                }
-            }
-        }
-
-        ripState.discToc?.let { toc ->
-            if (!ripState.isRunning) {
-                TrackList(toc)
-            }
-        }
-
-        if (ripState.isRunning || ripState.progress > 0) {
+            // Tonal Layering: Cards on background
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(16.dp),
                 shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest
+                color = MaterialTheme.colorScheme.surfaceContainerLow
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(
-                        text = "Ripping Status: ${ripState.status}",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "Hardware Information",
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    LinearProgressIndicator(
-                        progress = { ripState.progress },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val info = if (driveCapabilities != null) "${driveCapabilities.vendor} ${driveCapabilities.product} (Rev: ${driveCapabilities.revision})" else "Run diagnostics to detect drive"
+                    Text(text = info, style = MaterialTheme.typography.titleMedium)
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Text(
+                        text = "Detected Capabilities",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    if (driveCapabilities != null) {
+                        CapabilityBadge("Accurate Stream", driveCapabilities.accurateStream)
+                        CapabilityBadge("C2 Error Pointers", driveCapabilities.supportsC2)
+                        CapabilityBadge("Cache detected", driveCapabilities.hasCache)
+                        Text(text = "Read Offset: ${driveCapabilities.readOffset}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text(text = "No capabilities detected yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Text(
+                        text = "Drive Status",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "Track ${ripState.currentTrack}/${ripState.totalTracks}",
-                            style = MaterialTheme.typography.bodyMedium
+                            text = ripState.driveStatus,
+                            style = MaterialTheme.typography.displaySmall, // Large for status
+                            color = when (ripState.driveStatus) {
+                                "Ready" -> MaterialTheme.colorScheme.primary
+                                "No Disc / Tray Open" -> MaterialTheme.colorScheme.tertiary // Warn instead of Alarm
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                         )
-                        Text(
-                            text = "${(ripState.progress * 100).toInt()}%",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                        if (ripState.isTrayOperationInProgress) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onEject,
+                            enabled = !ripState.isRunning && !ripState.isTrayOperationInProgress,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Eject")
+                        }
+                        OutlinedButton(
+                            onClick = onLoadTray,
+                            enabled = !ripState.isRunning && !ripState.isTrayOperationInProgress,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Load Tray")
+                        }
                     }
                 }
             }
-        } else {
-            // Primary Action: Gradient fill
-            Button(
-                onClick = onStartRip,
-                enabled = ripState.driveStatus == "Ready" && !ripState.isTrayOperationInProgress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .height(56.dp),
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues()
-            ) {
-                Box(
+
+            ripState.discToc?.let { toc ->
+                if (!ripState.isRunning) {
+                    TrackList(toc)
+                }
+            }
+
+            if (ripState.isRunning || ripState.progress > 0) {
+                Surface(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    if (ripState.driveStatus == "Ready") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                    if (ripState.driveStatus == "Ready") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
                 ) {
-                    Text("Start Secure Rip", style = MaterialTheme.typography.titleMedium)
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = "Ripping Status: ${ripState.status}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        LinearProgressIndicator(
+                            progress = { ripState.progress },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                text = "Track ${ripState.currentTrack}/${ripState.totalTracks}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "${(ripState.progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Primary Action: Gradient fill
+                Button(
+                    onClick = onStartRip,
+                    enabled = ripState.driveStatus == "Ready" && !ripState.isTrayOperationInProgress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(56.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        if (ripState.driveStatus == "Ready") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        if (ripState.driveStatus == "Ready") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Start Secure Rip", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         }
