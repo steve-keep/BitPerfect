@@ -25,8 +25,8 @@ class LaunchTest {
 
     @Test
     fun app_launches_and_displays_initial_ui() {
-        // Verify that the "Select USB Drive" text is displayed,
+        // Verify that the "BitPerfect" text is displayed,
         // which indicates the MainActivity has successfully loaded the DeviceList component.
-        composeTestRule.onNodeWithText("Select USB Drive").assertExists()
+        composeTestRule.onNodeWithText("BitPerfect").assertExists()
     }
 }
