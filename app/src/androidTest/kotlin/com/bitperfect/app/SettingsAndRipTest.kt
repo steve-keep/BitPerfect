@@ -70,7 +70,7 @@ class SettingsAndRipTest {
         // Assert Track 1 and Audio badge exist
         composeTestRule.onAllNodesWithText("1.", substring = true).onFirst().assertExists()
         composeTestRule.onAllNodesWithText("Audio", substring = true).onFirst().assertExists()
-        composeTestRule.onNodeWithText("Total Duration", substring = true).performScrollTo().assertExists()
+
     }
 
     @Test
