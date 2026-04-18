@@ -16,6 +16,7 @@ class RippingEngineTest {
 
     private val scsiDriver = mockk<IScsiDriver>()
     private val flacEncoder = mockk<FlacEncoder>(relaxed = true)
+    private val metadataService = mockk<MetadataService>(relaxed = true)
     private val context = mockk<Context>(relaxed = true)
     private lateinit var rippingEngine: RippingEngine
 
@@ -23,7 +24,8 @@ class RippingEngineTest {
     fun setUp() {
         mockkStatic(Log::class)
         every { Log.w(any(), any<String>()) } returns 0
-        rippingEngine = RippingEngine(scsiDriver, flacEncoder)
+        coEvery { metadataService.fetchMetadata(any()) } returns emptyList()
+        rippingEngine = RippingEngine(scsiDriver, flacEncoder, metadataService)
     }
 
     @After

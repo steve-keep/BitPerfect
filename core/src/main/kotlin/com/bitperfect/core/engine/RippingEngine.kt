@@ -29,7 +29,9 @@ data class RipState(
     val errorCount: Int = 0,
     val driveStatus: String = "No Drive",
     val discToc: DiscToc? = null,
-    val tocError: String? = null
+    val tocError: String? = null,
+    val availableMetadata: List<AlbumMetadata> = emptyList(),
+    val selectedMetadata: AlbumMetadata? = null
 )
 
 data class DriveCapabilities(
@@ -54,6 +56,10 @@ class RippingEngine(
 
     fun cancel() {
         _ripState.value = _ripState.value.copy(isRunning = false, status = "Cancelled")
+    }
+
+    fun selectMetadata(metadata: AlbumMetadata?) {
+        _ripState.value = _ripState.value.copy(selectedMetadata = metadata)
     }
 
     suspend fun startBurstRip(
@@ -356,16 +362,14 @@ class RippingEngine(
         trackOffsets[0] = toc.leadOutLba
 
         // Calculate IDs and fetch metadata
-        val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
-        _ripState.value = _ripState.value.copy(status = "Fetching metadata...")
-        val metadata = metadataService.fetchMetadata(discId)
-
         val arDiscId = toc.computeAccurateRipId()
 
         _ripState.value = _ripState.value.copy(status = "Fetching AccurateRip data...")
         val arData = accurateRipService.fetchAccurateRipData(toc.trackCount, arDiscId)
 
         val trackResults = mutableListOf<TrackRipResult>()
+
+        val selectedMeta = _ripState.value.selectedMetadata ?: AlbumMetadata()
 
         for (track in toc.tracks) {
             if (!_ripState.value.isRunning) break
@@ -380,12 +384,12 @@ class RippingEngine(
                 currentTrack = t,
                 totalSectors = totalTrackSectors.toLong(),
                 currentSector = 0,
-                status = "Ripping track $t: ${metadata.tracks.getOrNull(t - 1) ?: "Track $t"}"
+                status = "Ripping track $t: ${selectedMeta.tracks.getOrNull(t - 1) ?: "Track $t"}"
             )
 
-            val sanitizedArtist = sanitizeFileName(metadata.artist)
-            val sanitizedAlbum = sanitizeFileName(metadata.album)
-            val sanitizedTitle = sanitizeFileName(metadata.tracks.getOrNull(t - 1) ?: "Track $t")
+            val sanitizedArtist = sanitizeFileName(selectedMeta.artist)
+            val sanitizedAlbum = sanitizeFileName(selectedMeta.album)
+            val sanitizedTitle = sanitizeFileName(selectedMeta.tracks.getOrNull(t - 1) ?: "Track $t")
             val fileName = "${t.toString().padStart(2, '0')} - $sanitizedTitle.flac"
 
             val relativePath = "$sanitizedArtist/$sanitizedAlbum/$fileName"
@@ -455,13 +459,13 @@ class RippingEngine(
                 "C2: ${if (capabilities.supportsC2) "Yes" else "No"}",
                 "Cache: ${if (capabilities.hasCache) "Yes" else "No"}"
             ),
-            albumMetadata = metadata,
+            albumMetadata = selectedMeta,
             trackResults = trackResults
         )
 
         val logContent = LogGenerator.generateLog(ripSessionInfo)
-        val sanitizedArtist = sanitizeFileName(metadata.artist)
-        val sanitizedAlbum = sanitizeFileName(metadata.album)
+        val sanitizedArtist = sanitizeFileName(selectedMeta.artist)
+        val sanitizedAlbum = sanitizeFileName(selectedMeta.album)
         val logRelativePath = "$sanitizedArtist/$sanitizedAlbum/rip_log.txt"
 
         getOutputStreamForPath(context, basePath, logRelativePath)?.use { it.write(logContent.toByteArray()) }
@@ -557,6 +561,18 @@ class RippingEngine(
                 val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
                 if (toc != null) {
                     _ripState.value = _ripState.value.copy(discToc = toc)
+
+                    // Fetch metadata
+                    val trackOffsets = IntArray(100)
+                    toc.tracks.forEach { trackOffsets[it.number] = it.startLba }
+                    trackOffsets[0] = toc.leadOutLba
+                    val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
+
+                    val metadataList = metadataService.fetchMetadata(discId)
+                    _ripState.value = _ripState.value.copy(
+                        availableMetadata = metadataList,
+                        selectedMetadata = if (metadataList.size == 1) metadataList.first() else null
+                    )
                 } else {
                     _ripState.value = _ripState.value.copy(tocError = "Disc unreadable — try cleaning it")
                 }

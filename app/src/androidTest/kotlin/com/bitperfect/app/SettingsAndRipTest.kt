@@ -74,6 +74,42 @@ class SettingsAndRipTest {
     }
 
     @Test
+    fun testMetadataSelectionUI() {
+        // 1. Enable Virtual Drive
+        composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
+        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true) and hasClickAction()).performClick()
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+
+        // 2. Select Virtual Drive
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodesWithText("VIRTUAL DRIVE", substring = true, ignoreCase = true).onFirst().performClick()
+
+        // Wait for Track List to load
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("Track List", substring = true, ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Wait for potential network call for metadata, or until it defaults to "Proceed with unnamed tracks" if multiple
+        // We use the fallback "Proceed with unnamed tracks" because Ktor mock doesn't run in espresso test by default
+        composeTestRule.waitUntil(10000) {
+            val hasSheet = composeTestRule.onAllNodesWithText("Select Release").fetchSemanticsNodes().isNotEmpty()
+            val hasTrackList = composeTestRule.onAllNodesWithText("Start Secure Rip").fetchSemanticsNodes().isNotEmpty()
+            hasSheet || hasTrackList
+        }
+
+        val sheetNodes = composeTestRule.onAllNodesWithText("Select Release").fetchSemanticsNodes()
+        if (sheetNodes.isNotEmpty()) {
+            composeTestRule.onNodeWithText("Proceed with unnamed tracks").performClick()
+        }
+
+        composeTestRule.onNodeWithText("Track List").performScrollTo().assertExists()
+    }
+
+    @Test
     fun testStartRipCrash() {
         // 1. Enable Virtual Drive
         composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()

@@ -175,11 +175,12 @@ class MainActivity : ComponentActivity() {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(usbReceiver, filter)
-        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            usbReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+        )
 
         refreshDevices()
 
@@ -328,8 +329,11 @@ class MainActivity : ComponentActivity() {
                                                     if (usbDeviceManager.hasPermission(drive.device)) {
                                                         runDiagnostics(drive)
                                                     } else {
+                                                        val intent = Intent(ACTION_USB_PERMISSION).apply {
+                                                            setPackage(packageName)
+                                                        }
                                                         val permissionIntent = PendingIntent.getBroadcast(
-                                                            this@MainActivity, 0, Intent(ACTION_USB_PERMISSION), PendingIntent.FLAG_MUTABLE
+                                                            this@MainActivity, 0, intent, PendingIntent.FLAG_MUTABLE
                                                         )
                                                         usbDeviceManager.requestPermission(drive.device, permissionIntent)
                                                     }
@@ -359,6 +363,9 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onRetry = {
                                                 selectedDevice?.let { retryPoll(it) }
+                                            },
+                                            onMetadataSelect = { metadata ->
+                                                rippingService?.rippingEngine?.selectMetadata(metadata)
                                             }
                                         )
                                     }

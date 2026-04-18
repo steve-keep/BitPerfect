@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -21,9 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.bitperfect.core.engine.BitPerfectDrive
 import com.bitperfect.core.engine.DriveCapabilities
 import com.bitperfect.core.engine.RipState
+import com.bitperfect.core.engine.AlbumMetadata
 
 @Composable
 fun PreferenceItem(
@@ -252,6 +255,7 @@ fun CapabilityBadge(label: String, supported: Boolean) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiagnosticDashboard(
     driveCapabilities: DriveCapabilities?,
@@ -261,8 +265,94 @@ fun DiagnosticDashboard(
     onEject: () -> Unit,
     onLoadTray: () -> Unit,
     onCopyDebugReport: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onMetadataSelect: (AlbumMetadata?) -> Unit = {}
 ) {
+    var showMetadataSheet by remember { mutableStateOf(false) }
+
+    // If there's available metadata but none selected, show the sheet automatically
+    LaunchedEffect(ripState.availableMetadata, ripState.selectedMetadata) {
+        if (ripState.availableMetadata.isNotEmpty() && ripState.selectedMetadata == null) {
+            if (ripState.availableMetadata.size == 1) {
+                // Auto-select if only 1
+                onMetadataSelect(ripState.availableMetadata.first())
+            } else {
+                showMetadataSheet = true
+            }
+        }
+    }
+
+    if (showMetadataSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showMetadataSheet = false
+            }
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Select Release",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                LazyColumn {
+                    items(ripState.availableMetadata) { metadata ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onMetadataSelect(metadata)
+                                    showMetadataSheet = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (metadata.albumArtUrl != null) {
+                                AsyncImage(
+                                    model = metadata.albumArtUrl,
+                                    contentDescription = "Album Art",
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .padding(end = 16.dp)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .padding(end = 16.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Info, contentDescription = null)
+                                }
+                            }
+                            Column {
+                                Text(text = metadata.album, style = MaterialTheme.typography.titleMedium)
+                                Text(text = metadata.artist, style = MaterialTheme.typography.bodyMedium)
+                                val extraInfo = listOfNotNull(metadata.year, metadata.country, metadata.label).joinToString(" • ")
+                                if (extraInfo.isNotBlank()) {
+                                    Text(text = extraInfo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                    item {
+                        TextButton(
+                            onClick = {
+                                onMetadataSelect(AlbumMetadata())
+                                showMetadataSheet = false
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        ) {
+                            Text("Proceed with unnamed tracks")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Tonal Layering: Cards on background
         Surface(
@@ -396,20 +486,32 @@ fun DiagnosticDashboard(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    val selectedMeta = ripState.selectedMetadata ?: AlbumMetadata()
+
+                    if (selectedMeta.album != "Unknown Album") {
+                        Text(
+                            text = "${selectedMeta.album} - ${selectedMeta.artist}",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(ripState.discToc?.tracks ?: emptyList()) { track ->
+                            val trackTitle = selectedMeta.tracks.getOrNull(track.number - 1)
+
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Text(text = "${track.number}.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(32.dp))
                                     Text(
-                                        text = if (track.isAudio) "Audio" else "Data",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small).padding(horizontal = 6.dp, vertical = 2.dp)
+                                        text = trackTitle ?: if (track.isAudio) "Audio" else "Data",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(end = 16.dp)
                                     )
                                 }
                                 val seconds = track.durationSectors / 75
