@@ -1,0 +1,53 @@
+name: Start Next Jules Task
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  start-next-task:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract next task
+        id: extract_task
+        run: |
+          NEXT_TASK_TITLE=""
+          LAST_STORY=""
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^-\ \[\ \].* ]]; then
+              if [ -n "$LAST_STORY" ]; then
+                NEXT_TASK_TITLE="$LAST_STORY"
+              else
+                NEXT_TASK_TITLE="$line"
+              fi
+              break
+            elif [[ "$line" =~ ^###\ (.*) ]]; then
+              LAST_STORY="${BASH_REMATCH[1]}"
+            fi
+          done < user_stories.md
+
+          if [ -n "$NEXT_TASK_TITLE" ]; then
+            echo "Found next task: $NEXT_TASK_TITLE"
+            echo "task=$NEXT_TASK_TITLE" >> "$GITHUB_OUTPUT"
+            echo "has_task=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No remaining tasks found."
+            echo "has_task=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Invoke Jules
+        if: steps.extract_task.outputs.has_task == 'true'
+        uses: google-labs-code/jules-invoke@v1
+        with:
+          prompt: |
+            Please start the next task: ${{ steps.extract_task.outputs.task }}
+
+            Read the task in the user_stories.md file. Make sure to implement both integration and unit tests.
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+          starting_branch: main
