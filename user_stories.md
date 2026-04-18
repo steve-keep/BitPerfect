@@ -216,7 +216,7 @@
 ---
 
 ### Story 4.2 — Query MusicBrainz for disc releases
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** the app to automatically look up the inserted CD on MusicBrainz,
@@ -234,7 +234,7 @@
 ---
 
 ### Story 4.3 — Display MusicBrainz results and let the user select a release
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** to see the album art, title, artist, and year for each matching release found on MusicBrainz,
@@ -250,7 +250,7 @@
 ---
 
 ### Story 4.4 — Merge MusicBrainz metadata with TOC track list
-- [ ] **Done**
+- [x] **Done**
 
 **As a** developer,
 **I want** a `MetadataMerger` that combines TOC data with a chosen MusicBrainz `Release`,
