@@ -333,7 +333,7 @@ class MainActivity : ComponentActivity() {
                                                             setPackage(packageName)
                                                         }
                                                         val permissionIntent = PendingIntent.getBroadcast(
-                                                            this@MainActivity, 0, intent, PendingIntent.FLAG_MUTABLE
+                                                            this@MainActivity, 0, Intent(ACTION_USB_PERMISSION).apply { setPackage(packageName) }, PendingIntent.FLAG_MUTABLE
                                                         )
                                                         usbDeviceManager.requestPermission(drive.device, permissionIntent)
                                                     }
