@@ -286,7 +286,7 @@
 ---
 
 ### Story 5.1 — Detect Accurate Stream, C2, and cache support
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** a `DriveCapabilityDetector` that runs a one-time probe when a drive is first connected,
@@ -301,7 +301,7 @@
 ---
 
 ### Story 5.2 — Look up drive read offset from the AccurateRip database
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** the app to automatically find the correct read offset for my drive,
@@ -316,7 +316,7 @@
 ---
 
 ### Story 5.3 — Auto-calibrate drive offset using AccurateRip
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** the app to determine my drive's offset by ripping a well-known disc and comparing checksums,
@@ -338,7 +338,7 @@
 ---
 
 ### Story 6.1 — Implement raw CD-DA sector reader (READ CD 0xBE)
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** a low-level `CdSectorReader` that issues `READ CD (0xBE)` for a given LBA range,
@@ -354,7 +354,7 @@
 ---
 
 ### Story 6.2 — Implement the secure multi-pass majority vote algorithm
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** a `SecureSectorExtractor` that reads each sector up to 82 times and returns the majority result,
@@ -370,7 +370,7 @@
 ---
 
 ### Story 6.3 — Implement cache-busting between re-reads
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** the extractor to issue a "decoy" read before each re-read of a cached drive,
@@ -385,7 +385,7 @@
 ---
 
 ### Story 6.4 — Implement Test & Copy (dual-pass CRC32 verification)
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** each track to be ripped twice and both runs' CRC32 values compared,
@@ -401,7 +401,7 @@
 ---
 
 ### Story 6.5 — Apply sample offset correction to extracted audio
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** the extractor to shift the audio byte stream by the drive's read offset,
@@ -416,7 +416,7 @@
 ---
 
 ### Story 6.6 — Implement gap detection via Q subchannel
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** a `GapDetector` that reads Q subchannel data to find the exact pre-gap boundary for each track,
@@ -437,7 +437,7 @@
 ---
 
 ### Story 7.1 — Compute AccurateRip v1 and v2 checksums
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** `computeARv1(audioBytes, trackNum, totalTracks)` and `computeARv2(audioBytes, trackNum, totalTracks)`,
@@ -452,7 +452,7 @@
 ---
 
 ### Story 7.2 — Fetch AccurateRip database response for the disc
-- [x] **Done**
+- [ ] **Done**
 
 **As a** developer,
 **I want** an `AccurateRipClient` that fetches and parses the binary `.bin` response,
@@ -468,7 +468,7 @@
 ---
 
 ### Story 7.3 — Compare computed checksums against database and display results
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** to see per-track AccurateRip verification results after ripping,
@@ -490,7 +490,7 @@
 ---
 
 ### Story 8.1 — Generate an EAC-format log file
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** the app to produce a `.log` file in EAC format at the end of each rip,
@@ -506,7 +506,7 @@
 ---
 
 ### Story 8.2 — Append SHA-256 checksum to the log file
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** the log file to include a SHA-256 checksum of its content,
@@ -526,7 +526,7 @@
 ---
 
 ### Story 9.1 — Implement the main screen idle / active state machine
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** the main screen to clearly show the current app state at a glance,
@@ -548,7 +548,7 @@
 ---
 
 ### Story 9.2 — Rip progress screen with per-track status
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** to see real-time progress for each track as it is being ripped,
@@ -565,7 +565,7 @@
 ---
 
 ### Story 9.3 — Settings screen
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** a settings screen where I can configure ripping behaviour,
@@ -586,7 +586,7 @@
 ---
 
 ### Story 9.4 — Post-rip results and log viewer
-- [x] **Done**
+- [ ] **Done**
 
 **As a** user,
 **I want** to view a summary of my rip results and read the full log file in-app,
