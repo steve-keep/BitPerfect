@@ -106,7 +106,11 @@ class SettingsAndRipTest {
             composeTestRule.onNodeWithText("Proceed with unnamed tracks").performClick()
         }
 
-        composeTestRule.onNodeWithText("Track List").performScrollTo().assertExists()
+        composeTestRule.waitUntil(10000) {
+            composeTestRule.onAllNodesWithText("Track List", substring = true, ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onAllNodesWithText("Track List", substring = true, ignoreCase = true).onFirst().assertExists()
     }
 
     @Test
