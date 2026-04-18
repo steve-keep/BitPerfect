@@ -41,7 +41,7 @@ class SettingsAndRipTest {
 
         // 2. Toggle "Enable Virtual Drive"
         // Use a more robust matcher that includes the switch or the item
-        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true) and hasClickAction()).performClick()
+        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true)).performClick()
 
         // Check if "Selected Test CD" header appeared (it only shows if enabled)
         composeTestRule.waitUntil(10000) {
@@ -77,7 +77,7 @@ class SettingsAndRipTest {
     fun testStartRipCrash() {
         // 1. Enable Virtual Drive
         composeTestRule.onNode(hasText("Settings", ignoreCase = true) and hasClickAction()).performClick()
-        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true) and hasClickAction()).performClick()
+        composeTestRule.onNode(hasText("Enable Virtual Drive", substring = true)).performClick()
 
         // Use back icon button specifically
         composeTestRule.onNodeWithContentDescription("Back").performClick()
