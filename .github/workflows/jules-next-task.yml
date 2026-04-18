@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'user_stories.md'
 
 jobs:
   start-next-task:
@@ -51,3 +53,5 @@ jobs:
             Read the task in the user_stories.md file. Make sure to implement both integration and unit tests.
           jules_api_key: ${{ secrets.JULES_API_KEY }}
           starting_branch: main
+          include_last_commit: false
+          include_commit_log: false
