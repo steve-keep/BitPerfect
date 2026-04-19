@@ -301,7 +301,7 @@
 ---
 
 ### Story 5.2 — Look up drive read offset from the AccurateRip database
-- [ ] **Done**
+- [x] **Done**
 
 **As a** user,
 **I want** the app to automatically find the correct read offset for my drive,
