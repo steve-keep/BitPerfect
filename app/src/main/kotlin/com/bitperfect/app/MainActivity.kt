@@ -74,6 +74,12 @@ import kotlinx.coroutines.Dispatchers
 import android.content.ServiceConnection
 import android.os.IBinder
 
+private sealed class ScreenState {
+    object DeviceList : ScreenState()
+    object Diagnostics : ScreenState()
+    object Settings : ScreenState()
+}
+
 class MainActivity : ComponentActivity() {
     private lateinit var usbDeviceManager: UsbDeviceManager
     private lateinit var settingsManager: SettingsManager
@@ -259,26 +265,18 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 ) { innerPadding ->
-                    if (isShowingSettings) {
-                        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                            SettingsScreen(
-                                settingsManager = settingsManager,
-                                onBack = {
-                                    isShowingSettings = false
-                                    refreshDevices()
-                                },
-                                onCopyDebugReport = {
-                                                copyDebugReportToClipboard()
-                                            }
-                            )
-                        }
-                    } else {
-                        Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                            Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
-                                AnimatedContent(
-                                    targetState = selectedDevice,
+                    Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
+                            val currentState = when {
+                                isShowingSettings -> ScreenState.Settings
+                                selectedDevice != null -> ScreenState.Diagnostics
+                                else -> ScreenState.DeviceList
+                            }
+
+                            AnimatedContent(
+                                targetState = currentState,
                                 transitionSpec = {
-                                    if (targetState != null) {
+                                    if (targetState is ScreenState.Settings || targetState is ScreenState.Diagnostics) {
                                         (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
                                             slideOutHorizontally { width -> -width } + fadeOut())
                                     } else {
@@ -286,9 +284,22 @@ class MainActivity : ComponentActivity() {
                                             slideOutHorizontally { width -> width } + fadeOut())
                                     }.using(SizeTransform(clip = false))
                                 },
-                                    label = "ScreenTransition"
-                                ) { targetDevice ->
-                                    if (targetDevice == null) {
+                                label = "ScreenTransition"
+                            ) { state ->
+                                when (state) {
+                                    is ScreenState.Settings -> {
+                                        SettingsScreen(
+                                            settingsManager = settingsManager,
+                                            onBack = {
+                                                isShowingSettings = false
+                                                refreshDevices()
+                                            },
+                                            onCopyDebugReport = {
+                                                copyDebugReportToClipboard()
+                                            }
+                                        )
+                                    }
+                                    is ScreenState.DeviceList -> {
                                         DeviceList(devices = devices, onDeviceClick = { drive ->
                                             when (drive) {
                                                 is BitPerfectDrive.Physical -> {
@@ -309,8 +320,8 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         })
-                                    } else {
-
+                                    }
+                                    is ScreenState.Diagnostics -> {
                                         DiagnosticDashboard(
                                             driveCapabilities = detectedCapabilities,
                                             ripState = ripState,
