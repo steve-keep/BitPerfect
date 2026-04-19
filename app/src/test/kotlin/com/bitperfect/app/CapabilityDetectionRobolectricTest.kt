@@ -61,7 +61,7 @@ class CapabilityDetectionRobolectricTest {
             shadowOf(Looper.getMainLooper()).idle()
 
             // When go to Settings
-            composeTestRule.onNodeWithText("Settings").performClick()
+            composeTestRule.onNodeWithContentDescription("Settings").performClick()
             shadowOf(Looper.getMainLooper()).idle()
 
             // And enable Virtual Drive
