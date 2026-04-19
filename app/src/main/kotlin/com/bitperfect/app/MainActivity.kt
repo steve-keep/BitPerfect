@@ -57,6 +57,8 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.DiagnosticDashboard
 import com.bitperfect.app.ui.SettingsScreen
@@ -220,7 +222,10 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     }
-                                    Text(if (selectedDevice == null) "BitPerfect" else "Drive Diagnostics")
+                                    Text(
+                                        text = if (selectedDevice == null) "BitPerfect" else "Drive Diagnostics",
+                                        modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" }
+                                    )
                                 }
                             },
                             navigationIcon = {
