@@ -241,36 +241,22 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             },
+                            actions = {
+                                if (!isShowingSettings) {
+                                    IconButton(onClick = { isShowingSettings = true }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Settings"
+                                        )
+                                    }
+                                }
+                            },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 titleContentColor = MaterialTheme.colorScheme.onSurface,
                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
-                    },
-                    bottomBar = {
-                        if (!isExpanded && !isShowingSettings) {
-                            NavigationBar {
-                                NavigationBarItem(
-                                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                    label = { Text("Home") },
-                                    selected = !isShowingSettings,
-                                    onClick = { isShowingSettings = false }
-                                )
-                                NavigationBarItem(
-                                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                    label = { Text("Settings") },
-                                    selected = isShowingSettings,
-                                    onClick = { isShowingSettings = true }
-                                )
-                                NavigationBarItem(
-                                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                    label = { Text("About") },
-                                    selected = false,
-                                    onClick = { }
-                                )
-                            }
-                        }
                     }
                 ) { innerPadding ->
                     if (isShowingSettings) {
@@ -288,31 +274,6 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                            if (isExpanded) {
-                                NavigationRail(
-                                    modifier = Modifier.fillMaxHeight()
-                                ) {
-                                    NavigationRailItem(
-                                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                        label = { Text("Home") },
-                                        selected = !isShowingSettings,
-                                        onClick = { isShowingSettings = false }
-                                    )
-                                    NavigationRailItem(
-                                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                        label = { Text("Settings") },
-                                        selected = isShowingSettings,
-                                        onClick = { isShowingSettings = true }
-                                    )
-                                    NavigationRailItem(
-                                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                        label = { Text("About") },
-                                        selected = false,
-                                        onClick = { }
-                                    )
-                                }
-                            }
-
                             Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
                                 AnimatedContent(
                                     targetState = selectedDevice,

@@ -4,7 +4,7 @@ Feature: Settings and rip
     Given clear SharedPreferences to ensure test isolation
 
   Scenario: test virtual drive toggle and selection
-    When go to Settings (using the bottom navigation tab)
+    When go to Settings
     And toggle "Enable Virtual Drive"
     And check if "Selected Test CD" header appeared
     And select a different CD
