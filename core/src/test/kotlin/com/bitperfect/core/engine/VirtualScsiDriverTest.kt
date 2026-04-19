@@ -23,8 +23,8 @@ class VirtualScsiDriverTest {
         assertTrue(response != null)
         assertEquals(36, response!!.size)
         assertEquals(0x05.toByte(), response[0]) // CD-ROM
-        assertEquals("BITPERF", String(response.sliceArray(8 until 15)).trim())
-        assertEquals("VIRTUAL DRIVE", String(response.sliceArray(16 until 29)).trim())
+        assertEquals("ASUS", String(response.sliceArray(8 until 16)).trim())
+        assertEquals("DRW-24B1ST   a", String(response.sliceArray(16 until 32)).trim())
     }
 
     @Test

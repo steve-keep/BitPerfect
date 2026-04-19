@@ -29,8 +29,8 @@ class LaunchTestRobolectricTest {
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val serviceController = Robolectric.buildService(RippingService::class.java).create()
-        val service = serviceController.get()
+        val serviceController = Robolectric.buildService(RippingService::class.java)
+        val service = serviceController.create().get()
 
         shadowOf(ApplicationProvider.getApplicationContext<Context>() as android.app.Application)
             .setComponentNameAndServiceForBindService(

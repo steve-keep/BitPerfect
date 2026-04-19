@@ -56,7 +56,7 @@ class RippingIntegrationTest {
             tracks = listOf("Track 1")
         )
         val virtualDriver = VirtualScsiDriver(testCd)
-        val rippingEngine = RippingEngine(virtualDriver, mockk(relaxed = true))
+        val rippingEngine = RippingEngine(context, virtualDriver, mockk(relaxed = true))
 
         val capabilities = DriveCapabilities(hasCache = false, supportsC2 = false)
 

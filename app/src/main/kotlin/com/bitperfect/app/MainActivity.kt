@@ -386,7 +386,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshDevices() {
         val physicalDevices = usbDeviceManager.getCompatibleDevices().map { BitPerfectDrive.Physical(it) }
         val virtualDevices = if (settingsManager.isVirtualDriveEnabled) {
-            listOf(BitPerfectDrive.Virtual(0, "BITPERF", "VIRTUAL DRIVE"))
+            listOf(BitPerfectDrive.Virtual(0, "ASUS", "DRW-24B1ST   a"))
         } else {
             emptyList()
         }

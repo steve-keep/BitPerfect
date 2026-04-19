@@ -48,6 +48,9 @@ dependencies {
     implementation "io.ktor:ktor-client-content-negotiation:$ktor_version"
     implementation "io.ktor:ktor-serialization-kotlinx-json:$ktor_version"
 
+    // HTML parsing
+    implementation 'org.jsoup:jsoup:1.17.2'
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation "io.ktor:ktor-client-mock:$ktor_version"
     testImplementation "io.mockk:mockk:1.13.10"

@@ -20,7 +20,7 @@ class RippingService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val scsiDriver = ScsiDriver()
-    val rippingEngine = RippingEngine(scsiDriver)
+    lateinit var rippingEngine: RippingEngine
 
     private val NOTIFICATION_ID = 101
     private val CHANNEL_ID = "ripping_channel"
@@ -37,6 +37,7 @@ class RippingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        rippingEngine = RippingEngine(this, scsiDriver)
         createNotificationChannel()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

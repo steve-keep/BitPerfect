@@ -72,10 +72,10 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
         // Peripheral Device Type: 0x05 (CD-ROM)
         response[0] = 0x05
 
-        // Vendor: "BITPERF "
-        "BITPERF ".toByteArray().copyInto(response, 8)
-        // Product: "VIRTUAL DRIVE   "
-        "VIRTUAL DRIVE   ".toByteArray().copyInto(response, 16)
+        // Vendor: "ASUS    "
+        "ASUS    ".toByteArray().copyInto(response, 8)
+        // Product: "DRW-24B1ST   a  "
+        "DRW-24B1ST   a  ".toByteArray().copyInto(response, 16)
         // Revision: "1.00"
         "1.00".toByteArray().copyInto(response, 32)
 

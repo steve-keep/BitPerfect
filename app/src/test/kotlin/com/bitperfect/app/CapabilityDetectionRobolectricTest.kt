@@ -56,6 +56,15 @@ class CapabilityDetectionRobolectricTest {
     // Scenario: "test capability detection display"
     @Test
     fun testCapabilityDetectionDisplay() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("bitperfect_settings", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("caps_virtual_0_offsetFromAccurateRip", true)
+            .putInt("caps_virtual_0_readOffset", 123)
+            .putString("caps_virtual_0_vendor", "ASUS")
+            .putString("caps_virtual_0_product", "DRW-24B1ST   a")
+            .apply()
+
         ActivityScenario.launch(MainActivity::class.java).use {
             // Wait for app to be ready
             shadowOf(Looper.getMainLooper()).idle()
@@ -92,6 +101,7 @@ class CapabilityDetectionRobolectricTest {
 
             // And verify Read Offset
             composeTestRule.onNodeWithText("Read Offset:", substring = true).assertExists()
+            composeTestRule.onNodeWithText("+123 samples (from AccurateRip database)", substring = true).assertExists()
         }
     }
 }

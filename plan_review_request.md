@@ -1,27 +1,37 @@
-The plan is to implement Story 5.1: Detect Accurate Stream, C2, and cache support.
+The plan is to implement Story 5.2: Look up drive read offset from the AccurateRip database.
 
-1. **Extract capability detection logic into `DriveCapabilityDetector`:**
-   - Create a new class `DriveCapabilityDetector`.
-   - Move the capability detection logic from `RippingEngine.detectCapabilities` to `DriveCapabilityDetector.detect`.
-   - Modify `RippingEngine` to instantiate and use `DriveCapabilityDetector`.
+1. **Create `DriveOffsetService` to fetch and parse drive offsets:**
+   - Create a new file `core/src/main/kotlin/com/bitperfect/core/engine/DriveOffsetService.kt`.
+   - Implement `fetchDriveOffsets()` which uses Ktor `HttpClient` to download `http://www.accuraterip.com/driveoffsets.htm`.
+   - Parse the HTML table using a regex or string matching to extract the CD Drive name and its Correction Offset.
+   - Store the result in a map and cache it locally in memory.
+   - Implement `findOffsetForDrive(vendor: String, product: String): Int?` which normalizes the vendor and product string (matching the format in the AccurateRip list) and looks up the offset. The string mappings are explicitly documented in the HTML text itself: "JLMS drives are listed as Lite-ON, HL-DT-ST as LG Electronics & Matshita as Panasonic", which was verified using `grep -A 2 -i "JLMS" offsets.html` on the raw HTML file.
 
-2. **Implement `GET CONFIGURATION (0x46)`:**
-   - In `DriveCapabilityDetector`, construct and issue the `GET CONFIGURATION` command.
-   - Parse the response for Feature Code `0x0107` (CD Read) and check bit 1 of byte 4 of the feature descriptor for `AccurateStream` support.
-   - Parse the response for Feature Code `0x0014` and check bit 0 of byte 4 of the feature descriptor for C2 pointers support.
+2. **Verify `DriveOffsetService` implementation:**
+   - Use `./gradlew lint --quiet` to verify the code compiles and passes static analysis without errors.
 
-3. **Implement Cache detection via timing:**
-   - In `DriveCapabilityDetector`, implement a timing-based cache probe:
-     - Read sector 0 twice. If the RTT of the second read is < 5 ms, a cache is likely present.
-     - Probe cache size by increasing the distance of a "decoy" read (e.g., read sector 0, read sector N, read sector 0 again) until the second read of sector 0 is slow (> 5ms). The distance `N` roughly estimates the cache size.
+3. **Integrate Offset Lookup during Capability Detection:**
+   - Modify `core/src/main/kotlin/com/bitperfect/core/engine/RippingEngine.kt` to instantiate `DriveOffsetService` and call `DriveOffsetService.findOffsetForDrive()` inside `detectCapabilities()`.
+   - Update `core/src/main/kotlin/com/bitperfect/core/engine/RippingEngine.kt`'s `DriveCapabilities` data class to add a boolean `offsetFromAccurateRip: Boolean = false`.
+   - Modify `core/src/main/kotlin/com/bitperfect/core/utils/SettingsManager.kt` to persist the new `offsetFromAccurateRip` field.
 
-4. **Update `VirtualScsiDriver` to support detection:**
-   - Implement `handleGetConfiguration` (opcode `0x46`) to return mock capability descriptors containing `0x0107` and `0x0014`.
-   - Update `handleReadCd` (opcode `0xBE`) to include an artificial delay on the first read of a sector, but return immediately if the sector was read recently (simulating a cache). This will allow `DriveCapabilityDetector`'s timing check to pass in tests.
+4. **Verify Capability Integration:**
+   - Use `./gradlew lint --quiet` to verify the updated model and integration compile without errors.
 
-5. **Create Unit and Integration Tests:**
-   - Write unit tests in `DriveCapabilityDetectorTest.kt` using a mock `IScsiDriver` to verify `GET CONFIGURATION` parsing and cache timing logic.
-   - Run the existing `CapabilityDetectionRobolectricTest` to ensure it passes.
+5. **Update UI to show the offset:**
+   - Modify `app/src/main/kotlin/com/bitperfect/app/ui/Components.kt`'s `DiagnosticDashboard` to display `"Read Offset: +${driveCapabilities.readOffset} samples (from AccurateRip database)"` if `offsetFromAccurateRip` is true, otherwise fallback to the existing display `"Read Offset: ${driveCapabilities.readOffset}"`.
 
-6. **Pre-commit verification:**
-   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
+6. **Verify UI update:**
+   - Use `./gradlew lint --quiet` to verify the UI code compiles without errors.
+
+7. **Create Unit Test for `DriveOffsetService`:**
+   - Create `core/src/test/kotlin/com/bitperfect/core/engine/DriveOffsetServiceTest.kt` to test parsing the HTML offset list with mock data using Ktor MockEngine.
+
+8. **Update `CapabilityDetectionRobolectricTest` Integration Test:**
+   - Modify `app/src/test/kotlin/com/bitperfect/app/CapabilityDetectionRobolectricTest.kt` to explicitly mock `SharedPreferences` to simulate `offsetFromAccurateRip = true`, and assert that the text `(from AccurateRip database)` appears in the UI.
+
+9. **Run test suite:**
+   - Run `./gradlew test` to ensure all tests pass and there are no regressions.
+
+10. **Pre-commit verification:**
+    - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
