@@ -286,7 +286,7 @@
 ---
 
 ### Story 5.1 — Detect Accurate Stream, C2, and cache support
-- [ ] **Done**
+- [x] **Done**
 
 **As a** developer,
 **I want** a `DriveCapabilityDetector` that runs a one-time probe when a drive is first connected,

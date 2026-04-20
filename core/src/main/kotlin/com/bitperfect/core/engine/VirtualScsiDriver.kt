@@ -30,6 +30,7 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
             0x03 -> handleRequestSense(expectedResponseLength)
             0x12 -> handleInquiry(expectedResponseLength)
             0x1B -> handleStartStopUnit(command)
+            0x46 -> handleGetConfiguration(expectedResponseLength)
             0x5A -> handleModeSense10(expectedResponseLength)
             0x43 -> handleReadToc(command, expectedResponseLength)
             0xBE -> handleReadCd(command, expectedResponseLength)
@@ -132,11 +133,43 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
         return response
     }
 
+    private fun handleGetConfiguration(length: Int): ByteArray {
+        val response = ByteArray(length.coerceAtLeast(32))
+        // Feature Header (8 bytes)
+        // Data length: let's say 24 bytes (so 0, 0, 0, 24)
+        response[3] = 24
+
+        // Feature 1: CD Read (0x0107)
+        response[8] = 0x01
+        response[9] = 0x07
+        response[11] = 4 // Additional length
+        response[12] = 0x02 // Bit 1 = AccurateStream
+
+        // Feature 2: C2 Error Pointers (0x0014)
+        response[16] = 0x00
+        response[17] = 0x14
+        response[19] = 4 // Additional length
+        response[20] = 0x01 // Bit 0 = C2 Error Pointers
+
+        return response.take(length).toByteArray()
+    }
+
+    private var lastReadLba = -1
+
     private fun handleReadCd(command: ByteArray, length: Int): ByteArray {
         val lba = ((command[2].toInt() and 0xFF) shl 24) or
                   ((command[3].toInt() and 0xFF) shl 16) or
                   ((command[4].toInt() and 0xFF) shl 8) or
                   (command[5].toInt() and 0xFF)
+
+        // Simulate cache
+        if (lba == lastReadLba) {
+            // Cache hit, fast response (no sleep)
+        } else {
+            // Cache miss, slow response
+            Thread.sleep(10)
+        }
+        lastReadLba = lba
 
         // Deterministic dummy PCM data
         val response = ByteArray(length)
