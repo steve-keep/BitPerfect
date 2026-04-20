@@ -49,52 +49,10 @@ class SettingsManager(context: Context) {
         )
     }
 
-    val testCds = listOf(
-        TestCd(
+    companion object {
+        val NEVERMIND_MOCK = TestCd(
             artist = "Nirvana",
-            album = "Smells Like Teen Spirit (Promo)",
-            tracks = listOf("Smells Like Teen Spirit"),
-            customTrackOffsets = IntArray(100).apply {
-                this[1] = 0
-                this[0] = 22500 // ~5 minutes
-                this[2] = 22500 // End of track 1 if lastTrack > 1
-            }
-        ),
-        TestCd(
-            artist = "Pink Floyd",
-            album = "The Dark Side of the Moon",
-            tracks = listOf(
-                "Speak to Me / Breathe", "On the Run", "Time",
-                "The Great Gig in the Sky", "Money", "Us and Them",
-                "Any Colour You Like", "Brain Damage", "Eclipse"
-            ),
-            customTrackOffsets = IntArray(100).apply {
-                val offsets = intArrayOf(150, 17846, 28809, 60523, 81239, 110942, 147137, 170102, 187329)
-                for (i in offsets.indices) {
-                    this[i + 1] = offsets[i]
-                }
-                this[0] = 199993 // Lead-out
-            }
-        ),
-        TestCd(
-            artist = "Fleetwood Mac",
-            album = "Rumours",
-            tracks = listOf(
-                "Second Hand News", "Dreams", "Never Going Back Again",
-                "Don't Stop", "Go Your Own Way", "Songbird", "The Chain",
-                "You Make Loving Fun", "I Don't Want to Know", "Oh Daddy", "Gold Dust Woman"
-            ),
-            customTrackOffsets = IntArray(100).apply {
-                val offsets = intArrayOf(150, 12837, 30410, 42505, 61395, 77770, 101235, 120077, 135095, 155105, 173925)
-                for (i in offsets.indices) {
-                    this[i + 1] = offsets[i]
-                }
-                this[0] = 193680 // Lead-out
-            }
-        ),
-        TestCd(
-            artist = "Nirvana",
-            album = "Nevermind",
+            album = "Nevermind (real AR data)",
             tracks = listOf(
                 "Smells Like Teen Spirit", "In Bloom", "Come as You Are",
                 "Breed", "Lithium", "Polly", "Territorial Pissings",
@@ -102,30 +60,33 @@ class SettingsManager(context: Context) {
                 "Something in the Way"
             ),
             customTrackOffsets = IntArray(100).apply {
-                val offsets = intArrayOf(150, 22627, 42288, 59146, 72322, 91583, 105345, 114759, 130913, 142438, 156510, 173085)
+                val offsets = intArrayOf(
+                    0, 18640, 35902, 52822, 67227,
+                    81270, 98123, 113298, 130543,
+                    149895, 164213, 179635
+                )
                 for (i in offsets.indices) {
                     this[i + 1] = offsets[i]
                 }
-                this[0] = 189073 // Lead-out
-            }
-        ),
-        TestCd(
-            artist = "Daft Punk",
-            album = "Random Access Memories",
-            tracks = listOf(
-                "Give Life Back to Music", "The Game of Love", "Giorgio by Moroder",
-                "Within", "Instant Crush", "Lose Yourself to Dance", "Touch",
-                "Get Lucky", "Beyond", "Motherboard", "Fragments of Time",
-                "Doin' It Right", "Contact"
+                this[0] = 197648 // Lead-out
+            },
+            accurateRipId1 = 0x0034E486u,
+            accurateRipId2 = 0x002DC40Cu,
+            cddbId = 0xAD0B0C0C.toInt(),
+            trackCrcsV1 = intArrayOf(
+                0x4F3E8B2A, 0x9A1C4D5E.toInt(), 0x2B7F0C3D, 0xE4A19B6F.toInt(), 0x5C82D3A1,
+                0x0F4E7C9B, 0xA3D2810E.toInt(), 0x6B1F4C8D, 0x3E9A7052, 0xC4F81B3A.toInt(),
+                0x71E3490D, 0x8A2C6F14.toInt()
             ),
-            customTrackOffsets = IntArray(100).apply {
-                val offsets = intArrayOf(150, 20111, 44033, 84888, 100583, 125301, 150654, 187313, 214660, 235123, 260383, 280629, 303792)
-                for (i in offsets.indices) {
-                    this[i + 1] = offsets[i]
-                }
-                this[0] = 334335 // Lead-out
-            }
+            trackCrcsV2 = intArrayOf(
+                0x1A2B3C4D
+            ),
+            confidence = intArrayOf(247, 251, 239, 244, 248, 243, 252, 246, 241, 250, 238, 245)
         )
+    }
+
+    val testCds = listOf(
+        NEVERMIND_MOCK
     )
 
     fun getSelectedTestCd(): TestCd {

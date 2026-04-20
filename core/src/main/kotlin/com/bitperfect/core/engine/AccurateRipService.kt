@@ -41,11 +41,11 @@ class AccurateRipService {
         val discIdName = generateAccurateRipUrlName(trackCount, discId)
 
         // URL format: http://www.accuraterip.com/accuraterip/X/Y/Z/dBAR...bin
-        // X, Y, Z are the last 3 characters of the DiscID before .bin
-        val baseName = discIdName.removeSuffix(".bin")
-        val x = baseName[baseName.length - 1]
-        val y = baseName[baseName.length - 2]
-        val z = baseName[baseName.length - 3]
+        // X, Y, Z are the last 3 characters of the DiscID1, not the whole discIdName which ends in CDDB ID!
+        val id1Hex = "%08x".format(discId.id1.toLong())
+        val x = id1Hex[id1Hex.length - 1]
+        val y = id1Hex[id1Hex.length - 2]
+        val z = id1Hex[id1Hex.length - 3]
 
         val url = "http://www.accuraterip.com/accuraterip/$x/$y/$z/$discIdName"
 

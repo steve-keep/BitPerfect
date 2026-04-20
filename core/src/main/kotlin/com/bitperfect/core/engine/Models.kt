@@ -26,7 +26,13 @@ data class TestCd(
     val tracks: List<String>,
     val firstTrack: Int = 1,
     val lastTrack: Int = tracks.size,
-    val customTrackOffsets: IntArray? = null
+    val customTrackOffsets: IntArray? = null,
+    val accurateRipId1: UInt? = null,
+    val accurateRipId2: UInt? = null,
+    val cddbId: Int? = null,
+    val trackCrcsV1: IntArray? = null,
+    val trackCrcsV2: IntArray? = null,
+    val confidence: IntArray? = null
 ) {
     val trackOffsets: IntArray by lazy {
         if (customTrackOffsets != null) return@lazy customTrackOffsets
