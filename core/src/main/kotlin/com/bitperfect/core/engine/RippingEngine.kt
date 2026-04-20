@@ -702,10 +702,13 @@ class RippingEngine(
                     senseKey == 0x02 && asc == 0x3A -> "No Disc / Tray Open"
                     senseKey == 0x02 && asc == 0x04 -> "Spinning Up"
                     senseKey == 0x02 -> "Not Ready"
+                    senseKey == 0x06 && asc == 0x28 -> "Media Changed"
+                    senseKey == 0x06 -> "Unit Attention"
                     else -> "Error (Key: $senseKey, ASC: $asc)"
                 }
                 val tocErr = if (senseKey == 0x02 && asc == 0x04) "Drive not ready yet — please wait"
                              else if (senseKey == 0x02 && asc == 0x3A) null
+                             else if (senseKey == 0x06) null
                              else "Drive error"
                 _ripState.value = _ripState.value.copy(driveStatus = status, discToc = null, tocError = tocErr)
             } else {
