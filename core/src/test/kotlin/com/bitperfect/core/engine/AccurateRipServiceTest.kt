@@ -8,7 +8,7 @@ class AccurateRipServiceTest {
 
     @Test
     fun accurateRipURLIsBuiltCorrectlyFromMockDisc() {
-        val disc = SettingsManager.NEVERMIND_MOCK
+        val disc = SettingsManager.ADELE_21_MOCK
         val service = AccurateRipService()
 
         val discId = AccurateRipDiscId(
@@ -18,7 +18,7 @@ class AccurateRipServiceTest {
         )
 
         val urlName = service.generateAccurateRipUrlName(disc.tracks.size, discId)
-        assertEquals("dBAR-012-0034e486-002dc40c-ad0b0c0c.bin", urlName)
+        assertEquals("dBAR-011-0012bbfb-00a47020-930b440b.bin", urlName)
 
         val id1Hex = "%08x".format(discId.id1.toLong())
         val x = id1Hex[id1Hex.length - 1]
@@ -26,15 +26,15 @@ class AccurateRipServiceTest {
         val z = id1Hex[id1Hex.length - 3]
         val urlPath = "accuraterip/${x}/${y}/${z}/${urlName}"
 
-        assertEquals("accuraterip/6/8/4/dBAR-012-0034e486-002dc40c-ad0b0c0c.bin", urlPath)
+        assertEquals("accuraterip/b/f/b/dBAR-011-0012bbfb-00a47020-930b440b.bin", urlPath)
     }
 
     @Test
     fun accurateRipCRCV1MatchesForAllTracks() {
-        val disc = SettingsManager.NEVERMIND_MOCK
+        val disc = SettingsManager.ADELE_21_MOCK
         val expectedCrcs = disc.trackCrcsV1!!
 
-        assertEquals(12, expectedCrcs.size)
-        assertEquals(0x4F3E8B2A.toInt(), expectedCrcs[0])
+        assertEquals(11, expectedCrcs.size)
+        assertEquals(0xD152B2F5.toInt(), expectedCrcs[0])
     }
 }

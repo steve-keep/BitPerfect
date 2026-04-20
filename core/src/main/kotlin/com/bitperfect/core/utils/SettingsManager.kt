@@ -50,43 +50,45 @@ class SettingsManager(context: Context) {
     }
 
     companion object {
-        val NEVERMIND_MOCK = TestCd(
-            artist = "Nirvana",
-            album = "Nevermind (real AR data)",
+        val ADELE_21_MOCK = TestCd(
+            artist = "Adele",
+            album = "21",
             tracks = listOf(
-                "Smells Like Teen Spirit", "In Bloom", "Come as You Are",
-                "Breed", "Lithium", "Polly", "Territorial Pissings",
-                "Drain You", "Lounge Act", "Stay Away", "On a Plain",
-                "Something in the Way"
+                "Rolling in the Deep", "Rumour Has It", "Turning Tables",
+                "Don't You Remember", "Set Fire to the Rain", "He Won't Go",
+                "Take It All", "I'll Be Waiting", "One and Only",
+                "Lovesong", "Someone Like You"
             ),
             customTrackOffsets = IntArray(100).apply {
                 val offsets = intArrayOf(
-                    0, 18640, 35902, 52822, 67227,
-                    81270, 98123, 113298, 130543,
-                    149895, 164213, 179635
+                    0, 17122, 33867, 52627, 70867,
+                    88994, 109840, 126956, 145080,
+                    171192, 194925
                 )
                 for (i in offsets.indices) {
                     this[i + 1] = offsets[i]
                 }
-                this[0] = 197648 // Lead-out
+                this[0] = 216301 // Lead-out
             },
-            accurateRipId1 = 0x0034E486u,
-            accurateRipId2 = 0x002DC40Cu,
-            cddbId = 0xAD0B0C0C.toInt(),
+            accurateRipId1 = 0x0012BBFBu,
+            accurateRipId2 = 0x00A47020u,
+            cddbId = 0x930B440B.toInt(),
             trackCrcsV1 = intArrayOf(
-                0x4F3E8B2A, 0x9A1C4D5E.toInt(), 0x2B7F0C3D, 0xE4A19B6F.toInt(), 0x5C82D3A1,
-                0x0F4E7C9B, 0xA3D2810E.toInt(), 0x6B1F4C8D, 0x3E9A7052, 0xC4F81B3A.toInt(),
-                0x71E3490D, 0x8A2C6F14.toInt()
+                0xD152B2F5.toInt(), 0x58B6EE79.toInt(), 0x53B73AD7.toInt(), 0x09FA80A5.toInt(),
+                0x9694C5CD.toInt(), 0x87852E00.toInt(), 0xF83CC2F8.toInt(), 0x7D75FC72.toInt(),
+                0x0C6D5982.toInt(), 0xCF474EB4.toInt(), 0x9AB9365E.toInt()
             ),
             trackCrcsV2 = intArrayOf(
-                0x1A2B3C4D
+                0x2B03CE1A.toInt(), 0xFA1E8750.toInt(), 0xA8E44103.toInt(), 0xF2329CD7.toInt(),
+                0xDBD15AB6.toInt(), 0x67926F74.toInt(), 0xFA9DB4E3.toInt(), 0x7FE71747.toInt(),
+                0xCC2EB4D5.toInt(), 0x6B952B9E.toInt(), 0xA99B1EF0.toInt()
             ),
-            confidence = intArrayOf(247, 251, 239, 244, 248, 243, 252, 246, 241, 250, 238, 245)
+            confidence = intArrayOf(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
         )
     }
 
     val testCds = listOf(
-        NEVERMIND_MOCK
+        ADELE_21_MOCK
     )
 
     fun getSelectedTestCd(): TestCd {
