@@ -30,6 +30,7 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
             0x03 -> handleRequestSense(expectedResponseLength)
             0x12 -> handleInquiry(expectedResponseLength)
             0x1B -> handleStartStopUnit(command)
+            0x28 -> handleRead10(command, expectedResponseLength)
             0x46 -> handleGetConfiguration(expectedResponseLength)
             0x5A -> handleModeSense10(expectedResponseLength)
             0x43 -> handleReadToc(command, expectedResponseLength)
@@ -156,11 +157,39 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
 
     private var lastReadLba = -1
 
+    private fun handleRead10(command: ByteArray, length: Int): ByteArray {
+        val lba = ((command[2].toInt() and 0xFF) shl 24) or
+                  ((command[3].toInt() and 0xFF) shl 16) or
+                  ((command[4].toInt() and 0xFF) shl 8) or
+                  (command[5].toInt() and 0xFF)
+        val sectorCount = ((command[7].toInt() and 0xFF) shl 8) or
+                          (command[8].toInt() and 0xFF)
+
+        val response = ByteArray(length)
+        val bytesPerSector = length / sectorCount.coerceAtLeast(1)
+
+        for (s in 0 until sectorCount) {
+            val offset = s * bytesPerSector
+            val currentLba = lba + s
+            for (i in 0 until bytesPerSector.coerceAtMost(2352)) {
+                if (offset + i < response.size) {
+                    response[offset + i] = ((currentLba + i) % 256).toByte()
+                }
+            }
+        }
+
+        return response
+    }
+
     private fun handleReadCd(command: ByteArray, length: Int): ByteArray {
         val lba = ((command[2].toInt() and 0xFF) shl 24) or
                   ((command[3].toInt() and 0xFF) shl 16) or
                   ((command[4].toInt() and 0xFF) shl 8) or
                   (command[5].toInt() and 0xFF)
+
+        val sectorCount = ((command[6].toInt() and 0xFF) shl 16) or
+                          ((command[7].toInt() and 0xFF) shl 8) or
+                          (command[8].toInt() and 0xFF)
 
         // Simulate cache
         if (lba == lastReadLba) {
@@ -171,16 +200,28 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
         }
         lastReadLba = lba
 
+        val actualSectorCount = if (sectorCount == 0) 1 else sectorCount
+        val bytesPerSector = length / actualSectorCount
+
         // Deterministic dummy PCM data
         val response = ByteArray(length)
-        for (i in 0 until length.coerceAtMost(2352)) {
-            response[i] = ((lba + i) % 256).toByte()
-        }
 
-        // If C2 is requested (length > 2352), fill C2 area with zeros (no errors)
-        if (length > 2352) {
-            for (i in 2352 until length) {
-                response[i] = 0
+        for (s in 0 until actualSectorCount) {
+            val offset = s * bytesPerSector
+            val currentLba = lba + s
+            for (i in 0 until bytesPerSector.coerceAtMost(2352)) {
+                if (offset + i < response.size) {
+                    response[offset + i] = ((currentLba + i) % 256).toByte()
+                }
+            }
+
+            // If C2 is requested (bytesPerSector > 2352), fill C2 area with zeros (no errors)
+            if (bytesPerSector > 2352) {
+                for (i in 2352 until bytesPerSector) {
+                    if (offset + i < response.size) {
+                        response[offset + i] = 0
+                    }
+                }
             }
         }
 

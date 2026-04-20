@@ -96,11 +96,12 @@ class RippingEngine(
 
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
+        val sectorReader = CdSectorReader(scsiDriver, fd, endpointIn, endpointOut)
         val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
         flacEncoder.prepare(outputStream, 44100, 2)
 
         for (lba in startLba until endLba) {
-            val sectorData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut)
+            val sectorData = sectorReader.readSectors(lba)
             if (sectorData == null) {
                 _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to read sector $lba")
                 return@withContext
@@ -175,30 +176,6 @@ class RippingEngine(
     }
 
 
-    private fun readSector(
-        fd: Int,
-        lba: Long,
-        scsiDriver: IScsiDriver,
-        endpointIn: Int,
-        endpointOut: Int,
-        includeC2: Boolean = false
-    ): ByteArray? {
-        val expectedLength = if (includeC2) 2352 + 294 else 2352
-        val byte9 = if (includeC2) 0x12.toByte() else 0x10.toByte()
-
-        val readCdCmd = byteArrayOf(
-            0xBE.toByte(), 0,
-            ((lba shr 24) and 0xFF).toByte(),
-            ((lba shr 16) and 0xFF).toByte(),
-            ((lba shr 8) and 0xFF).toByte(),
-            (lba and 0xFF).toByte(),
-            0, 0, 1, // 1 sector
-            byte9,
-            0
-        )
-
-        return scsiDriver.executeScsiCommand(fd, readCdCmd, expectedLength, endpointIn, endpointOut)
-    }
 
     private fun readSectorSecure(
         fd: Int,
@@ -206,10 +183,11 @@ class RippingEngine(
         capabilities: DriveCapabilities,
         scsiDriver: IScsiDriver,
         endpointIn: Int,
-        endpointOut: Int
+        endpointOut: Int,
+        sectorReader: CdSectorReader = CdSectorReader(scsiDriver, fd, endpointIn, endpointOut)
     ): ByteArray? {
         // Pass 1
-        var data1 = readSector(fd, lba, scsiDriver, endpointIn, endpointOut, capabilities.supportsC2) ?: return null
+        var data1 = sectorReader.readSectors(lba, 1, capabilities.supportsC2, false) ?: return null
 
         // If C2 is supported, we can potentially trust it if no errors reported
         if (capabilities.supportsC2 && !hasC2Errors(data1)) {
@@ -221,7 +199,7 @@ class RippingEngine(
         }
 
         // Pass 2
-        var data2 = readSector(fd, lba, scsiDriver, endpointIn, endpointOut, capabilities.supportsC2) ?: return null
+        var data2 = sectorReader.readSectors(lba, 1, capabilities.supportsC2, false) ?: return null
 
         if (compareSectors(data1, data2)) {
             return if (capabilities.supportsC2) stripC2(data1) else data1
@@ -240,7 +218,7 @@ class RippingEngine(
                 flushCache(fd, lba, capabilities, scsiDriver, endpointIn, endpointOut)
             }
 
-            val newData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut, capabilities.supportsC2) ?: continue
+            val newData = sectorReader.readSectors(lba, 1, capabilities.supportsC2, false) ?: continue
             attempts.add(newData)
 
             // Statistical majority: find most frequent
@@ -259,7 +237,8 @@ class RippingEngine(
         // Read a sector far away (e.g. currentLba + 1000)
         // In a real implementation, this should be carefully chosen based on cache size
         val flushLba = currentLba + 1000
-        readSector(fd, flushLba, scsiDriver, endpointIn, endpointOut, false)
+        val sectorReader = CdSectorReader(scsiDriver, fd, endpointIn, endpointOut)
+        sectorReader.readSectors(flushLba, 1, false, false)
     }
 
     private fun hasC2Errors(data: ByteArray): Boolean {
@@ -372,7 +351,8 @@ class RippingEngine(
 
             val lba = startLba + i
             val data = if (lba >= 0 && i < totalTrackSectors) {
-                val sectorData = readSector(fd, lba, scsiDriver, endpointIn, endpointOut, capabilities.supportsC2)
+                val sectorReader = CdSectorReader(scsiDriver, fd, endpointIn, endpointOut)
+                val sectorData = sectorReader.readSectors(lba, 1, capabilities.supportsC2, false)
                 sectorData?.let { if (capabilities.supportsC2) stripC2(it) else it } ?: ByteArray(2352)
             } else {
                 ByteArray(2352)
@@ -425,7 +405,8 @@ class RippingEngine(
             val nextLbaOffset = sectorIndex + scanSectors + 1
             val nextLba = startLba + nextLbaOffset
             val nextData = if (nextLba >= 0 && nextLbaOffset < totalTrackSectors) {
-                val sectorData = readSector(fd, nextLba, scsiDriver, endpointIn, endpointOut, capabilities.supportsC2)
+                val sectorReader = CdSectorReader(scsiDriver, fd, endpointIn, endpointOut)
+                val sectorData = sectorReader.readSectors(nextLba, 1, capabilities.supportsC2, false)
                 sectorData?.let { if (capabilities.supportsC2) stripC2(it) else it } ?: ByteArray(2352)
             } else {
                 ByteArray(2352)

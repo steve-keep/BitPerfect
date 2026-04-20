@@ -338,7 +338,7 @@
 ---
 
 ### Story 6.1 — Implement raw CD-DA sector reader (READ CD 0xBE)
-- [ ] **Done**
+- [x] **Done**
 
 **As a** developer,
 **I want** a low-level `CdSectorReader` that issues `READ CD (0xBE)` for a given LBA range,
