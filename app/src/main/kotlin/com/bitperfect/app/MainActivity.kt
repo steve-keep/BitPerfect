@@ -709,7 +709,12 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             if (drive is BitPerfectDrive.Physical) {
                 val device = drive.device
-                val connection = usbDeviceManager.openDevice(device) ?: return@launch
+                addLog("Attempting to open USB device: ${device.deviceName}")
+                val connection = usbDeviceManager.openDevice(device)
+                if (connection == null) {
+                    addLog("Failed to open USB device for ripping: usbDeviceManager.openDevice returned null (permission denied or device disconnected?)")
+                    return@launch
+                }
                 try {
                     val iface = device.getInterface(0)
                     if (!connection.claimInterface(iface, true)) {
@@ -721,7 +726,10 @@ class MainActivity : ComponentActivity() {
                         val fd = connection.fileDescriptor
                         val (endpointIn, endpointOut) = getEndpoints(device)
                         val driveModel = "${caps.vendor} ${caps.product}".trim()
+                        addLog("Successfully opened device and claimed interface 0. Starting service rip...")
                         rippingService?.startRip(fd, outputDir, driveModel, caps, driverToUse, endpointIn, endpointOut)
+                    } catch (e: Exception) {
+                        addLog("Exception during rip setup: ${e.message}")
                     } finally {
                         connection.releaseInterface(iface)
                     }
