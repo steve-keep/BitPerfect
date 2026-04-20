@@ -22,7 +22,7 @@ class TrayControlTest {
         mockkStatic(android.util.Log::class)
         every { android.util.Log.w(any(), any<String>()) } returns 0
         every { android.util.Log.e(any(), any<String>()) } returns 0
-        coEvery { metadataService.fetchMetadata(any(), any()) } returns emptyList()
+        coEvery { metadataService.fetchMetadata(any(), any(), any()) } returns emptyList()
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         val mockDriveOffsetService = mockk<DriveOffsetService>(relaxed = true)
         rippingEngine = RippingEngine(context, scsiDriver, metadataService = metadataService)

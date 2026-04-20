@@ -102,6 +102,7 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(name: android.content.ComponentName?, service: IBinder?) {
             val binder = service as RippingService.LocalBinder
             rippingService = binder.getService()
+            rippingService?.rippingEngine?.onLog = { message -> addLog(message) }
             isBound = true
 
             lifecycleScope.launch {

@@ -79,20 +79,25 @@ class MetadataService {
 
     private val sessionCache = ConcurrentHashMap<String, List<AlbumMetadata>>()
 
-    suspend fun fetchMetadata(discId: String, toc: DiscToc): List<AlbumMetadata> {
+    suspend fun fetchMetadata(discId: String, toc: DiscToc, onLog: ((String) -> Unit)? = null): List<AlbumMetadata> {
         val cached = sessionCache[discId]
         if (cached != null) {
+            onLog?.invoke("Metadata found in cache for Disc ID: $discId")
             return cached
         }
 
+        onLog?.invoke("Looking up metadata from MusicBrainz for Disc ID: $discId")
         val mbResults = fetchMusicBrainzMetadata(discId)
         if (mbResults.isNotEmpty()) {
+            onLog?.invoke("Found ${mbResults.size} result(s) from MusicBrainz")
             sessionCache[discId] = mbResults
             return mbResults
         }
 
+        onLog?.invoke("Looking up metadata from GnuDB fallback")
         val gnudbResults = fetchGnuDbMetadata(toc)
         if (gnudbResults.isNotEmpty()) {
+            onLog?.invoke("Found ${gnudbResults.size} result(s) from GnuDB")
             sessionCache[discId] = gnudbResults
             return gnudbResults
         }

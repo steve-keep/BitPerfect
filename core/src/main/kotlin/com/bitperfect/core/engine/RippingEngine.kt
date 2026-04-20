@@ -54,6 +54,7 @@ class RippingEngine(
     private val accurateRipService: AccurateRipService = AccurateRipService()
 ) {
     var driveOffsetService: DriveOffsetService = DriveOffsetService(context)
+    var onLog: ((String) -> Unit)? = null
     private val _ripState = MutableStateFlow(RipState())
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
@@ -679,7 +680,7 @@ class RippingEngine(
                     trackOffsets[0] = toc.leadOutLba
                     val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
 
-                    val metadataList = metadataService.fetchMetadata(discId, toc)
+                    val metadataList = metadataService.fetchMetadata(discId, toc, onLog)
                     _ripState.value = _ripState.value.copy(
                         availableMetadata = metadataList,
                         selectedMetadata = if (metadataList.size == 1) metadataList.first() else null

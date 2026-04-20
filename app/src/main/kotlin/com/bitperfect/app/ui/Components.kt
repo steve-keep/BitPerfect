@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Info
@@ -368,7 +370,7 @@ fun DiagnosticDashboard(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
         // Tonal Layering: Cards on background
         Surface(
             modifier = Modifier
@@ -502,7 +504,6 @@ fun DiagnosticDashboard(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Take up space instead of terminal
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -526,8 +527,8 @@ fun DiagnosticDashboard(
                         )
                     }
 
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(ripState.discToc?.tracks ?: emptyList()) { track ->
+                    Column {
+                        (ripState.discToc?.tracks ?: emptyList()).forEach { track ->
                             val trackTitle = selectedMeta.tracks.getOrNull(track.number - 1)
 
                             Row(
@@ -549,7 +550,7 @@ fun DiagnosticDashboard(
                                 Text(text = String.format("%d:%02d", m, s), style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        item {
+                        Column {
                             Spacer(Modifier.height(16.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -649,8 +650,8 @@ fun DiagnosticDashboard(
 
         Surface(
             modifier = Modifier
-                .weight(1f)
                 .fillMaxWidth()
+                .height(200.dp)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f),
             shape = MaterialTheme.shapes.large

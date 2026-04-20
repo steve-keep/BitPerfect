@@ -102,7 +102,7 @@ class MetadataServiceTest {
             TrackEntry(2, 15000, 15000, true)
         ), 30000, 30000)
 
-        val result = metadataService.fetchMetadata("dummy-disc-id", toc)
+        val result = metadataService.fetchMetadata("dummy-disc-id", toc, null)
 
         assertEquals(2, result.size)
 
@@ -134,11 +134,11 @@ class MetadataServiceTest {
             TrackEntry(2, 15000, 15000, true)
         ), 30000, 30000)
 
-        val result1 = metadataService.fetchMetadata("dummy-disc-id", toc)
+        val result1 = metadataService.fetchMetadata("dummy-disc-id", toc, null)
         assertEquals(2, result1.size)
         assertEquals(1, callCount)
 
-        val result2 = metadataService.fetchMetadata("dummy-disc-id", toc)
+        val result2 = metadataService.fetchMetadata("dummy-disc-id", toc, null)
         assertEquals(2, result2.size)
         assertEquals(1, callCount) // Call count should not increase
     }
@@ -203,7 +203,7 @@ class MetadataServiceTest {
             TrackEntry(2, 15000, 15000, true)
         ), 30000, 30000)
 
-        val result = service.fetchMetadata("dummy-disc-id-fallback", toc)
+        val result = service.fetchMetadata("dummy-disc-id-fallback", toc, null)
 
         assertEquals(1, result.size)
         val album = result[0]
