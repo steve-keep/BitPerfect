@@ -65,3 +65,19 @@ data class DiscToc(
 ) {
     val trackCount: Int get() = tracks.size
 }
+
+enum class SectorResult {
+    SUCCESS,
+    SUSPICIOUS
+}
+
+enum class ErrorRecoveryQuality(val maxBatches: Int, val label: String) {
+    LOW(1, "Low (1 batch)"),
+    MEDIUM(3, "Medium (3 batches)"),
+    HIGH(5, "High (5 batches)")
+}
+
+data class ExtractedSector(
+    val result: SectorResult,
+    val data: ByteArray
+)

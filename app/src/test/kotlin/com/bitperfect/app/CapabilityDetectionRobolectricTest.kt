@@ -8,6 +8,9 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.filterToOne
 import androidx.test.core.app.ActivityScenario
@@ -74,6 +77,7 @@ class CapabilityDetectionRobolectricTest {
             shadowOf(Looper.getMainLooper()).idle()
 
             // And enable Virtual Drive
+            composeTestRule.onNode(androidx.compose.ui.test.hasScrollToIndexAction()).performScrollToNode(androidx.compose.ui.test.hasText("Enable Virtual Drive"))
             composeTestRule.onNodeWithText("Enable Virtual Drive").performClick()
             shadowOf(Looper.getMainLooper()).idle()
 

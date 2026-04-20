@@ -8,6 +8,9 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsDisplayed
 import org.junit.Rule
 import org.junit.Test
@@ -54,7 +57,8 @@ class VirtualDriveIntegrationRobolectricTest {
             composeTestRule.onNodeWithContentDescription("Settings").performClick()
             shadowOf(Looper.getMainLooper()).idle()
 
-            // Enable Virtual Drive
+            // Scroll to the list and click Enable Virtual Drive
+            composeTestRule.onNode(androidx.compose.ui.test.hasScrollToIndexAction()).performScrollToNode(androidx.compose.ui.test.hasText("Enable Virtual Drive"))
             composeTestRule.onNodeWithText("Enable Virtual Drive").performClick()
             shadowOf(Looper.getMainLooper()).idle()
 
