@@ -11,7 +11,21 @@ class UsbDeviceManager(private val context: Context) {
 
     fun getCompatibleDevices(): List<UsbDevice> {
         val deviceList = usbManager.deviceList
-        return deviceList.values.filter { isCompatibleDevice(it) }
+        val devices = deviceList.values.filter { isCompatibleDevice(it) }
+        for (device in devices) {
+            Log.d("UsbDeviceManager", "\nUSB Descriptor Info:\n" + getDeviceInfo(device))
+        }
+        return devices
+    }
+
+    private fun getDeviceInfo(device: UsbDevice): String {
+        return buildString {
+            appendLine("Manufacturer: ${device.manufacturerName}")
+            appendLine("Product: ${device.productName}")
+            appendLine("Vendor ID: 0x${device.vendorId.toString(16).uppercase()}")
+            appendLine("Product ID: 0x${device.productId.toString(16).uppercase()}")
+            appendLine("Device Class: ${device.deviceClass}")
+        }
     }
 
     private fun isCompatibleDevice(device: UsbDevice): Boolean {
