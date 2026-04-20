@@ -229,16 +229,25 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     Text(
-                                        text = if (selectedDevice == null) "BitPerfect" else "Drive Diagnostics",
+                                        text = when {
+                                            isShowingSettings -> "Settings"
+                                            selectedDevice != null -> "Drive Diagnostics"
+                                            else -> "BitPerfect"
+                                        },
                                         modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" }
                                     )
                                 }
                             },
                             navigationIcon = {
-                                if (selectedDevice != null) {
+                                if (isShowingSettings || selectedDevice != null) {
                                     IconButton(onClick = {
-                                        stopPolling()
-                                        selectedDevice = null
+                                        if (isShowingSettings) {
+                                            isShowingSettings = false
+                                            refreshDevices()
+                                        } else {
+                                            stopPolling()
+                                            selectedDevice = null
+                                        }
                                     }) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -248,7 +257,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             actions = {
-                                if (!isShowingSettings) {
+                                if (selectedDevice == null && !isShowingSettings) {
                                     IconButton(onClick = { isShowingSettings = true }) {
                                         Icon(
                                             imageVector = Icons.Default.Settings,
@@ -290,10 +299,6 @@ class MainActivity : ComponentActivity() {
                                     is ScreenState.Settings -> {
                                         SettingsScreen(
                                             settingsManager = settingsManager,
-                                            onBack = {
-                                                isShowingSettings = false
-                                                refreshDevices()
-                                            },
                                             onCopyDebugReport = {
                                                 copyDebugReportToClipboard()
                                             }

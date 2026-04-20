@@ -16,11 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bitperfect.core.utils.SettingsManager
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
-    onBack: () -> Unit,
     onCopyDebugReport: () -> Unit
 ) {
     var isVirtualDriveEnabled by remember { mutableStateOf(settingsManager.isVirtualDriveEnabled) }
@@ -42,32 +40,15 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(1.dp) // Minimal spacing for the "slabs" feel
-        ) {
-            item {
-                Text(
-                    text = "Storage",
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        verticalArrangement = Arrangement.spacedBy(1.dp) // Minimal spacing for the "slabs" feel
+    ) {
+        item {
+            Text(
+                text = "Storage",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)
@@ -186,6 +167,5 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(32.dp))
             }
-        }
     }
 }
