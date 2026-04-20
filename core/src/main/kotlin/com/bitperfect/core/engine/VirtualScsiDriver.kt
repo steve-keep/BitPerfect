@@ -117,12 +117,13 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
                 buffer.put(base + 1, 0x14) // ADR/Control (Data/Audio)
                 buffer.put(base + 2, trackNum.toByte())
 
-                val lba = if (trackNum == 0xAA) testCd.trackOffsets[0] else testCd.trackOffsets[trackNum]
+                val absoluteSector = if (trackNum == 0xAA) testCd.trackOffsets[0] else testCd.trackOffsets[trackNum]
+                val lba = absoluteSector - 150
 
                 if (msf) {
-                    val m = (lba + 150) / 4500
-                    val s = ((lba + 150) / 75) % 60
-                    val f = (lba + 150) % 75
+                    val m = absoluteSector / 4500
+                    val s = (absoluteSector / 75) % 60
+                    val f = absoluteSector % 75
                     buffer.put(base + 5, m.toByte())
                     buffer.put(base + 6, s.toByte())
                     buffer.put(base + 7, f.toByte())

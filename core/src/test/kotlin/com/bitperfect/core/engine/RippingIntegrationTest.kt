@@ -40,12 +40,12 @@ class RippingIntegrationTest {
         // LBA 0 is 00:02:00.
         // LBA 150 is 00:04:00? (0*4500 + 4*75 + 0) - 150 = 300 - 150 = 150. Yes.
 
-        assertEquals(150, toc.tracks[0].startLba)
-        assertEquals(15250, toc.tracks[1].startLba)
-        assertEquals(30450, toc.leadOutLba)
+        assertEquals(0, toc.tracks[0].startLba)
+        assertEquals(15100, toc.tracks[1].startLba)
+        assertEquals(30300, toc.leadOutLba)
 
         assertEquals(15100, toc.tracks[0].durationSectors)
-        assertEquals(30450 - 15250, toc.tracks[1].durationSectors)
+        assertEquals(30300 - 15100, toc.tracks[1].durationSectors)
     }
 
     @Test

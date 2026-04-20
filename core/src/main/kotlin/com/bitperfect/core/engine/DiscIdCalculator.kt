@@ -10,14 +10,14 @@ data class AccurateRipDiscId(
 )
 
 fun DiscToc.computeFreedbId(): Long {
-    val trackOffsets = this.tracks.map { it.startLba.toLong() }.toLongArray()
-    val leadOutOffset = this.leadOutLba.toLong()
+    val trackOffsets = this.tracks.map { it.startLba.toLong() + 150L }.toLongArray()
+    val leadOutOffset = this.leadOutLba.toLong() + 150L
     return MusicBrainzUtils.calculateFreeDbId(trackOffsets, leadOutOffset)
 }
 
 fun DiscToc.computeAccurateRipId(): AccurateRipDiscId {
-    val trackOffsets = this.tracks.map { Math.max(0L, it.startLba.toLong() - 150L) }.toLongArray()
-    val leadOutOffset = Math.max(0L, this.leadOutLba.toLong() - 150L)
+    val trackOffsets = this.tracks.map { Math.max(0L, it.startLba.toLong()) }.toLongArray()
+    val leadOutOffset = Math.max(0L, this.leadOutLba.toLong())
     val freedbId = this.computeFreedbId()
 
     val numTracks = trackOffsets.size

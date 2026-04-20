@@ -155,7 +155,7 @@ class MetadataServiceTest {
                         headers = headersOf(HttpHeaders.ContentType, "application/json")
                     )
                 }
-                "https://gnudb.gnudb.org/~cddb/cddb.cgi?cmd=cddb+query+02019002+2+150+15150+400&hello=anon+localhost+BitPerfect+1.0&proto=6" -> {
+                "https://gnudb.gnudb.org/~cddb/cddb.cgi?cmd=cddb+query+06019002+2+150+15150+400&hello=anon+localhost+BitPerfect+1.0&proto=6" -> {
                     respond(
                         content = "200 rock 12345678 Album Title\n",
                         status = HttpStatusCode.OK,

@@ -91,7 +91,7 @@ class VirtualScsiDriverTest {
         assertEquals(2.toByte(), response!![3]) // Last track
 
         val buffer = ByteBuffer.wrap(response).order(ByteOrder.BIG_ENDIAN)
-        assertEquals(testCd.trackOffsets[1], buffer.getInt(4 + 4))
+        assertEquals(testCd.trackOffsets[1] - 150, buffer.getInt(4 + 4))
     }
 
     @Test
