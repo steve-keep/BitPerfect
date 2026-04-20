@@ -1,0 +1,26 @@
+<<<<<<< SEARCH
+                                            onRetry = {
+                                                selectedDevice?.let { retryPoll(it) }
+                                            },
+                                            onMetadataSelect = { metadata ->
+                                                rippingService?.rippingEngine?.selectMetadata(metadata)
+                                            },
+                                            onCalibrateOffset = {
+                                                selectedDevice?.let { calibrateDriveOffset(it) }
+                                            }
+                                        )
+=======
+                                            onRetry = {
+                                                selectedDevice?.let { retryPoll(it) }
+                                            },
+                                            onCancelRip = {
+                                                rippingService?.cancelRip()
+                                            },
+                                            onCalibrateOffset = {
+                                                selectedDevice?.let { calibrateDriveOffset(it) }
+                                            },
+                                            onMetadataSelect = { metadata ->
+                                                rippingService?.rippingEngine?.selectMetadata(metadata)
+                                            }
+                                        )
+>>>>>>> REPLACE
