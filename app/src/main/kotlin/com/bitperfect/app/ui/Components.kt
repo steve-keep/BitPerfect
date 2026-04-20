@@ -21,6 +21,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -670,17 +676,57 @@ fun DiagnosticDashboard(
             color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f),
             shape = MaterialTheme.shapes.large
         ) {
+            val uriHandler = LocalUriHandler.current
             LazyColumn(
                 modifier = Modifier.padding(16.dp),
                 reverseLayout = true
             ) {
                 items(logs.reversed()) { log ->
-                    Text(
-                        text = "> $log",
-                        style = MaterialTheme.typography.bodySmall,
+                    val urlRegex = "https?://[^\\s]+".toRegex()
+                    val matchResult = urlRegex.find(log)
+
+                    val textStyle = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         color = if (log.contains("Failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (matchResult != null) {
+                        val url = matchResult.value
+                        val annotatedString = buildAnnotatedString {
+                            append("> ")
+                            append(log.substring(0, matchResult.range.first))
+
+                            pushStringAnnotation(tag = "URL", annotation = url)
+                            withStyle(style = SpanStyle(
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline
+                            )) {
+                                append(url)
+                            }
+                            pop()
+
+                            append(log.substring(matchResult.range.last + 1))
+                        }
+                        ClickableText(
+                            text = annotatedString,
+                            style = textStyle,
+                            onClick = { offset ->
+                                annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                    .firstOrNull()?.let { annotation ->
+                                        try {
+                                            uriHandler.openUri(annotation.item)
+                                        } catch (e: Exception) {
+                                            // Ignore if URI cannot be opened
+                                        }
+                                    }
+                            }
+                        )
+                    } else {
+                        Text(
+                            text = "> $log",
+                            style = textStyle
+                        )
+                    }
                 }
             }
         }

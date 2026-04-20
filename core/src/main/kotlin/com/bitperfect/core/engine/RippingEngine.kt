@@ -315,7 +315,7 @@ class RippingEngine(
 
         val arDiscId = toc.computeAccurateRipId()
         _ripState.value = _ripState.value.copy(status = "Fetching AccurateRip data for calibration...")
-        val arData = accurateRipService.fetchAccurateRipData(toc.trackCount, arDiscId)
+        val arData = accurateRipService.fetchAccurateRipData(toc.trackCount, arDiscId, onLog)
 
         val trackNumber = firstAudioTrack.number
         val trackMatches = arData[trackNumber]
@@ -483,7 +483,7 @@ class RippingEngine(
         val arDiscId = toc.computeAccurateRipId()
 
         _ripState.value = _ripState.value.copy(status = "Fetching AccurateRip data...")
-        val arData = accurateRipService.fetchAccurateRipData(toc.trackCount, arDiscId)
+        val arData = accurateRipService.fetchAccurateRipData(toc.trackCount, arDiscId, onLog)
 
         val trackResults = mutableListOf<TrackRipResult>()
 
@@ -690,6 +690,8 @@ class RippingEngine(
                     val discId = MusicBrainzUtils.calculateDiscId(toc.firstTrack, toc.lastTrack, trackOffsets)
 
                     val metadataList = metadataService.fetchMetadata(discId, toc, onLog)
+                    val arDiscId = toc.computeAccurateRipId()
+                    accurateRipService.fetchAccurateRipData(toc.trackCount, arDiscId, onLog)
                     _ripState.value = _ripState.value.copy(
                         availableMetadata = metadataList,
                         selectedMetadata = if (metadataList.size == 1) metadataList.first() else null

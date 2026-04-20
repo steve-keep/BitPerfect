@@ -35,7 +35,7 @@ class AccurateRipService {
         )
     }
 
-    suspend fun fetchAccurateRipData(trackCount: Int, discId: AccurateRipDiscId): Map<Int, List<AccurateRipMatch>> {
+    suspend fun fetchAccurateRipData(trackCount: Int, discId: AccurateRipDiscId, onLog: ((String) -> Unit)? = null): Map<Int, List<AccurateRipMatch>> {
         val matches = mutableMapOf<Int, MutableList<AccurateRipMatch>>()
 
         val discIdName = generateAccurateRipUrlName(trackCount, discId)
@@ -49,8 +49,10 @@ class AccurateRipService {
 
         val url = "http://www.accuraterip.com/accuraterip/$x/$y/$z/$discIdName"
 
+        onLog?.invoke("Fetching AccurateRip data from $url")
         return try {
             val response = client.get(url)
+            onLog?.invoke("AccurateRip response: ${response.status.value}")
             if (response.status.value != 200) {
                 return emptyMap()
             }

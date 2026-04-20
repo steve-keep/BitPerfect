@@ -87,7 +87,7 @@ class MetadataService {
         }
 
         onLog?.invoke("Looking up metadata from MusicBrainz for Disc ID: $discId")
-        val mbResults = fetchMusicBrainzMetadata(discId)
+        val mbResults = fetchMusicBrainzMetadata(discId, onLog)
         if (mbResults.isNotEmpty()) {
             onLog?.invoke("Found ${mbResults.size} result(s) from MusicBrainz")
             sessionCache[discId] = mbResults
@@ -105,13 +105,18 @@ class MetadataService {
         return emptyList()
     }
 
-    private suspend fun fetchMusicBrainzMetadata(discId: String): List<AlbumMetadata> {
+    private suspend fun fetchMusicBrainzMetadata(discId: String, onLog: ((String) -> Unit)? = null): List<AlbumMetadata> {
         return try {
-            val response: MusicBrainzResponse = client.get("https://musicbrainz.org/ws/2/discid/$discId") {
+            val url = "https://musicbrainz.org/ws/2/discid/$discId"
+            val urlWithParams = "$url?fmt=json&inc=recordings+artists+release-groups+labels"
+            onLog?.invoke("Fetching MusicBrainz data from $urlWithParams")
+            val httpResponse = client.get(url) {
                 parameter("fmt", "json")
                 parameter("inc", "recordings+artists+release-groups+labels")
                 header("User-Agent", "BitPerfect/1.0 ( https://steve-keep.github.io/BitPerfect/ )")
-            }.body()
+            }
+            onLog?.invoke("MusicBrainz response: ${httpResponse.status.value}")
+            val response: MusicBrainzResponse = httpResponse.body()
 
             val releases = response.releases ?: emptyList()
             releases.map { release ->
