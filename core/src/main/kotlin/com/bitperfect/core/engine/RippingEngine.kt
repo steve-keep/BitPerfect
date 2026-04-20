@@ -74,7 +74,7 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
+        _ripState.value = _ripState.value.copy(isRunning = true, status = "Reading TOC...")
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
@@ -98,7 +98,10 @@ class RippingEngine(
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
         val sectorReader = CdSectorReader(scsiDriver, fd, endpointIn, endpointOut)
-        val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
+        val outputStream = getOutputStreamForPath(context, outputPath) ?: run {
+            _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to open output stream")
+            return@withContext
+        }
         flacEncoder.prepare(outputStream, 44100, 2)
 
         for (lba in startLba until endLba) {
@@ -131,7 +134,7 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Initializing Secure Rip...")
+        _ripState.value = _ripState.value.copy(isRunning = true, status = "Initializing Secure Rip...")
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
@@ -152,7 +155,10 @@ class RippingEngine(
         val endLba = startLba + totalSectors
         _ripState.value = _ripState.value.copy(totalSectors = totalSectors, currentTrack = 1)
 
-        val outputStream = getOutputStreamForPath(context, outputPath) ?: return@withContext
+        val outputStream = getOutputStreamForPath(context, outputPath) ?: run {
+            _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to open output stream")
+            return@withContext
+        }
         flacEncoder.prepare(outputStream, 44100, 2)
 
         for (lba in startLba until endLba) {
@@ -293,7 +299,7 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ): Result<Int> = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Initializing Calibration...")
+        _ripState.value = _ripState.value.copy(isRunning = true, status = "Initializing Calibration...")
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
@@ -458,7 +464,7 @@ class RippingEngine(
         endpointIn: Int = 0x81,
         endpointOut: Int = 0x01
     ) = withContext(Dispatchers.IO) {
-        _ripState.value = RipState(isRunning = true, status = "Reading TOC...")
+        _ripState.value = _ripState.value.copy(isRunning = true, status = "Reading TOC...")
 
         val toc = TocReader(scsiDriver).readToc(fd, endpointIn, endpointOut)
         if (toc == null) {
@@ -505,7 +511,10 @@ class RippingEngine(
             val fileName = "${t.toString().padStart(2, '0')} - $sanitizedTitle.flac"
 
             val relativePath = "$sanitizedArtist/$sanitizedAlbum/$fileName"
-            val outputStream = getOutputStreamForPath(context, basePath, relativePath) ?: return@withContext
+            val outputStream = getOutputStreamForPath(context, basePath, relativePath) ?: run {
+                _ripState.value = _ripState.value.copy(isRunning = false, status = "Failed to open output stream")
+                return@withContext
+            }
 
             flacEncoder.prepare(outputStream, 44100, 2)
 
