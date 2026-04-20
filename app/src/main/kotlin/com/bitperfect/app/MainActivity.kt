@@ -384,8 +384,18 @@ class MainActivity : ComponentActivity() {
 
     private data class UsbEndpoints(val endpointIn: Int, val endpointOut: Int)
 
+    private fun getMassStorageInterface(device: UsbDevice): android.hardware.usb.UsbInterface? {
+        for (i in 0 until device.interfaceCount) {
+            val iface = device.getInterface(i)
+            if (iface.interfaceClass == android.hardware.usb.UsbConstants.USB_CLASS_MASS_STORAGE) {
+                return iface
+            }
+        }
+        return null
+    }
+
     private fun getEndpoints(device: UsbDevice): UsbEndpoints {
-        val iface = device.getInterface(0)
+        val iface = getMassStorageInterface(device) ?: device.getInterface(0)
         var endpointIn = 0x81
         var endpointOut = 0x01
         for (i in 0 until iface.endpointCount) {
@@ -421,7 +431,7 @@ class MainActivity : ComponentActivity() {
                     val connection = usbDeviceManager.openDevice(device)
                     if (connection != null) {
                         try {
-                            val iface = device.getInterface(0)
+                            val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                             if (connection.claimInterface(iface, true)) {
                                 try {
                                     val fd = connection.fileDescriptor
@@ -460,7 +470,7 @@ class MainActivity : ComponentActivity() {
                 val connection = usbDeviceManager.openDevice(device)
                 if (connection != null) {
                     try {
-                        val iface = device.getInterface(0)
+                        val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                         if (connection.claimInterface(iface, true)) {
                             try {
                                 val fd = connection.fileDescriptor
@@ -500,7 +510,7 @@ class MainActivity : ComponentActivity() {
                 val device = drive.device
                 val connection = usbDeviceManager.openDevice(device) ?: return@launch
                 try {
-                    val iface = device.getInterface(0)
+                    val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                     if (connection.claimInterface(iface, true)) {
                         try {
                             val fd = connection.fileDescriptor
@@ -568,7 +578,7 @@ class MainActivity : ComponentActivity() {
             }
 
             try {
-                val iface = device.getInterface(0)
+                val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                 if (!connection.claimInterface(iface, true)) {
                     addLog("Failed to claim interface")
                     return
@@ -636,7 +646,7 @@ class MainActivity : ComponentActivity() {
                 val device = drive.device
                 val connection = usbDeviceManager.openDevice(device) ?: return@launch
                 try {
-                    val iface = device.getInterface(0)
+                    val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                     if (connection.claimInterface(iface, true)) {
                         try {
                             val fd = connection.fileDescriptor
@@ -670,7 +680,7 @@ class MainActivity : ComponentActivity() {
                 val device = drive.device
                 val connection = usbDeviceManager.openDevice(device) ?: return@launch
                 try {
-                    val iface = device.getInterface(0)
+                    val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                     if (connection.claimInterface(iface, true)) {
                         try {
                             val fd = connection.fileDescriptor
@@ -711,7 +721,7 @@ class MainActivity : ComponentActivity() {
                 val device = drive.device
                 val connection = usbDeviceManager.openDevice(device) ?: return@launch
                 try {
-                    val iface = device.getInterface(0)
+                    val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                     if (!connection.claimInterface(iface, true)) {
                         addLog("Failed to claim interface for ripping")
                         return@launch
