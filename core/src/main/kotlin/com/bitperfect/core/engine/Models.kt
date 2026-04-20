@@ -14,8 +14,8 @@ sealed class BitPerfectDrive {
     }
 
     data class Virtual(val id: Int, val vendor: String, val product: String) : BitPerfectDrive() {
-        override val name: String = "$vendor $product"
-        override val manufacturer: String = vendor
+        override val name: String = "$vendor $product".trim()
+        override val manufacturer: String = vendor.trim()
         override val identifier: String = "virtual_$id"
     }
 }

@@ -9,6 +9,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(manifest = org.robolectric.annotation.Config.NONE)
 class TrayControlTest {
 
     private val scsiDriver = mockk<IScsiDriver>()
@@ -18,18 +20,18 @@ class TrayControlTest {
     @Before
     fun setUp() {
         mockkStatic(android.util.Log::class)
-        mockkStatic(android.util.Base64::class)
         every { android.util.Log.w(any(), any<String>()) } returns 0
         every { android.util.Log.e(any(), any<String>()) } returns 0
-        every { android.util.Base64.encodeToString(any(), any()) } returns "dummy_base64"
         coEvery { metadataService.fetchMetadata(any(), any()) } returns emptyList()
-        rippingEngine = RippingEngine(scsiDriver, metadataService = metadataService)
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val mockDriveOffsetService = mockk<DriveOffsetService>(relaxed = true)
+        rippingEngine = RippingEngine(context, scsiDriver, metadataService = metadataService)
+        rippingEngine.driveOffsetService = mockDriveOffsetService
     }
 
     @org.junit.After
     fun tearDown() {
         unmockkStatic(android.util.Log::class)
-        unmockkStatic(android.util.Base64::class)
     }
 
     @Test

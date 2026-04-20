@@ -30,6 +30,7 @@ class SettingsManager(context: Context) {
             .putBoolean("caps_${id}_hasCache", caps.hasCache)
             .putInt("caps_${id}_cacheSizeKb", caps.cacheSizeKb)
             .putBoolean("caps_${id}_supportsC2", caps.supportsC2)
+            .putBoolean("caps_${id}_offsetFromAccurateRip", caps.offsetFromAccurateRip)
             .apply()
     }
 
@@ -43,7 +44,8 @@ class SettingsManager(context: Context) {
             readOffset = prefs.getInt("caps_${id}_readOffset", 0),
             hasCache = prefs.getBoolean("caps_${id}_hasCache", false),
             cacheSizeKb = prefs.getInt("caps_${id}_cacheSizeKb", 0),
-            supportsC2 = prefs.getBoolean("caps_${id}_supportsC2", false)
+            supportsC2 = prefs.getBoolean("caps_${id}_supportsC2", false),
+            offsetFromAccurateRip = prefs.getBoolean("caps_${id}_offsetFromAccurateRip", false)
         )
     }
 

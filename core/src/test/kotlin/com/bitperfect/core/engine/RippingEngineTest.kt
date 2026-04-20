@@ -25,7 +25,7 @@ class RippingEngineTest {
         mockkStatic(Log::class)
         every { Log.w(any(), any<String>()) } returns 0
         coEvery { metadataService.fetchMetadata(any(), any()) } returns emptyList()
-        rippingEngine = RippingEngine(scsiDriver, flacEncoder, metadataService)
+        rippingEngine = RippingEngine(context, scsiDriver, flacEncoder, metadataService)
     }
 
     @After

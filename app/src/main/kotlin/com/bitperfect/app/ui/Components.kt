@@ -397,7 +397,12 @@ fun DiagnosticDashboard(
                     CapabilityBadge("Accurate Stream", driveCapabilities.accurateStream)
                     CapabilityBadge("C2 Error Pointers", driveCapabilities.supportsC2)
                     CapabilityBadge("Cache detected", driveCapabilities.hasCache)
-                    Text(text = "Read Offset: ${driveCapabilities.readOffset}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val offsetText = if (driveCapabilities.offsetFromAccurateRip) {
+                        "Read Offset: ${if (driveCapabilities.readOffset > 0) "+" else ""}${driveCapabilities.readOffset} samples (from AccurateRip database)"
+                    } else {
+                        "Read Offset: ${driveCapabilities.readOffset}"
+                    }
+                    Text(text = offsetText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     Text(text = "No capabilities detected yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
                 }

@@ -42,15 +42,18 @@ data class DriveCapabilities(
     val readOffset: Int = 0,
     val hasCache: Boolean = false,
     val cacheSizeKb: Int = 0,
-    val supportsC2: Boolean = false
+    val supportsC2: Boolean = false,
+    val offsetFromAccurateRip: Boolean = false
 )
 
 class RippingEngine(
+    private val context: Context,
     private val defaultScsiDriver: IScsiDriver,
     private val flacEncoder: FlacEncoder = FlacEncoder(),
     private val metadataService: MetadataService = MetadataService(),
     private val accurateRipService: AccurateRipService = AccurateRipService()
 ) {
+    var driveOffsetService: DriveOffsetService = DriveOffsetService(context)
     private val _ripState = MutableStateFlow(RipState())
     val ripState: StateFlow<RipState> = _ripState.asStateFlow()
 
@@ -326,13 +329,19 @@ class RippingEngine(
             accurateStream = (modeSenseResponse[11].toInt() and 0x01) != 0 || (modeSenseResponse[11].toInt() and 0x02) != 0
         }
 
+        val fetchedOffset = driveOffsetService.findOffsetForDrive(vendor, product)
+        val readOffset = fetchedOffset ?: 0
+        val offsetFromAccurateRip = fetchedOffset != null
+
         Result.success(DriveCapabilities(
             vendor = vendor,
             product = product,
             revision = revision,
             accurateStream = accurateStream,
             supportsC2 = supportsC2,
-            hasCache = true
+            hasCache = true,
+            readOffset = readOffset,
+            offsetFromAccurateRip = offsetFromAccurateRip
         ))
     }
 
