@@ -156,7 +156,8 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
         return response.take(length).toByteArray()
     }
 
-    private var lastReadLba = -1
+    private var lastReadStartLba = -1
+    private var lastReadEndLba = -1
 
     private fun handleRead10(command: ByteArray, length: Int): ByteArray {
         val lba = ((command[2].toInt() and 0xFF) shl 24) or
@@ -192,16 +193,19 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
                           ((command[7].toInt() and 0xFF) shl 8) or
                           (command[8].toInt() and 0xFF)
 
+        val actualSectorCount = if (sectorCount == 0) 1 else sectorCount
+
         // Simulate cache
-        if (lba == lastReadLba) {
+        // If it's a re-read of the exact same block or a sequential read, treat it as a cache hit
+        if (lba == lastReadStartLba || lba == lastReadEndLba + 1) {
             // Cache hit, fast response (no sleep)
         } else {
             // Cache miss, slow response
             Thread.sleep(10)
         }
-        lastReadLba = lba
+        lastReadStartLba = lba
+        lastReadEndLba = lba + actualSectorCount - 1
 
-        val actualSectorCount = if (sectorCount == 0) 1 else sectorCount
         val bytesPerSector = length / actualSectorCount
 
         // Deterministic dummy PCM data
