@@ -66,6 +66,7 @@ android {
 }
 
 dependencies {
+    implementation "androidx.compose.material:material-icons-extended"
     implementation project(':core')
     implementation project(':driver')
     implementation 'net.jthink:jaudiotagger:3.0.1'

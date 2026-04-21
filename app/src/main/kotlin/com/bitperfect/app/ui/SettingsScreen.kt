@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -47,21 +48,93 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(1.dp) // Minimal spacing for the "slabs" feel
     ) {
         item {
-            Text(
-                text = "Storage",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)
+            Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
+                Text(
+                    text = "Storage & Paths",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Configure where and how your rips are saved.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
+        }
 
-            item {
-                PreferenceItem(
-                    title = "Output Folder",
-                    description = outputFolderUri ?: "Not set (using app private storage)",
-                    onClick = { folderPickerLauncher.launch(null) }
-                )
+        item {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                ) {
+                    Text(
+                        text = "Destination Folder",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .clickable { folderPickerLauncher.launch(null) }
+                        ) {
+                            Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = "Folder",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                val displayPath = outputFolderUri?.let { uriStr ->
+                                    try {
+                                        val decoded = java.net.URLDecoder.decode(uriStr, "UTF-8")
+                                        decoded.substringAfterLast(":")
+                                    } catch (e: Exception) {
+                                        uriStr
+                                    }
+                                } ?: "Not set"
+                                Text(
+                                    text = "/$displayPath",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = { folderPickerLauncher.launch(null) },
+                            shape = MaterialTheme.shapes.small,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.height(48.dp)
+                        ) {
+                            Text("Browse")
+                        }
+                    }
+                }
             }
+        }
 
             item {
                 Text(
