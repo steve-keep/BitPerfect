@@ -524,7 +524,8 @@ class RippingEngine(
                 return@withContext
             }
 
-            flacEncoder.prepare(outputStream, 44100, 2)
+            val trackFlacEncoder = FlacEncoder()
+            trackFlacEncoder.prepare(outputStream, 44100, 2)
 
             val crc32Generator = java.util.zip.CRC32()
             var trackArCrc = 0L
@@ -539,7 +540,7 @@ class RippingEngine(
                     return@withContext
                 }
 
-                flacEncoder.encode(sectorData)
+                trackFlacEncoder.encode(sectorData)
 
                 // Update CRCs
                 crc32Generator.update(sectorData)
@@ -554,7 +555,7 @@ class RippingEngine(
                 )
             }
 
-            flacEncoder.finish()
+            trackFlacEncoder.finish()
 
             // Embed metadata
             embedMetadata(context, basePath, relativePath, selectedMeta, t)
