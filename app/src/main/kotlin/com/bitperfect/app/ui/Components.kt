@@ -273,6 +273,7 @@ fun DiagnosticDashboard(
     onEject: () -> Unit,
     onLoadTray: () -> Unit,
     onCopyDebugReport: () -> Unit,
+    onShareDebugReport: () -> Unit = {},
     onRetry: () -> Unit,
     onCancelRip: () -> Unit = {},
     onCalibrateOffset: () -> Unit = {},
@@ -663,8 +664,13 @@ fun DiagnosticDashboard(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            TextButton(onClick = onCopyDebugReport) {
-                Text("Copy Debug Report")
+            Row {
+                TextButton(onClick = onCopyDebugReport) {
+                    Text("Copy")
+                }
+                TextButton(onClick = onShareDebugReport) {
+                    Text("Export")
+                }
             }
         }
 

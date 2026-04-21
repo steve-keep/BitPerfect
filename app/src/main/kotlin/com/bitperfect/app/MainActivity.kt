@@ -135,9 +135,10 @@ class MainActivity : ComponentActivity() {
                             intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                         }
                         if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                            addLog("USB permission GRANTED for device: ${device?.deviceName}")
                             device?.let { runDiagnostics(BitPerfectDrive.Physical(it)) }
                         } else {
-                            addLog("Permission denied for device $device")
+                            addLog("USB permission DENIED for device $device")
                             Toast.makeText(context, "USB permission is required to access the CD drive", Toast.LENGTH_LONG).show()
                         }
                     }
@@ -173,7 +174,7 @@ class MainActivity : ComponentActivity() {
         CrashReporter.initialize(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        usbDeviceManager = UsbDeviceManager(this)
+        usbDeviceManager = UsbDeviceManager(this) { logMsg -> addLog(logMsg) }
         settingsManager = SettingsManager(this)
 
         val serviceIntent = Intent(this, RippingService::class.java)
@@ -344,6 +345,9 @@ class MainActivity : ComponentActivity() {
                                             onCopyDebugReport = {
                                                 copyDebugReportToClipboard()
                                             },
+                                            onShareDebugReport = {
+                                                shareDebugReport()
+                                            },
                                             onRetry = {
                                                 selectedDevice?.let { retryPoll(it) }
                                             },
@@ -385,12 +389,16 @@ class MainActivity : ComponentActivity() {
     private data class UsbEndpoints(val endpointIn: Int, val endpointOut: Int)
 
     private fun getMassStorageInterface(device: UsbDevice): android.hardware.usb.UsbInterface? {
+        addLog("Finding Mass Storage Interface for ${device.deviceName}...")
         for (i in 0 until device.interfaceCount) {
             val iface = device.getInterface(i)
+            addLog("  Interface $i: Class=${iface.interfaceClass}, Subclass=${iface.interfaceSubclass}, Protocol=${iface.interfaceProtocol}")
             if (iface.interfaceClass == android.hardware.usb.UsbConstants.USB_CLASS_MASS_STORAGE) {
+                addLog("  -> Found Mass Storage Interface at index $i")
                 return iface
             }
         }
+        addLog("  -> Warning: No explicit Mass Storage interface found.")
         return null
     }
 
@@ -398,13 +406,17 @@ class MainActivity : ComponentActivity() {
         val iface = getMassStorageInterface(device) ?: device.getInterface(0)
         var endpointIn = 0x81
         var endpointOut = 0x01
+        addLog("Scanning endpoints for Interface ${iface.id} (count: ${iface.endpointCount})...")
         for (i in 0 until iface.endpointCount) {
             val ep = iface.getEndpoint(i)
+            addLog("  Endpoint $i: address=0x${ep.address.toString(16)}, type=${ep.type}, direction=${if (ep.direction == android.hardware.usb.UsbConstants.USB_DIR_IN) "IN" else "OUT"}")
             if (ep.type == android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK) {
                 if (ep.direction == android.hardware.usb.UsbConstants.USB_DIR_IN) {
                     endpointIn = ep.address
+                    addLog("  -> Selected IN Endpoint: 0x${endpointIn.toString(16)}")
                 } else {
                     endpointOut = ep.address
+                    addLog("  -> Selected OUT Endpoint: 0x${endpointOut.toString(16)}")
                 }
             }
         }
@@ -424,11 +436,13 @@ class MainActivity : ComponentActivity() {
 
         if (drive is BitPerfectDrive.Physical) {
             val device = drive.device
+            addLog("Requesting openDevice for ${drive.name}...")
             val connection = usbDeviceManager.openDevice(device)
             if (connection == null) {
-                addLog("Failed to open device connection for ${drive.name}")
+                addLog("Failed to open device connection for ${drive.name}. Has permission? ${usbDeviceManager.hasPermission(device)}")
                 return
             }
+            addLog("Device opened successfully: ${device.deviceName}")
             try {
                 val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                 if (!connection.claimInterface(iface, true)) {
@@ -556,6 +570,17 @@ class MainActivity : ComponentActivity() {
         val clip = android.content.ClipData.newPlainText("BitPerfect Debug Report", report)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(this, "Debug report copied to clipboard", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun shareDebugReport() {
+        val report = DebugReportManager.generateFullReport(this, logs)
+        val sendIntent: Intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, report)
+            type = "text/plain"
+        }
+        val shareIntent = Intent.createChooser(sendIntent, "Export Debug Log")
+        startActivity(shareIntent)
     }
 
 

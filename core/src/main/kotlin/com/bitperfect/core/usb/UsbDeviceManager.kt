@@ -6,14 +6,19 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.util.Log
 
-class UsbDeviceManager(private val context: Context) {
+class UsbDeviceManager(private val context: Context, private val onLog: ((String) -> Unit)? = null) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+
+    private fun log(message: String) {
+        Log.d("UsbDeviceManager", message)
+        onLog?.invoke("[UsbDeviceManager] $message")
+    }
 
     fun getCompatibleDevices(): List<UsbDevice> {
         val deviceList = usbManager.deviceList
         val devices = deviceList.values.filter { isCompatibleDevice(it) }
         for (device in devices) {
-            Log.d("UsbDeviceManager", "\nUSB Descriptor Info:\n" + getDeviceInfo(device))
+            log("\nUSB Descriptor Info:\n" + getDeviceInfo(device))
         }
         return devices
     }
@@ -76,7 +81,7 @@ class UsbDeviceManager(private val context: Context) {
 
     private fun isCompatibleDevice(device: UsbDevice): Boolean {
         // Log device info for debugging
-        Log.d("UsbDeviceManager", "Checking device: ${device.deviceName}, Class: ${device.deviceClass}, Subclass: ${device.deviceSubclass}")
+        log("Checking device: ${device.deviceName}, Class: ${device.deviceClass}, Subclass: ${device.deviceSubclass}")
 
         // Check at device level
         if (device.deviceClass == UsbConstants.USB_CLASS_MASS_STORAGE) {
@@ -86,7 +91,7 @@ class UsbDeviceManager(private val context: Context) {
         // Check at interface level
         for (i in 0 until device.interfaceCount) {
             val usbInterface = device.getInterface(i)
-            Log.d("UsbDeviceManager", "  Interface $i: Class: ${usbInterface.interfaceClass}, Subclass: ${usbInterface.interfaceSubclass}")
+            log("  Interface $i: Class: ${usbInterface.interfaceClass}, Subclass: ${usbInterface.interfaceSubclass}")
             if (usbInterface.interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE) {
                 return true
             }
