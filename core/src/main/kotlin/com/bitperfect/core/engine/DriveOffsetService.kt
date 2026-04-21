@@ -105,6 +105,9 @@ class DriveOffsetService(private val context: Context, private val client: HttpC
                         val offsetValue = offsetString.replace("+", "").toIntOrNull()
                         if (offsetValue != null) {
                             parsedOffsets.add(DriveOffset(driveName, offsetValue))
+                        } else if (offsetString.equals("[Purged]", ignoreCase = true)) {
+                            // Assign an offset of 0 for purged drives so they are still identified
+                            parsedOffsets.add(DriveOffset(driveName, 0))
                         }
                     }
                 }

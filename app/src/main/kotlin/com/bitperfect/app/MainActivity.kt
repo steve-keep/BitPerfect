@@ -733,7 +733,7 @@ class MainActivity : ComponentActivity() {
                 }
                 try {
                     try {
-                        val iface = device.getInterface(0)
+                        val iface = getMassStorageInterface(device) ?: device.getInterface(0)
                         if (!connection.claimInterface(iface, true)) {
                             addLog("Failed to claim interface for ripping")
                             return@launch
