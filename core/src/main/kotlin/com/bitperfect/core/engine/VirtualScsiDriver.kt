@@ -9,6 +9,15 @@ class VirtualScsiDriver(var testCd: TestCd) : IScsiDriver {
 
     override fun getDriverVersion(): String = "Virtual-1.0"
 
+    override fun initDevice(
+        fd: Int,
+        interfaceNumber: Int,
+        endpointIn: Int,
+        endpointOut: Int
+    ): Boolean {
+        return true
+    }
+
     override fun executeScsiCommand(
         fd: Int,
         command: ByteArray,

@@ -3,6 +3,13 @@ package com.bitperfect.driver
 class ScsiDriver : IScsiDriver {
     override external fun getDriverVersion(): String
 
+    override external fun initDevice(
+        fd: Int,
+        interfaceNumber: Int,
+        endpointIn: Int,
+        endpointOut: Int
+    ): Boolean
+
     /**
      * Executes a raw SCSI command.
      * @param fd The file descriptor of the USB device (from UsbDeviceConnection).
