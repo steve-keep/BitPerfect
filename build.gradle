@@ -20,3 +20,10 @@ allprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+allprojects {
+    plugins.withId('jacoco') {
+        jacoco {
+            toolVersion = "0.8.11"
+        }
+    }
+}
