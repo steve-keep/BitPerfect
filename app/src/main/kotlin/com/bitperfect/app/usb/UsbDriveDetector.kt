@@ -12,6 +12,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,7 +59,12 @@ class UsbDriveDetector(private val context: Context) {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         }
-        context.registerReceiver(usbReceiver, filter)
+        ContextCompat.registerReceiver(
+            context,
+            usbReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
 
         // Scan for existing devices on startup
         scanForDevices()
@@ -151,62 +157,10 @@ class UsbDriveDetector(private val context: Context) {
         }
 
         try {
-            // SCSI INQUIRY Command
-            // CBW: 31 bytes
-            val cbw = ByteArray(31)
-            val buffer = ByteBuffer.wrap(cbw)
-            buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-            buffer.putInt(0x43425355) // dCBWSignature
-            buffer.putInt(1)          // dCBWTag
-            buffer.putInt(36)         // dCBWDataTransferLength (INQUIRY needs 36 bytes)
-            buffer.put(0x80.toByte()) // bmCBWFlags: 0x80 for IN
-            buffer.put(0)             // bCBWLUN
-            buffer.put(6)             // bCBWCBLength (INQUIRY command length)
+            val transport = DefaultUsbTransport(connection)
+            val inquiryCommand = ScsiInquiryCommand(transport, outEndpoint, inEndpoint)
 
-            // SCSI INQUIRY Command Block (6 bytes)
-            buffer.put(0x12)          // Opcode: INQUIRY
-            buffer.put(0)
-            buffer.put(0)
-            buffer.put(0)
-            buffer.put(36)            // Allocation length
-            buffer.put(0)
-
-            // Send CBW
-            var transferred = connection.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
-            if (transferred < 0) {
-                Log.e(TAG, "Failed to send CBW")
-                return
-            }
-
-            // Read Data
-            val inquiryData = ByteArray(36)
-            transferred = connection.bulkTransfer(inEndpoint, inquiryData, inquiryData.size, 5000)
-            if (transferred < 0) {
-                Log.e(TAG, "Failed to read INQUIRY data")
-                return
-            }
-
-            // Read CSW (Command Status Wrapper)
-            val csw = ByteArray(13)
-            transferred = connection.bulkTransfer(inEndpoint, csw, csw.size, 5000)
-            if (transferred < 0) {
-                Log.e(TAG, "Failed to read CSW")
-                return
-            }
-
-            // Parse Inquiry Data
-            val peripheralDeviceType = inquiryData[0].toInt() and 0x1F
-            val vendorIdBytes = inquiryData.copyOfRange(8, 16)
-            val productIdBytes = inquiryData.copyOfRange(16, 32)
-
-            val vendorId = String(vendorIdBytes, Charsets.US_ASCII).trim()
-            val productId = String(productIdBytes, Charsets.US_ASCII).trim()
-
-            // Optional: check if optical drive (type 5)
-            val isOptical = peripheralDeviceType == 5
-
-            _deviceInfo.value = DriveInfo(vendorId, productId, isOptical)
-
+            _deviceInfo.value = inquiryCommand.execute()
         } finally {
             connection.releaseInterface(massStorageInterface)
             connection.close()
