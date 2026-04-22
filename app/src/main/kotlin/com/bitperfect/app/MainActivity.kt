@@ -452,6 +452,7 @@ class MainActivity : ComponentActivity() {
                 try {
                     val fd = connection.fileDescriptor
                     val endpoints = getEndpoints(device)
+                    driverToUse.initDevice(fd, iface.id, endpoints.endpointIn, endpoints.endpointOut)
                     action(fd, driverToUse, endpoints.endpointIn, endpoints.endpointOut)
                 } catch (e: Exception) {
                     addLog("Error during USB operation: ${e.message}")
@@ -559,6 +560,21 @@ class MainActivity : ComponentActivity() {
                 addLog("Diagnostics Failed: ${result?.exceptionOrNull()?.message}")
                 result?.exceptionOrNull()?.let { ex ->
                     addLog("Diagnostics Error Details: ${ex.stackTraceToString()}")
+                }
+
+                // Fallback using USB descriptor strings if INQUIRY completely fails
+                if (result?.isFailure == true || result == null) {
+                    val currentDevice = selectedDevice
+                    if (currentDevice is BitPerfectDrive.Physical) {
+                        addLog("Using fallback capabilities from USB descriptors for ${currentDevice.name}")
+                        val fallbackCaps = DriveCapabilities(
+                            vendor = currentDevice.device.manufacturerName ?: "Unknown",
+                            product = currentDevice.device.productName ?: "Drive",
+                            revision = "Fallback"
+                        )
+                        detectedCapabilities = fallbackCaps
+                        settingsManager.saveDriveCapabilities(currentDevice.identifier, fallbackCaps)
+                    }
                 }
             }
         }

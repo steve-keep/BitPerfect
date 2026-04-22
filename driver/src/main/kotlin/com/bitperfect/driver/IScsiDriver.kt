@@ -2,6 +2,13 @@ package com.bitperfect.driver
 
 interface IScsiDriver {
     fun getDriverVersion(): String
+    fun initDevice(
+        fd: Int,
+        interfaceNumber: Int,
+        endpointIn: Int,
+        endpointOut: Int
+    ): Boolean
+
     fun executeScsiCommand(
         fd: Int,
         command: ByteArray,

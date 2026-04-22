@@ -54,6 +54,57 @@ Java_com_bitperfect_driver_ScsiDriver_getDriverVersion(
     return env->NewStringUTF(version.c_str());
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_bitperfect_driver_ScsiDriver_initDevice(
+        JNIEnv* env,
+        jobject /* this */,
+        jint fd,
+        jint interfaceNumber,
+        jint endpointIn,
+        jint endpointOut) {
+
+    LOGI("Initializing device: fd %d, interface %d, epIn 0x%02X, epOut 0x%02X", fd, interfaceNumber, endpointIn, endpointOut);
+
+    // 1. Send Bulk-Only Mass Storage Reset (class request)
+    struct usbdevfs_ctrltransfer ctrl = {};
+    ctrl.bRequestType = 0x21; // Class, Interface, Host-to-Device
+    ctrl.bRequest = 0xFF;     // Bulk-Only Mass Storage Reset
+    ctrl.wValue = 0;
+    ctrl.wIndex = interfaceNumber;
+    ctrl.wLength = 0;
+    ctrl.timeout = 5000;
+    if (ioctl(fd, USBDEVFS_CONTROL, &ctrl) < 0) {
+        LOGE("BOT Reset failed during init: %s", strerror(errno));
+        // Continue anyway as some devices might not support this
+    }
+
+    // 2. Clear halt on IN endpoint
+    struct usbdevfs_ctrltransfer clearIn = {};
+    clearIn.bRequestType = 0x02; // Standard, Endpoint, Host-to-Device
+    clearIn.bRequest = 0x01;     // CLEAR_FEATURE
+    clearIn.wValue = 0;          // ENDPOINT_HALT
+    clearIn.wIndex = endpointIn;
+    clearIn.wLength = 0;
+    clearIn.timeout = 5000;
+    if (ioctl(fd, USBDEVFS_CONTROL, &clearIn) < 0) {
+        LOGE("Clear IN endpoint failed during init: %s", strerror(errno));
+    }
+
+    // 3. Clear halt on OUT endpoint
+    struct usbdevfs_ctrltransfer clearOut = {};
+    clearOut.bRequestType = 0x02; // Standard, Endpoint, Host-to-Device
+    clearOut.bRequest = 0x01;     // CLEAR_FEATURE
+    clearOut.wValue = 0;          // ENDPOINT_HALT
+    clearOut.wIndex = endpointOut;
+    clearOut.wLength = 0;
+    clearOut.timeout = 5000;
+    if (ioctl(fd, USBDEVFS_CONTROL, &clearOut) < 0) {
+        LOGE("Clear OUT endpoint failed during init: %s", strerror(errno));
+    }
+
+    return JNI_TRUE;
+}
+
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_bitperfect_driver_ScsiDriver_executeScsiCommand(JNIEnv* env, jobject /* this */, jint fd, jbyteArray command, jint expectedResponseLength, jint endpointIn, jint endpointOut, jint timeout) {
     jsize cmdLen = env->GetArrayLength(command);
@@ -129,7 +180,7 @@ Java_com_bitperfect_driver_ScsiDriver_executeScsiCommand(JNIEnv* env, jobject /*
         cbw[9] = (expectedResponseLength >> 8) & 0xFF;
         cbw[10] = (expectedResponseLength >> 16) & 0xFF;
         cbw[11] = (expectedResponseLength >> 24) & 0xFF;
-        cbw[12] = 0x80;
+        cbw[12] = (expectedResponseLength == 0) ? 0x00 : 0x80;
         cbw[14] = cmdLen;
         std::memcpy(&cbw[15], cmdBuffer.data(), cmdLen);
 
