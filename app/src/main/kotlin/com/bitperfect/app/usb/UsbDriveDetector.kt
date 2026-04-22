@@ -63,7 +63,7 @@ class UsbDriveDetector(private val context: Context) {
             context,
             usbReceiver,
             filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
+            ContextCompat.RECEIVER_EXPORTED
         )
 
         // Scan for existing devices on startup
