@@ -7,6 +7,36 @@ on:
     branches: [ "main" ]
 
 jobs:
+  analyze:
+    name: CodeQL Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'java-kotlin' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
   unit-tests:
     runs-on: ubuntu-latest
     steps:
@@ -30,7 +60,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run unit and Robolectric integration tests with coverage
-        run: ./gradlew test jacocoTestReport jacocoTestCoverageVerification --stacktrace
+        run: ./gradlew test jacocoTestReport jacocoTestCoverageVerification --stacktrace || exit 1
 
       - name: Publish test results
         uses: mikepenz/action-junit-report@v4
