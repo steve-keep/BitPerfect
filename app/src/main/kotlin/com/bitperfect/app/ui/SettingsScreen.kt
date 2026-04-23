@@ -9,16 +9,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bitperfect.core.utils.SettingsManager
+import com.bitperfect.app.usb.DriveInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    settingsManager: SettingsManager
+    settingsManager: SettingsManager,
+    driveInfo: DriveInfo?
 ) {
     var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }
 
@@ -131,5 +135,125 @@ fun SettingsScreen(
                 }
             }
         }
+
+        item {
+            Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
+                Text(
+                    text = "DISC DRIVE",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        item {
+            Column {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (driveInfo != null) "${driveInfo.vendorId} ${driveInfo.productId}" else "No drive connected",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { sendDebugInfo(context, driveInfo) }
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Send Debug Info",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Share drive information for troubleshooting",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Navigate",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
     }
+}
+
+private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?) {
+    val sb = java.lang.StringBuilder()
+    sb.appendLine("=== MobileRipper Drive Debug Info ===")
+    sb.appendLine()
+
+    sb.appendLine("Drive Information:")
+    if (driveInfo != null) {
+        sb.appendLine("  Vendor: ${driveInfo.vendorId}")
+        sb.appendLine("  Model: ${driveInfo.productId}")
+    } else {
+        sb.appendLine("  Vendor: None")
+        sb.appendLine("  Model: None")
+    }
+    sb.appendLine()
+
+    sb.appendLine("USB Information:")
+    if (driveInfo != null) {
+        sb.appendLine("  Vendor ID: ${driveInfo.usbVendorId} (0x${driveInfo.usbVendorId.toString(16).uppercase()})")
+        sb.appendLine("  Product ID: ${driveInfo.usbProductId} (0x${driveInfo.usbProductId.toString(16).uppercase()})")
+        sb.appendLine("  Device Path: ${driveInfo.devicePath}")
+    } else {
+        sb.appendLine("  Vendor ID: None")
+        sb.appendLine("  Product ID: None")
+        sb.appendLine("  Device Path: None")
+    }
+    sb.appendLine()
+
+    sb.appendLine("Drive Capabilities:")
+    sb.appendLine("  C2 Error Pointers: No")
+    sb.appendLine("  Subchannel Reading: No")
+    sb.appendLine("  Full TOC Reading: No")
+    sb.appendLine("  Read Offset: 0 samples")
+    sb.appendLine()
+
+    sb.appendLine("Transport Settings:")
+    sb.appendLine("  Compatibility Mode: Enabled")
+    sb.appendLine("  Compatibility Cached: No")
+    sb.appendLine()
+
+    sb.appendLine("Phone Information:")
+    sb.appendLine("  Android Version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+    sb.appendLine("  Device: ${android.os.Build.MODEL}")
+    sb.appendLine("  Product: ${android.os.Build.PRODUCT}")
+
+    val sendIntent = Intent().apply {
+        action = Intent.ACTION_SEND
+        putExtra(Intent.EXTRA_TEXT, sb.toString())
+        type = "text/plain"
+    }
+
+    val shareIntent = Intent.createChooser(sendIntent, null)
+    context.startActivity(shareIntent)
 }

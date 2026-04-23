@@ -159,7 +159,12 @@ class UsbDriveDetector(private val context: Context) {
             val transport = DefaultUsbTransport(connection)
             val inquiryCommand = ScsiInquiryCommand(transport, outEndpoint, inEndpoint)
 
-            _deviceInfo.value = inquiryCommand.execute()
+            val info = inquiryCommand.execute()
+            _deviceInfo.value = info?.copy(
+                usbVendorId = device.vendorId,
+                usbProductId = device.productId,
+                devicePath = device.deviceName
+            )
         } finally {
             connection.releaseInterface(massStorageInterface)
             connection.close()
@@ -174,5 +179,8 @@ class UsbDriveDetector(private val context: Context) {
 data class DriveInfo(
     val vendorId: String,
     val productId: String,
-    val isOptical: Boolean
+    val isOptical: Boolean,
+    val usbVendorId: Int = 0,
+    val usbProductId: Int = 0,
+    val devicePath: String = ""
 )
