@@ -14,7 +14,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
 
@@ -200,6 +202,18 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
+        }
+
+        item {
+            Text(
+                text = "Version ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp)
+            )
         }
     }
 }
