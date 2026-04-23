@@ -91,4 +91,35 @@ class UsbDriveDetectorTest {
         assertNotNull(detector)
         assertTrue(detector.deviceInfo.value == null)
     }
+
+    @Test
+    fun testIsMassStorageDeviceAcceptsSubclass2() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val usbManager = context.getSystemService(android.content.Context.USB_SERVICE) as android.hardware.usb.UsbManager
+
+        val shadowUsbManager = org.robolectric.Shadows.shadowOf(usbManager)
+
+        val device = mock(android.hardware.usb.UsbDevice::class.java)
+        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/002")
+        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x4321)
+        org.mockito.Mockito.`when`(device.productId).thenReturn(0x8765)
+        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
+
+        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
+        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
+        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
+        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(2)
+        org.mockito.Mockito.`when`(usbInterface.interfaceProtocol).thenReturn(50) // Any protocol
+
+        shadowUsbManager.addOrUpdateUsbDevice(device, true)
+
+        val detector = UsbDriveDetector(context)
+
+        // Use reflection to call private method
+        val method = UsbDriveDetector::class.java.getDeclaredMethod("isMassStorageDevice", android.hardware.usb.UsbDevice::class.java)
+        method.isAccessible = true
+        val result = method.invoke(detector, device) as Boolean
+
+        assertTrue("Expected isMassStorageDevice to return true for Class 8, Subclass 2", result)
+    }
 }

@@ -2,4 +2,5 @@
 <resources>
     <!-- USB Class 08 (Mass Storage), Subclass 06 (SCSI transparent command set), Protocol 50 (Bulk-Only Transport) -->
     <usb-device class="8" subclass="6" protocol="80" />
+    <usb-device class="8" subclass="2" />
 </resources>

@@ -86,10 +86,9 @@ class UsbDriveDetector(private val context: Context) {
     private fun isMassStorageDevice(device: UsbDevice): Boolean {
         for (i in 0 until device.interfaceCount) {
             val usbInterface = device.getInterface(i)
-            // Class 8 (Mass Storage), Subclass 6 (SCSI), Protocol 80 (Bulk-Only)
+            // Class 8 (Mass Storage), Subclass 2 (ATAPI) or 6 (SCSI)
             if (usbInterface.interfaceClass == 8 &&
-                usbInterface.interfaceSubclass == 6 &&
-                usbInterface.interfaceProtocol == 80) {
+                (usbInterface.interfaceSubclass == 2 || usbInterface.interfaceSubclass == 6)) {
                 return true
             }
         }
@@ -123,7 +122,7 @@ class UsbDriveDetector(private val context: Context) {
 
         for (i in 0 until device.interfaceCount) {
             val intf = device.getInterface(i)
-            if (intf.interfaceClass == 8 && intf.interfaceSubclass == 6 && intf.interfaceProtocol == 80) {
+            if (intf.interfaceClass == 8 && (intf.interfaceSubclass == 2 || intf.interfaceSubclass == 6)) {
                 massStorageInterface = intf
                 for (j in 0 until intf.endpointCount) {
                     val ep = intf.getEndpoint(j)
