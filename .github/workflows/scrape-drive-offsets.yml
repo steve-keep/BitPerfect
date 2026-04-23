@@ -1,0 +1,126 @@
+name: AccurateRip Drive Offsets Scraper
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-offsets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scrape AccurateRip Drive Offsets
+        run: |
+          python3 << 'EOF'
+          import urllib.request
+          import html.parser
+          import json
+          import sys
+          import datetime
+
+          class DriveOffsetParser(html.parser.HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.in_table = False
+                  self.in_tr = False
+                  self.in_td = False
+                  self.current_data = ""
+                  self.current_row = []
+                  self.rows = []
+                  self.tables_found = 0
+
+              def handle_starttag(self, tag, attrs):
+                  if tag == "table":
+                      self.tables_found += 1
+                      if self.tables_found == 2:
+                          self.in_table = True
+                  elif tag == "tr" and self.in_table:
+                      self.in_tr = True
+                      self.current_row = []
+                  elif tag == "td" and self.in_tr:
+                      self.in_td = True
+                      self.current_data = ""
+
+              def handle_data(self, data):
+                  if self.in_td:
+                      self.current_data += data
+
+              def handle_endtag(self, tag):
+                  if tag == "td" and self.in_td:
+                      self.in_td = False
+                      self.current_row.append(self.current_data.strip())
+                  elif tag == "tr" and self.in_tr:
+                      self.in_tr = False
+                      if self.current_row:
+                          self.rows.append(self.current_row)
+                  elif tag == "table" and self.in_table:
+                      self.in_table = False
+
+          parser = DriveOffsetParser()
+          try:
+              with urllib.request.urlopen("https://www.accuraterip.com/driveoffsets.htm") as response:
+                  html_content = response.read().decode('windows-1252')
+                  parser.feed(html_content)
+          except Exception as e:
+              print(f"Failed to fetch AccurateRip page: {e}")
+              sys.exit(1)
+
+          def parse_val(val_str):
+              val_str = val_str.replace('+', '').replace('%', '').strip()
+              if not val_str or val_str == '[Purged]':
+                  return None
+              try:
+                  return int(val_str)
+              except ValueError:
+                  return None
+
+          drives = []
+          for row in parser.rows[1:]: # Skip header row
+              if len(row) >= 4:
+                  drive_name = row[0]
+                  offset = parse_val(row[1])
+                  submissions = parse_val(row[2])
+                  agreement = parse_val(row[3])
+
+                  drives.append({
+                      "drive": drive_name,
+                      "offset": offset,
+                      "submissions": submissions,
+                      "agreement": agreement
+                  })
+
+          if not drives:
+              print("Error: No drives successfully parsed.")
+              sys.exit(1)
+
+          output_data = {
+              "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "drives": drives
+          }
+
+          import os
+          os.makedirs("website/public", exist_ok=True)
+          with open("website/public/drive-offsets.json", "w") as f:
+              json.dump(output_data, f, indent=2)
+
+          print(f"Successfully scraped {len(drives)} drives.")
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add website/public/drive-offsets.json
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update drive-offsets.json [skip ci]"
+            git push
+          fi
