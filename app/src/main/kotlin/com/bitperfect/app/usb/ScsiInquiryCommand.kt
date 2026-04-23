@@ -14,7 +14,7 @@ class ScsiInquiryCommand(
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw)
         buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        buffer.putInt(0x43425355) // dCBWSignature
+        buffer.putInt(CBW_SIGNATURE) // dCBWSignature
         buffer.putInt(1)          // dCBWTag
         buffer.putInt(36)         // dCBWDataTransferLength (INQUIRY needs 36 bytes)
         buffer.put(0x80.toByte()) // bmCBWFlags: 0x80 for IN
@@ -52,6 +52,17 @@ class ScsiInquiryCommand(
             return null
         }
 
+        // Validate CSW
+        val cswSignature = ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt(0)
+        if (cswSignature != CSW_SIGNATURE) {
+            Log.e(TAG, "Invalid CSW signature")
+            return null
+        }
+        if (csw[12] != 0.toByte()) {
+            Log.e(TAG, "CSW indicates command failure: status=${csw[12]}")
+            return null
+        }
+
         // Parse Inquiry Data
         val peripheralDeviceType = inquiryData[0].toInt() and 0x1F
         val vendorIdBytes = inquiryData.copyOfRange(8, 16)
@@ -68,5 +79,7 @@ class ScsiInquiryCommand(
 
     companion object {
         private const val TAG = "ScsiInquiryCommand"
+        private const val CBW_SIGNATURE = 0x43425355 // "USBC"
+        private const val CSW_SIGNATURE = 0x53425355 // "USBS"
     }
 }

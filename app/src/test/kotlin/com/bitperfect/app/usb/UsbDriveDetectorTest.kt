@@ -24,7 +24,14 @@ class UsbDriveDetectorTest {
                     System.arraycopy(inquiryResponse, 0, buffer, 0, inquiryResponse.size.coerceAtMost(length))
                     inquiryResponse.size // Inquiry data
                 }
-                3 -> 13 // CSW
+                3 -> { // CSW
+                    val csw = ByteArray(13)
+                    val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    b.putInt(0x53425355) // CSW Signature
+                    // Leave rest 0, specifically bCSWStatus at 12 is 0 (Success)
+                    System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
+                    13
+                }
                 else -> -1
             }
         }

@@ -30,13 +30,11 @@ class UsbDriveDetector(private val context: Context) {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 ACTION_USB_PERMISSION -> {
-                    synchronized(this) {
-                        val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
-                        if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                            device?.let { interrogateDevice(it) }
-                        } else {
-                            Log.d(TAG, "permission denied for device $device")
-                        }
+                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                        device?.let { Thread { interrogateDevice(it) }.start() }
+                    } else {
+                        Log.d(TAG, "permission denied for device $device")
                     }
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
@@ -110,7 +108,9 @@ class UsbDriveDetector(private val context: Context) {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
             val permissionIntent = PendingIntent.getBroadcast(
-                context, 0, Intent(ACTION_USB_PERMISSION), flags
+            context, 0, Intent(ACTION_USB_PERMISSION).apply {
+                `package` = context.packageName
+            }, flags
             )
             usbManager.requestPermission(device, permissionIntent)
         }
