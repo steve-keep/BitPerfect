@@ -36,6 +36,12 @@ android {
         unitTests {
             includeAndroidResources = true
             returnDefaultValues = true
+            all {
+                jacoco {
+                    includeNoLocationClasses = true
+                    excludes = ['jdk.internal.*']
+                }
+            }
         }
     }
 }
@@ -63,7 +69,7 @@ task jacocoTestCoverageVerification(type: JacocoCoverageVerification, dependsOn:
     violationRules {
         rule {
             limit {
-                minimum = 0.0 // 70% overall coverage gate temporarily lowered to 0 for passing PR
+                minimum = 1.0
             }
         }
     }
