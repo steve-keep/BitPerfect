@@ -21,8 +21,8 @@ import java.nio.ByteBuffer
 class UsbDriveDetector(private val context: Context) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
 
-    private val _deviceInfo = MutableStateFlow<DriveInfo?>(null)
-    val deviceInfo: StateFlow<DriveInfo?> = _deviceInfo.asStateFlow()
+    private val _driveStatus = MutableStateFlow<DriveStatus>(DriveStatus.NoDrive)
+    val driveStatus: StateFlow<DriveStatus> = _driveStatus.asStateFlow()
 
     private val ACTION_USB_PERMISSION = "com.bitperfect.app.USB_PERMISSION"
 
@@ -35,6 +35,7 @@ class UsbDriveDetector(private val context: Context) {
                         device?.let { Thread { interrogateDevice(it) }.start() }
                     } else {
                         Log.d(TAG, "permission denied for device $device")
+                        _driveStatus.value = DriveStatus.PermissionDenied
                     }
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
@@ -45,7 +46,7 @@ class UsbDriveDetector(private val context: Context) {
                     val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     if (device != null) {
                         // For simplicity, just clearing if any device detached.
-                        _deviceInfo.value = null
+                        _driveStatus.value = DriveStatus.NoDrive
                     }
                 }
             }
@@ -69,13 +70,17 @@ class UsbDriveDetector(private val context: Context) {
     }
 
     fun scanForDevices() {
-        _deviceInfo.value = null
+        var foundDevice = false
         val deviceList = usbManager.deviceList
         for (device in deviceList.values) {
             if (isMassStorageDevice(device)) {
+                foundDevice = true
                 checkAndRequestPermission(device)
                 break
             }
+        }
+        if (!foundDevice) {
+            _driveStatus.value = DriveStatus.NoDrive
         }
     }
 
@@ -101,6 +106,7 @@ class UsbDriveDetector(private val context: Context) {
         if (usbManager.hasPermission(device)) {
             interrogateDevice(device)
         } else {
+            _driveStatus.value = DriveStatus.Connecting
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             } else {
@@ -116,6 +122,8 @@ class UsbDriveDetector(private val context: Context) {
     }
 
     private fun interrogateDevice(device: UsbDevice) {
+        _driveStatus.value = DriveStatus.Connecting
+
         var massStorageInterface: UsbInterface? = null
         var inEndpoint: UsbEndpoint? = null
         var outEndpoint: UsbEndpoint? = null
@@ -140,17 +148,20 @@ class UsbDriveDetector(private val context: Context) {
 
         if (massStorageInterface == null || inEndpoint == null || outEndpoint == null) {
             Log.e(TAG, "Could not find mass storage interface or endpoints")
+            _driveStatus.value = DriveStatus.Error("Could not find mass storage interface or endpoints")
             return
         }
 
         val connection = usbManager.openDevice(device)
         if (connection == null) {
             Log.e(TAG, "Could not open connection")
+            _driveStatus.value = DriveStatus.Error("Could not open device")
             return
         }
 
         if (!connection.claimInterface(massStorageInterface, true)) {
             Log.e(TAG, "Could not claim interface")
+            _driveStatus.value = DriveStatus.Error("Could not claim interface")
             connection.close()
             return
         }
@@ -159,12 +170,31 @@ class UsbDriveDetector(private val context: Context) {
             val transport = DefaultUsbTransport(connection)
             val inquiryCommand = ScsiInquiryCommand(transport, outEndpoint, inEndpoint)
 
-            val info = inquiryCommand.execute()
-            _deviceInfo.value = info?.copy(
+            val infoResult = inquiryCommand.execute()
+            if (infoResult == null) {
+                _driveStatus.value = DriveStatus.Error("SCSI INQUIRY failed")
+                return
+            }
+
+            val info = infoResult.copy(
                 usbVendorId = device.vendorId,
                 usbProductId = device.productId,
                 devicePath = device.deviceName
             )
+
+            if (!info.isOptical) {
+                _driveStatus.value = DriveStatus.NotOptical
+                return
+            }
+
+            val testUnitReadyCommand = TestUnitReadyCommand(transport, outEndpoint, inEndpoint)
+            val isReady = testUnitReadyCommand.execute()
+
+            if (isReady) {
+                _driveStatus.value = DriveStatus.DiscReady(info)
+            } else {
+                _driveStatus.value = DriveStatus.Empty
+            }
         } finally {
             connection.releaseInterface(massStorageInterface)
             connection.close()

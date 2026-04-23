@@ -80,16 +80,66 @@ class UsbDriveDetectorTest {
         org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
         org.mockito.Mockito.`when`(usbInterface.interfaceProtocol).thenReturn(80)
 
-        shadowUsbManager.addOrUpdateUsbDevice(device, true)
+        // Set hasPermission to false so that checkAndRequestPermission triggers a permission request
+        // which sets the status to Connecting.
+        shadowUsbManager.addOrUpdateUsbDevice(device, false)
 
         val detector = UsbDriveDetector(context)
         detector.scanForDevices()
 
         // Since we are mocking UsbDevice, we can't easily perform a real bulk transfer and INQUIRY
         // so we check if detector correctly processed mass storage device through permission request
-        // Check that device info is still null since interrogation would fail with mocked device
+        // Check that drive status is Connecting (since permission request was triggered)
         assertNotNull(detector)
-        assertTrue(detector.deviceInfo.value == null)
+        assertTrue(detector.driveStatus.value is DriveStatus.Connecting)
+    }
+
+    @Test
+    fun testTestUnitReadyCommandParsesCorrectly() {
+        val fakeTransportReady = object : UsbTransport {
+            var transferCount = 0
+            override fun bulkTransfer(endpoint: UsbEndpoint, buffer: ByteArray, length: Int, timeout: Int): Int {
+                transferCount++
+                return when (transferCount) {
+                    1 -> 31 // CBW
+                    2 -> { // CSW
+                        val csw = ByteArray(13)
+                        val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        b.putInt(0x53425355) // CSW Signature
+                        csw[12] = 0 // success/ready
+                        System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
+                        13
+                    }
+                    else -> -1
+                }
+            }
+        }
+        val outEndpoint = mock(UsbEndpoint::class.java)
+        val inEndpoint = mock(UsbEndpoint::class.java)
+
+        var command = TestUnitReadyCommand(fakeTransportReady, outEndpoint, inEndpoint)
+        assertTrue(command.execute())
+
+        val fakeTransportNotReady = object : UsbTransport {
+            var transferCount = 0
+            override fun bulkTransfer(endpoint: UsbEndpoint, buffer: ByteArray, length: Int, timeout: Int): Int {
+                transferCount++
+                return when (transferCount) {
+                    1 -> 31 // CBW
+                    2 -> { // CSW
+                        val csw = ByteArray(13)
+                        val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        b.putInt(0x53425355) // CSW Signature
+                        csw[12] = 1 // check condition/not ready
+                        System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
+                        13
+                    }
+                    else -> -1
+                }
+            }
+        }
+        command = TestUnitReadyCommand(fakeTransportNotReady, outEndpoint, inEndpoint)
+        assertTrue(!command.execute())
     }
 
     @Test

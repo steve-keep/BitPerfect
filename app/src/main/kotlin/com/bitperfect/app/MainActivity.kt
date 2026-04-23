@@ -64,7 +64,8 @@ class MainActivity : ComponentActivity() {
         usbDriveDetector = UsbDriveDetector(this)
 
         setContent {
-            val driveInfo by usbDriveDetector.deviceInfo.collectAsState()
+            val driveStatus by usbDriveDetector.driveStatus.collectAsState()
+            val currentDriveInfo = (driveStatus as? com.bitperfect.app.usb.DriveStatus.DiscReady)?.info
 
             BitPerfectTheme {
 
@@ -148,11 +149,11 @@ class MainActivity : ComponentActivity() {
                                     is ScreenState.Settings -> {
                                         SettingsScreen(
                                             settingsManager = settingsManager,
-                                            driveInfo = driveInfo
+                                            driveInfo = currentDriveInfo
                                         )
                                     }
                                     is ScreenState.DeviceList -> {
-                                        DeviceList(driveInfo = driveInfo)
+                                        DeviceList(driveStatus = driveStatus)
                                     }
                                 }
                             }
