@@ -80,16 +80,38 @@ jobs:
               except ValueError:
                   return None
 
+          def split_drive_string(drive: str) -> tuple[str, str]:
+              drive = drive.strip()
+
+              # Pattern 2: "- PRODUCT" (vendor is empty) e.g. "- 16X12 DVD DUAL"
+              if drive.startswith('- '):
+                  return ('', drive.lstrip('- ').strip())
+
+              # Pattern 1: "VENDOR - PRODUCT" e.g. "ASUS - BW-16D1HT"
+              if ' - ' in drive:
+                  parts = drive.split(' - ', 1)
+                  vendor = parts[0].strip()
+                  product = parts[1].strip()
+                  return (vendor, product)
+
+              # Pattern 3: No separator at all e.g. "PIONEER DVD-RW DVR-212D"
+              # First word is vendor, remainder is product
+              parts = drive.split(' ', 1)
+              return (parts[0].strip(), parts[1].strip() if len(parts) > 1 else '')
+
           drives = []
           for row in parser.rows[1:]: # Skip header row
               if len(row) >= 4:
                   drive_name = row[0]
+                  vendor, product = split_drive_string(drive_name)
                   offset = parse_val(row[1])
                   submissions = parse_val(row[2])
                   agreement = parse_val(row[3])
 
                   drives.append({
                       "drive": drive_name,
+                      "vendor": vendor,
+                      "product": product,
                       "offset": offset,
                       "submissions": submissions,
                       "agreement": agreement
@@ -105,8 +127,8 @@ jobs:
           }
 
           import os
-          os.makedirs("website/public", exist_ok=True)
-          with open("website/public/drive-offsets.json", "w") as f:
+          os.makedirs("data", exist_ok=True)
+          with open("data/drive-offsets.json", "w") as f:
               json.dump(output_data, f, indent=2)
 
           print(f"Successfully scraped {len(drives)} drives.")
@@ -116,7 +138,7 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add website/public/drive-offsets.json
+          git add data/drive-offsets.json
 
           if git diff --staged --quiet; then
             echo "No changes to commit."
