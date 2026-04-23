@@ -147,7 +147,8 @@ class MainActivity : ComponentActivity() {
                                 when (state) {
                                     is ScreenState.Settings -> {
                                         SettingsScreen(
-                                            settingsManager = settingsManager
+                                            settingsManager = settingsManager,
+                                            driveInfo = driveInfo
                                         )
                                     }
                                     is ScreenState.DeviceList -> {
