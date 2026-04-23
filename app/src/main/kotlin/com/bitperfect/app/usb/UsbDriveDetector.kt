@@ -21,8 +21,8 @@ import java.nio.ByteBuffer
 class UsbDriveDetector(private val context: Context) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
 
-    private val _deviceInfo = MutableStateFlow<DriveInfo?>(null)
-    val deviceInfo: StateFlow<DriveInfo?> = _deviceInfo.asStateFlow()
+    private val _driveStatus = MutableStateFlow<DriveStatus>(DriveStatus.NoDrive)
+    val driveStatus: StateFlow<DriveStatus> = _driveStatus.asStateFlow()
 
     private val ACTION_USB_PERMISSION = "com.bitperfect.app.USB_PERMISSION"
 
@@ -35,6 +35,7 @@ class UsbDriveDetector(private val context: Context) {
                         device?.let { Thread { interrogateDevice(it) }.start() }
                     } else {
                         Log.d(TAG, "permission denied for device $device")
+                        _driveStatus.value = DriveStatus.PermissionDenied
                     }
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
@@ -45,7 +46,7 @@ class UsbDriveDetector(private val context: Context) {
                     val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     if (device != null) {
                         // For simplicity, just clearing if any device detached.
-                        _deviceInfo.value = null
+                        _driveStatus.value = DriveStatus.NoDrive
                     }
                 }
             }
@@ -69,12 +70,12 @@ class UsbDriveDetector(private val context: Context) {
     }
 
     fun scanForDevices() {
-        _deviceInfo.value = null
+        _driveStatus.value = DriveStatus.NoDrive
         val deviceList = usbManager.deviceList
         for (device in deviceList.values) {
             if (isMassStorageDevice(device)) {
                 checkAndRequestPermission(device)
-                break
+                return
             }
         }
     }
@@ -99,8 +100,9 @@ class UsbDriveDetector(private val context: Context) {
         if (!isMassStorageDevice(device)) return
 
         if (usbManager.hasPermission(device)) {
-            interrogateDevice(device)
+            Thread { interrogateDevice(device) }.start()
         } else {
+            _driveStatus.value = DriveStatus.Connecting
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             } else {
@@ -116,6 +118,7 @@ class UsbDriveDetector(private val context: Context) {
     }
 
     private fun interrogateDevice(device: UsbDevice) {
+        _driveStatus.value = DriveStatus.Connecting
         var massStorageInterface: UsbInterface? = null
         var inEndpoint: UsbEndpoint? = null
         var outEndpoint: UsbEndpoint? = null
@@ -140,17 +143,20 @@ class UsbDriveDetector(private val context: Context) {
 
         if (massStorageInterface == null || inEndpoint == null || outEndpoint == null) {
             Log.e(TAG, "Could not find mass storage interface or endpoints")
+            _driveStatus.value = DriveStatus.Error("Could not find mass storage endpoints")
             return
         }
 
         val connection = usbManager.openDevice(device)
         if (connection == null) {
             Log.e(TAG, "Could not open connection")
+            _driveStatus.value = DriveStatus.Error("Could not open device")
             return
         }
 
         if (!connection.claimInterface(massStorageInterface, true)) {
             Log.e(TAG, "Could not claim interface")
+            _driveStatus.value = DriveStatus.Error("Could not open device")
             connection.close()
             return
         }
@@ -159,16 +165,90 @@ class UsbDriveDetector(private val context: Context) {
             val transport = DefaultUsbTransport(connection)
             val inquiryCommand = ScsiInquiryCommand(transport, outEndpoint, inEndpoint)
 
-            val info = inquiryCommand.execute()
-            _deviceInfo.value = info?.copy(
+            val baseInfo = inquiryCommand.execute()
+            if (baseInfo == null) {
+                _driveStatus.value = DriveStatus.Error("INQUIRY command failed")
+                return
+            }
+
+            if (!baseInfo.isOptical) {
+                _driveStatus.value = DriveStatus.NotOptical
+                return
+            }
+
+            val info = baseInfo.copy(
                 usbVendorId = device.vendorId,
                 usbProductId = device.productId,
                 devicePath = device.deviceName
             )
+
+            // TEST UNIT READY
+            val isReady = executeTestUnitReady(transport, outEndpoint, inEndpoint)
+            if (isReady) {
+                _driveStatus.value = DriveStatus.DiscReady(info)
+            } else {
+                _driveStatus.value = DriveStatus.Empty
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error interrogating device", e)
+            _driveStatus.value = DriveStatus.Error(e.message ?: "Unknown error")
         } finally {
             connection.releaseInterface(massStorageInterface)
             connection.close()
         }
+    }
+
+    private fun executeTestUnitReady(transport: DefaultUsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): Boolean {
+        // CBW: 31 bytes
+        val cbw = ByteArray(31)
+        val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(0x43425355) // dCBWSignature
+        buffer.putInt(2)          // dCBWTag (can be anything unique)
+        buffer.putInt(0)          // dCBWDataTransferLength (TUR has no data phase)
+        buffer.put(0x00.toByte()) // bmCBWFlags: 0x00 for OUT / no data
+        buffer.put(0)             // bCBWLUN
+        buffer.put(6)             // bCBWCBLength
+
+        // SCSI TEST UNIT READY Command Block (6 bytes)
+        buffer.put(0x00)          // Opcode: TEST UNIT READY
+        buffer.put(0)
+        buffer.put(0)
+        buffer.put(0)
+        buffer.put(0)
+        buffer.put(0)
+
+        // Send CBW
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
+        if (transferred < 0) {
+            Log.e(TAG, "TUR: Failed to send CBW")
+            return false
+        }
+
+        // No Data phase for TUR
+
+        // Read CSW (Command Status Wrapper)
+        val csw = ByteArray(13)
+        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
+        if (transferred < 0) {
+            Log.e(TAG, "TUR: Failed to read CSW")
+            return false
+        }
+
+        // Validate CSW
+        val cswBuffer = ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val cswSignature = cswBuffer.getInt(0)
+        if (cswSignature != 0x53425355) {
+            Log.e(TAG, "TUR: Invalid CSW signature")
+            return false
+        }
+        val status = csw[12]
+        if (status != 0.toByte()) {
+            Log.d(TAG, "TUR: Drive not ready (status=$status)")
+            return false
+        }
+
+        return true
     }
 
     companion object {
