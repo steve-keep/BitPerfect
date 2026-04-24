@@ -42,11 +42,17 @@ fun DeviceList(driveStatus: DriveStatus) {
                 headline = "No Disc Inserted",
                 subtitle = "Insert a CD to continue"
             )
-            is DriveStatus.DiscReady -> DriveStatusCard(
-                icon = Icons.Outlined.CheckCircle,
-                headline = "Disc Ready",
-                subtitle = "${driveStatus.info.vendorId} · ${driveStatus.info.productId}"
-            )
+            is DriveStatus.DiscReady -> {
+                val totalSeconds = driveStatus.toc.leadOutLba / 75
+                val mm = totalSeconds / 60
+                val ss = totalSeconds % 60
+                val formattedDuration = String.format("%02d:%02d", mm, ss)
+                DriveStatusCard(
+                    icon = Icons.Outlined.CheckCircle,
+                    headline = "Disc Ready",
+                    subtitle = "${driveStatus.info.vendorId} · ${driveStatus.info.productId}\n${driveStatus.toc.tracks.size} tracks · $formattedDuration"
+                )
+            }
             is DriveStatus.Error -> DriveStatusCard(
                 icon = Icons.Outlined.ErrorOutline,
                 headline = "Drive Error",
