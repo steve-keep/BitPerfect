@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.bitperfect.app"
-        minSdk 24
+        minSdk 26
         targetSdk 34
         versionCode project.findProperty("versionCode")?.toInteger() ?: 1
         versionName project.findProperty("versionName") ?: "1.0"
@@ -19,6 +19,9 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+
+        buildConfigField "String", "OTLP_ENDPOINT", "\"${System.getenv("OTLP_ENDPOINT") ?: ""}\""
+        buildConfigField "String", "OTLP_AUTH_TOKEN", "\"${System.getenv("OTLP_AUTH_TOKEN") ?: ""}\""
     }
 
     signingConfigs {
@@ -126,6 +129,14 @@ dependencies {
     implementation 'androidx.navigation:navigation-compose:2.7.7'
     implementation 'io.insert-koin:koin-androidx-compose:3.5.3'
     implementation 'io.coil-kt:coil-compose:2.6.0'
+
+    implementation("io.opentelemetry.android:android-agent:0.11.0-alpha") {
+        exclude group: "androidx.core", module: "core-ktx"
+        exclude group: "androidx.core", module: "core"
+        exclude group: "androidx.lifecycle", module: "lifecycle-runtime-ktx"
+        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib"
+    }
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp:1.49.0")
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation "org.mockito:mockito-core:4.8.0"
