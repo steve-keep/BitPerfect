@@ -28,14 +28,15 @@ class DeviceListTest(
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{index}: Status={0}")
         fun data(): Collection<Array<Any>> {
+            val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
             return listOf(
                 arrayOf(DriveStatus.NoDrive, "No Drive Connected", "Connect a USB CD drive via OTG"),
-                arrayOf(DriveStatus.Connecting, "Connecting…", "Detecting drive capabilities"),
+                arrayOf(DriveStatus.Connecting(), "Connecting…", "Detecting drive capabilities"),
                 arrayOf(DriveStatus.PermissionDenied, "Access Denied", "Re-connect and allow access when prompted"),
                 arrayOf(DriveStatus.NotOptical, "Unsupported Device", "Connected device is not a CD drive"),
-                arrayOf(DriveStatus.Empty, "No Disc Inserted", "Insert a CD to continue"),
+                arrayOf(DriveStatus.Empty(dummyInfo), "No Disc Inserted", "Insert a CD to continue"),
                 arrayOf(
-                    DriveStatus.DiscReady(DriveInfo("ASUS", "BW-16D1HT", true)),
+                    DriveStatus.DiscReady(dummyInfo),
                     "Disc Ready",
                     "ASUS · BW-16D1HT"
                 ),

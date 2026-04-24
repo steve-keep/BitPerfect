@@ -10,6 +10,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.http.ContentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,11 +32,15 @@ class DriveOffsetRepository(private val context: Context) {
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(json)
+            json(json, contentType = ContentType.Text.Plain)
         }
     }
 
     private val _offsets = MutableStateFlow<List<DriveOffset>?>(null)
     val offsets: StateFlow<List<DriveOffset>?> = _offsets.asStateFlow()
+
+    private val _generatedAt = MutableStateFlow<String?>(null)
+    val generatedAt: StateFlow<String?> = _generatedAt.asStateFlow()
 
     suspend fun initialize() {
         withContext(Dispatchers.IO) {
@@ -51,6 +56,7 @@ class DriveOffsetRepository(private val context: Context) {
                 val jsonString = cacheFile.readText()
                 val response: DriveOffsetsResponse = json.decodeFromString(jsonString)
                 _offsets.value = response.drives
+                _generatedAt.value = response.generated_at
                 AppLogger.d(TAG, "Loaded ${_offsets.value?.size} offsets from cache")
             } else {
                 AppLogger.d(TAG, "Cache file not found")
@@ -65,6 +71,7 @@ class DriveOffsetRepository(private val context: Context) {
             AppLogger.d(TAG, "Fetching offsets from network...")
             val response: DriveOffsetsResponse = client.get(OFFSETS_URL).body()
             _offsets.value = response.drives
+            _generatedAt.value = response.generated_at
 
             // Save to cache
             val cacheFile = File(context.cacheDir, CACHE_FILE_NAME)

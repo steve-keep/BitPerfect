@@ -23,19 +23,23 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
+import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.core.services.DriveOffsetRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
-    driveOffsetRepository: DriveOffsetRepository,
-    driveInfo: DriveInfo?
+    driveOffsetRepository: DriveOffsetRepository
 ) {
+    val driveStatus by DeviceStateManager.driveStatus.collectAsState()
+    val driveInfo = driveStatus.info
+
     var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }
 
     // Observe the offsets to trigger recomposition when data loads
     val offsets by driveOffsetRepository.offsets.collectAsState()
+    val generatedAt by driveOffsetRepository.generatedAt.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -279,6 +283,22 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                if (generatedAt != null) {
+                    Text(
+                        text = "Offsets downloaded: $generatedAt",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Offsets not downloaded",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
