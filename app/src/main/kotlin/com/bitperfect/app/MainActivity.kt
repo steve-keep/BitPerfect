@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.ui.DeviceList
 import com.bitperfect.app.ui.SettingsScreen
 import com.bitperfect.app.ui.theme.BitPerfectTheme
-import com.bitperfect.app.usb.UsbDriveDetector
+import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.core.utils.SettingsManager
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -59,7 +59,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var driveOffsetRepository: DriveOffsetRepository
 
     private lateinit var settingsManager: SettingsManager
-    private lateinit var usbDriveDetector: UsbDriveDetector
 
     private var isShowingSettings by mutableStateOf(false)
 
@@ -73,11 +72,9 @@ class MainActivity : ComponentActivity() {
         }
 
         settingsManager = SettingsManager(this)
-        usbDriveDetector = UsbDriveDetector(this)
 
         setContent {
-            val driveStatus by usbDriveDetector.driveStatus.collectAsState()
-            val driveInfo = driveStatus.info
+            val driveStatus by DeviceStateManager.driveStatus.collectAsState()
 
             BitPerfectTheme {
 
@@ -161,8 +158,7 @@ class MainActivity : ComponentActivity() {
                                     is ScreenState.Settings -> {
                                         SettingsScreen(
                                             driveOffsetRepository = driveOffsetRepository,
-                                            settingsManager = settingsManager,
-                                            driveInfo = driveInfo
+                                            settingsManager = settingsManager
                                         )
                                     }
                                     is ScreenState.DeviceList -> {
@@ -177,8 +173,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        usbDriveDetector.destroy()
-    }
 }

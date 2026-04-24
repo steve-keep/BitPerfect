@@ -23,15 +23,18 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
+import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.core.services.DriveOffsetRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
-    driveOffsetRepository: DriveOffsetRepository,
-    driveInfo: DriveInfo?
+    driveOffsetRepository: DriveOffsetRepository
 ) {
+    val driveStatus by DeviceStateManager.driveStatus.collectAsState()
+    val driveInfo = driveStatus.info
+
     var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }
 
     // Observe the offsets to trigger recomposition when data loads
