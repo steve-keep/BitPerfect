@@ -1,11 +1,11 @@
 package com.bitperfect.app.usb
 
-sealed class DriveStatus {
-    object NoDrive : DriveStatus()
-    object Connecting : DriveStatus()
-    object PermissionDenied : DriveStatus()
-    object NotOptical : DriveStatus()
-    object Empty : DriveStatus()
-    data class DiscReady(val info: DriveInfo) : DriveStatus()
-    data class Error(val message: String) : DriveStatus()
+sealed class DriveStatus(open val info: DriveInfo?) {
+    object NoDrive : DriveStatus(null)
+    data class Connecting(override val info: DriveInfo? = null) : DriveStatus(info)
+    object PermissionDenied : DriveStatus(null)
+    object NotOptical : DriveStatus(null)
+    data class Empty(override val info: DriveInfo) : DriveStatus(info)
+    data class DiscReady(override val info: DriveInfo) : DriveStatus(info)
+    data class Error(val message: String, override val info: DriveInfo? = null) : DriveStatus(info)
 }

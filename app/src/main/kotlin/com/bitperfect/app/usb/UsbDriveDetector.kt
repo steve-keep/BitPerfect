@@ -102,7 +102,7 @@ class UsbDriveDetector(private val context: Context) {
         if (usbManager.hasPermission(device)) {
             Thread { interrogateDevice(device) }.start()
         } else {
-            _driveStatus.value = DriveStatus.Connecting
+            _driveStatus.value = DriveStatus.Connecting()
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             } else {
@@ -118,7 +118,7 @@ class UsbDriveDetector(private val context: Context) {
     }
 
     private fun interrogateDevice(device: UsbDevice) {
-        _driveStatus.value = DriveStatus.Connecting
+        _driveStatus.value = DriveStatus.Connecting()
         var massStorageInterface: UsbInterface? = null
         var inEndpoint: UsbEndpoint? = null
         var outEndpoint: UsbEndpoint? = null
@@ -187,12 +187,14 @@ class UsbDriveDetector(private val context: Context) {
             if (isReady) {
                 _driveStatus.value = DriveStatus.DiscReady(info)
             } else {
-                _driveStatus.value = DriveStatus.Empty
+                _driveStatus.value = DriveStatus.Empty(info)
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error interrogating device", e)
-            _driveStatus.value = DriveStatus.Error(e.message ?: "Unknown error")
+            // Try to extract existing info from state if we hit an error later in the process
+            val currentInfo = _driveStatus.value.info
+            _driveStatus.value = DriveStatus.Error(e.message ?: "Unknown error", currentInfo)
         } finally {
             connection.releaseInterface(massStorageInterface)
             connection.close()

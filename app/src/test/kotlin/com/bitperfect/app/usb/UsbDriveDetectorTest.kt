@@ -166,7 +166,7 @@ class UsbDriveDetectorTest {
         val statusField = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
         statusField.isAccessible = true
         val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
-        stateFlow.value = DriveStatus.Connecting
+        stateFlow.value = DriveStatus.Connecting()
 
         val device = mock(android.hardware.usb.UsbDevice::class.java)
         val intent = android.content.Intent(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED)
@@ -250,9 +250,11 @@ class UsbDriveDetectorTest {
         val statusField = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
         statusField.isAccessible = true
         val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
-        stateFlow.value = DriveStatus.Empty
+        val info = DriveInfo("VENDOR", "PRODUCT", true)
+        val emptyState = DriveStatus.Empty(info)
+        stateFlow.value = emptyState
         // We simulate it by just setting the state
-        assertEquals(DriveStatus.Empty, detector.driveStatus.value)
+        assertEquals(emptyState, detector.driveStatus.value)
     }
 
     @Test
