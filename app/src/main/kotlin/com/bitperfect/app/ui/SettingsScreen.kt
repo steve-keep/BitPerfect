@@ -39,6 +39,7 @@ fun SettingsScreen(
 
     // Observe the offsets to trigger recomposition when data loads
     val offsets by driveOffsetRepository.offsets.collectAsState()
+    val generatedAt by driveOffsetRepository.generatedAt.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -282,6 +283,22 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                if (generatedAt != null) {
+                    Text(
+                        text = "Offsets downloaded: $generatedAt",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Offsets not downloaded",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }

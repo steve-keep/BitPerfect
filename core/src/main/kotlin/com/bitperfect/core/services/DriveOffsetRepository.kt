@@ -36,6 +36,9 @@ class DriveOffsetRepository(private val context: Context) {
     private val _offsets = MutableStateFlow<List<DriveOffset>?>(null)
     val offsets: StateFlow<List<DriveOffset>?> = _offsets.asStateFlow()
 
+    private val _generatedAt = MutableStateFlow<String?>(null)
+    val generatedAt: StateFlow<String?> = _generatedAt.asStateFlow()
+
     suspend fun initialize() {
         withContext(Dispatchers.IO) {
             loadFromCache()
@@ -50,6 +53,7 @@ class DriveOffsetRepository(private val context: Context) {
                 val jsonString = cacheFile.readText()
                 val response: DriveOffsetsResponse = json.decodeFromString(jsonString)
                 _offsets.value = response.drives
+                _generatedAt.value = response.generated_at
                 Log.d(TAG, "Loaded ${_offsets.value?.size} offsets from cache")
             } else {
                 Log.d(TAG, "Cache file not found")
@@ -64,6 +68,7 @@ class DriveOffsetRepository(private val context: Context) {
             Log.d(TAG, "Fetching offsets from network...")
             val response: DriveOffsetsResponse = client.get(OFFSETS_URL).body()
             _offsets.value = response.drives
+            _generatedAt.value = response.generated_at
 
             // Save to cache
             val cacheFile = File(context.cacheDir, CACHE_FILE_NAME)
