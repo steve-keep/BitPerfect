@@ -1,6 +1,7 @@
 package com.bitperfect.app.usb
 
 import android.hardware.usb.UsbEndpoint
+import com.bitperfect.core.utils.AppLogger
 import android.util.Log
 import java.nio.ByteBuffer
 
@@ -32,7 +33,7 @@ class ScsiInquiryCommand(
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
         if (transferred < 0) {
-            Log.e(TAG, "Failed to send CBW")
+            AppLogger.e(TAG, "Failed to send CBW")
             return null
         }
 
@@ -40,7 +41,7 @@ class ScsiInquiryCommand(
         val inquiryData = ByteArray(36)
         transferred = transport.bulkTransfer(inEndpoint, inquiryData, inquiryData.size, 5000)
         if (transferred < 0) {
-            Log.e(TAG, "Failed to read INQUIRY data")
+            AppLogger.e(TAG, "Failed to read INQUIRY data")
             return null
         }
 
@@ -48,18 +49,18 @@ class ScsiInquiryCommand(
         val csw = ByteArray(13)
         transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
         if (transferred < 0) {
-            Log.e(TAG, "Failed to read CSW")
+            AppLogger.e(TAG, "Failed to read CSW")
             return null
         }
 
         // Validate CSW
         val cswSignature = ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt(0)
         if (cswSignature != CSW_SIGNATURE) {
-            Log.e(TAG, "Invalid CSW signature")
+            AppLogger.e(TAG, "Invalid CSW signature")
             return null
         }
         if (csw[12] != 0.toByte()) {
-            Log.e(TAG, "CSW indicates command failure: status=${csw[12]}")
+            AppLogger.e(TAG, "CSW indicates command failure: status=${csw[12]}")
             return null
         }
 

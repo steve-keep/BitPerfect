@@ -1,6 +1,7 @@
 package com.bitperfect.core.services
 
 import android.content.Context
+import com.bitperfect.core.utils.AppLogger
 import android.util.Log
 import com.bitperfect.core.models.DriveOffset
 import com.bitperfect.core.models.DriveOffsetsResponse
@@ -56,18 +57,18 @@ class DriveOffsetRepository(private val context: Context) {
                 val response: DriveOffsetsResponse = json.decodeFromString(jsonString)
                 _offsets.value = response.drives
                 _generatedAt.value = response.generated_at
-                Log.d(TAG, "Loaded ${_offsets.value?.size} offsets from cache")
+                AppLogger.d(TAG, "Loaded ${_offsets.value?.size} offsets from cache")
             } else {
-                Log.d(TAG, "Cache file not found")
+                AppLogger.d(TAG, "Cache file not found")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading from cache: ${Log.getStackTraceString(e)}")
+            AppLogger.e(TAG, "Error loading from cache: ${Log.getStackTraceString(e)}")
         }
     }
 
     private suspend fun fetchAndCache() {
         try {
-            Log.d(TAG, "Fetching offsets from network...")
+            AppLogger.d(TAG, "Fetching offsets from network...")
             val response: DriveOffsetsResponse = client.get(OFFSETS_URL).body()
             _offsets.value = response.drives
             _generatedAt.value = response.generated_at
@@ -76,9 +77,9 @@ class DriveOffsetRepository(private val context: Context) {
             val cacheFile = File(context.cacheDir, CACHE_FILE_NAME)
             val jsonString = json.encodeToString(response)
             cacheFile.writeText(jsonString)
-            Log.d(TAG, "Successfully fetched and cached ${_offsets.value?.size} offsets")
+            AppLogger.d(TAG, "Successfully fetched and cached ${_offsets.value?.size} offsets")
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching from network: ${Log.getStackTraceString(e)}")
+            AppLogger.e(TAG, "Error fetching from network: ${Log.getStackTraceString(e)}")
         }
     }
 

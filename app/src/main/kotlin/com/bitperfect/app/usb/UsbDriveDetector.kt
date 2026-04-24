@@ -11,6 +11,7 @@ import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.Build
+import com.bitperfect.core.utils.AppLogger
 import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +35,7 @@ class UsbDriveDetector(private val context: Context) {
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                         device?.let { Thread { interrogateDevice(it) }.start() }
                     } else {
-                        Log.d(TAG, "permission denied for device $device")
+                        AppLogger.d(TAG, "permission denied for device $device")
                         _driveStatus.value = DriveStatus.PermissionDenied
                     }
                 }
@@ -142,20 +143,20 @@ class UsbDriveDetector(private val context: Context) {
         }
 
         if (massStorageInterface == null || inEndpoint == null || outEndpoint == null) {
-            Log.e(TAG, "Could not find mass storage interface or endpoints")
+            AppLogger.e(TAG, "Could not find mass storage interface or endpoints")
             _driveStatus.value = DriveStatus.Error("Could not find mass storage endpoints")
             return
         }
 
         val connection = usbManager.openDevice(device)
         if (connection == null) {
-            Log.e(TAG, "Could not open connection")
+            AppLogger.e(TAG, "Could not open connection")
             _driveStatus.value = DriveStatus.Error("Could not open device")
             return
         }
 
         if (!connection.claimInterface(massStorageInterface, true)) {
-            Log.e(TAG, "Could not claim interface")
+            AppLogger.e(TAG, "Could not claim interface")
             _driveStatus.value = DriveStatus.Error("Could not open device")
             connection.close()
             return
@@ -191,7 +192,7 @@ class UsbDriveDetector(private val context: Context) {
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error interrogating device", e)
+            AppLogger.e(TAG, "Error interrogating device", e)
             // Try to extract existing info from state if we hit an error later in the process
             val currentInfo = _driveStatus.value.info
             _driveStatus.value = DriveStatus.Error(e.message ?: "Unknown error", currentInfo)
@@ -223,7 +224,7 @@ class UsbDriveDetector(private val context: Context) {
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
         if (transferred < 0) {
-            Log.e(TAG, "TUR: Failed to send CBW")
+            AppLogger.e(TAG, "TUR: Failed to send CBW")
             return false
         }
 
@@ -233,7 +234,7 @@ class UsbDriveDetector(private val context: Context) {
         val csw = ByteArray(13)
         transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
         if (transferred < 0) {
-            Log.e(TAG, "TUR: Failed to read CSW")
+            AppLogger.e(TAG, "TUR: Failed to read CSW")
             return false
         }
 
@@ -241,12 +242,12 @@ class UsbDriveDetector(private val context: Context) {
         val cswBuffer = ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         val cswSignature = cswBuffer.getInt(0)
         if (cswSignature != 0x53425355) {
-            Log.e(TAG, "TUR: Invalid CSW signature")
+            AppLogger.e(TAG, "TUR: Invalid CSW signature")
             return false
         }
         val status = csw[12]
         if (status != 0.toByte()) {
-            Log.d(TAG, "TUR: Drive not ready (status=$status)")
+            AppLogger.d(TAG, "TUR: Drive not ready (status=$status)")
             return false
         }
 
