@@ -18,6 +18,7 @@ Reusable components are defined in `app/src/main/kotlin/com/bitperfect/app/ui/Co
 ## Pre-PR Checklist
 
 Before opening or pushing to a pull request, you **must** run the full test suite locally and confirm it passes.
+In addition, **any new or updated files must have at least 70% unit test coverage**, as enforced by the PR GitHub Action.
 
 ### Run all tests (no device required)
 
