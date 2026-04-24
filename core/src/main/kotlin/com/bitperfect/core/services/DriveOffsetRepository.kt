@@ -9,6 +9,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.http.ContentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ class DriveOffsetRepository(private val context: Context) {
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(json)
+            json(json, contentType = ContentType.Text.Plain)
         }
     }
 
