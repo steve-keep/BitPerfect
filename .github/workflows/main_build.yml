@@ -33,6 +33,9 @@ jobs:
           echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
 
       - name: Build Debug APK
+        env:
+          OTLP_ENDPOINT: ${{ secrets.OTLP_ENDPOINT }}
+          OTLP_AUTH_TOKEN: ${{ secrets.OTLP_AUTH_TOKEN }}
         run: ./gradlew assembleDebug -PversionCode=${{ steps.version.outputs.version_code }} -PversionName=${{ steps.version.outputs.version_name }}
 
       - name: Upload APK Artifact
