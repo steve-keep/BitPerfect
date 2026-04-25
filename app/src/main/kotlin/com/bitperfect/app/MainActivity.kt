@@ -2,6 +2,7 @@ package com.bitperfect.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
@@ -21,6 +22,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
@@ -74,9 +77,44 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+
             val driveStatus by usbDriveDetector.driveStatus.collectAsState()
 
+
+            var showExitDialog by remember { mutableStateOf(false) }
+
+            BackHandler {
+                when (currentScreen) {
+                    is ScreenState.About -> currentScreen = ScreenState.Settings
+                    is ScreenState.Settings -> currentScreen = ScreenState.DeviceList
+                    is ScreenState.DeviceList -> showExitDialog = true
+                }
+            }
+
+
             BitPerfectTheme {
+                if (showExitDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showExitDialog = false },
+                        title = { Text("Exit App") },
+                        text = { Text("Are you sure you want to close the app?") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showExitDialog = false
+                                finish()
+                            }) {
+                                Text("Exit")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showExitDialog = false
+                            }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
