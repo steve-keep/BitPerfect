@@ -23,27 +23,15 @@ class ReadTocCommand(
         buffer.put(10)            // bCBWCBLength (READ TOC command length)
 
         // SCSI READ TOC Command Block (10 bytes)
-        buffer.put(0x43)          // Opcode: READ TOC
-        buffer.put(0x02)          // Byte 1: TIME=1, MSF format
-        buffer.put(0x00)          // Byte 2: Format 0, Formatted TOC
-        buffer.put(0)             // Byte 3
-        buffer.put(0)             // Byte 4
-        buffer.put(0)             // Byte 5
-        buffer.put(0x01)          // Byte 6: Start track 1
-        buffer.putShort(804.toShort()) // Bytes 7-8: Allocation length 0x0324 (big-endian because wrap buffer default is little, but SCSI is big... actually ByteBuffer is Little Endian here!)
-        buffer.put(0)             // Byte 9
-
-        // Wait, since buffer is little endian we must put shorts as bytes or switch order.
-        // Let's rewrite the command block to be safe.
-        // Opcode 0x43
-        cbw[15] = 0x43.toByte()
-        cbw[16] = 0x02.toByte()
-        cbw[17] = 0x00.toByte()
+        // Set CDB bytes directly since the CBW payload needs little-endian but CDB requires big-endian byte-by-byte
+        cbw[15] = 0x43.toByte() // Opcode: READ TOC
+        cbw[16] = 0x02.toByte() // Byte 1: TIME=1, MSF format
+        cbw[17] = 0x00.toByte() // Byte 2: Format 0, Formatted TOC
         cbw[18] = 0x00.toByte()
         cbw[19] = 0x00.toByte()
         cbw[20] = 0x00.toByte()
-        cbw[21] = 0x01.toByte()
-        cbw[22] = 0x03.toByte() // 0x0324 is 804
+        cbw[21] = 0x01.toByte() // Byte 6: Start track 1
+        cbw[22] = 0x03.toByte() // Bytes 7-8: Allocation length 0x0324 is 804
         cbw[23] = 0x24.toByte()
         cbw[24] = 0x00.toByte()
 
@@ -61,6 +49,11 @@ class ReadTocCommand(
             AppLogger.e(TAG, "Failed to read READ TOC data")
             return null
         }
+        if (transferred < 4) {
+            AppLogger.e(TAG, "Short read: $transferred bytes")
+            return null
+        }
+        val responseLength = (tocData.size).coerceAtMost(transferred)
 
         // Read CSW (Command Status Wrapper)
         val csw = ByteArray(13)
@@ -94,7 +87,10 @@ class ReadTocCommand(
         // Descriptors start at byte 4
         // Each descriptor is 8 bytes
         var offset = 4
-        while (offset + 8 <= tocData.size) {
+        while (offset + 8 <= responseLength) {
+            if (tracks.size >= 99) {
+                break
+            }
             val controlByte = tocData[offset + 1].toInt() and 0xFF
             val trackNumber = tocData[offset + 2].toInt() and 0xFF
             val m = tocData[offset + 5].toInt() and 0xFF
@@ -118,6 +114,11 @@ class ReadTocCommand(
             }
 
             offset += 8
+        }
+
+        if (leadOutLba <= 0) {
+            AppLogger.e(TAG, "Invalid or missing lead-out LBA")
+            return null
         }
 
         return DiscToc(

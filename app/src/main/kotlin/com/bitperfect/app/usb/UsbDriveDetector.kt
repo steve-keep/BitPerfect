@@ -207,7 +207,7 @@ class UsbDriveDetector(private val context: Context) {
         }
     }
 
-    private fun readTocWithRetry(transport: DefaultUsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): DiscToc? {
+    private fun readTocWithRetry(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): DiscToc? {
         val command = ReadTocCommand(transport, outEndpoint, inEndpoint)
         for (i in 1..3) {
             val toc = command.execute()
