@@ -16,9 +16,6 @@ object OpenTelemetryProvider {
 
     private var rum: OpenTelemetryRum? = null
 
-    val isEnabled: Boolean
-        get() = rum != null
-
     fun initialize(application: Application) {
         val endpointUrl = BuildConfig.OTLP_ENDPOINT
         val authToken = BuildConfig.OTLP_AUTH_TOKEN

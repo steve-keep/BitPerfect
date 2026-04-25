@@ -12,12 +12,12 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.Build
 import com.bitperfect.core.utils.AppLogger
+import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.nio.ByteBuffer
-import com.bitperfect.core.models.DiscToc
 
 class UsbDriveDetector(private val context: Context) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -186,11 +186,7 @@ class UsbDriveDetector(private val context: Context) {
             // TEST UNIT READY
             val isReady = executeTestUnitReady(transport, outEndpoint, inEndpoint)
             if (isReady) {
-                val toc = readTocWithRetry(transport, outEndpoint, inEndpoint)
-                _driveStatus.value = if (toc != null)
-                    DriveStatus.DiscReady(info, toc)
-                else
-                    DriveStatus.Error("Could not read disc TOC", info)
+                _driveStatus.value = DriveStatus.DiscReady(info)
             } else {
                 _driveStatus.value = DriveStatus.Empty(info)
             }
@@ -204,23 +200,6 @@ class UsbDriveDetector(private val context: Context) {
             connection.releaseInterface(massStorageInterface)
             connection.close()
         }
-    }
-
-    private fun readTocWithRetry(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): DiscToc? {
-        val command = ReadTocCommand(transport, outEndpoint, inEndpoint)
-        for (i in 1..3) {
-            val toc = command.execute()
-            if (toc != null) {
-                return toc
-            }
-            try {
-                Thread.sleep(500)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                break
-            }
-        }
-        return null
     }
 
     private fun executeTestUnitReady(transport: DefaultUsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): Boolean {

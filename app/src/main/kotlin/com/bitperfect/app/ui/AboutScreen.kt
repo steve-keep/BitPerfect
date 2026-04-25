@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bitperfect.app.BuildConfig
-import com.bitperfect.app.OpenTelemetryProvider
 import com.bitperfect.core.services.DriveOffsetRepository
 import java.time.Instant
 import java.time.format.DateTimeParseException
@@ -62,14 +61,6 @@ fun AboutScreen(driveOffsetRepository: DriveOffsetRepository) {
 
         Text(
             text = relativeTimeText,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = if (OpenTelemetryProvider.isEnabled) "Telemetry: Active" else "Telemetry: Disabled",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

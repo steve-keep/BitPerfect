@@ -2,6 +2,7 @@ package com.bitperfect.app.usb
 
 import android.hardware.usb.UsbEndpoint
 import com.bitperfect.core.utils.AppLogger
+import android.util.Log
 import java.nio.ByteBuffer
 
 class ScsiInquiryCommand(

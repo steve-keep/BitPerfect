@@ -3,10 +3,8 @@ package com.bitperfect.app.ui
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
-import com.bitperfect.app.usb.DriveStatus
-import com.bitperfect.core.models.DiscToc
 import com.bitperfect.app.usb.DriveInfo
-import com.bitperfect.core.models.TrackInfo
+import com.bitperfect.app.usb.DriveStatus
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,12 +29,6 @@ class DeviceListTest(
         @ParameterizedRobolectricTestRunner.Parameters(name = "{index}: Status={0}")
         fun data(): Collection<Array<Any>> {
             val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
-            val dummyToc = DiscToc(
-                firstTrack = 1,
-                lastTrack = 1,
-                tracks = listOf(TrackInfo(1, 150, true)),
-                leadOutLba = 3600 // 48 seconds
-            )
             return listOf(
                 arrayOf(DriveStatus.NoDrive, "No Drive Connected", "Connect a USB CD drive via OTG"),
                 arrayOf(DriveStatus.Connecting(), "Connecting…", "Detecting drive capabilities"),
@@ -44,9 +36,9 @@ class DeviceListTest(
                 arrayOf(DriveStatus.NotOptical, "Unsupported Device", "Connected device is not a CD drive"),
                 arrayOf(DriveStatus.Empty(dummyInfo), "No Disc Inserted", "Insert a CD to continue"),
                 arrayOf(
-                    DriveStatus.DiscReady(dummyInfo, dummyToc),
+                    DriveStatus.DiscReady(dummyInfo),
                     "Disc Ready",
-                    "ASUS · BW-16D1HT\n1 tracks · 00:48"
+                    "ASUS · BW-16D1HT"
                 ),
                 arrayOf(
                     DriveStatus.Error("Failed to open USB device"),
