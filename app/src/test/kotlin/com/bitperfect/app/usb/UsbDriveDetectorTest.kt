@@ -266,9 +266,15 @@ class UsbDriveDetectorTest {
         statusField.isAccessible = true
         val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
         val info = DriveInfo("VENDOR", "PRODUCT", true)
-        stateFlow.value = DriveStatus.DiscReady(info)
+        val dummyToc = com.bitperfect.core.models.DiscToc(
+            firstTrack = 1,
+            lastTrack = 1,
+            tracks = listOf(com.bitperfect.core.models.TrackInfo(1, 150, true)),
+            leadOutLba = 3600
+        )
+        stateFlow.value = DriveStatus.DiscReady(info, dummyToc)
 
-        assertEquals(DriveStatus.DiscReady(info), detector.driveStatus.value)
+        assertEquals(DriveStatus.DiscReady(info, dummyToc), detector.driveStatus.value)
     }
 
     @Test
