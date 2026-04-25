@@ -73,6 +73,7 @@ jobs:
           fail_on_failure: true
 
       - name: Add coverage report to PR
+        id: jacoco
         uses: Madrapps/jacoco-report@v1.6.1
         if: always()
         with:
@@ -83,6 +84,13 @@ jobs:
           min-coverage-overall: 0
           min-coverage-changed-files: 70
           title: Code Coverage
+
+      - name: Fail PR if changed files coverage is less than 70%
+        if: ${{ steps.jacoco.outputs.coverage-changed-files != '' && steps.jacoco.outputs.coverage-changed-files < 70.0 }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.setFailed('Changed files coverage is less than 70%!')
 
       # Uncomment to run on a real device (requires emulator or connected device):
       # - name: Run instrumented tests
