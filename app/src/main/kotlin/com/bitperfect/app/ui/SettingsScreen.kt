@@ -24,17 +24,19 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
-import com.bitperfect.app.usb.DeviceStateManager
+import com.bitperfect.app.usb.UsbDriveDetector
 import com.bitperfect.core.services.DriveOffsetRepository
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
     driveOffsetRepository: DriveOffsetRepository,
-    onNavigateToAbout: () -> Unit = {}
+    onNavigateToAbout: () -> Unit = {},
+    usbDriveDetector: UsbDriveDetector = koinInject()
 ) {
-    val driveStatus by DeviceStateManager.driveStatus.collectAsState()
+    val driveStatus by usbDriveDetector.driveStatus.collectAsState()
     val driveInfo = driveStatus.info
 
     var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }
