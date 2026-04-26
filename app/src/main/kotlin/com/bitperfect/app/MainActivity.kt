@@ -180,7 +180,7 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
+                        Box(modifier = Modifier.weight(1f)) {
                             AnimatedContent(
                                 targetState = currentScreen,
                                 transitionSpec = {
