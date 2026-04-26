@@ -53,6 +53,11 @@ import com.bitperfect.core.utils.SettingsManager
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.bitperfect.core.services.DriveOffsetRepository
+import android.Manifest
+import android.os.Build
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 
 private sealed class ScreenState {
@@ -71,10 +76,29 @@ class MainActivity : ComponentActivity() {
 
     private var currentScreen by mutableStateOf<ScreenState>(ScreenState.DeviceList)
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            homeViewModel.loadLibrary()
+        }
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Request media permissions
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(permission)
+        }
         driveOffsetRepository = DriveOffsetRepository(this)
         lifecycleScope.launch {
             driveOffsetRepository.initialize()
