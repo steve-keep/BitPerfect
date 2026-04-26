@@ -30,6 +30,109 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.core.graphics.drawable.toBitmap
+import androidx.palette.graphics.Palette
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
+
+@Composable
+fun AlbumHeader(
+    albumInfo: AlbumInfo?,
+    artistName: String,
+    trackCount: Int,
+    modifier: Modifier = Modifier
+) {
+    var backgroundColor by remember { mutableStateOf(Color(0xFF141414)) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(backgroundColor.copy(alpha = 0.5f), Color.Transparent)
+                )
+            )
+            .padding(16.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                        .data(albumInfo?.artUri)
+                        .allowHardware(false)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = albumInfo?.title,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(id = R.drawable.app_logo),
+                    error = painterResource(id = R.drawable.app_logo),
+                    onSuccess = { success ->
+                        val bitmap = success.result.drawable.toBitmap()
+                        Palette.from(bitmap).generate { palette ->
+                            palette?.dominantSwatch?.rgb?.let { colorValue ->
+                                backgroundColor = Color(colorValue)
+                            }
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = albumInfo?.title ?: "Unknown Album",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = artistName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color(0x99FFFFFF)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$trackCount Tracks",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0x99FFFFFF)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row {
+                FilledIconButton(
+                    onClick = { /* Placeholder */ },
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", modifier = Modifier.size(32.dp))
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                FilledTonalIconButton(
+                    onClick = { /* Placeholder */ },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(Icons.Default.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(24.dp))
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus) {
