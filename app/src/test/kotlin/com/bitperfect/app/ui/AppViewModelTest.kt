@@ -14,14 +14,14 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
-class HomeViewModelTest {
+class AppViewModelTest {
 
-    private lateinit var viewModel: HomeViewModel
+    private lateinit var viewModel: AppViewModel
 
     @Before
     fun setup() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        viewModel = HomeViewModel(application)
+        viewModel = AppViewModel(application)
     }
 
     @Test
@@ -46,11 +46,10 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun testLoadTracks() {
-        // Just calling to get coverage on the method itself,
-        // it launches coroutine that fetches from Repo which will return empty list due to no mocks on resolver
-        viewModel.loadTracks(123L)
-        // give coroutine a chance to run since we're using Unconfined or runBlocking if we wanted to
-        // Wait not needed just executing branch is fine
+    fun testSelectAlbumAndLoadTracks() {
+        // Select album which internally calls loadTracks
+        viewModel.selectAlbum(123L, "Test Album")
+        assertEquals(123L, viewModel.selectedAlbumId.value)
+        assertEquals("Test Album", viewModel.selectedAlbumTitle.value)
     }
 }
