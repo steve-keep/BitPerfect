@@ -25,6 +25,8 @@ import com.bitperfect.app.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 
 @Composable
 fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus) {
@@ -70,6 +72,7 @@ fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LibrarySection(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
     val isConfigured by viewModel.isOutputFolderConfigured.collectAsState()
@@ -92,7 +95,12 @@ fun LibrarySection(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 placeholder = { Text("Search artists or albums") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                singleLine = true
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF3DDC68),
+                    unfocusedBorderColor = Color.DarkGray
+                )
             )
 
             if (filteredArtists.isEmpty()) {
@@ -120,40 +128,50 @@ fun LibrarySection(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(filteredArtists, key = { it.id }) { artist ->
-                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                            Text(
-                                text = artist.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    filteredArtists.forEach { artist ->
+                        stickyHeader(key = "header_${artist.id}") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(vertical = 8.dp)
                             ) {
-                                items(artist.albums, key = { it.id }) { album ->
-                                    Column(
-                                        modifier = Modifier.width(80.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        AsyncImage(
-                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                                .data(album.artUri)
-                                                .crossfade(true)
-                                                .diskCachePolicy(CachePolicy.ENABLED)
-                                                .build(),
-                                            contentDescription = album.title,
-                                            modifier = Modifier.size(80.dp),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo),
-                                            error = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo)
-                                        )
-                                        Text(
-                                            text = album.title,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
+                                Text(
+                                    text = artist.name,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                        }
+                        item(key = "content_${artist.id}") {
+                            Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(artist.albums, key = { it.id }) { album ->
+                                        Column(
+                                            modifier = Modifier.width(80.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            AsyncImage(
+                                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                    .data(album.artUri)
+                                                    .crossfade(true)
+                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                    .build(),
+                                                contentDescription = album.title,
+                                                modifier = Modifier.size(80.dp),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo),
+                                                error = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo)
+                                            )
+                                            Text(
+                                                text = album.title,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

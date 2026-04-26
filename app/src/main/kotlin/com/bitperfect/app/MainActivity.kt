@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -177,7 +176,7 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).safeDrawingPadding()) {
+                        Box(modifier = Modifier.weight(1f)) {
                             AnimatedContent(
                                 targetState = currentScreen,
                                 transitionSpec = {
