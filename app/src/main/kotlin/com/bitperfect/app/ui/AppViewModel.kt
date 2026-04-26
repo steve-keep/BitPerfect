@@ -15,7 +15,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class HomeViewModel(application: Application) : AndroidViewModel(application) {
+import com.bitperfect.app.usb.DeviceStateManager
+import com.bitperfect.app.usb.DriveStatus
+
+class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val settingsManager = SettingsManager(application)
     private val libraryRepository = LibraryRepository(application)
@@ -30,6 +33,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _tracks = MutableStateFlow<List<TrackInfo>>(emptyList())
     val tracks: StateFlow<List<TrackInfo>> = _tracks
+
+    private val _selectedAlbumId = MutableStateFlow<Long?>(null)
+    val selectedAlbumId: StateFlow<Long?> = _selectedAlbumId
+
+    private val _selectedAlbumTitle = MutableStateFlow<String?>(null)
+    val selectedAlbumTitle: StateFlow<String?> = _selectedAlbumTitle
+
+    val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
     val filteredArtists: StateFlow<List<ArtistInfo>> = combine(artists, searchQuery) { artistsList, query ->
         if (query.isBlank()) {
@@ -66,7 +77,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loadTracks(albumId: Long) {
+    fun selectAlbum(albumId: Long, albumTitle: String) {
+        _selectedAlbumId.value = albumId
+        _selectedAlbumTitle.value = albumTitle
+        loadTracks(albumId)
+    }
+
+    private fun loadTracks(albumId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             _tracks.value = libraryRepository.getTracksForAlbum(albumId)
         }

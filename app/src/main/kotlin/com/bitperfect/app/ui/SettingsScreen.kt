@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
-import com.bitperfect.app.usb.DeviceStateManager
+
 import com.bitperfect.core.services.DriveOffsetRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,9 +32,10 @@ import com.bitperfect.core.services.DriveOffsetRepository
 fun SettingsScreen(
     settingsManager: SettingsManager,
     driveOffsetRepository: DriveOffsetRepository,
+    viewModel: AppViewModel,
     onNavigateToAbout: () -> Unit = {}
 ) {
-    val driveStatus by DeviceStateManager.driveStatus.collectAsState()
+    val driveStatus by viewModel.driveStatus.collectAsState()
     val driveInfo = driveStatus.info
 
     var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }

@@ -1,6 +1,5 @@
 package com.bitperfect.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,18 +13,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun TrackListScreen(
-    viewModel: HomeViewModel,
-    albumId: Long,
-    onBack: () -> Unit
+    viewModel: AppViewModel
 ) {
-    BackHandler {
-        onBack()
-    }
-
-    LaunchedEffect(albumId) {
-        viewModel.loadTracks(albumId)
-    }
-
     DisposableEffect(Unit) {
         onDispose {
             viewModel.clearTracks()
@@ -34,8 +23,10 @@ fun TrackListScreen(
 
     val tracks by viewModel.tracks.collectAsState()
     val artists by viewModel.artists.collectAsState()
+    val albumId by viewModel.selectedAlbumId.collectAsState()
 
     val albumInfo = remember(albumId, artists) {
+        if (albumId == null) return@remember null
         var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
         var foundArtistName = ""
         for (artist in artists) {

@@ -184,7 +184,7 @@ fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LibrarySection(
-    viewModel: HomeViewModel,
+    viewModel: AppViewModel,
     modifier: Modifier = Modifier,
     onAlbumClick: (AlbumInfo) -> Unit = {}
 ) {

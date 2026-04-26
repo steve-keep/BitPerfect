@@ -24,7 +24,7 @@ class LibrarySectionTest {
     @Test
     fun verifyEmptyStateDisplaysMusicNoteAndText() {
         val application = org.robolectric.RuntimeEnvironment.getApplication()
-        val mockViewModel = HomeViewModel(application)
+        val mockViewModel = AppViewModel(application)
 
         val settingsManager = com.bitperfect.core.utils.SettingsManager(application)
         settingsManager.outputFolderUri = "content://dummy"
@@ -45,7 +45,7 @@ class LibrarySectionTest {
         val settingsManager = com.bitperfect.core.utils.SettingsManager(application)
         settingsManager.outputFolderUri = null
 
-        val mockViewModel = HomeViewModel(application)
+        val mockViewModel = AppViewModel(application)
 
         val albums = listOf(
             AlbumInfo(id = 1L, title = "Test Album", artUri = null)
@@ -54,13 +54,13 @@ class LibrarySectionTest {
             ArtistInfo(id = 1L, name = "Test Artist", albums = albums)
         )
 
-        val artistsFlowField = HomeViewModel::class.java.getDeclaredField("_artists")
+        val artistsFlowField = AppViewModel::class.java.getDeclaredField("_artists")
         artistsFlowField.isAccessible = true
         val flow = artistsFlowField.get(mockViewModel) as MutableStateFlow<List<ArtistInfo>>
         flow.value = artists
 
         // Setup output folder so it displays library
-        val _isOutputFolderConfiguredField = HomeViewModel::class.java.getDeclaredField("_isOutputFolderConfigured")
+        val _isOutputFolderConfiguredField = AppViewModel::class.java.getDeclaredField("_isOutputFolderConfigured")
         _isOutputFolderConfiguredField.isAccessible = true
         val configuredFlow = _isOutputFolderConfiguredField.get(mockViewModel) as MutableStateFlow<Boolean>
         configuredFlow.value = true
