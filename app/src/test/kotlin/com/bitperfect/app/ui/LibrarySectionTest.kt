@@ -69,6 +69,7 @@ class LibrarySectionTest {
             LibrarySection(viewModel = mockViewModel)
         }
 
+        composeTestRule.mainClock.advanceTimeBy(5000)
         composeTestRule.waitForIdle()
         composeTestRule.mainClock.advanceTimeBy(5000)
 

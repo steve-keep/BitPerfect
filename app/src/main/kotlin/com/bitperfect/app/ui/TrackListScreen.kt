@@ -33,6 +33,21 @@ fun TrackListScreen(
     }
 
     val tracks by viewModel.tracks.collectAsState()
+    val artists by viewModel.artists.collectAsState()
+
+    val albumInfo = remember(albumId, artists) {
+        var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
+        var foundArtistName = ""
+        for (artist in artists) {
+            val album = artist.albums.find { it.id == albumId }
+            if (album != null) {
+                foundAlbum = album
+                foundArtistName = artist.name
+                break
+            }
+        }
+        if (foundAlbum != null) Pair(foundAlbum, foundArtistName) else null
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (tracks.isEmpty()) {
@@ -44,8 +59,16 @@ fun TrackListScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 16.dp)
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
+                item {
+                    AlbumHeader(
+                        albumInfo = albumInfo?.first,
+                        artistName = albumInfo?.second ?: "Unknown Artist",
+                        trackCount = tracks.size
+                    )
+                }
+
                 items(tracks, key = { it.id }) { track ->
                     Row(
                         modifier = Modifier
