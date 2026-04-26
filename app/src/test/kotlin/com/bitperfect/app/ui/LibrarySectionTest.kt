@@ -70,6 +70,7 @@ class LibrarySectionTest {
         }
 
         composeTestRule.waitForIdle()
+        composeTestRule.mainClock.advanceTimeBy(5000)
 
         composeTestRule.onNodeWithText("Test Artist").assertIsDisplayed()
         composeTestRule.onNodeWithText("Test Album").assertIsDisplayed()
