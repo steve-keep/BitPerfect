@@ -9,6 +9,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.bitperfect.app.library.ArtistInfo
+import com.bitperfect.app.library.AlbumInfo
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 
@@ -23,13 +25,10 @@ class LibrarySectionTest {
     fun verifyEmptyStateDisplaysMusicNoteAndText() {
         val application = org.robolectric.RuntimeEnvironment.getApplication()
         val mockViewModel = HomeViewModel(application)
-        // Need to change how we verify the empty state since we can't easily mock the final HomeViewModel
-        // Without an output folder configured, it shows "Set an output folder in Settings to browse your library"
-        // Let's actually set a dummy URI to make it configured, and then since the DB is empty, it will show "No albums found"
 
         val settingsManager = com.bitperfect.core.utils.SettingsManager(application)
         settingsManager.outputFolderUri = "content://dummy"
-        mockViewModel.loadLibrary() // re-evaluate configured status
+        mockViewModel.loadLibrary()
 
         composeTestRule.setContent {
             LibrarySection(viewModel = mockViewModel)
