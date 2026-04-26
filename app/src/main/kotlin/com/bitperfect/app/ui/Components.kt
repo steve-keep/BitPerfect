@@ -25,6 +25,7 @@ import com.bitperfect.app.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 
@@ -159,7 +160,7 @@ fun LibrarySection(viewModel: HomeViewModel, modifier: Modifier = Modifier) {
                                                     .diskCachePolicy(CachePolicy.ENABLED)
                                                     .build(),
                                                 contentDescription = album.title,
-                                                modifier = Modifier.size(80.dp),
+                                                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
                                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                                 placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo),
                                                 error = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo)
