@@ -46,7 +46,7 @@ class LibraryRepository(private val context: Context) {
 
         val sortOrder = "${MediaStore.Audio.Media.ARTIST} ASC, ${MediaStore.Audio.Media.ALBUM} ASC"
 
-        val albumsByArtist = mutableMapOf<Long, MutableMap<Long, AlbumInfo>>()
+        val albumsByArtist = mutableMapOf<Long, MutableMap<String, AlbumInfo>>()
         val artistNames = mutableMapOf<Long, String>()
 
         context.contentResolver.query(
@@ -72,9 +72,10 @@ class LibraryRepository(private val context: Context) {
                 artistNames[artistId] = artistName
 
                 val artistAlbums = albumsByArtist.getOrPut(artistId) { mutableMapOf() }
-                if (!artistAlbums.containsKey(albumId)) {
+                val albumTitleLower = albumTitle.lowercase()
+                if (!artistAlbums.containsKey(albumTitleLower)) {
                     val artUri = ContentUris.withAppendedId(albumArtBaseUri, albumId)
-                    artistAlbums[albumId] = AlbumInfo(albumId, albumTitle, artUri)
+                    artistAlbums[albumTitleLower] = AlbumInfo(albumId, albumTitle, artUri)
                 }
             }
         }
