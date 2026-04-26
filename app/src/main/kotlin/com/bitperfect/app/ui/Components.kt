@@ -59,78 +59,88 @@ fun AlbumHeader(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                Brush.verticalGradient(
-                    colors = listOf(backgroundColor.copy(alpha = 0.5f), Color.Transparent)
+                Brush.radialGradient(
+                    colors = listOf(backgroundColor.copy(alpha = 0.5f), Color.Transparent),
+                    radius = 800f
                 )
             )
-            .padding(16.dp)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current)
-                        .data(albumInfo?.artUri)
-                        .allowHardware(false)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = albumInfo?.title,
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop,
-                    placeholder = painterResource(id = R.drawable.app_logo),
-                    error = painterResource(id = R.drawable.app_logo),
-                    onSuccess = { success ->
-                        val bitmap = success.result.drawable.toBitmap()
-                        Palette.from(bitmap).generate { palette ->
-                            palette?.dominantSwatch?.rgb?.let { colorValue ->
-                                backgroundColor = Color(colorValue)
-                            }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AsyncImage(
+                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(albumInfo?.artUri)
+                    .allowHardware(false)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = albumInfo?.title,
+                modifier = Modifier
+                    .size(240.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(id = R.drawable.app_logo),
+                error = painterResource(id = R.drawable.app_logo),
+                onSuccess = { success ->
+                    val bitmap = success.result.drawable.toBitmap()
+                    Palette.from(bitmap).generate { palette ->
+                        palette?.dominantSwatch?.rgb?.let { colorValue ->
+                            backgroundColor = Color(colorValue)
                         }
                     }
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = albumInfo?.title ?: "Unknown Album",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = artistName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0x99FFFFFF)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "$trackCount Tracks",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0x99FFFFFF)
-                    )
                 }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row {
-                FilledIconButton(
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = albumInfo?.title ?: "Unknown Album",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = artistName,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "$trackCount Tracks",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0x99FFFFFF)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(
                     onClick = { /* Placeholder */ },
-                    colors = IconButtonDefaults.filledIconButtonColors(
+                    colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                FilledTonalIconButton(
+                Button(
                     onClick = { /* Placeholder */ },
-                    modifier = Modifier.size(56.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF333333),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Shuffle, contentDescription = "Shuffle", modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Shuffle, contentDescription = "Shuffle")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Shuffle", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -219,7 +229,7 @@ fun LibrarySection(
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00FF00),
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray
                 )
             )
