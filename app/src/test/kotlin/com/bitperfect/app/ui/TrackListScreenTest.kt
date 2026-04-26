@@ -30,6 +30,7 @@ class TrackListScreenTest {
 
         // When tracks is empty, CircularProgressIndicator is shown, but there is no specific text.
         // We can just verify it does not crash to cover the lines.
+        composeTestRule.waitForIdle()
     }
 
     @Test
@@ -66,9 +67,12 @@ class TrackListScreenTest {
 
         composeTestRule.waitForIdle()
 
-        // The loadTracks coroutine gets called when `albumId` changes.
-        // It fetches from the unmocked repo, which sets tracks to empty.
-        // Thus, we don't actually see our mocked values because it got overwritten by the empty repo results.
-        // But rendering will cover the new AlbumHeader code since tracks state evaluates first, avoiding 0% coverage.
+        // Ensure that tracks state evaluates first, avoiding 0% coverage.
+        // Restore tracks value since it was overwritten by loadTracks coroutine
+        tracksStateFlow.value = listOf(
+            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L) // 2:05
+        )
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Mock Track Title").assertIsDisplayed()
     }
 }
