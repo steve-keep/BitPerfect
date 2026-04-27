@@ -88,16 +88,18 @@ class MainActivity : ComponentActivity() {
                         TopAppBar(
                             title = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        color = Color(0xFF191C20),
-                                        shape = MaterialTheme.shapes.small,
-                                        modifier = Modifier.padding(end = 12.dp).size(32.dp)
-                                    ) {
-                                        Image(
-                                            painter = painterResource(id = R.drawable.app_logo),
-                                            contentDescription = null,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                    if (currentRoute == AppRoutes.DeviceList) {
+                                        Surface(
+                                            color = Color(0xFF191C20),
+                                            shape = MaterialTheme.shapes.small,
+                                            modifier = Modifier.padding(end = 12.dp).size(32.dp)
+                                        ) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.app_logo),
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
                                     Text(
                                         text = when (currentRoute) {
