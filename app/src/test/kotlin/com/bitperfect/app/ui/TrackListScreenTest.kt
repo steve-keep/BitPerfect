@@ -83,6 +83,5 @@ class TrackListScreenTest {
         composeTestRule.onNodeWithText("2 Tracks", substring = true).assertExists()
         composeTestRule.onNodeWithText("Play", substring = true).assertExists()
         composeTestRule.onNodeWithText("Shuffle", substring = true).assertExists()
-
     }
 }
