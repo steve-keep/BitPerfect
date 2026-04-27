@@ -56,7 +56,7 @@ class TrackListScreenTest {
         val tracksStateFlow = tracksField.get(mockViewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
 
         tracksStateFlow.value = listOf(
-            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L) // 2:05
+            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L, 1) // 2:05
         )
 
         mockViewModel.selectAlbum(1L, "Test Album")
@@ -70,7 +70,7 @@ class TrackListScreenTest {
         // Ensure that tracks state evaluates first, avoiding 0% coverage.
         // Restore tracks value since it was overwritten by loadTracks coroutine
         tracksStateFlow.value = listOf(
-            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L) // 2:05
+            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L, 1) // 2:05
         )
         composeTestRule.mainClock.advanceTimeBy(5000)
         composeTestRule.waitForIdle()

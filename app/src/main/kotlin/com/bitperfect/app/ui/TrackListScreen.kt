@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -48,6 +49,9 @@ fun TrackListScreen(
                 )
             }
         } else {
+            val tracksByDisc = tracks.groupBy { it.discNumber }
+            val multiDisc = tracksByDisc.size > 1
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp)
@@ -60,39 +64,59 @@ fun TrackListScreen(
                     )
                 }
 
-                items(tracks, key = { it.id }) { track ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = track.trackNumber.toString().padStart(2, '0'),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.width(32.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = track.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            val durationSeconds = track.durationMs / 1000
-                            val minutes = durationSeconds / 60
-                            val seconds = durationSeconds % 60
-                            Text(
-                                text = String.format("%d:%02d", minutes, seconds),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                tracksByDisc.forEach { (discNumber, discTracks) ->
+                    if (multiDisc) {
+                        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+                        stickyHeader(key = "disc_$discNumber") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Disc $discNumber",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
-                    HorizontalDivider(color = Color(0x14FFFFFF))
+
+                    items(discTracks, key = { it.id }) { track ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = track.trackNumber.toString().padStart(2, '0'),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = track.title,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                val durationSeconds = track.durationMs / 1000
+                                val minutes = durationSeconds / 60
+                                val seconds = durationSeconds % 60
+                                Text(
+                                    text = String.format("%d:%02d", minutes, seconds),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = Color(0x14FFFFFF))
+                    }
                 }
             }
         }

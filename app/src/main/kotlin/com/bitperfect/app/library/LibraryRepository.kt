@@ -93,12 +93,13 @@ class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.TRACK,
-            MediaStore.Audio.Media.DURATION
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DISC_NUMBER
         )
 
         val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
         val selectionArgs = arrayOf(albumId.toString())
-        val sortOrder = "${MediaStore.Audio.Media.TRACK} ASC"
+        val sortOrder = "${MediaStore.Audio.Media.DISC_NUMBER} ASC, ${MediaStore.Audio.Media.TRACK} ASC"
 
         val tracks = mutableListOf<TrackInfo>()
 
@@ -113,13 +114,33 @@ class LibraryRepository(private val context: Context) {
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            // DISC_NUMBER column might not exist or might not be populated in all Android versions/devices
+            val discNumberCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISC_NUMBER)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val title = cursor.getString(titleCol) ?: "Unknown Track"
-                val trackNumber = cursor.getInt(trackCol)
+                var trackNumber = cursor.getInt(trackCol)
                 val durationMs = cursor.getLong(durationCol)
-                tracks.add(TrackInfo(id, title, trackNumber, durationMs))
+
+                var discNumber = if (discNumberCol != -1 && !cursor.isNull(discNumberCol)) {
+                    cursor.getInt(discNumberCol)
+                } else {
+                    1
+                }
+
+                // Handling combined track numbers (e.g. 1001 for disc 1 track 1)
+                if (trackNumber >= 1000) {
+                    if (discNumber <= 1) {
+                        discNumber = trackNumber / 1000
+                    }
+                    trackNumber %= 1000
+                }
+
+                // Ensure valid fallback just in case
+                if (discNumber < 1) discNumber = 1
+
+                tracks.add(TrackInfo(id, title, trackNumber, durationMs, discNumber))
             }
         }
 
