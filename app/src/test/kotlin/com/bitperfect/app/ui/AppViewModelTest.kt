@@ -11,6 +11,10 @@ import com.bitperfect.app.player.PlayerRepository
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -19,6 +23,7 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowLooper
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -38,6 +43,44 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.positionMs).thenReturn(MutableStateFlow(0L))
 
         viewModel = AppViewModel(application, mockRepository)
+    }
+
+    @Test
+    fun testCurrentTrackTitleResolution() = runTest {
+        val tracks = listOf(
+            TrackInfo(1L, "First Song", 1, 1000L),
+            TrackInfo(2L, "Second Song", 2, 2000L)
+        )
+
+        // Use a test-specific mock repository to allow mutating currentMediaId
+        val mutableCurrentMediaId = MutableStateFlow<String?>(null)
+        org.mockito.Mockito.`when`(mockRepository.currentMediaId).thenReturn(mutableCurrentMediaId)
+
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val vm = AppViewModel(application, mockRepository)
+
+        // Start collecting the currentTrackTitle stateflow so that it activates and stays alive
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.currentTrackTitle.collect {}
+        }
+
+        vm.playAlbum(tracks)
+        mutableCurrentMediaId.value = "1"
+        advanceUntilIdle()
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+        assertEquals("First Song", vm.currentTrackTitle.value)
+
+        mutableCurrentMediaId.value = "2"
+        advanceUntilIdle()
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+        assertEquals("Second Song", vm.currentTrackTitle.value)
+
+        mutableCurrentMediaId.value = "3"
+        advanceUntilIdle()
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+        assertEquals(null, vm.currentTrackTitle.value)
+
+        job.cancel()
     }
 
     @Test
