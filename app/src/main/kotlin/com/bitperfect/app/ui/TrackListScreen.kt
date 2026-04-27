@@ -43,8 +43,21 @@ fun TrackListScreen(
         if (foundAlbum != null) Pair(foundAlbum, foundArtistName) else null
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (tracks.isEmpty()) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0.dp),
+        bottomBar = {
+            NowPlayingBar(
+                isPlaying = isPlaying,
+                currentTrackTitle = currentTrackTitle,
+                onPlayPause = { viewModel.togglePlayPause() },
+                onSkipPrev = { viewModel.skipPrev() },
+                onSkipNext = { viewModel.skipNext() }
+            )
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (tracks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.primary
