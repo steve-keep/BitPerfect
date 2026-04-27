@@ -1,5 +1,7 @@
 package com.bitperfect.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.clickable
@@ -12,6 +14,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+private fun numberToWord(n: Int): String {
+    val words = arrayOf("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
+    return if (n in 0..10) words[n] else n.toString()
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackListScreen(
     viewModel: AppViewModel
@@ -68,6 +76,9 @@ fun TrackListScreen(
                 )
             }
             } else {
+            val groupedTracks = tracks.groupBy { it.discNumber }
+            val isMultiDisc = groupedTracks.size > 1
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp)
@@ -80,44 +91,64 @@ fun TrackListScreen(
                     )
                 }
 
-                itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
-                    val isCurrentTrack = track.id.toString() == currentMediaId
-                    val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.playTrack(tracks, index) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = track.trackNumber.toString().padStart(2, '0'),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = tintColor,
-                            modifier = Modifier.width(32.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = track.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = titleColor,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            val durationSeconds = track.durationMs / 1000
-                            val minutes = durationSeconds / 60
-                            val seconds = durationSeconds % 60
-                            Text(
-                                text = String.format("%d:%02d", minutes, seconds),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                groupedTracks.forEach { (discNumber, discTracks) ->
+                    if (isMultiDisc) {
+                        stickyHeader(key = "disc_$discNumber") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Disk ${numberToWord(discNumber)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                            }
                         }
                     }
-                    HorizontalDivider(color = Color(0x14FFFFFF))
+
+                    itemsIndexed(discTracks, key = { _, track -> track.id }) { _, track ->
+                        val globalIndex = tracks.indexOfFirst { it.id == track.id }
+                        val isCurrentTrack = track.id.toString() == currentMediaId
+                        val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.playTrack(tracks, globalIndex) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = track.trackNumber.toString().padStart(2, '0'),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = tintColor,
+                                modifier = Modifier.width(32.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = track.title,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = titleColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                val durationSeconds = track.durationMs / 1000
+                                val minutes = durationSeconds / 60
+                                val seconds = durationSeconds % 60
+                                Text(
+                                    text = String.format("%d:%02d", minutes, seconds),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = Color(0x14FFFFFF))
+                    }
                 }
             }
         }

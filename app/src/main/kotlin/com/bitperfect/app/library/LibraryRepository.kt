@@ -117,9 +117,13 @@ class LibraryRepository(private val context: Context) {
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
                 val title = cursor.getString(titleCol) ?: "Unknown Track"
-                val trackNumber = cursor.getInt(trackCol)
+                val rawTrackNumber = cursor.getInt(trackCol)
                 val durationMs = cursor.getLong(durationCol)
-                tracks.add(TrackInfo(id, title, trackNumber, durationMs))
+
+                val baseTrackNumber = if (rawTrackNumber >= 1000) rawTrackNumber % 1000 else rawTrackNumber
+                val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
+
+                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber))
             }
         }
 
