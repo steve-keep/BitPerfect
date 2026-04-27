@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.core.graphics.drawable.toBitmap
 import androidx.palette.graphics.Palette
@@ -79,8 +80,8 @@ fun AlbumHeader(
                     .size(240.dp)
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop,
-                placeholder = painterResource(id = R.drawable.app_logo),
-                error = painterResource(id = R.drawable.app_logo),
+                placeholder = ColorPainter(Color(0xFF141414)),
+                error = ColorPainter(Color(0xFF141414)),
                 onSuccess = { success ->
                     val bitmap = success.result.drawable.toBitmap()
                     Palette.from(bitmap).generate { palette ->
@@ -295,8 +296,8 @@ fun LibrarySection(
                                             contentDescription = album.title,
                                             modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo),
-                                            error = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo)
+                                            placeholder = ColorPainter(Color(0xFF141414)),
+                                            error = ColorPainter(Color(0xFF141414))
                                         )
                                         Text(
                                             text = album.title,
