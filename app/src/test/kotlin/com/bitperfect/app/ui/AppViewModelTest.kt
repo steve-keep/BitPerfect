@@ -10,30 +10,34 @@ import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.verify
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class AppViewModelTest {
 
     private lateinit var viewModel: AppViewModel
+    private lateinit var mockRepository: PlayerRepository
 
     @Before
     fun setup() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val fakeFactory = object : PlayerRepository.MediaControllerFactory {
-            override fun build(context: Context, token: SessionToken): ListenableFuture<MediaController> {
-                return Futures.immediateFuture(org.mockito.Mockito.mock(MediaController::class.java))
-            }
-        }
-        val fakeRepository = PlayerRepository(application, fakeFactory)
-        viewModel = AppViewModel(application, fakeRepository)
+        mockRepository = mock(PlayerRepository::class.java)
+
+        org.mockito.Mockito.`when`(mockRepository.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockRepository.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockRepository.positionMs).thenReturn(MutableStateFlow(0L))
+
+        viewModel = AppViewModel(application, mockRepository)
     }
 
     @Test
@@ -54,5 +58,43 @@ class AppViewModelTest {
         viewModel.selectAlbum(123L, "Test Album")
         assertEquals(123L, viewModel.selectedAlbumId.value)
         assertEquals("Test Album", viewModel.selectedAlbumTitle.value)
+    }
+
+    @Test
+    fun testPlayAlbumDelegatesToRepository() {
+        val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
+        viewModel.playAlbum(tracks)
+        verify(mockRepository).playAlbum(tracks)
+    }
+
+    @Test
+    fun testPlayTrackDelegatesToRepository() {
+        val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
+        viewModel.playTrack(tracks, 0)
+        verify(mockRepository).playTrack(tracks, 0)
+    }
+
+    @Test
+    fun testTogglePlayPauseDelegatesToRepository() {
+        viewModel.togglePlayPause()
+        verify(mockRepository).togglePlayPause()
+    }
+
+    @Test
+    fun testSeekToDelegatesToRepository() {
+        viewModel.seekTo(5000L)
+        verify(mockRepository).seekTo(5000L)
+    }
+
+    @Test
+    fun testSkipNextDelegatesToRepository() {
+        viewModel.skipNext()
+        verify(mockRepository).skipNext()
+    }
+
+    @Test
+    fun testSkipPrevDelegatesToRepository() {
+        viewModel.skipPrev()
+        verify(mockRepository).skipPrev()
     }
 }
