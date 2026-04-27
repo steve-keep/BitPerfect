@@ -12,14 +12,14 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
@@ -61,39 +61,24 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testPlayAlbumDelegatesToRepository() {
+    fun testPlaybackDelegates() {
         val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
+
         viewModel.playAlbum(tracks)
         verify(mockRepository).playAlbum(tracks)
-    }
 
-    @Test
-    fun testPlayTrackDelegatesToRepository() {
-        val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
         viewModel.playTrack(tracks, 0)
         verify(mockRepository).playTrack(tracks, 0)
-    }
 
-    @Test
-    fun testTogglePlayPauseDelegatesToRepository() {
         viewModel.togglePlayPause()
         verify(mockRepository).togglePlayPause()
-    }
 
-    @Test
-    fun testSeekToDelegatesToRepository() {
-        viewModel.seekTo(5000L)
-        verify(mockRepository).seekTo(5000L)
-    }
+        viewModel.seekTo(500L)
+        verify(mockRepository).seekTo(500L)
 
-    @Test
-    fun testSkipNextDelegatesToRepository() {
         viewModel.skipNext()
         verify(mockRepository).skipNext()
-    }
 
-    @Test
-    fun testSkipPrevDelegatesToRepository() {
         viewModel.skipPrev()
         verify(mockRepository).skipPrev()
     }

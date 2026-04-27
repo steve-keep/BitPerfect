@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'FILE' > app/src/test/kotlin/com/bitperfect/app/player/PlayerRepositoryTest.kt
 package com.bitperfect.app.player
 
 import android.content.Context
@@ -15,7 +17,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.verify
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.mockito.Mockito
@@ -55,7 +56,6 @@ class PlayerRepositoryTest {
 
         val fakeFactory = object : PlayerRepository.MediaControllerFactory {
             override fun build(context: Context, token: SessionToken): ListenableFuture<MediaController> {
-                @Suppress("UNCHECKED_CAST")
                 val future = mock(ListenableFuture::class.java) as ListenableFuture<MediaController>
                 `when`(future.get()).thenReturn(mockController)
                 // Just avoiding real future resolution logic which throws exceptions
@@ -250,3 +250,4 @@ class PlayerRepositoryTest {
         } catch (e: Exception) {}
     }
 }
+FILE

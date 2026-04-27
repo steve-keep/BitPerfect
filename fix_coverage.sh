@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'FILE' > app/src/test/kotlin/com/bitperfect/app/player/PlayerRepositoryTest.kt
 package com.bitperfect.app.player
 
 import android.content.Context
@@ -250,3 +252,4 @@ class PlayerRepositoryTest {
         } catch (e: Exception) {}
     }
 }
+FILE
