@@ -2,7 +2,8 @@ package com.bitperfect.app.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,13 @@ fun TrackListScreen(
     val artists by viewModel.artists.collectAsState()
     val albumId by viewModel.selectedAlbumId.collectAsState()
 
+    val currentMediaId by viewModel.currentMediaId.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
+
+    val currentTrackTitle = remember(tracks, currentMediaId) {
+        tracks.find { it.id.toString() == currentMediaId }?.title
+    }
+
     val albumInfo = remember(albumId, artists) {
         if (albumId == null) return@remember null
         var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
@@ -40,14 +48,26 @@ fun TrackListScreen(
         if (foundAlbum != null) Pair(foundAlbum, foundArtistName) else null
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (tracks.isEmpty()) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = {
+            NowPlayingBar(
+                isPlaying = isPlaying,
+                currentTrackTitle = currentTrackTitle,
+                onPlayPause = { viewModel.togglePlayPause() },
+                onSkipPrev = { viewModel.skipPrev() },
+                onSkipNext = { viewModel.skipNext() }
+            )
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (tracks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-        } else {
+            } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp)
@@ -60,17 +80,22 @@ fun TrackListScreen(
                     )
                 }
 
-                items(tracks, key = { it.id }) { track ->
+                itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                    val isCurrentTrack = track.id.toString() == currentMediaId
+                    val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { viewModel.playTrack(tracks, index) }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = track.trackNumber.toString().padStart(2, '0'),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = tintColor,
                             modifier = Modifier.width(32.dp)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
@@ -78,7 +103,7 @@ fun TrackListScreen(
                             Text(
                                 text = track.title,
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = titleColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -95,6 +120,7 @@ fun TrackListScreen(
                     HorizontalDivider(color = Color(0x14FFFFFF))
                 }
             }
+        }
         }
     }
 }
