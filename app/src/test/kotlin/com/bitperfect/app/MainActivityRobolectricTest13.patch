@@ -1,0 +1,117 @@
+<<<<<<< SEARCH
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test
+    fun testMainActivityAppContentDirectly() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        // Mock PlayerRepository explicitly
+        val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
+        val mockViewModel = AppViewModel(app, com.bitperfect.app.player.PlayerRepository(app, fakeFactory))
+
+        val artistsField = AppViewModel::class.java.getDeclaredField("_artists")
+        artistsField.isAccessible = true
+        val artistsStateFlow = artistsField.get(mockViewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.ArtistInfo>>
+        artistsStateFlow.value = listOf(
+            com.bitperfect.app.library.ArtistInfo(
+                id = 1L,
+                name = "Test Artist",
+                albums = listOf(com.bitperfect.app.library.AlbumInfo(id = 1L, title = "Test Album", artUri = null))
+            )
+        )
+
+        val tracksField = AppViewModel::class.java.getDeclaredField("_playingTracks")
+        tracksField.isAccessible = true
+        val tracksStateFlow = tracksField.get(mockViewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+
+        val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+        repoField.isAccessible = true
+        val repo = repoField.get(mockViewModel) as com.bitperfect.app.player.PlayerRepository
+
+        val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+        mediaIdField.isAccessible = true
+        val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+        tracksStateFlow.value = listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L))
+        mediaIdFlow.value = "1"
+
+        // We'll just call ActivityScenario because doing compose test rule manually copies too much boilerplate.
+        // It's failing to compile because imports or unresolved.
+        // Wait, the test uses ActivityScenario on `MainActivity` for navigation, but we just need to test the UI flow
+        // and we can mock it by injecting or simply calling the MainActivity scenario itself
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val vmField = MainActivity::class.java.getDeclaredField("appViewModel\$delegate")
+                vmField.isAccessible = true
+                val lazyVm = vmField.get(activity) as kotlin.Lazy<AppViewModel>
+                val viewModel = lazyVm.value
+
+                // Mock a playing track
+                val tracksField = AppViewModel::class.java.getDeclaredField("_playingTracks")
+                tracksField.isAccessible = true
+                val tracksStateFlow = tracksField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+
+                val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+                repoField.isAccessible = true
+                val repo = repoField.get(viewModel) as com.bitperfect.app.player.PlayerRepository
+
+                val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+                mediaIdField.isAccessible = true
+                val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+                tracksStateFlow.value = listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L))
+                mediaIdFlow.value = "1"
+            }
+
+            composeTestRule.waitForIdle()
+            composeTestRule.mainClock.advanceTimeBy(5000)
+            composeTestRule.waitForIdle()
+
+            // 1. Verify NowPlayingBar acts from MainActivity
+            composeTestRule.onNodeWithText("Global Track Title", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithContentDescription("Play").performClick()
+            composeTestRule.onNodeWithContentDescription("Skip Next").performClick()
+            composeTestRule.onNodeWithContentDescription("Skip Previous").performClick()
+
+            // 2. We can't navigate to the mock album easily unless we populate LibraryRepository
+            // The tests can just stay there, we achieved coverage of the Scaffold top/bottom bar
+        }
+    }
+=======
+    @Test
+    fun testMainActivityAppContentDirectly() {
+        // Mock PlayerRepository explicitly
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val vmField = MainActivity::class.java.getDeclaredField("appViewModel\$delegate")
+                vmField.isAccessible = true
+                val lazyVm = vmField.get(activity) as kotlin.Lazy<AppViewModel>
+                val viewModel = lazyVm.value
+
+                // Mock a playing track
+                val tracksField = AppViewModel::class.java.getDeclaredField("_playingTracks")
+                tracksField.isAccessible = true
+                val tracksStateFlow = tracksField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+
+                val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+                repoField.isAccessible = true
+                val repo = repoField.get(viewModel) as com.bitperfect.app.player.PlayerRepository
+
+                val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+                mediaIdField.isAccessible = true
+                val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+                tracksStateFlow.value = listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L))
+                mediaIdFlow.value = "1"
+            }
+
+            composeTestRule.waitForIdle()
+            composeTestRule.mainClock.advanceTimeBy(5000)
+            composeTestRule.waitForIdle()
+
+            // 1. Verify NowPlayingBar acts from MainActivity
+            composeTestRule.onNodeWithText("Global Track Title", substring = true).assertIsDisplayed()
+            composeTestRule.onNodeWithContentDescription("Play").performClick()
+            composeTestRule.onNodeWithContentDescription("Skip Next").performClick()
+            composeTestRule.onNodeWithContentDescription("Skip Previous").performClick()
+        }
+    }
+>>>>>>> REPLACE

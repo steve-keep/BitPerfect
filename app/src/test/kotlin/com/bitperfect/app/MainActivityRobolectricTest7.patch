@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+    @Test
+    fun testMainActivityNowPlayingBar() {
+=======
+    @Test
+    fun testMainActivityNowPlayingBar() {
+        val appViewModelMock = AppViewModel(androidx.test.core.app.ApplicationProvider.getApplicationContext())
+        // Since we cannot mock the activity viewModel easily, let's just trigger states directly
+>>>>>>> REPLACE

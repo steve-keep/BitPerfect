@@ -1,0 +1,18 @@
+<<<<<<< SEARCH
+        composeTestRule.onNodeWithText("Test Album", substring = true).performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Test Artist", substring = true).assertExists()
+    }
+}
+=======
+        composeTestRule.onNodeWithText("Test Album", substring = true).performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Test Artist", substring = true).assertExists()
+
+        // Let's also navigate back out to hit navigation logic lines
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("BitPerfect").assertExists()
+    }
+}
+>>>>>>> REPLACE

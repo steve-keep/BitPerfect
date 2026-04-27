@@ -1,0 +1,42 @@
+<<<<<<< SEARCH
+        // Let's populate currentTrackTitle and isPlaying state and ensure NowPlayingBar appears in Scaffold
+        val activity = composeTestRule.activity
+        val vmField = MainActivity::class.java.getDeclaredField("appViewModel\$delegate")
+        vmField.isAccessible = true
+        val lazyVm = vmField.get(activity) as kotlin.Lazy<AppViewModel>
+        val viewModel = lazyVm.value
+
+        // Mock a playing track
+        val tracksField = AppViewModel::class.java.getDeclaredField("_playingTracks")
+        tracksField.isAccessible = true
+        val tracksStateFlow = tracksField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+
+        val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+        repoField.isAccessible = true
+        val repo = repoField.get(viewModel) as com.bitperfect.app.player.PlayerRepository
+
+        val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+        mediaIdField.isAccessible = true
+        val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+        tracksStateFlow.value = listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L))
+        mediaIdFlow.value = "1"
+=======
+        // Ensure NowPlayingBar appears in Scaffold
+        val activity = composeTestRule.activity
+        val vmField = MainActivity::class.java.getDeclaredField("appViewModel\$delegate")
+        vmField.isAccessible = true
+        val lazyVm = vmField.get(activity) as kotlin.Lazy<AppViewModel>
+        val viewModel = lazyVm.value
+
+        viewModel.playAlbum(listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L)))
+        val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+        repoField.isAccessible = true
+        val repo = repoField.get(viewModel) as com.bitperfect.app.player.PlayerRepository
+
+        val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+        mediaIdField.isAccessible = true
+        val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+        mediaIdFlow.value = "1"
+>>>>>>> REPLACE

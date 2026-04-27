@@ -1,0 +1,100 @@
+<<<<<<< SEARCH
+    @Test
+    fun testMainActivityNowPlayingBar() {
+        // Let's populate currentTrackTitle and isPlaying state and ensure NowPlayingBar appears in Scaffold
+        val activity = composeTestRule.activity
+        val vmField = MainActivity::class.java.getDeclaredField("appViewModel\$delegate")
+        vmField.isAccessible = true
+        val lazyVm = vmField.get(activity) as kotlin.Lazy<AppViewModel>
+        val viewModel = lazyVm.value
+
+        // Mock a playing track
+        val tracksField = AppViewModel::class.java.getDeclaredField("_playingTracks")
+        tracksField.isAccessible = true
+        val tracksStateFlow = tracksField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+
+        val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+        repoField.isAccessible = true
+        val repo = repoField.get(viewModel) as com.bitperfect.app.player.PlayerRepository
+
+        val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+        mediaIdField.isAccessible = true
+        val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+        tracksStateFlow.value = listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L))
+        mediaIdFlow.value = "1"
+
+        composeTestRule.mainClock.advanceTimeBy(5000)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Global Track Title", substring = true).assertExists()
+    }
+=======
+    @Test
+    fun testMainActivityNowPlayingBar() {
+        // Let's populate currentTrackTitle and isPlaying state and ensure NowPlayingBar appears in Scaffold
+        val activity = composeTestRule.activity
+        val vmField = MainActivity::class.java.getDeclaredField("appViewModel\$delegate")
+        vmField.isAccessible = true
+        val lazyVm = vmField.get(activity) as kotlin.Lazy<AppViewModel>
+        val viewModel = lazyVm.value
+
+        // Mock a playing track
+        val tracksField = AppViewModel::class.java.getDeclaredField("_playingTracks")
+        tracksField.isAccessible = true
+        val tracksStateFlow = tracksField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+
+        val repoField = AppViewModel::class.java.getDeclaredField("playerRepository")
+        repoField.isAccessible = true
+        val repo = repoField.get(viewModel) as com.bitperfect.app.player.PlayerRepository
+
+        val mediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+        mediaIdField.isAccessible = true
+        val mediaIdFlow = mediaIdField.get(repo) as kotlinx.coroutines.flow.MutableStateFlow<String?>
+
+        tracksStateFlow.value = listOf(com.bitperfect.app.library.TrackInfo(1L, "Global Track Title", 1, 1000L))
+        mediaIdFlow.value = "1"
+
+        composeTestRule.mainClock.advanceTimeBy(5000)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Global Track Title", substring = true).assertExists()
+
+        // To maximize coverage in MainActivity, force navigation through to the track list
+        val artistsField = AppViewModel::class.java.getDeclaredField("_artists")
+        artistsField.isAccessible = true
+        val artistsStateFlow = artistsField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.ArtistInfo>>
+
+        artistsStateFlow.value = listOf(
+            com.bitperfect.app.library.ArtistInfo(
+                id = 1L,
+                name = "Test Artist",
+                albums = listOf(com.bitperfect.app.library.AlbumInfo(id = 1L, title = "Test Album", artUri = null))
+            )
+        )
+
+        composeTestRule.mainClock.advanceTimeBy(5000)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Test Album", substring = true).performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Test Album", substring = true).assertExists()
+
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+
+        // Settings -> About
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("About BitPerfect").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("BitPerfect is an open-source", substring = true).assertExists()
+
+        // Navigate all the way back
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+    }
+>>>>>>> REPLACE

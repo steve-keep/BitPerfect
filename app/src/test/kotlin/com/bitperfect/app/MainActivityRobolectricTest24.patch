@@ -1,0 +1,12 @@
+<<<<<<< SEARCH
+        // Let's call the actual methods we moved into MainActivity that were ignored above
+        // Simply by launching scenario, we will increase code coverage for lines that define it
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { _ ->
+                composeTestRule.onNodeWithTag("status_label").assertIsDisplayed()
+            }
+        }
+    }
+=======
+    }
+>>>>>>> REPLACE

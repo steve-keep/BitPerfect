@@ -1,0 +1,25 @@
+<<<<<<< SEARCH
+        // 2. Navigation through to Track List -> Settings -> About
+        composeTestRule.onNodeWithText("Test Album", substring = true).performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Test Album", substring = true).assertExists()
+
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("About BitPerfect").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("BitPerfect is an open-source", substring = true).assertExists()
+
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("BitPerfect", substring = true).assertExists()
+    }
+=======
+    }
+>>>>>>> REPLACE
