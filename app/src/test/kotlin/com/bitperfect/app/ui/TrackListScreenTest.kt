@@ -70,13 +70,14 @@ class TrackListScreenTest {
         // Ensure that tracks state evaluates first, avoiding 0% coverage.
         // Restore tracks value since it was overwritten by loadTracks coroutine
         tracksStateFlow.value = listOf(
-            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L, 1) // 2:05
+            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L, 1), // 2:05
+            com.bitperfect.app.library.TrackInfo(2L, "Mock Track Title 2", 1, 125000L, 2)
         )
         composeTestRule.mainClock.advanceTimeBy(5000)
         composeTestRule.waitForIdle()
 
         // Let's assert on something in AlbumHeader instead since that's what we modified
-        composeTestRule.onNodeWithText("1 Tracks", substring = true).assertExists()
+        composeTestRule.onNodeWithText("2 Tracks", substring = true).assertExists()
         composeTestRule.onNodeWithText("Play", substring = true).assertExists()
         composeTestRule.onNodeWithText("Shuffle", substring = true).assertExists()
     }

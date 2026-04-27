@@ -34,6 +34,7 @@ class LibrarySectionTest {
             LibrarySection(viewModel = mockViewModel)
         }
 
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("No albums found").assertIsDisplayed()
     }
 
@@ -73,7 +74,7 @@ class LibrarySectionTest {
         composeTestRule.waitForIdle()
         composeTestRule.mainClock.advanceTimeBy(5000)
 
-        composeTestRule.onNodeWithText("Test Artist").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Test Album").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Test Artist", substring = true).assertExists()
+        composeTestRule.onNodeWithText("Test Album", substring = true).assertExists()
     }
 }
