@@ -1,0 +1,154 @@
+<<<<<<< SEARCH
+    val currentMediaId by viewModel.currentMediaId.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
+
+    val currentTrackTitle = remember(tracks, currentMediaId) {
+        tracks.find { it.id.toString() == currentMediaId }?.title
+    }
+
+    val albumInfo = remember(albumId, artists) {
+=======
+    val currentMediaId by viewModel.currentMediaId.collectAsState()
+
+    val albumInfo = remember(albumId, artists) {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = {
+            NowPlayingBar(
+                isPlaying = isPlaying,
+                currentTrackTitle = currentTrackTitle,
+                onPlayPause = { viewModel.togglePlayPause() },
+                onSkipPrev = { viewModel.skipPrev() },
+                onSkipNext = { viewModel.skipNext() }
+            )
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (tracks.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                item {
+                    AlbumHeader(
+                        albumInfo = albumInfo?.first,
+                        artistName = albumInfo?.second ?: "Unknown Artist",
+                        trackCount = tracks.size
+                    )
+                }
+
+                itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                    val isCurrentTrack = track.id.toString() == currentMediaId
+                    val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.playTrack(tracks, index) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = track.trackNumber.toString().padStart(2, '0'),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tintColor,
+                            modifier = Modifier.width(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = titleColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val durationSeconds = track.durationMs / 1000
+                            val minutes = durationSeconds / 60
+                            val seconds = durationSeconds % 60
+                            Text(
+                                text = String.format("%d:%02d", minutes, seconds),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = Color(0x14FFFFFF))
+                }
+            }
+        }
+        }
+    }
+=======
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (tracks.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                item {
+                    AlbumHeader(
+                        albumInfo = albumInfo?.first,
+                        artistName = albumInfo?.second ?: "Unknown Artist",
+                        trackCount = tracks.size
+                    )
+                }
+
+                itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                    val isCurrentTrack = track.id.toString() == currentMediaId
+                    val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.playTrack(tracks, index) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = track.trackNumber.toString().padStart(2, '0'),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tintColor,
+                            modifier = Modifier.width(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = titleColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val durationSeconds = track.durationMs / 1000
+                            val minutes = durationSeconds / 60
+                            val seconds = durationSeconds % 60
+                            Text(
+                                text = String.format("%d:%02d", minutes, seconds),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = Color(0x14FFFFFF))
+                }
+            }
+        }
+    }
+>>>>>>> REPLACE

@@ -1,0 +1,27 @@
+--- app/src/main/kotlin/com/bitperfect/app/ui/AppViewModel.kt
++++ app/src/main/kotlin/com/bitperfect/app/ui/AppViewModel.kt
+@@ -48,6 +48,12 @@
+     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
+     val positionMs: StateFlow<Long> = playerRepository.positionMs
+
++    private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
++
++    val currentTrackTitle: StateFlow<String?> = combine(currentMediaId, _playingTracks) { id, playingTracks ->
++        playingTracks.find { it.id.toString() == id }?.title
++    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
++
+     val filteredArtists: StateFlow<List<ArtistInfo>> = combine(artists, searchQuery) { artistsList, query ->
+         if (query.isBlank()) {
+             artistsList
+@@ -112,10 +118,12 @@
+     }
+
+     fun playAlbum(tracks: List<TrackInfo>) {
++        _playingTracks.value = tracks
+         playerRepository.playAlbum(tracks)
+     }
+
+     fun playTrack(tracks: List<TrackInfo>, index: Int) {
++        _playingTracks.value = tracks
+         playerRepository.playTrack(tracks, index)
+     }

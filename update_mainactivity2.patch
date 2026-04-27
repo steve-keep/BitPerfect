@@ -1,0 +1,11 @@
+<<<<<<< SEARCH
+            val selectedAlbumTitle by appViewModel.selectedAlbumTitle.collectAsState()
+
+            BitPerfectTheme {
+=======
+            val selectedAlbumTitle by appViewModel.selectedAlbumTitle.collectAsState()
+            val isPlaying by appViewModel.isPlaying.collectAsState()
+            val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
+
+            BitPerfectTheme {
+>>>>>>> REPLACE

@@ -1,0 +1,28 @@
+<<<<<<< SEARCH
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
+                ) { innerPadding ->
+=======
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    },
+                    bottomBar = {
+                        NowPlayingBar(
+                            isPlaying = isPlaying,
+                            currentTrackTitle = currentTrackTitle,
+                            onPlayPause = { appViewModel.togglePlayPause() },
+                            onSkipPrev = { appViewModel.skipPrev() },
+                            onSkipNext = { appViewModel.skipNext() }
+                        )
+                    }
+                ) { innerPadding ->
+>>>>>>> REPLACE
