@@ -50,6 +50,7 @@ fun TrackListScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0.dp),
         bottomBar = {
             NowPlayingBar(
                 isPlaying = isPlaying,
