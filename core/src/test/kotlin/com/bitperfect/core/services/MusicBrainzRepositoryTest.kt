@@ -42,7 +42,7 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
-    fun `successful lookup returns correct DiscMetadata`() = runBlocking {
+    fun `successful lookup returns correct DiscMetadata`(): Unit = runBlocking {
         val mockJson = """
             {
                 "releases": [
@@ -88,7 +88,7 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
-    fun `empty releases list returns null`() = runBlocking {
+    fun `empty releases list returns null`(): Unit = runBlocking {
         val mockJson = """
             {
                 "releases": []
@@ -110,7 +110,7 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
-    fun `404 response returns null without throwing`() = runBlocking {
+    fun `404 response returns null without throwing`(): Unit = runBlocking {
         val mockEngine = MockEngine { _ ->
             respond(
                 content = "Not Found",
@@ -196,5 +196,102 @@ class MusicBrainzRepositoryTest {
         assertNotNull(id1)
         assertEquals(id1, id2)
         assert(id1.isNotEmpty())
+    }
+
+    @Test
+    fun `lookup with malformed cache ignores cache and fetches from network`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        val cacheFile = File(context.cacheDir, "mb_$discId.json")
+        cacheFile.writeText("{ invalid json }")
+
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = """{"releases": []}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+        assertNull(metadata) // Network responds with empty releases list
+        cacheFile.delete()
+    }
+
+    @Test
+    fun `lookup with expired cache fetches from network`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        val cacheFile = File(context.cacheDir, "mb_$discId.json")
+        cacheFile.writeText("""{"releases": []}""")
+        cacheFile.setLastModified(System.currentTimeMillis() - 31L * 86400 * 1000)
+
+        val mockJson = """
+            {
+                "releases": [
+                    {
+                        "id": "release-id-123",
+                        "title": "Network Album",
+                        "artist-credit": [],
+                        "media": []
+                    }
+                ]
+            }
+        """.trimIndent()
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = mockJson,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+        assertNotNull(metadata)
+        assertEquals("Network Album", metadata!!.albumTitle)
+        assertEquals("Unknown Artist", metadata.artistName) // tests empty artist-credit
+        assertEquals(emptyList<String>(), metadata.trackTitles) // tests empty media
+
+        cacheFile.delete()
+    }
+
+    @Test
+    fun `lookup handles cache write exception gracefully`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        val cacheFile = File(context.cacheDir, "mb_$discId.json")
+
+        if (cacheFile.exists()) {
+            cacheFile.delete()
+        }
+        cacheFile.mkdirs() // Create directory to force writeText to throw
+
+        val mockJson = """
+            {
+                "releases": [
+                    {
+                        "id": "release-id-123",
+                        "title": "Network Album",
+                        "artist-credit": [],
+                        "media": []
+                    }
+                ]
+            }
+        """.trimIndent()
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = mockJson,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+        assertNotNull(metadata)
+
+        cacheFile.delete() // clean up the directory
     }
 }
