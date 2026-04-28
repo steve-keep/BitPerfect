@@ -33,7 +33,8 @@ fun SettingsScreen(
     settingsManager: SettingsManager,
     driveOffsetRepository: DriveOffsetRepository,
     viewModel: AppViewModel,
-    onNavigateToAbout: () -> Unit = {}
+    onNavigateToAbout: () -> Unit = {},
+    onCalibrateOffsetClick: () -> Unit = {}
 ) {
     val driveStatus by viewModel.driveStatus.collectAsState()
     val driveInfo = driveStatus.info
@@ -169,6 +170,7 @@ fun SettingsScreen(
                 val driveStateIcon: androidx.compose.ui.graphics.vector.ImageVector?
                 val driveStateIconTint: Color
                 val driveStateTextColor: Color
+                var isWarningState = false
 
                 if (driveInfo != null) {
                     if (offsets == null) {
@@ -192,6 +194,7 @@ fun SettingsScreen(
                                 driveStateIcon = Icons.Default.Warning
                                 driveStateIconTint = Color.Black
                                 driveStateTextColor = Color.Black
+                                isWarningState = true
                             }
                         } else {
                             // No match found -> Red background
@@ -214,6 +217,13 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
+                        .let {
+                            if (isWarningState) {
+                                it.clickable { onCalibrateOffsetClick() }
+                            } else {
+                                it
+                            }
+                        }
                 ) {
                     Box(modifier = Modifier.padding(16.dp)) {
                         Row(
