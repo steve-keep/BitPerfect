@@ -8,7 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -88,7 +91,17 @@ fun NowPlayingBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(
+                            top = 8.dp,
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 8.dp
+                        )
+                        .padding(
+                            bottom = WindowInsets.navigationBars
+                                .asPaddingValues()
+                                .calculateBottomPadding()
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (currentAlbumArtUri != null) {
