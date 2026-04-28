@@ -11,6 +11,8 @@ import androidx.media3.session.MediaSession
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
 import com.google.common.collect.ImmutableList
+import android.content.ContentUris
+import android.provider.MediaStore
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import org.koin.android.ext.android.inject
@@ -127,6 +129,47 @@ class PlaybackService : MediaLibraryService() {
             return Futures.immediateFuture(
                 LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
             )
+        }
+
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>
+        ): ListenableFuture<List<MediaItem>> {
+            val outputFolderUri = settingsManager.outputFolderUri
+            val library = libraryRepository.getLibrary(outputFolderUri)
+            val resolvedItems = mutableListOf<MediaItem>()
+
+            for (mediaItem in mediaItems) {
+                val trackId = mediaItem.mediaId.toLongOrNull() ?: continue
+                var foundTrack: com.bitperfect.app.library.TrackInfo? = null
+
+                // Search for the track across all artists and albums
+                for (artist in library) {
+                    for (album in artist.albums) {
+                        val tracks = libraryRepository.getTracksForAlbum(album.id)
+                        foundTrack = tracks.find { it.id == trackId }
+                        if (foundTrack != null) break
+                    }
+                    if (foundTrack != null) break
+                }
+
+                if (foundTrack != null) {
+                    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
+                    val resolvedItem = MediaItem.Builder()
+                        .setMediaId(mediaItem.mediaId)
+                        .setUri(uri)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(foundTrack.title)
+                                .setTrackNumber(foundTrack.trackNumber)
+                                .build()
+                        )
+                        .build()
+                    resolvedItems.add(resolvedItem)
+                }
+            }
+            return Futures.immediateFuture(resolvedItems)
         }
     }
 
