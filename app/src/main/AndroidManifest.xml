@@ -9,7 +9,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <uses-feature android:name="android.hardware.usb.host" />
-    <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
 
     <application
         android:name=".BitPerfectApplication"
@@ -20,9 +19,6 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.BitPerfect.Starting">
-        <meta-data
-            android:name="com.google.android.gms.car.application"
-            android:resource="@xml/automotive_app_desc" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -43,9 +39,6 @@
             android:name=".player.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
-            <meta-data
-                android:name="androidx.car.app.CarAppService"
-                android:value="androidx.car.app.category.MEDIA" />
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="android.media.browse.MediaBrowserService" />

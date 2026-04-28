@@ -35,11 +35,6 @@ fun TrackListScreen(
     val albumId by viewModel.selectedAlbumId.collectAsState()
 
     val currentMediaId by viewModel.currentMediaId.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-
-    val currentTrackTitle = remember(tracks, currentMediaId) {
-        tracks.find { it.id.toString() == currentMediaId }?.title
-    }
 
     val albumInfo = remember(albumId, artists) {
         if (albumId == null) return@remember null
@@ -56,27 +51,14 @@ fun TrackListScreen(
         if (foundAlbum != null) Pair(foundAlbum, foundArtistName) else null
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets(0.dp),
-        bottomBar = {
-            NowPlayingBar(
-                isPlaying = isPlaying,
-                currentTrackTitle = currentTrackTitle,
-                onPlayPause = { viewModel.togglePlayPause() },
-                onSkipPrev = { viewModel.skipPrev() },
-                onSkipNext = { viewModel.skipNext() }
-            )
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            if (tracks.isEmpty()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (tracks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            } else {
+        } else {
             val groupedTracks = tracks.groupBy { it.discNumber }
             val isMultiDisc = groupedTracks.size > 1
 
@@ -152,7 +134,6 @@ fun TrackListScreen(
                     }
                 }
             }
-        }
         }
     }
 }
