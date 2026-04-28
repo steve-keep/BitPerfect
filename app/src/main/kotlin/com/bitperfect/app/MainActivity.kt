@@ -170,6 +170,7 @@ class MainActivity : ComponentActivity() {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 DeviceList(
                                     driveStatus = driveStatus,
+                                    viewModel = appViewModel,
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
                                 )
                                 LibrarySection(

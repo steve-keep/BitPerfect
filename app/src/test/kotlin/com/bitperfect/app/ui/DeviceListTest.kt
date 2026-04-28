@@ -38,7 +38,7 @@ class DeviceListTest(
                 arrayOf(
                     DriveStatus.DiscReady(dummyInfo),
                     "Disc Ready",
-                    "ASUS · BW-16D1HT · Reading disc…"
+                    "ASUS · BW-16D1HT"
                 ),
                 arrayOf(
                     DriveStatus.Error("Failed to open USB device"),
