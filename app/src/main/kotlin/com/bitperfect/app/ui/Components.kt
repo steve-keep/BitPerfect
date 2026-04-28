@@ -53,7 +53,8 @@ fun AlbumHeader(
     albumInfo: AlbumInfo?,
     artistName: String,
     trackCount: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onPlayClick: () -> Unit = {}
 ) {
     var backgroundColor by remember { mutableStateOf(Color(0xFF141414)) }
 
@@ -119,7 +120,7 @@ fun AlbumHeader(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Button(
-                    onClick = { /* Placeholder */ },
+                    onClick = onPlayClick,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary

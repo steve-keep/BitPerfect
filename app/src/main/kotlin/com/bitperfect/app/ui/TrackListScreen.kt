@@ -88,7 +88,8 @@ fun TrackListScreen(
                     AlbumHeader(
                         albumInfo = albumInfo?.first,
                         artistName = albumInfo?.second ?: "Unknown Artist",
-                        trackCount = tracks.size
+                        trackCount = tracks.size,
+                        onPlayClick = { viewModel.playAlbum(tracks) }
                     )
                 }
 
