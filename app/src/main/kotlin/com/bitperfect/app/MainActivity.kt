@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
                                         text = when (currentRoute) {
                                             AppRoutes.Settings -> "Settings"
                                             AppRoutes.About -> "About"
+                                            AppRoutes.Calibration -> "Calibrate Drive Offset"
                                             AppRoutes.TrackList -> selectedAlbumTitle ?: "Album"
                                             else -> "BitPerfect"
                                         },
@@ -189,6 +190,16 @@ class MainActivity : ComponentActivity() {
                                 viewModel = appViewModel,
                                 onNavigateToAbout = {
                                     navController.navigate(AppRoutes.About)
+                                },
+                                onCalibrateOffsetClick = {
+                                    navController.navigate(AppRoutes.Calibration)
+                                }
+                            )
+                        }
+                        composable(AppRoutes.Calibration) {
+                            com.bitperfect.app.ui.calibration.OffsetCalibrationScreen(
+                                onNavigateBack = {
+                                    navController.popBackStack()
                                 }
                             )
                         }
