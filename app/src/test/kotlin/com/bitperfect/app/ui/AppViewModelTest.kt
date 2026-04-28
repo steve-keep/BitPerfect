@@ -11,7 +11,6 @@ import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.DriveInfo
-import com.bitperfect.app.library.MusicBrainzRepositoryWrapper
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.google.common.util.concurrent.Futures
@@ -45,7 +44,7 @@ class AppViewModelTest {
 
     private lateinit var viewModel: AppViewModel
     private lateinit var mockRepository: PlayerRepository
-    private lateinit var mockMusicBrainzRepository: MusicBrainzRepositoryWrapper
+    private lateinit var mockLookupMusicBrainz: suspend (DiscToc) -> DiscMetadata?
     private lateinit var mockDriveStatusFlow: MutableStateFlow<DriveStatus>
     private var originalDriveStatusFlow: StateFlow<DriveStatus>? = null
 
@@ -60,7 +59,7 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentMediaId).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockRepository.positionMs).thenReturn(MutableStateFlow(0L))
 
-        mockMusicBrainzRepository = mock(MusicBrainzRepositoryWrapper::class.java)
+        mockLookupMusicBrainz = { null } // default stub
 
         mockDriveStatusFlow = MutableStateFlow(DriveStatus.NoDrive)
         val field = DeviceStateManager::class.java.getDeclaredField("driveStatus")
@@ -73,7 +72,8 @@ class AppViewModelTest {
         }
         field.set(DeviceStateManager, mockDriveStatusFlow)
 
-        viewModel = AppViewModel(application, mockRepository, mockMusicBrainzRepository)
+        // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
+        viewModel = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -99,7 +99,7 @@ class AppViewModelTest {
         val dummyToc = DiscToc(emptyList(), 10)
         val dummyMetadata = DiscMetadata("Album", "Artist", emptyList(), "mbid")
 
-        org.mockito.Mockito.`when`(mockMusicBrainzRepository.lookup(dummyToc)).thenReturn(dummyMetadata)
+        mockLookupMusicBrainz = { if (it == dummyToc) dummyMetadata else null }
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.discMetadata.collect {}
@@ -125,7 +125,7 @@ class AppViewModelTest {
         val dummyToc = DiscToc(emptyList(), 10)
         val dummyMetadata = DiscMetadata("Album", "Artist", emptyList(), "mbid")
 
-        org.mockito.Mockito.`when`(mockMusicBrainzRepository.lookup(dummyToc)).thenReturn(dummyMetadata)
+        mockLookupMusicBrainz = { if (it == dummyToc) dummyMetadata else null }
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.discMetadata.collect {}
@@ -177,7 +177,7 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentMediaId).thenReturn(mutableCurrentMediaId)
 
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val vm = AppViewModel(application, mockRepository, mockMusicBrainzRepository)
+        val vm = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
 
         // Start collecting the currentTrackTitle stateflow so that it activates and stays alive
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {

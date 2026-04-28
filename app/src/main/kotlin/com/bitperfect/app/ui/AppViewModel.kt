@@ -21,19 +21,19 @@ import kotlinx.coroutines.launch
 
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
-import com.bitperfect.app.library.MusicBrainzRepositoryWrapper
 import com.bitperfect.core.models.DiscMetadata
+import com.bitperfect.core.models.DiscToc
+import com.bitperfect.core.services.MusicBrainzRepository
 
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
-    private val musicBrainzRepository: MusicBrainzRepositoryWrapper = MusicBrainzRepositoryWrapper(application)
+    private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) }
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
         application,
-        PlayerRepository(application),
-        MusicBrainzRepositoryWrapper(application)
+        PlayerRepository(application)
     )
 
     private val settingsManager = SettingsManager(application)
@@ -114,7 +114,7 @@ open class AppViewModel(
             driveStatus.collect { status ->
                 if (status is DriveStatus.DiscReady && status.toc != null) {
                     viewModelScope.launch(Dispatchers.IO) {
-                        _discMetadata.value = musicBrainzRepository.lookup(status.toc)
+                        _discMetadata.value = lookupMusicBrainz(status.toc)
                     }
                 } else {
                     _discMetadata.value = null
