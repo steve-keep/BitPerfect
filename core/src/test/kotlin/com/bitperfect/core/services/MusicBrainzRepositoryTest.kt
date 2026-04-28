@@ -69,7 +69,7 @@ class MusicBrainzRepositoryTest {
             }
         """.trimIndent()
 
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             respond(
                 content = mockJson,
                 status = HttpStatusCode.OK,
@@ -95,7 +95,7 @@ class MusicBrainzRepositoryTest {
             }
         """.trimIndent()
 
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             respond(
                 content = mockJson,
                 status = HttpStatusCode.OK,
@@ -111,11 +111,74 @@ class MusicBrainzRepositoryTest {
 
     @Test
     fun `404 response returns null without throwing`() = runBlocking {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             respond(
                 content = "Not Found",
                 status = HttpStatusCode.NotFound
             )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(getSyntheticToc())
+
+        assertNull(metadata)
+    }
+
+    @Test
+    fun `lookup checks cache and parses successfully`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        val cacheFile = File(context.cacheDir, "mb_$discId.json")
+        val mockJson = """
+            {
+                "releases": [
+                    {
+                        "id": "release-id-cached",
+                        "title": "Cached Album",
+                        "artist-credit": [
+                            {
+                                "artist": {
+                                    "name": "Cached Artist"
+                                }
+                            }
+                        ],
+                        "media": [
+                            {
+                                "tracks": [
+                                    { "title": "Cached Track 1" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+        cacheFile.writeText(mockJson)
+
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = "{}", // Should not hit network
+                status = HttpStatusCode.NotFound
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+
+        assertNotNull(metadata)
+        assertEquals("Cached Album", metadata!!.albumTitle)
+        assertEquals("Cached Artist", metadata.artistName)
+        assertEquals("release-id-cached", metadata.mbReleaseId)
+        assertEquals(listOf("Cached Track 1"), metadata.trackTitles)
+
+        // Clean up
+        cacheFile.delete()
+    }
+
+    @Test
+    fun `lookup with network exception returns null`(): Unit = runBlocking {
+        val mockEngine = MockEngine { _ ->
+            throw RuntimeException("Network error")
         }
 
         val repository = MusicBrainzRepository(context, mockEngine)
