@@ -107,9 +107,14 @@ class AppViewModelTest {
 
         mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
         advanceUntilIdle()
-        // Run any delayed tasks that might be on other dispatchers
-        ShadowLooper.idleMainLooper()
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+        // Wait for Dispatchers.IO coroutine to update the value
+        val startTime = System.currentTimeMillis()
+        while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 5000) {
+            Thread.sleep(10)
+            ShadowLooper.idleMainLooper()
+            ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+        }
 
         assertEquals(dummyMetadata, viewModel.discMetadata.value)
         job.cancel()
@@ -128,8 +133,13 @@ class AppViewModelTest {
 
         mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
         advanceUntilIdle()
-        ShadowLooper.idleMainLooper()
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+        val startTime = System.currentTimeMillis()
+        while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 5000) {
+            Thread.sleep(10)
+            ShadowLooper.idleMainLooper()
+            ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+        }
         assertEquals(dummyMetadata, viewModel.discMetadata.value)
 
         mockDriveStatusFlow.value = DriveStatus.NoDrive
