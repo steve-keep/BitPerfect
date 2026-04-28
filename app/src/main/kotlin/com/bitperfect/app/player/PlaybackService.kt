@@ -8,13 +8,19 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import com.bitperfect.app.library.LibraryRepository
+import com.bitperfect.core.utils.SettingsManager
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import org.koin.android.ext.android.inject
 
 class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
+
+    private val libraryRepository: LibraryRepository by inject()
+    private val settingsManager: SettingsManager by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -62,8 +68,64 @@ class PlaybackService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            val outputFolderUri = settingsManager.outputFolderUri
+
+            val items = when {
+                parentId == "root" -> {
+                    val artists = libraryRepository.getLibrary(outputFolderUri)
+                    artists.map { artist ->
+                        MediaItem.Builder()
+                            .setMediaId("artist_${artist.id}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(artist.name)
+                                    .setIsBrowsable(true)
+                                    .setIsPlayable(false)
+                                    .build()
+                            )
+                            .build()
+                    }
+                }
+                parentId.startsWith("artist_") -> {
+                    val artistId = parentId.removePrefix("artist_").toLongOrNull()
+                    val artists = libraryRepository.getLibrary(outputFolderUri)
+                    val artist = artists.find { it.id == artistId }
+                    artist?.albums?.map { album ->
+                        MediaItem.Builder()
+                            .setMediaId("album_${album.id}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(album.title)
+                                    .setArtworkUri(album.artUri)
+                                    .setIsBrowsable(true)
+                                    .setIsPlayable(true)
+                                    .build()
+                            )
+                            .build()
+                    } ?: emptyList()
+                }
+                parentId.startsWith("album_") -> {
+                    val albumId = parentId.removePrefix("album_").toLongOrNull() ?: -1L
+                    val tracks = libraryRepository.getTracksForAlbum(albumId)
+                    tracks.map { track ->
+                        MediaItem.Builder()
+                            .setMediaId("${track.id}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(track.title)
+                                    .setTrackNumber(track.trackNumber)
+                                    .setIsBrowsable(false)
+                                    .setIsPlayable(true)
+                                    .build()
+                            )
+                            .build()
+                    }
+                }
+                else -> emptyList()
+            }
+
             return Futures.immediateFuture(
-                LibraryResult.ofItemList(ImmutableList.of(), params)
+                LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
             )
         }
     }
