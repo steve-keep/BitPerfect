@@ -48,8 +48,8 @@ class AppViewModelTest {
     @Test
     fun testCurrentTrackTitleResolution() = runTest {
         val tracks = listOf(
-            TrackInfo(1L, "First Song", 1, 1000L),
-            TrackInfo(2L, "Second Song", 2, 2000L)
+            TrackInfo(1L, "First Song", 1, 1000L, 1, 100L),
+            TrackInfo(2L, "Second Song", 2, 2000L, 1, 100L)
         )
 
         // Use a test-specific mock repository to allow mutating currentMediaId
@@ -63,12 +63,16 @@ class AppViewModelTest {
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.currentTrackTitle.collect {}
         }
+        val job2 = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.currentAlbumArtUri.collect {}
+        }
 
         vm.playAlbum(tracks)
         mutableCurrentMediaId.value = "1"
         advanceUntilIdle()
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
         assertEquals("First Song", vm.currentTrackTitle.value)
+        assertEquals("content://media/external/audio/albumart/100", vm.currentAlbumArtUri.value?.toString())
 
         mutableCurrentMediaId.value = "2"
         advanceUntilIdle()
@@ -81,6 +85,7 @@ class AppViewModelTest {
         assertEquals(null, vm.currentTrackTitle.value)
 
         job.cancel()
+        job2.cancel()
     }
 
     @Test
