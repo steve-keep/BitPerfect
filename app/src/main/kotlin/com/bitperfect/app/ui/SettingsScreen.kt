@@ -25,6 +25,7 @@ import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
 
+import android.content.Context
 import com.bitperfect.core.services.DriveOffsetRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +46,10 @@ fun SettingsScreen(
     val offsets by driveOffsetRepository.offsets.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val prefs = context.getSharedPreferences("crash_prefs", Context.MODE_PRIVATE)
+    var lastCrash by remember { mutableStateOf(prefs.getString("last_crash", null)) }
+
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -296,6 +301,45 @@ fun SettingsScreen(
                     )
                 }
 
+                if (lastCrash != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                sendCrashLog(context, lastCrash!!)
+                                prefs.edit().remove("last_crash").apply()
+                                lastCrash = null
+                            }
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Crash Log",
+                            tint = Color(0xFFF44336), // Red warning color
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Share Crash Log",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "A crash was detected previously",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Navigate",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -381,5 +425,15 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
     }
 
     val shareIntent = Intent.createChooser(sendIntent, null)
+    context.startActivity(shareIntent)
+}
+
+private fun sendCrashLog(context: android.content.Context, crashLog: String) {
+    val sendIntent = Intent().apply {
+        action = Intent.ACTION_SEND
+        putExtra(Intent.EXTRA_TEXT, "BitPerfect Crash Log:\n\n$crashLog")
+        type = "text/plain"
+    }
+    val shareIntent = Intent.createChooser(sendIntent, "Share Crash Log")
     context.startActivity(shareIntent)
 }

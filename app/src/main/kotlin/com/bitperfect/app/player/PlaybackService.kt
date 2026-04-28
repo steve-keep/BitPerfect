@@ -15,14 +15,13 @@ import android.content.ContentUris
 import android.provider.MediaStore
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import org.koin.android.ext.android.inject
 
 class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
 
-    private val libraryRepository: LibraryRepository by inject()
-    private val settingsManager: SettingsManager by inject()
+    private val libraryRepository: LibraryRepository by lazy { LibraryRepository(this) }
+    private val settingsManager: SettingsManager by lazy { SettingsManager(this) }
 
     override fun onCreate() {
         super.onCreate()
