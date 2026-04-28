@@ -77,7 +77,6 @@ class TrackListScreenTest {
         )
         composeTestRule.mainClock.advanceTimeBy(5000)
         composeTestRule.waitForIdle()
-        org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
 
         // Let's assert on something in AlbumHeader instead since that's what we modified
         composeTestRule.onNodeWithText("2 Tracks", substring = true).assertExists()
