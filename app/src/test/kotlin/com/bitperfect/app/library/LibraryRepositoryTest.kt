@@ -167,4 +167,117 @@ class LibraryRepositoryTest {
 
         assertEquals(0, tracks.size)
     }
+
+    @Test
+    fun `getTrack returns parsed track`() {
+        val trackId = 1L
+        val cursor = MatrixCursor(
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.TRACK,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ALBUM_ID
+            )
+        )
+
+        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, 123L))
+
+        `when`(
+            mockContentResolver.query(
+                eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI),
+                any(),
+                eq("${MediaStore.Audio.Media._ID} = ?"),
+                eq(arrayOf(trackId.toString())),
+                eq(null)
+            )
+        ).thenReturn(cursor)
+
+        val track = libraryRepository.getTrack(trackId)
+
+        assertEquals(1L, track?.id)
+        assertEquals("Track 1", track?.title)
+        assertEquals(1, track?.trackNumber)
+        assertEquals(1000L, track?.durationMs)
+        assertEquals(1, track?.discNumber)
+        assertEquals(123L, track?.albumId)
+    }
+
+    @Test
+    fun `getTrack parses combined disc and track numbers`() {
+        val trackId = 2L
+        val cursor = MatrixCursor(
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.TRACK,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ALBUM_ID
+            )
+        )
+
+        cursor.addRow(arrayOf(2L, "Track 2", 2002, 2000L, 123L))
+
+        `when`(
+            mockContentResolver.query(
+                eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI),
+                any(),
+                eq("${MediaStore.Audio.Media._ID} = ?"),
+                eq(arrayOf(trackId.toString())),
+                eq(null)
+            )
+        ).thenReturn(cursor)
+
+        val track = libraryRepository.getTrack(trackId)
+
+        assertEquals(2L, track?.id)
+        assertEquals("Track 2", track?.title)
+        assertEquals(2, track?.trackNumber)
+        assertEquals(2, track?.discNumber)
+        assertEquals(2000L, track?.durationMs)
+        assertEquals(123L, track?.albumId)
+    }
+
+    @Test
+    fun `getTrack returns null when cursor is null or empty`() {
+        val trackId = 3L
+
+        `when`(
+            mockContentResolver.query(
+                eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI),
+                any(),
+                eq("${MediaStore.Audio.Media._ID} = ?"),
+                eq(arrayOf(trackId.toString())),
+                eq(null)
+            )
+        ).thenReturn(null)
+
+        val track = libraryRepository.getTrack(trackId)
+
+        assertEquals(null, track)
+
+        val emptyCursor = MatrixCursor(
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.TRACK,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ALBUM_ID
+            )
+        )
+
+        `when`(
+            mockContentResolver.query(
+                eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI),
+                any(),
+                eq("${MediaStore.Audio.Media._ID} = ?"),
+                eq(arrayOf(trackId.toString())),
+                eq(null)
+            )
+        ).thenReturn(emptyCursor)
+
+        val trackFromEmpty = libraryRepository.getTrack(trackId)
+
+        assertEquals(null, trackFromEmpty)
+    }
 }
