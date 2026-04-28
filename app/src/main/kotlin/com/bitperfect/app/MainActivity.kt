@@ -81,9 +81,6 @@ class MainActivity : ComponentActivity() {
             val driveStatus by appViewModel.driveStatus.collectAsState()
             val selectedAlbumTitle by appViewModel.selectedAlbumTitle.collectAsState()
 
-            val isPlaying by appViewModel.isPlaying.collectAsState()
-            val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
-
             BitPerfectTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -145,15 +142,6 @@ class MainActivity : ComponentActivity() {
                                 titleContentColor = MaterialTheme.colorScheme.onSurface,
                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurface
                             )
-                        )
-                    },
-                    bottomBar = {
-                        NowPlayingBar(
-                            isPlaying = isPlaying,
-                            currentTrackTitle = currentTrackTitle,
-                            onPlayPause = { appViewModel.togglePlayPause() },
-                            onSkipPrev = { appViewModel.skipPrev() },
-                            onSkipNext = { appViewModel.skipNext() }
                         )
                     }
                 ) { innerPadding ->

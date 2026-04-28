@@ -53,8 +53,6 @@ class AppViewModel(
 
     val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
-    private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
-
     val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
     val positionMs: StateFlow<Long> = playerRepository.positionMs
@@ -63,9 +61,6 @@ class AppViewModel(
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
     val discMetadata: StateFlow<DiscMetadata?> = _discMetadata.asStateFlow()
-    val currentTrackTitle: StateFlow<String?> = combine(_playingTracks, currentMediaId) { playingTracks, mediaId ->
-        playingTracks.find { it.id.toString() == mediaId }?.title
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val filteredArtists: StateFlow<List<ArtistInfo>> = combine(artists, searchQuery) { artistsList, query ->
         if (query.isBlank()) {
@@ -142,12 +137,10 @@ class AppViewModel(
     }
 
     fun playAlbum(tracks: List<TrackInfo>) {
-        _playingTracks.value = tracks
         playerRepository.playAlbum(tracks)
     }
 
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
-        _playingTracks.value = tracks
         playerRepository.playTrack(tracks, index)
     }
 
