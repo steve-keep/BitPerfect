@@ -18,21 +18,6 @@ class NowPlayingBarTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    @Test
-    fun verifyNowPlayingBarHiddenWhenNoTitle() {
-        composeTestRule.setContent {
-            NowPlayingBar(
-                isPlaying = false,
-                currentTrackTitle = null,
-                currentAlbumArtUri = null,
-                onPlayPause = {},
-                onClick = {}
-            )
-        }
-
-        // The bar should not be visible when currentTrackTitle is null
-        composeTestRule.onNodeWithTag("now_playing_title").assertDoesNotExist()
-    }
 
     @Test
     fun verifyNowPlayingBarVisibleWithTitle() {

@@ -65,17 +65,11 @@ fun NowPlayingBar(
         }
     }
 
-    AnimatedVisibility(
-        visible = currentTrackTitle != null,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it }),
-        modifier = modifier
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = Color(0xFF191C20),
+        tonalElevation = 3.dp
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFF191C20),
-            tonalElevation = 3.dp
-        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,6 +161,5 @@ fun NowPlayingBar(
                     }
                 }
             }
-        }
     }
 }

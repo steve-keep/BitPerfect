@@ -12,12 +12,14 @@ import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -85,8 +87,67 @@ class MainActivity : ComponentActivity() {
             val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
 
+            val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
+                bottomSheetState = rememberStandardBottomSheetState(
+                    initialValue = SheetValue.Hidden,
+                    skipHiddenState = false
+                )
+            )
+
+            LaunchedEffect(currentTrackTitle) {
+                if (currentTrackTitle != null) {
+                    bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                } else {
+                    bottomSheetScaffoldState.bottomSheetState.hide()
+                }
+            }
+            val coroutineScope = rememberCoroutineScope()
+
             BitPerfectTheme {
-                Scaffold(
+                BottomSheetScaffold(
+                    scaffoldState = bottomSheetScaffoldState,
+                    sheetPeekHeight = 64.dp,
+                    sheetDragHandle = null,
+                    sheetContent = {
+                        val progress = if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
+                            0f
+                        } else {
+                            // Calculate fraction roughly based on Expanded state being 0 offset and PartiallyExpanded being closer to screen height.
+                            // However, Compose material 3 doesn't easily expose max offset natively without custom measuring. We'll use the target state.
+                            if (bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) 1f else 0f
+                        }
+
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer { alpha = 1f - progress }
+                            ) {
+                                NowPlayingBar(
+                                    isPlaying = isPlaying,
+                                    currentTrackTitle = currentTrackTitle,
+                                    currentAlbumArtUri = currentAlbumArtUri,
+                                    onPlayPause = { appViewModel.togglePlayPause() },
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.PartiallyExpanded) {
+                                                bottomSheetScaffoldState.bottomSheetState.expand()
+                                            } else {
+                                                bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer { alpha = progress }
+                            ) {
+                                NowPlayingScreen(viewModel = appViewModel)
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
                         TopAppBar(
@@ -111,7 +172,6 @@ class MainActivity : ComponentActivity() {
                                             AppRoutes.About -> "About"
                                             AppRoutes.Calibration -> "Calibrate Drive Offset"
                                             AppRoutes.TrackList -> selectedAlbumTitle ?: "Album"
-                                            AppRoutes.NowPlaying -> currentTrackTitle ?: "Now Playing"
                                             else -> "BitPerfect"
                                         },
                                         modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" }
@@ -149,21 +209,18 @@ class MainActivity : ComponentActivity() {
                                 navigationIconContentColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
-                    },
-                    bottomBar = {
-                        NowPlayingBar(
-                            isPlaying = isPlaying,
-                            currentTrackTitle = currentTrackTitle,
-                            currentAlbumArtUri = currentAlbumArtUri,
-                            onPlayPause = { appViewModel.togglePlayPause() },
-                            onClick = { navController.navigate(AppRoutes.NowPlaying) }
-                        )
                     }
                 ) { innerPadding ->
+                    val bottomPadding = if (currentTrackTitle != null) 64.dp else 0.dp
                     NavHost(
                         navController = navController,
                         startDestination = AppRoutes.DeviceList,
-                        modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                        modifier = Modifier.padding(
+                            top = innerPadding.calculateTopPadding(),
+                            start = innerPadding.calculateStartPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
+                            end = innerPadding.calculateEndPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
+                            bottom = innerPadding.calculateBottomPadding() + bottomPadding
+                        ).fillMaxSize(),
                         enterTransition = { slideInHorizontally { width -> width } + fadeIn() },
                         exitTransition = { slideOutHorizontally { width -> -width } + fadeOut() },
                         popEnterTransition = { slideInHorizontally { width -> -width } + fadeIn() },
@@ -214,11 +271,6 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(AppRoutes.TrackList) {
                             TrackListScreen(
-                                viewModel = appViewModel
-                            )
-                        }
-                        composable(AppRoutes.NowPlaying) {
-                            NowPlayingScreen(
                                 viewModel = appViewModel
                             )
                         }

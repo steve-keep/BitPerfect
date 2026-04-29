@@ -6,5 +6,4 @@ object AppRoutes {
     const val Settings = "settings"
     const val About = "about"
     const val Calibration = "calibration"
-    const val NowPlaying = "now_playing"
 }
