@@ -5,9 +5,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.DriveStatus
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito
 import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -38,7 +40,7 @@ class DeviceListTest(
                 arrayOf(
                     DriveStatus.DiscReady(dummyInfo),
                     "Disc Ready",
-                    "ASUS · BW-16D1HT · Reading disc…"
+                    "ASUS · BW-16D1HT"
                 ),
                 arrayOf(
                     DriveStatus.Error("Failed to open USB device"),
@@ -51,8 +53,11 @@ class DeviceListTest(
 
     @Test
     fun verifyDriveStatusCardContent() {
+        val mockViewModel = Mockito.mock(AppViewModel::class.java)
+        Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
+
         composeTestRule.setContent {
-            DeviceList(driveStatus = driveStatus)
+            DeviceList(driveStatus = driveStatus, viewModel = mockViewModel)
         }
 
         composeTestRule.onNodeWithText(expectedHeadline).assertIsDisplayed()

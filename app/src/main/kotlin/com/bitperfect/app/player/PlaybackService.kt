@@ -143,7 +143,7 @@ class PlaybackService : MediaLibraryService() {
 
                 if (foundTrack != null) {
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
-                    val albumArtUri = ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId)
+                    val albumArtUri = if (foundTrack.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId) else null
                     val resolvedItem = MediaItem.Builder()
                         .setMediaId(mediaItem.mediaId)
                         .setUri(uri)

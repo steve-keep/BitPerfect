@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.bitperfect.app.library.TrackInfo
+import android.net.Uri
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,12 @@ open class PlayerRepository(
     private val _currentMediaId = MutableStateFlow<String?>(null)
     open val currentMediaId: StateFlow<String?> = _currentMediaId.asStateFlow()
 
+    private val _currentTrackTitle = MutableStateFlow<String?>(null)
+    open val currentTrackTitle: StateFlow<String?> = _currentTrackTitle.asStateFlow()
+
+    private val _currentAlbumArtUri = MutableStateFlow<Uri?>(null)
+    open val currentAlbumArtUri: StateFlow<Uri?> = _currentAlbumArtUri.asStateFlow()
+
     private val _positionMs = MutableStateFlow(0L)
     open val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
@@ -49,6 +56,8 @@ open class PlayerRepository(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             _currentMediaId.value = controller?.currentMediaItem?.mediaId
+            _currentTrackTitle.value = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
+            _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
         }
 
         override fun onPositionDiscontinuity(
@@ -75,6 +84,8 @@ open class PlayerRepository(
                     // Initialize state
                     _isPlaying.value = isPlaying
                     _currentMediaId.value = currentMediaItem?.mediaId
+                    _currentTrackTitle.value = currentMediaItem?.mediaMetadata?.title?.toString()
+                    _currentAlbumArtUri.value = currentMediaItem?.mediaMetadata?.artworkUri
                     _positionMs.value = currentPosition
                 }
             }
@@ -98,6 +109,7 @@ open class PlayerRepository(
     open fun playTrack(tracks: List<TrackInfo>, index: Int) {
         val mediaItems = tracks.map { track ->
             val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
+            val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
             MediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(track.id.toString())
@@ -105,6 +117,7 @@ open class PlayerRepository(
                     MediaMetadata.Builder()
                         .setTitle(track.title)
                         .setTrackNumber(track.trackNumber)
+                        .setArtworkUri(albumArtUri)
                         .build()
                 )
                 .build()

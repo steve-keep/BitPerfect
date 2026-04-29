@@ -151,7 +151,9 @@ fun AlbumHeader(
 }
 
 @Composable
-fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus) {
+fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus, viewModel: AppViewModel) {
+    val discMetadata by viewModel.discMetadata.collectAsState()
+
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (driveStatus) {
             is DriveStatus.NoDrive -> DriveStatusCard(
@@ -182,10 +184,16 @@ fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus) {
             )
             is DriveStatus.DiscReady -> {
                 val trackLabel = driveStatus.toc?.let { "${it.trackCount} tracks" } ?: "Reading disc…"
+                val subtitle = when {
+                    discMetadata != null ->
+                        "${discMetadata!!.artistName} · ${discMetadata!!.albumTitle} · $trackLabel"
+                    driveStatus.toc != null -> "Looking up metadata… · $trackLabel"
+                    else -> "${driveStatus.info.vendorId} · ${driveStatus.info.productId}"
+                }
                 DriveStatusCard(
                     icon = Icons.Outlined.CheckCircle,
                     headline = "Disc Ready",
-                    subtitle = "${driveStatus.info.vendorId} · ${driveStatus.info.productId} · $trackLabel"
+                    subtitle = subtitle
                 )
             }
             is DriveStatus.Error -> DriveStatusCard(

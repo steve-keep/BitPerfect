@@ -6,6 +6,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import com.bitperfect.app.usb.DriveStatus
@@ -20,8 +22,11 @@ class ComponentsTest {
 
     @Test
     fun verifyConnectingState() {
+        val mockViewModel = Mockito.mock(AppViewModel::class.java)
+        Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
+
         composeTestRule.setContent {
-            DeviceList(driveStatus = DriveStatus.Connecting(null))
+            DeviceList(driveStatus = DriveStatus.Connecting(null), viewModel = mockViewModel)
         }
 
         composeTestRule.onNodeWithText("Connecting…").assertIsDisplayed()
@@ -29,9 +34,12 @@ class ComponentsTest {
 
     @Test
     fun verifyEmptyState() {
+        val mockViewModel = Mockito.mock(AppViewModel::class.java)
+        Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
+
         val driveInfo = DriveInfo("ASUS", "BW-16D1HT", true, 0, 0, "")
         composeTestRule.setContent {
-            DeviceList(driveStatus = DriveStatus.Empty(driveInfo))
+            DeviceList(driveStatus = DriveStatus.Empty(driveInfo), viewModel = mockViewModel)
         }
 
         composeTestRule.onNodeWithText("No Disc Inserted").assertIsDisplayed()
@@ -39,9 +47,12 @@ class ComponentsTest {
 
     @Test
     fun verifyDiscReadyState() {
+        val mockViewModel = Mockito.mock(AppViewModel::class.java)
+        Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
+
         val driveInfo = DriveInfo("ASUS", "BW-16D1HT", true, 0, 0, "")
         composeTestRule.setContent {
-            DeviceList(driveStatus = DriveStatus.DiscReady(driveInfo))
+            DeviceList(driveStatus = DriveStatus.DiscReady(driveInfo), viewModel = mockViewModel)
         }
 
         composeTestRule.onNodeWithText("Disc Ready").assertIsDisplayed()
