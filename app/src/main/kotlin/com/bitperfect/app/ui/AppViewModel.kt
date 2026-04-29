@@ -26,10 +26,12 @@ import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
 import com.bitperfect.core.services.CoverArtRepository
+import com.bitperfect.core.services.AccurateRipService
 
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
+    private val checkIsKeyDisc: suspend (DiscToc) -> Boolean = { AccurateRipService().checkIsKeyDisc(it) },
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) }
 ) : AndroidViewModel(application) {
 
@@ -69,6 +71,9 @@ open class AppViewModel(
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
     open val discMetadata: StateFlow<DiscMetadata?> = _discMetadata.asStateFlow()
+
+    private val _isKeyDisc = MutableStateFlow(false)
+    open val isKeyDisc: StateFlow<Boolean> = _isKeyDisc.asStateFlow()
 
     val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
@@ -129,8 +134,12 @@ open class AppViewModel(
                     viewModelScope.launch(Dispatchers.IO) {
                         _discMetadata.value = lookupMusicBrainz(status.toc)
                     }
+                    viewModelScope.launch(Dispatchers.IO) {
+                        _isKeyDisc.value = checkIsKeyDisc(status.toc!!)
+                    }
                 } else {
                     _discMetadata.value = null
+                    _isKeyDisc.value = false
                 }
             }
         }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -156,7 +157,8 @@ fun AlbumHeader(
 private fun DiscReadyCard(
     toc: DiscToc?,
     discMetadata: DiscMetadata?,
-    coverArtUrl: String?
+    coverArtUrl: String?,
+    isKeyDisc: Boolean
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
@@ -168,20 +170,35 @@ private fun DiscReadyCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(coverArtUrl)
-                    .allowHardware(false)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = discMetadata?.albumTitle ?: "Album Art",
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop,
-                placeholder = painterResource(id = R.drawable.app_logo),
-                error = painterResource(id = R.drawable.app_logo)
-            )
+            Box {
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                        .data(coverArtUrl)
+                        .allowHardware(false)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = discMetadata?.albumTitle ?: "Album Art",
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(id = R.drawable.app_logo),
+                    error = painterResource(id = R.drawable.app_logo)
+                )
+                if (isKeyDisc) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = "AccurateRip Key Disc",
+                        tint = Color(0xFF4CAF50), // Green checkmark
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(20.dp)
+                            .offset(x = 6.dp, y = 6.dp)
+                            .background(Color(0xFF141414), androidx.compose.foundation.shape.CircleShape)
+                            .padding(2.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
                 Text(
@@ -211,6 +228,7 @@ private fun DiscReadyCard(
 fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus, viewModel: AppViewModel) {
     val discMetadata by viewModel.discMetadata.collectAsState()
     val coverArtUrl by viewModel.coverArtUrl.collectAsState()
+    val isKeyDisc by viewModel.isKeyDisc.collectAsState()
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (driveStatus) {
@@ -244,7 +262,8 @@ fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus, viewMode
                 DiscReadyCard(
                     toc = driveStatus.toc,
                     discMetadata = discMetadata,
-                    coverArtUrl = coverArtUrl
+                    coverArtUrl = coverArtUrl,
+                    isKeyDisc = isKeyDisc
                 )
             }
             is DriveStatus.Error -> DriveStatusCard(

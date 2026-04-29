@@ -55,6 +55,7 @@ class DeviceListTest(
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+        Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
         composeTestRule.setContent {
             DeviceList(driveStatus = driveStatus, viewModel = mockViewModel)
@@ -72,6 +73,7 @@ class DeviceListTest(
 
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(testMetadata))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow("http://example.com/art.jpg"))
+        Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(true))
 
         val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
         val dummyToc = DiscToc((1..10).map { com.bitperfect.core.models.TocEntry(it, 150 * it) }, 2000)
@@ -93,6 +95,7 @@ class DeviceListTest(
 
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+        Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
         val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
         val dummyToc = DiscToc((1..10).map { com.bitperfect.core.models.TocEntry(it, 150 * it) }, 2000)

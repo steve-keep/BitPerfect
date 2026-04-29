@@ -75,7 +75,7 @@ class AppViewModelTest {
         field.set(DeviceStateManager, mockDriveStatusFlow)
 
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
-        viewModel = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
+        viewModel = AppViewModel(application, mockRepository, { false }, { mockLookupMusicBrainz(it) })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -193,7 +193,7 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentAlbumArtUri).thenReturn(mutableCurrentAlbumArtUri)
 
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val vm = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
+        val vm = AppViewModel(application, mockRepository, { false }, { mockLookupMusicBrainz(it) })
 
         // Start collecting the currentTrackTitle stateflow so that it activates and stays alive
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
