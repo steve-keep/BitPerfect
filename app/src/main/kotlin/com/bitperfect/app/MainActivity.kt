@@ -10,6 +10,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
@@ -96,9 +99,16 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(currentTrackTitle) {
                 if (currentTrackTitle != null) {
-                    bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                    // Only partial expand if we were completely hidden, to avoid collapsing the full screen player when track changes
+                    if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
+                        bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                    }
                 } else {
-                    bottomSheetScaffoldState.bottomSheetState.hide()
+                    // Slight delay to prevent flickering closed during track transitions
+                    kotlinx.coroutines.delay(300)
+                    if (appViewModel.currentTrackTitle.value == null) {
+                        bottomSheetScaffoldState.bottomSheetState.hide()
+                    }
                 }
             }
             val coroutineScope = rememberCoroutineScope()
@@ -106,14 +116,24 @@ class MainActivity : ComponentActivity() {
             BitPerfectTheme {
                 BottomSheetScaffold(
                     scaffoldState = bottomSheetScaffoldState,
-                    sheetPeekHeight = 64.dp,
+                    sheetPeekHeight = 64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                     sheetDragHandle = null,
                     sheetContent = {
-                        val progress = if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
-                            0f
-                        } else {
-                            // Calculate fraction roughly based on Expanded state being 0 offset and PartiallyExpanded being closer to screen height.
-                            // However, Compose material 3 doesn't easily expose max offset natively without custom measuring. We'll use the target state.
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+                        val screenHeightPx = with(density) { screenHeight.toPx() }
+                        val peekHeightPx = with(density) { (64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).toPx() }
+
+                        val progress = try {
+                            val offset = bottomSheetScaffoldState.bottomSheetState.requireOffset()
+                            // offset is y coordinate. When expanded, offset is 0.
+                            // When partial, offset is screenHeightPx - peekHeightPx.
+                            val maxOffset = screenHeightPx - peekHeightPx
+                            if (maxOffset <= 0) 0f else {
+                                val fraction = 1f - (offset / maxOffset)
+                                fraction.coerceIn(0f, 1f)
+                            }
+                        } catch (e: IllegalStateException) {
                             if (bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) 1f else 0f
                         }
 

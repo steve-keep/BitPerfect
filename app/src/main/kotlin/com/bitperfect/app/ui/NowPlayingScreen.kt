@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Pause
@@ -30,10 +32,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.core.graphics.drawable.toBitmap
+import androidx.palette.graphics.Palette
+import coil.compose.AsyncImagePainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +64,12 @@ fun NowPlayingScreen(viewModel: AppViewModel) {
     val currentAlbumState = viewModel.currentAlbum.collectAsState()
     val currentAlbum = currentAlbumState.value
 
+    var dominantColor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Color.Transparent) }
+
+    LaunchedEffect(currentTrack?.albumId) {
+        dominantColor = Color.Transparent
+    }
+
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             viewModel.pollPosition()
@@ -63,6 +77,20 @@ fun NowPlayingScreen(viewModel: AppViewModel) {
         }
     }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        dominantColor.copy(alpha = 0.4f),
+                        Color.Transparent
+                    ),
+                    center = Offset(0f, 0f),
+                    radius = 2000f
+                )
+            )
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -76,6 +104,7 @@ fun NowPlayingScreen(viewModel: AppViewModel) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(albumArtUri)
+                    .allowHardware(false) // Required for Palette
                     .crossfade(true)
                     .build(),
                 contentDescription = "Album Art",
@@ -83,7 +112,19 @@ fun NowPlayingScreen(viewModel: AppViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp)),
+                onState = { state ->
+                    if (state is AsyncImagePainter.State.Success) {
+                        val bitmap = state.result.drawable.toBitmap()
+                        Palette.from(bitmap).generate { palette ->
+                            palette?.dominantSwatch?.rgb?.let { colorInt ->
+                                dominantColor = Color(colorInt)
+                            } ?: run {
+                                dominantColor = Color.Transparent
+                            }
+                        }
+                    }
+                }
             )
         } else {
             Box(
@@ -171,15 +212,20 @@ fun NowPlayingScreen(viewModel: AppViewModel) {
                 )
             }
 
-            IconButton(
+            Surface(
                 onClick = { viewModel.togglePlayPause() },
-                modifier = Modifier.size(56.dp)
+                modifier = Modifier.size(72.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    modifier = Modifier.size(48.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
             }
 
             IconButton(
@@ -193,6 +239,7 @@ fun NowPlayingScreen(viewModel: AppViewModel) {
                 )
             }
         }
+    }
     }
 }
 
