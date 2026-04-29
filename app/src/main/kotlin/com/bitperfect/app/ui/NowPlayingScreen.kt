@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
@@ -82,7 +85,12 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF121212)) // Dark background like the screenshot
-            .padding(24.dp),
+            .padding(
+                top = 24.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                bottom = 24.dp,
+                start = 24.dp,
+                end = 24.dp
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
@@ -114,19 +122,20 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
+                .aspectRatio(1f),
+            contentAlignment = Alignment.Center
         ) {
-            // Background Radial Gradient behind Album Cover
+            // Glowing Background Radial Gradient behind Album Cover
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxSize(1.5f) // Extend beyond the album box to create a glowing effect
                     .background(
                         brush = Brush.radialGradient(
                             colors = listOf(
                                 dominantColor.copy(alpha = 0.5f),
                                 Color.Transparent
                             ),
-                            radius = 1200f
+                            radius = 600f
                         )
                     )
             )
