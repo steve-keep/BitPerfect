@@ -31,7 +31,6 @@ class DeviceListTest(
         fun data(): Collection<Array<Any>> {
             val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
             return listOf(
-                arrayOf(DriveStatus.NoDrive, "No Drive Connected", "Connect a USB CD drive via OTG"),
                 arrayOf(DriveStatus.Connecting(), "Connecting…", "Detecting drive capabilities"),
                 arrayOf(DriveStatus.PermissionDenied, "Access Denied", "Re-connect and allow access when prompted"),
                 arrayOf(DriveStatus.NotOptical, "Unsupported Device", "Connected device is not a CD drive"),
@@ -48,6 +47,21 @@ class DeviceListTest(
                 )
             )
         }
+    }
+
+    @Test
+    fun verifyNoDriveState_isHidden() {
+        if (driveStatus != DriveStatus.Connecting()) return // Only run once, avoid spamming the same test across parameterized runs
+        val mockViewModel = Mockito.mock(AppViewModel::class.java)
+        Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
+        Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+
+        composeTestRule.setContent {
+            DeviceList(driveStatus = DriveStatus.NoDrive, viewModel = mockViewModel)
+        }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("No Drive Connected").assertDoesNotExist()
     }
 
     @Test
