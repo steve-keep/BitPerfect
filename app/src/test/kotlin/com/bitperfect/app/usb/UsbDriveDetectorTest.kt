@@ -23,55 +23,99 @@ class UsbDriveDetectorTest {
         private val inquiryResponse: ByteArray,
         private val turCswStatus: Byte = 0,
         private val tocResponse: ByteArray? = null,
-        private val tocCswStatus: Byte = 0
+        private val tocCswStatus: Byte = 0,
+        private val turRetriesRequired: Int = 0,
+        private val failTurTransferOnAttempt: Int? = null
     ) : UsbTransport {
         var transferCount = 0
+        var currentTurAttempt = 1
+        var state = "INQUIRY_CBW"
+
         override fun bulkTransfer(endpoint: UsbEndpoint, buffer: ByteArray, length: Int, timeout: Int): Int {
             transferCount++
-            return when (transferCount) {
-                // INQUIRY sequence
-                1 -> 31 // CBW for INQUIRY
-                2 -> {
+            when (state) {
+                "INQUIRY_CBW" -> {
+                    state = "INQUIRY_DATA"
+                    return 31
+                }
+                "INQUIRY_DATA" -> {
                     System.arraycopy(inquiryResponse, 0, buffer, 0, inquiryResponse.size.coerceAtMost(length))
-                    inquiryResponse.size // Inquiry data
+                    state = "INQUIRY_CSW"
+                    return inquiryResponse.size
                 }
-                3 -> { // CSW for INQUIRY
+                "INQUIRY_CSW" -> {
                     val csw = ByteArray(13)
                     val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                    b.putInt(0x53425355) // CSW Signature
-                    // bCSWStatus at 12 is 0 (Success)
+                    b.putInt(0x53425355)
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
-                    13
+                    state = "TUR_CBW"
+                    return 13
                 }
-                // TEST UNIT READY sequence
-                4 -> 31 // CBW for TUR
-                5 -> { // CSW for TUR (No data phase for TUR)
+                "TUR_CBW" -> {
+                    if (failTurTransferOnAttempt == currentTurAttempt) return -1
+                    state = "TUR_CSW"
+                    return 31
+                }
+                "TUR_CSW" -> {
+                    if (failTurTransferOnAttempt == currentTurAttempt) return -1
                     val csw = ByteArray(13)
                     val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                    b.putInt(0x53425355) // CSW Signature
-                    csw[12] = turCswStatus
+                    b.putInt(0x53425355)
+
+                    if (currentTurAttempt <= turRetriesRequired) {
+                        csw[12] = 1 // Fail
+                        state = "REQ_SENSE_CBW"
+                    } else {
+                        csw[12] = turCswStatus
+                        if (turCswStatus == 0.toByte()) {
+                            state = "TOC_CBW"
+                        } else {
+                            state = "DONE" // Exhausted or final failure
+                        }
+                    }
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
-                    13
+                    return 13
                 }
-                // READ TOC sequence
-                6 -> 31 // CBW for READ TOC
-                7 -> { // Data phase for READ TOC
+                "REQ_SENSE_CBW" -> {
+                    state = "REQ_SENSE_DATA"
+                    return 31
+                }
+                "REQ_SENSE_DATA" -> {
+                    java.util.Arrays.fill(buffer, 0, 18, 0.toByte())
+                    state = "REQ_SENSE_CSW"
+                    return 18
+                }
+                "REQ_SENSE_CSW" -> {
+                    val csw = ByteArray(13)
+                    val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    b.putInt(0x53425355)
+                    System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
+                    currentTurAttempt++
+                    state = "TUR_CBW"
+                    return 13
+                }
+                "TOC_CBW" -> {
+                    state = "TOC_DATA"
+                    return 31
+                }
+                "TOC_DATA" -> {
+                    state = "TOC_CSW"
                     if (tocResponse != null) {
                         System.arraycopy(tocResponse, 0, buffer, 0, tocResponse.size.coerceAtMost(length))
-                        tocResponse.size
-                    } else {
-                        0
+                        return tocResponse.size
                     }
+                    return 0
                 }
-                8 -> { // CSW for READ TOC
+                "TOC_CSW" -> {
                     val csw = ByteArray(13)
                     val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                    b.putInt(0x53425355) // CSW Signature
+                    b.putInt(0x53425355)
                     csw[12] = tocCswStatus
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
-                    13
+                    state = "DONE"
+                    return 13
                 }
-                else -> -1
+                else -> return -1
             }
         }
     }
@@ -347,7 +391,7 @@ class UsbDriveDetectorTest {
     fun testReadTocCommandParsesCorrectly() {
         val fakeTransport = FakeUsbTransport(inquiryResponse = ByteArray(36), turCswStatus = 0, tocResponse = createSyntheticTocResponse(), tocCswStatus = 0)
         // Advance transfer count to bypass INQUIRY and TUR
-        fakeTransport.transferCount = 5
+        fakeTransport.state = "TOC_CBW"
 
         val outEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
         val inEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
@@ -366,7 +410,7 @@ class UsbDriveDetectorTest {
     @Test
     fun testReadTocCommandReturnsNullOnCswFailure() {
         val fakeTransport = FakeUsbTransport(inquiryResponse = ByteArray(36), turCswStatus = 0, tocResponse = createSyntheticTocResponse(), tocCswStatus = 1)
-        fakeTransport.transferCount = 5
+        fakeTransport.state = "TOC_CBW"
 
         val outEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
         val inEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
@@ -515,4 +559,167 @@ class UsbDriveDetectorTest {
 
         assertTrue("Expected isMassStorageDevice to return true for Class 8, Subclass 2", result)
     }
+
+    @Test
+    fun testExecuteTestUnitReadyRetriesAndSucceeds() {
+        val inquiryData = ByteArray(36)
+        inquiryData[0] = 0x05 // Optical
+
+        // This will fail the first TUR, run REQUEST SENSE, then succeed on the second TUR.
+        val fakeTransport = FakeUsbTransport(inquiryData, turCswStatus = 0, turRetriesRequired = 1, tocResponse = createSyntheticTocResponse())
+
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
+
+        val device = mock(android.hardware.usb.UsbDevice::class.java)
+        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
+        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
+        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
+        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
+
+        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
+        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
+        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
+        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
+        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
+
+        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
+        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
+
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
+
+        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
+        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
+
+        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
+
+        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
+        managerField.isAccessible = true
+        managerField.set(detector, mockUsbManager)
+
+        val interrogateMethod = UsbDriveDetector::class.java.getDeclaredMethod("interrogateDevice", android.hardware.usb.UsbDevice::class.java)
+        interrogateMethod.isAccessible = true
+        interrogateMethod.invoke(detector, device)
+
+        Thread.sleep(2000)
+
+        val state = detector.driveStatus.value
+        assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
+    }
+
+    @Test
+    fun testExecuteTestUnitReadyFailsFastOnTransferError() {
+        val inquiryData = ByteArray(36)
+        inquiryData[0] = 0x05 // Optical
+
+        // This will fail the CBW transfer for TUR on the first attempt
+        val fakeTransport = FakeUsbTransport(inquiryData, turCswStatus = 0, failTurTransferOnAttempt = 1)
+
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
+
+        val device = mock(android.hardware.usb.UsbDevice::class.java)
+        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
+        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
+        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
+        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
+
+        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
+        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
+        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
+        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
+        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
+
+        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
+        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
+
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
+
+        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
+        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
+
+        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
+
+        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
+        managerField.isAccessible = true
+        managerField.set(detector, mockUsbManager)
+
+        val interrogateMethod = UsbDriveDetector::class.java.getDeclaredMethod("interrogateDevice", android.hardware.usb.UsbDevice::class.java)
+        interrogateMethod.isAccessible = true
+        interrogateMethod.invoke(detector, device)
+
+        Thread.sleep(100)
+
+        val state = detector.driveStatus.value
+        assertTrue("Expected DriveStatus.Empty due to failed fast but was $state", state is DriveStatus.Empty)
+    }
+
+    @Test
+    fun testExecuteTestUnitReadyExhaustsRetries() {
+        val inquiryData = ByteArray(36)
+        inquiryData[0] = 0x05 // Optical
+
+        // This will always fail the TUR CSW with status 1
+        val fakeTransport = FakeUsbTransport(inquiryData, turCswStatus = 1, turRetriesRequired = 10)
+
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
+
+        val device = mock(android.hardware.usb.UsbDevice::class.java)
+        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
+        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
+        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
+        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
+
+        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
+        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
+        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
+        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
+        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
+
+        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
+        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
+
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
+
+        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
+        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
+
+        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
+
+        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
+        managerField.isAccessible = true
+        managerField.set(detector, mockUsbManager)
+
+        val interrogateMethod = UsbDriveDetector::class.java.getDeclaredMethod("interrogateDevice", android.hardware.usb.UsbDevice::class.java)
+        interrogateMethod.isAccessible = true
+        interrogateMethod.invoke(detector, device)
+
+        Thread.sleep(11000) // 10 seconds of retries!
+
+        val state = detector.driveStatus.value
+        assertTrue("Expected DriveStatus.Empty because retries exhausted, but was $state", state is DriveStatus.Empty)
+    }
+
 }
