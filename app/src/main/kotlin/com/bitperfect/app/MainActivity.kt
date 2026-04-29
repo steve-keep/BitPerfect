@@ -245,7 +245,7 @@ class MainActivity : ComponentActivity() {
                             top = innerPadding.calculateTopPadding(),
                             start = innerPadding.calculateStartPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
                             end = innerPadding.calculateEndPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
-                            bottom = innerPadding.calculateBottomPadding() + bottomPadding
+                            bottom = bottomPadding + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                         ).fillMaxSize(),
                         enterTransition = { slideInHorizontally { width -> width } + fadeIn() },
                         exitTransition = { slideOutHorizontally { width -> -width } + fadeOut() },
