@@ -226,55 +226,96 @@ class UsbDriveDetector(
     }
 
     private fun executeTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): Boolean {
-        // CBW: 31 bytes
+        for (attempt in 1..10) {
+            // CBW: 31 bytes
+            val cbw = ByteArray(31)
+            val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            buffer.putInt(0x43425355) // dCBWSignature
+            buffer.putInt(attempt * 2) // dCBWTag (can be anything unique)
+            buffer.putInt(0)          // dCBWDataTransferLength (TUR has no data phase)
+            buffer.put(0x00.toByte()) // bmCBWFlags: 0x00 for OUT / no data
+            buffer.put(0)             // bCBWLUN
+            buffer.put(6)             // bCBWCBLength
+
+            // SCSI TEST UNIT READY Command Block (6 bytes)
+            buffer.put(0x00)          // Opcode: TEST UNIT READY
+            buffer.put(0)
+            buffer.put(0)
+            buffer.put(0)
+            buffer.put(0)
+            buffer.put(0)
+
+            // Send CBW
+            var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
+            if (transferred < 0) {
+                AppLogger.e(TAG, "TUR: Failed to send CBW on attempt $attempt")
+                return false
+            }
+
+            // No Data phase for TUR
+
+            // Read CSW (Command Status Wrapper)
+            val csw = ByteArray(13)
+            transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
+            if (transferred < 0) {
+                AppLogger.e(TAG, "TUR: Failed to read CSW on attempt $attempt")
+                return false
+            }
+
+            // Validate CSW
+            val cswBuffer = ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            val cswSignature = cswBuffer.getInt(0)
+            if (cswSignature != 0x53425355) {
+                AppLogger.e(TAG, "TUR: Invalid CSW signature on attempt $attempt")
+                return false
+            }
+            val status = csw[12]
+            if (status != 0.toByte()) {
+                AppLogger.d(TAG, "TUR: Drive not ready (status=$status) on attempt $attempt")
+                executeRequestSense(transport, outEndpoint, inEndpoint, attempt * 2 + 1)
+                if (attempt < 10) {
+                    Thread.sleep(1000)
+                }
+                continue
+            }
+
+            return true
+        }
+
+        AppLogger.w(TAG, "TUR: Exhausted all attempts, drive not ready")
+        return false
+    }
+
+    private fun executeRequestSense(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int) {
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         buffer.putInt(0x43425355) // dCBWSignature
-        buffer.putInt(2)          // dCBWTag (can be anything unique)
-        buffer.putInt(0)          // dCBWDataTransferLength (TUR has no data phase)
-        buffer.put(0x00.toByte()) // bmCBWFlags: 0x00 for OUT / no data
+        buffer.putInt(tag)        // dCBWTag
+        buffer.putInt(18)         // dCBWDataTransferLength (18 bytes for Request Sense)
+        buffer.put(0x80.toByte()) // bmCBWFlags: 0x80 for IN
         buffer.put(0)             // bCBWLUN
         buffer.put(6)             // bCBWCBLength
 
-        // SCSI TEST UNIT READY Command Block (6 bytes)
-        buffer.put(0x00)          // Opcode: TEST UNIT READY
+        // SCSI REQUEST SENSE Command Block (6 bytes)
+        buffer.put(0x03)          // Opcode: REQUEST SENSE
         buffer.put(0)
         buffer.put(0)
         buffer.put(0)
-        buffer.put(0)
+        buffer.put(18)            // Allocation length
         buffer.put(0)
 
         // Send CBW
-        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
-        if (transferred < 0) {
-            AppLogger.e(TAG, "TUR: Failed to send CBW")
-            return false
-        }
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 3000)
+        if (transferred < 0) return
 
-        // No Data phase for TUR
+        // Read Data
+        val senseData = ByteArray(18)
+        transferred = transport.bulkTransfer(inEndpoint, senseData, senseData.size, 3000)
+        if (transferred < 0) return
 
-        // Read CSW (Command Status Wrapper)
+        // Read CSW
         val csw = ByteArray(13)
-        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
-        if (transferred < 0) {
-            AppLogger.e(TAG, "TUR: Failed to read CSW")
-            return false
-        }
-
-        // Validate CSW
-        val cswBuffer = ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        val cswSignature = cswBuffer.getInt(0)
-        if (cswSignature != 0x53425355) {
-            AppLogger.e(TAG, "TUR: Invalid CSW signature")
-            return false
-        }
-        val status = csw[12]
-        if (status != 0.toByte()) {
-            AppLogger.d(TAG, "TUR: Drive not ready (status=$status)")
-            return false
-        }
-
-        return true
+        transport.bulkTransfer(inEndpoint, csw, csw.size, 3000)
     }
 
     companion object {
