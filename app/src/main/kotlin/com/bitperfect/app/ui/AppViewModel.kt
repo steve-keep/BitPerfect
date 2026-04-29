@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
+import com.bitperfect.core.services.CoverArtRepository
 
 open class AppViewModel(
     application: Application,
@@ -59,6 +61,11 @@ open class AppViewModel(
     val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
     private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
+
+    private val coverArtRepository = CoverArtRepository(application)
+
+    private val _coverArtUrl = MutableStateFlow<String?>(null)
+    val coverArtUrl: StateFlow<String?> = _coverArtUrl.asStateFlow()
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
     open val discMetadata: StateFlow<DiscMetadata?> = _discMetadata.asStateFlow()
@@ -124,6 +131,15 @@ open class AppViewModel(
                     }
                 } else {
                     _discMetadata.value = null
+                }
+            }
+        }
+        viewModelScope.launch {
+            discMetadata.collectLatest { metadata ->
+                if (metadata != null) {
+                    _coverArtUrl.value = coverArtRepository.getCoverArtUrl(metadata.mbReleaseId)
+                } else {
+                    _coverArtUrl.value = null
                 }
             }
         }
