@@ -75,6 +75,7 @@ open class AppViewModel(
     val positionMs: StateFlow<Long> = playerRepository.positionMs
 
     val currentTrackTitle: StateFlow<String?> = playerRepository.currentTrackTitle
+    val currentTrackArtist: StateFlow<String?> = playerRepository.currentTrackArtist
     val currentAlbumArtUri: StateFlow<android.net.Uri?> = playerRepository.currentAlbumArtUri
 
     val currentTrack: StateFlow<TrackInfo?> = combine(_playingTracks, currentMediaId) { tracks, mediaId ->

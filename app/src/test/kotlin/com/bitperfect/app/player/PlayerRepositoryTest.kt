@@ -2,6 +2,7 @@ package com.bitperfect.app.player
 
 import android.content.Context
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -226,13 +227,14 @@ class PlayerRepositoryTest {
         assertEquals(0L, repository.positionMs.value)
 
         try {
+            val mediaMetadata = MediaMetadata.Builder().setTitle("Mock Title").setArtist("Mock Artist").build()
             val proxy = java.lang.reflect.Proxy.newProxyInstance(
                 MediaController::class.java.classLoader,
                 arrayOf(MediaController::class.java)
             ) { _, method, _ ->
                 when (method.name) {
                     "isPlaying" -> true
-                    "getCurrentMediaItem" -> MediaItem.Builder().setMediaId("id1").build()
+                    "getCurrentMediaItem" -> MediaItem.Builder().setMediaId("id1").setMediaMetadata(mediaMetadata).build()
                     "getCurrentPosition" -> 100L
                     else -> null
                 }
@@ -242,8 +244,10 @@ class PlayerRepositoryTest {
             listener.onIsPlayingChanged(true)
             assertEquals(true, repository.isPlaying.value)
 
-            listener.onMediaItemTransition(MediaItem.Builder().setMediaId("id1").build(), Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+            listener.onMediaItemTransition(MediaItem.Builder().setMediaId("id1").setMediaMetadata(mediaMetadata).build(), Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
             assertEquals("id1", repository.currentMediaId.value)
+            assertEquals("Mock Title", repository.currentTrackTitle.value)
+            assertEquals("Mock Artist", repository.currentTrackArtist.value)
 
             listener.onPositionDiscontinuity(positionInfo, positionInfo, Player.DISCONTINUITY_REASON_AUTO_TRANSITION)
             assertEquals(100L, repository.positionMs.value)

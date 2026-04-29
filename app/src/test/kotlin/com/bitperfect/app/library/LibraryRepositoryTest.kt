@@ -43,12 +43,13 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.TRACK,
-                MediaStore.Audio.Media.DURATION
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ARTIST
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L))
-        cursor.addRow(arrayOf(2L, "Track 2", 2, 2000L))
+        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, "Artist 1"))
+        cursor.addRow(arrayOf(2L, "Track 2", 2, 2000L, "Artist 1"))
 
         `when`(
             mockContentResolver.query(
@@ -85,12 +86,13 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.TRACK,
-                MediaStore.Audio.Media.DURATION
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ARTIST
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 1001, 1000L))
-        cursor.addRow(arrayOf(2L, "Track 2", 2002, 2000L))
+        cursor.addRow(arrayOf(1L, "Track 1", 1001, 1000L, "Artist 1"))
+        cursor.addRow(arrayOf(2L, "Track 2", 2012, 2000L, "Artist 1"))
 
         `when`(
             mockContentResolver.query(
@@ -114,7 +116,7 @@ class LibraryRepositoryTest {
 
         assertEquals(2L, tracks[1].id)
         assertEquals("Track 2", tracks[1].title)
-        assertEquals(2, tracks[1].trackNumber)
+        assertEquals(12, tracks[1].trackNumber)
         assertEquals(2, tracks[1].discNumber)
         assertEquals(2000L, tracks[1].durationMs)
     }
@@ -127,11 +129,12 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.TRACK,
-                MediaStore.Audio.Media.DURATION
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ARTIST
             )
         )
 
-        cursor.addRow(arrayOf(1L, null, 1, 1000L))
+        cursor.addRow(arrayOf(1L, null, 1, 1000L, null))
 
         `when`(
             mockContentResolver.query(
@@ -177,11 +180,12 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.TRACK,
                 MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.ALBUM_ID
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.ARTIST
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, 123L))
+        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, 123L, "Artist 1"))
 
         `when`(
             mockContentResolver.query(
@@ -212,11 +216,12 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.TRACK,
                 MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.ALBUM_ID
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.ARTIST
             )
         )
 
-        cursor.addRow(arrayOf(2L, "Track 2", 2002, 2000L, 123L))
+        cursor.addRow(arrayOf(1L, "Track 1", 2012, 1000L, 123L, "Artist 1"))
 
         `when`(
             mockContentResolver.query(
@@ -230,11 +235,11 @@ class LibraryRepositoryTest {
 
         val track = libraryRepository.getTrack(trackId)
 
-        assertEquals(2L, track?.id)
-        assertEquals("Track 2", track?.title)
-        assertEquals(2, track?.trackNumber)
+        assertEquals(1L, track?.id)
+        assertEquals("Track 1", track?.title)
+        assertEquals(12, track?.trackNumber)
         assertEquals(2, track?.discNumber)
-        assertEquals(2000L, track?.durationMs)
+        assertEquals(1000L, track?.durationMs)
         assertEquals(123L, track?.albumId)
     }
 

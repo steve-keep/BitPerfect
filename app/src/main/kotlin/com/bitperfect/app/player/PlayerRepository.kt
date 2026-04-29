@@ -43,6 +43,9 @@ open class PlayerRepository(
     private val _currentTrackTitle = MutableStateFlow<String?>(null)
     open val currentTrackTitle: StateFlow<String?> = _currentTrackTitle.asStateFlow()
 
+    private val _currentTrackArtist = MutableStateFlow<String?>(null)
+    open val currentTrackArtist: StateFlow<String?> = _currentTrackArtist.asStateFlow()
+
     private val _currentAlbumArtUri = MutableStateFlow<Uri?>(null)
     open val currentAlbumArtUri: StateFlow<Uri?> = _currentAlbumArtUri.asStateFlow()
 
@@ -57,6 +60,7 @@ open class PlayerRepository(
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             _currentMediaId.value = controller?.currentMediaItem?.mediaId
             _currentTrackTitle.value = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
+            _currentTrackArtist.value = controller?.currentMediaItem?.mediaMetadata?.artist?.toString()
             _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
         }
 
@@ -85,6 +89,7 @@ open class PlayerRepository(
                     _isPlaying.value = isPlaying
                     _currentMediaId.value = currentMediaItem?.mediaId
                     _currentTrackTitle.value = currentMediaItem?.mediaMetadata?.title?.toString()
+                    _currentTrackArtist.value = currentMediaItem?.mediaMetadata?.artist?.toString()
                     _currentAlbumArtUri.value = currentMediaItem?.mediaMetadata?.artworkUri
                     _positionMs.value = currentPosition
                 }
@@ -116,6 +121,7 @@ open class PlayerRepository(
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setTitle(track.title)
+                        .setArtist(track.artist)
                         .setTrackNumber(track.trackNumber)
                         .setArtworkUri(albumArtUri)
                         .build()

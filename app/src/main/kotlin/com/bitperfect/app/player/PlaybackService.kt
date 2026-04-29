@@ -150,6 +150,7 @@ class PlaybackService : MediaLibraryService() {
                         .setMediaMetadata(
                             MediaMetadata.Builder()
                                 .setTitle(foundTrack.title)
+                                .setArtist(foundTrack.artist)
                                 .setTrackNumber(foundTrack.trackNumber)
                                 .setArtworkUri(albumArtUri)
                                 .build()

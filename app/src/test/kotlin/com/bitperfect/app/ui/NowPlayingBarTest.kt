@@ -24,6 +24,7 @@ class NowPlayingBarTest {
             NowPlayingBar(
                 isPlaying = false,
                 currentTrackTitle = null,
+                currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 onClick = {}
@@ -38,6 +39,7 @@ class NowPlayingBarTest {
             NowPlayingBar(
                 isPlaying = false,
                 currentTrackTitle = "My Favorite Song",
+                currentTrackArtist = "The Band",
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 onClick = {}
@@ -48,6 +50,8 @@ class NowPlayingBarTest {
 
         composeTestRule.onNodeWithTag("now_playing_title", useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("My Favorite Song", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("now_playing_artist", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("The Band", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
@@ -56,6 +60,7 @@ class NowPlayingBarTest {
             NowPlayingBar(
                 isPlaying = true,
                 currentTrackTitle = "My Favorite Song",
+                currentTrackArtist = "The Band",
                 currentAlbumArtUri = android.net.Uri.parse("content://media/external/audio/albumart/1"),
                 onPlayPause = {},
                 onClick = {}
@@ -68,6 +73,44 @@ class NowPlayingBarTest {
     }
 
     @Test
+    fun verifyNowPlayingBarWithoutArtist() {
+        composeTestRule.setContent {
+            NowPlayingBar(
+                isPlaying = false,
+                currentTrackTitle = "My Favorite Song",
+                currentTrackArtist = null,
+                currentAlbumArtUri = null,
+                onPlayPause = {},
+                onClick = {}
+            )
+        }
+
+        composeTestRule.mainClock.advanceTimeBy(500)
+
+        composeTestRule.onNodeWithTag("now_playing_title", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("now_playing_artist", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun verifyNowPlayingBarWithEmptyArtist() {
+        composeTestRule.setContent {
+            NowPlayingBar(
+                isPlaying = false,
+                currentTrackTitle = "My Favorite Song",
+                currentTrackArtist = "",
+                currentAlbumArtUri = null,
+                onPlayPause = {},
+                onClick = {}
+            )
+        }
+
+        composeTestRule.mainClock.advanceTimeBy(500)
+
+        composeTestRule.onNodeWithTag("now_playing_title", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("now_playing_artist", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
     fun verifyCallbacksInvoked() {
         var playPauseClicked = false
         var onClickClicked = false
@@ -76,6 +119,7 @@ class NowPlayingBarTest {
             NowPlayingBar(
                 isPlaying = false,
                 currentTrackTitle = "Test Song",
+                currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = { playPauseClicked = true },
                 onClick = { onClickClicked = true }

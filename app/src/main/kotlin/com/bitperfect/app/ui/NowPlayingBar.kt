@@ -6,6 +6,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -52,6 +53,7 @@ import coil.request.ImageRequest
 fun NowPlayingBar(
     isPlaying: Boolean,
     currentTrackTitle: String?,
+    currentTrackArtist: String?,
     currentAlbumArtUri: Uri?,
     onPlayPause: () -> Unit,
     onClick: () -> Unit,
@@ -136,16 +138,30 @@ fun NowPlayingBar(
 
                     Spacer(modifier = Modifier.width(16.dp))
 
-                    Text(
-                        text = currentTrackTitle ?: "",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Column(
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("now_playing_title")
-                    )
+                            .testTag("now_playing_text_column")
+                    ) {
+                        Text(
+                            text = currentTrackTitle ?: "",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("now_playing_title")
+                        )
+                        if (!currentTrackArtist.isNullOrEmpty()) {
+                            Text(
+                                text = currentTrackArtist,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.testTag("now_playing_artist")
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.width(8.dp))
 
