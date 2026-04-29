@@ -11,5 +11,6 @@ class AppNavigationTest {
         assertEquals("track_list", AppRoutes.TrackList)
         assertEquals("settings", AppRoutes.Settings)
         assertEquals("about", AppRoutes.About)
+        assertEquals("calibration", AppRoutes.Calibration)
     }
 }

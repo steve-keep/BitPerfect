@@ -18,6 +18,19 @@ class NowPlayingBarTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
+    @Test
+    fun verifyNowPlayingBarHiddenWhenNoTitle() {
+        composeTestRule.setContent {
+            NowPlayingBar(
+                isPlaying = false,
+                currentTrackTitle = null,
+                currentAlbumArtUri = null,
+                onPlayPause = {},
+                onClick = {}
+            )
+        }
+        composeTestRule.onNodeWithTag("now_playing_title").assertDoesNotExist()
+    }
 
     @Test
     fun verifyNowPlayingBarVisibleWithTitle() {
@@ -31,7 +44,7 @@ class NowPlayingBarTest {
             )
         }
 
-        composeTestRule.mainClock.advanceTimeBy(500) // Advance clock for AnimatedVisibility to complete
+        composeTestRule.mainClock.advanceTimeBy(500)
 
         composeTestRule.onNodeWithTag("now_playing_title", useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("My Favorite Song", useUnmergedTree = true).assertIsDisplayed()
@@ -49,7 +62,7 @@ class NowPlayingBarTest {
             )
         }
 
-        composeTestRule.mainClock.advanceTimeBy(500) // Advance clock for AnimatedVisibility to complete
+        composeTestRule.mainClock.advanceTimeBy(500)
 
         composeTestRule.onNodeWithTag("now_playing_title", useUnmergedTree = true).assertIsDisplayed()
     }
@@ -57,6 +70,7 @@ class NowPlayingBarTest {
     @Test
     fun verifyCallbacksInvoked() {
         var playPauseClicked = false
+        var onClickClicked = false
 
         composeTestRule.setContent {
             NowPlayingBar(
@@ -64,12 +78,14 @@ class NowPlayingBarTest {
                 currentTrackTitle = "Test Song",
                 currentAlbumArtUri = null,
                 onPlayPause = { playPauseClicked = true },
-                onClick = {}
+                onClick = { onClickClicked = true }
             )
         }
 
-        composeTestRule.onNodeWithTag("now_playing_play_pause").performClick()
-
+        composeTestRule.onNodeWithTag("now_playing_play_pause", useUnmergedTree = true).performClick()
         assert(playPauseClicked)
+
+        composeTestRule.onNodeWithText("Test Song", useUnmergedTree = true).performClick()
+        assert(onClickClicked)
     }
 }
