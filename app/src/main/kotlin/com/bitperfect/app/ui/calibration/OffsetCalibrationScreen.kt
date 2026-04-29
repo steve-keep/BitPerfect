@@ -3,7 +3,7 @@ package com.bitperfect.app.ui.calibration
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -227,22 +227,26 @@ fun OffsetCalibrationScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Calibrate Drive Offset") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = { Text("Calibrate Drive Offset") },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close"
+                            )
+                        }
                     }
-                }
-            )
-        },
-        bottomBar = {
+                )
+            },
+            bottomBar = {
             BottomAppBar {
                 Row(
                     modifier = Modifier
@@ -289,14 +293,14 @@ fun OffsetCalibrationScreen(
                     }
                 }
             }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             if (calibrationResult != null) {
                 // Summary Screen
                 Column(
@@ -367,8 +371,9 @@ fun OffsetCalibrationScreen(
                                 viewModel.resetStep(targetStep - 1)
                             }
                         },
-                        onStartScan = { viewModel.startScan(targetStep - 1) }
-                    )
+                            onStartScan = { viewModel.startScan(targetStep - 1) }
+                        )
+                    }
                 }
             }
         }

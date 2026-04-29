@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.compose.*
 import com.bitperfect.app.ui.*
 import com.bitperfect.app.ui.theme.BitPerfectTheme
@@ -198,7 +199,6 @@ class MainActivity : ComponentActivity() {
                                         text = when (currentRoute) {
                                             AppRoutes.Settings -> "Settings"
                                             AppRoutes.About -> "About"
-                                            AppRoutes.Calibration -> "Calibrate Drive Offset"
                                             AppRoutes.TrackList -> selectedAlbumTitle ?: "Album"
                                             else -> "BitPerfect"
                                         },
@@ -283,7 +283,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        composable(AppRoutes.Calibration) {
+                        dialog(
+                            route = AppRoutes.Calibration,
+                            dialogProperties = DialogProperties(
+                                usePlatformDefaultWidth = false,
+                                decorFitsSystemWindows = false
+                            )
+                        ) {
                             com.bitperfect.app.ui.calibration.OffsetCalibrationScreen(
                                 driveOffsetRepository = driveOffsetRepository,
                                 onNavigateBack = {
