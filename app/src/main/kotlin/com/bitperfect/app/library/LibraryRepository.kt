@@ -6,7 +6,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import java.net.URLDecoder
 
-class LibraryRepository(private val context: Context) {
+open class LibraryRepository(private val context: Context) {
 
     fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
         if (outputFolderUriString.isNullOrBlank()) {
@@ -88,7 +88,7 @@ class LibraryRepository(private val context: Context) {
         }
     }
 
-    fun getTracksForAlbum(albumId: Long): List<TrackInfo> {
+    open fun getTracksForAlbum(albumId: Long): List<TrackInfo> {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -130,7 +130,7 @@ class LibraryRepository(private val context: Context) {
         return tracks
     }
 
-    fun getTrack(trackId: Long): TrackInfo? {
+    open fun getTrack(trackId: Long): TrackInfo? {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
