@@ -28,6 +28,8 @@ import coil.request.CachePolicy
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.R
 import com.bitperfect.app.library.AlbumInfo
+import com.bitperfect.core.models.DiscToc
+import com.bitperfect.core.models.DiscMetadata
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -151,8 +153,64 @@ fun AlbumHeader(
 }
 
 @Composable
+private fun DiscReadyCard(
+    toc: DiscToc?,
+    discMetadata: DiscMetadata?,
+    coverArtUrl: String?
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(coverArtUrl)
+                    .allowHardware(false)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = discMetadata?.albumTitle ?: "Album Art",
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(id = R.drawable.app_logo),
+                error = painterResource(id = R.drawable.app_logo)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = discMetadata?.albumTitle ?: "Disc Ready",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = discMetadata?.artistName ?: "Looking up metadata…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0x99FFFFFF)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = toc?.let { "${it.trackCount} tracks" } ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0x66FFFFFF)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus, viewModel: AppViewModel) {
     val discMetadata by viewModel.discMetadata.collectAsState()
+    val coverArtUrl by viewModel.coverArtUrl.collectAsState()
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (driveStatus) {
@@ -183,17 +241,10 @@ fun DeviceList(modifier: Modifier = Modifier, driveStatus: DriveStatus, viewMode
                 subtitle = "Insert a CD to continue"
             )
             is DriveStatus.DiscReady -> {
-                val trackLabel = driveStatus.toc?.let { "${it.trackCount} tracks" } ?: "Reading disc…"
-                val subtitle = when {
-                    discMetadata != null ->
-                        "${discMetadata!!.artistName} · ${discMetadata!!.albumTitle} · $trackLabel"
-                    driveStatus.toc != null -> "Looking up metadata… · $trackLabel"
-                    else -> "${driveStatus.info.vendorId} · ${driveStatus.info.productId}"
-                }
-                DriveStatusCard(
-                    icon = Icons.Outlined.CheckCircle,
-                    headline = "Disc Ready",
-                    subtitle = subtitle
+                DiscReadyCard(
+                    toc = driveStatus.toc,
+                    discMetadata = discMetadata,
+                    coverArtUrl = coverArtUrl
                 )
             }
             is DriveStatus.Error -> DriveStatusCard(

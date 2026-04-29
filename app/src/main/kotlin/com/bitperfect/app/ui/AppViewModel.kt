@@ -65,7 +65,7 @@ open class AppViewModel(
     private val coverArtRepository = CoverArtRepository(application)
 
     private val _coverArtUrl = MutableStateFlow<String?>(null)
-    val coverArtUrl: StateFlow<String?> = _coverArtUrl.asStateFlow()
+    open val coverArtUrl: StateFlow<String?> = _coverArtUrl.asStateFlow()
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
     open val discMetadata: StateFlow<DiscMetadata?> = _discMetadata.asStateFlow()
