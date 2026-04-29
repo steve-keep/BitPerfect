@@ -2,12 +2,10 @@ package com.bitperfect.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Stitch "BitPerfect App" Palette - Light
-val PrimaryLight = Color(0xFF00FF00)
-val OnPrimaryLight = Color(0xFF000000)
-val PrimaryContainerLight = Color(0xFF4551AF)
-val OnPrimaryContainerLight = Color(0xFFCBCEFF)
+// Stitch "BitPerfect App" Palette
+val Primary = Color(0xFF1DB954)
 
+// Stitch "BitPerfect App" Palette - Light
 val SecondaryLight = Color(0xFF6F48B2)
 val OnSecondaryLight = Color(0xFFFFFFFF)
 val SecondaryContainerLight = Color(0xFFB78EFE)
@@ -41,11 +39,6 @@ val OutlineLight = Color(0xFF757684)
 val OutlineVariantLight = Color(0xFFC5C5D4)
 
 // Stitch "BitPerfect App" Palette - Dark (Inferred/Standard)
-val PrimaryDark = Color(0xFF00FF00)
-val OnPrimaryDark = Color(0xFF000000)
-val PrimaryContainerDark = Color(0xFF303C9A)
-val OnPrimaryContainerDark = Color(0xFFCBCEFF)
-
 val SecondaryDark = Color(0xFFD4BBFF)
 val OnSecondaryDark = Color(0xFF260058)
 val SecondaryContainerDark = Color(0xFF572E99)
