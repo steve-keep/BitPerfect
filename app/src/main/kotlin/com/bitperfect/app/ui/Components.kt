@@ -352,14 +352,14 @@ fun LibrarySection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 for (i in 0 until 3) {
                                     if (i < rowAlbums.size) {
                                         val album = rowAlbums[i]
                                         Column(
                                             modifier = Modifier
-                                                .width(80.dp)
+                                                .weight(1f)
                                                 .clickable { onAlbumClick(album) },
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
@@ -370,7 +370,7 @@ fun LibrarySection(
                                                     .diskCachePolicy(CachePolicy.ENABLED)
                                                     .build(),
                                                 contentDescription = album.title,
-                                                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
+                                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
                                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                                 placeholder = ColorPainter(Color(0xFF141414)),
                                                 error = ColorPainter(Color(0xFF141414))
@@ -384,7 +384,7 @@ fun LibrarySection(
                                             )
                                         }
                                     } else {
-                                        Spacer(modifier = Modifier.width(80.dp))
+                                        Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
                             }
