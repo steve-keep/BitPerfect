@@ -14,6 +14,10 @@ import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -23,11 +27,11 @@ import kotlinx.coroutines.delay
 sealed class CalibrationStepState {
     data object WaitingForDisc : CalibrationStepState()
     data object CheckingDisc : CalibrationStepState()
-    data class NotAKeyDisc(val discTitle: String?) : CalibrationStepState()
+    data class NotAKeyDisc(val discTitle: String?, val attemptedUrl: String? = null) : CalibrationStepState()
     data class KeyDiscConfirmed(val discTitle: String?) : CalibrationStepState()
     data object Scanning : CalibrationStepState()
     data object Success : CalibrationStepState()
-    data class Error(val message: String) : CalibrationStepState()
+    data class Error(val message: String, val attemptedUrl: String? = null) : CalibrationStepState()
 }
 
 val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>, String>(
@@ -36,11 +40,11 @@ val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>,
             when (state) {
                 is CalibrationStepState.WaitingForDisc -> "WaitingForDisc"
                 is CalibrationStepState.CheckingDisc -> "CheckingDisc"
-                is CalibrationStepState.NotAKeyDisc -> "NotAKeyDisc:${state.discTitle ?: ""}"
+                is CalibrationStepState.NotAKeyDisc -> "NotAKeyDisc:${state.discTitle ?: ""}|||${state.attemptedUrl ?: ""}"
                 is CalibrationStepState.KeyDiscConfirmed -> "KeyDiscConfirmed:${state.discTitle ?: ""}"
                 is CalibrationStepState.Scanning -> "Scanning"
                 is CalibrationStepState.Success -> "Success"
-                is CalibrationStepState.Error -> "Error:${state.message}"
+                is CalibrationStepState.Error -> "Error:${state.message}|||${state.attemptedUrl ?: ""}"
             }
         }
     },
@@ -51,11 +55,23 @@ val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>,
                 when {
                     savedString == "WaitingForDisc" -> CalibrationStepState.WaitingForDisc
                     savedString == "CheckingDisc" -> CalibrationStepState.CheckingDisc
-                    savedString.startsWith("NotAKeyDisc:") -> CalibrationStepState.NotAKeyDisc(savedString.substringAfter("NotAKeyDisc:").takeIf { it.isNotEmpty() })
+                    savedString.startsWith("NotAKeyDisc:") -> {
+                        val parts = savedString.substringAfter("NotAKeyDisc:").split("|||", limit = 2)
+                        CalibrationStepState.NotAKeyDisc(
+                            discTitle = parts.getOrNull(0)?.takeIf { it.isNotEmpty() },
+                            attemptedUrl = parts.getOrNull(1)?.takeIf { it.isNotEmpty() }
+                        )
+                    }
                     savedString.startsWith("KeyDiscConfirmed:") -> CalibrationStepState.KeyDiscConfirmed(savedString.substringAfter("KeyDiscConfirmed:").takeIf { it.isNotEmpty() })
                     savedString == "Scanning" -> CalibrationStepState.Scanning
                     savedString == "Success" -> CalibrationStepState.Success
-                    savedString.startsWith("Error:") -> CalibrationStepState.Error(savedString.substringAfter("Error:"))
+                    savedString.startsWith("Error:") -> {
+                        val parts = savedString.substringAfter("Error:").split("|||", limit = 2)
+                        CalibrationStepState.Error(
+                            message = parts.getOrElse(0) { "" },
+                            attemptedUrl = parts.getOrNull(1)?.takeIf { it.isNotEmpty() }
+                        )
+                    }
                     else -> CalibrationStepState.WaitingForDisc
                 }
             )
@@ -95,6 +111,7 @@ fun CalibrationStepContent(
                 )
             }
             is CalibrationStepState.NotAKeyDisc -> {
+                val uriHandler = LocalUriHandler.current
                 Icon(
                     imageVector = Icons.Outlined.Warning,
                     contentDescription = "Warning",
@@ -114,8 +131,27 @@ fun CalibrationStepContent(
                     text = "This disc isn't in the AccurateRip database. Please insert a different disc.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = if (state.attemptedUrl != null) 8.dp else 24.dp)
                 )
+                if (state.attemptedUrl != null) {
+                    Text(
+                        text = state.attemptedUrl,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier
+                            .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
+                            .clickable {
+                                try {
+                                    uriHandler.openUri(state.attemptedUrl)
+                                } catch (e: Exception) {
+                                    // Ignore if no handler available
+                                }
+                            }
+                    )
+                }
                 Button(onClick = { onStateChanged(CalibrationStepState.WaitingForDisc) }) {
                     Text("Retry")
                 }
@@ -168,6 +204,7 @@ fun CalibrationStepContent(
                 )
             }
             is CalibrationStepState.Error -> {
+                val uriHandler = LocalUriHandler.current
                 Icon(
                     imageVector = Icons.Outlined.Warning,
                     contentDescription = "Error",
@@ -180,8 +217,27 @@ fun CalibrationStepContent(
                     text = state.message,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = if (state.attemptedUrl != null) 8.dp else 24.dp)
                 )
+                if (state.attemptedUrl != null) {
+                    Text(
+                        text = state.attemptedUrl,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier
+                            .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
+                            .clickable {
+                                try {
+                                    uriHandler.openUri(state.attemptedUrl)
+                                } catch (e: Exception) {
+                                    // Ignore
+                                }
+                            }
+                    )
+                }
                 Button(onClick = { onStateChanged(CalibrationStepState.WaitingForDisc) }) {
                     Text("Retry")
                 }
