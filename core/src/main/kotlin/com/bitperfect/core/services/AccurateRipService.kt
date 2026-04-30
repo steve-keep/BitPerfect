@@ -20,7 +20,11 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
             val discId = computeAccurateRipDiscId(toc)
             val url = buildAccurateRipUrl(discId)
 
-            AppLogger.d(TAG, "Checking AccurateRip URL: $url")
+            val hexId1 = String.format("%08x", discId.id1 and 0xFFFFFFFFL)
+            val hexId2 = String.format("%08x", discId.id2 and 0xFFFFFFFFL)
+            val hexId3 = String.format("%08x", discId.id3 and 0xFFFFFFFFL)
+            AppLogger.d(TAG, "Raw hex IDs - id1: $hexId1, id2: $hexId2, id3: $hexId3, URL: $url")
+
             val response = client.fetchBin(url)
 
             if (response.status == HttpStatusCode.OK) {
@@ -39,7 +43,7 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
 
     private fun buildAccurateRipUrl(discId: AccurateRipDiscId): String {
         // Last 3 hex nibbles of disc_id_1
-        val hexId1 = String.format("%08x", discId.id1)
+        val hexId1 = String.format("%08x", discId.id1 and 0xFFFFFFFFL)
         val len = hexId1.length
 
         // Ensure we have at least 3 characters
@@ -48,8 +52,8 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
         val b = safeHex[safeHex.length - 2]
         val c = safeHex[safeHex.length - 3]
 
-        val hexId2 = String.format("%08x", discId.id2)
-        val hexId3 = String.format("%08x", discId.id3)
+        val hexId2 = String.format("%08x", discId.id2 and 0xFFFFFFFFL)
+        val hexId3 = String.format("%08x", discId.id3 and 0xFFFFFFFFL)
 
         return "http://www.accuraterip.com/accuraterip/$a/$b/$c/dAR$safeHex-$hexId2-$hexId3.bin"
     }
