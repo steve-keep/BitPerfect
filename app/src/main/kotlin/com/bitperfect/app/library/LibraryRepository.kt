@@ -8,7 +8,7 @@ import java.net.URLDecoder
 
 open class LibraryRepository(private val context: Context) {
 
-    fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
+    open fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
         if (outputFolderUriString.isNullOrBlank()) {
             return emptyList()
         }
