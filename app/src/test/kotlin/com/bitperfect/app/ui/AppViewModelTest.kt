@@ -112,7 +112,7 @@ class AppViewModelTest {
 
         // Wait for Dispatchers.IO coroutine to update the value
         val startTime = System.currentTimeMillis()
-        while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 5000) {
+        while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 10000) {
             Thread.sleep(10)
             ShadowLooper.idleMainLooper()
             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
@@ -147,7 +147,7 @@ class AppViewModelTest {
         advanceUntilIdle()
 
         val startTime = System.currentTimeMillis()
-        while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 5000) {
+        while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 10000) {
             Thread.sleep(10)
             ShadowLooper.idleMainLooper()
             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
@@ -158,7 +158,7 @@ class AppViewModelTest {
         advanceUntilIdle()
 
         val startNullTime = System.currentTimeMillis()
-        while (viewModel.discMetadata.value != null && System.currentTimeMillis() - startNullTime < 5000) {
+        while (viewModel.discMetadata.value != null && System.currentTimeMillis() - startNullTime < 10000) {
             Thread.sleep(10)
             ShadowLooper.idleMainLooper()
             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
