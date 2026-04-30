@@ -126,6 +126,7 @@ class AppViewModelTest {
         assertEquals(dummyMetadata, viewModel.discMetadata.value)
         job.cancel()
         job.join()
+        advanceUntilIdle()
     }
 
     @Test
@@ -172,6 +173,7 @@ class AppViewModelTest {
         assertEquals(null, viewModel.discMetadata.value)
 
         job.cancel()
+        job.join()
         advanceUntilIdle() // Ensure cancellation propagates completely
     }
 
@@ -188,6 +190,7 @@ class AppViewModelTest {
         assertEquals(null, viewModel.discMetadata.value)
         job.cancel()
         job.join()
+        advanceUntilIdle()
     }
 
     @Test
@@ -243,6 +246,7 @@ class AppViewModelTest {
         job2.cancel()
         job.join()
         job2.join()
+        advanceUntilIdle()
     }
 
     @Test
