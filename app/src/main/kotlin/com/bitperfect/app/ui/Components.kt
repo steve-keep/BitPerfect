@@ -347,37 +347,44 @@ fun LibrarySection(
                                 )
                             }
                         }
-                        item {
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(bottom = 16.dp)
+                        items(artist.albums.chunked(3)) { rowAlbums ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                items(artist.albums, key = { it.id }) { album ->
-                                    Column(
-                                        modifier = Modifier
-                                            .width(80.dp)
-                                            .clickable { onAlbumClick(album) },
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        AsyncImage(
-                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                                .data(album.artUri)
-                                                .crossfade(true)
-                                                .diskCachePolicy(CachePolicy.ENABLED)
-                                                .build(),
-                                            contentDescription = album.title,
-                                            modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            placeholder = ColorPainter(Color(0xFF141414)),
-                                            error = ColorPainter(Color(0xFF141414))
-                                        )
-                                        Text(
-                                            text = album.title,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
+                                for (i in 0 until 3) {
+                                    if (i < rowAlbums.size) {
+                                        val album = rowAlbums[i]
+                                        Column(
+                                            modifier = Modifier
+                                                .width(80.dp)
+                                                .clickable { onAlbumClick(album) },
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            AsyncImage(
+                                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                    .data(album.artUri)
+                                                    .crossfade(true)
+                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                    .build(),
+                                                contentDescription = album.title,
+                                                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                placeholder = ColorPainter(Color(0xFF141414)),
+                                                error = ColorPainter(Color(0xFF141414))
+                                            )
+                                            Text(
+                                                text = album.title,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Spacer(modifier = Modifier.width(80.dp))
                                     }
                                 }
                             }
