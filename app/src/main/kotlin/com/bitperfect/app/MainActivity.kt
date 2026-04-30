@@ -26,6 +26,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import android.content.ContentUris
+import android.provider.MediaStore
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
@@ -98,6 +108,7 @@ class MainActivity : ComponentActivity() {
             val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
             val currentTrackArtist by appViewModel.currentTrackArtist.collectAsState()
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
+            val currentTrack by appViewModel.currentTrack.collectAsState()
 
             val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
                 bottomSheetState = rememberStandardBottomSheetState(
@@ -146,7 +157,36 @@ class MainActivity : ComponentActivity() {
                             if (bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) 1f else 0f
                         }
 
-                        Box(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))) {
+                            // Shared background
+                            val albumId = currentTrack?.albumId ?: -1L
+                            if (albumId != -1L) {
+                                val albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(albumArtUri)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .blur(50.dp)
+                                )
+                                // Dark overlay
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFF121212))
+                                )
+                            }
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()

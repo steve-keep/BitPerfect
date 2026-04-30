@@ -75,32 +75,6 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         val albumId = currentTrack?.albumId ?: -1L
-        if (albumId != -1L) {
-            val albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(albumArtUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(50.dp)
-            )
-            // Dark overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF121212))
-            )
-        }
 
         Column(
             modifier = Modifier

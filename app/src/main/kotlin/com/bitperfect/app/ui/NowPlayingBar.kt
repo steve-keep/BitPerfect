@@ -67,13 +67,8 @@ fun NowPlayingBar(
         }
     }
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = Color(0xFF191C20),
-        tonalElevation = 3.dp
-    ) {
             Box(
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxWidth()
                     .clickable { onClick() }
                     .background(
@@ -177,5 +172,4 @@ fun NowPlayingBar(
                     }
                 }
             }
-    }
 }
