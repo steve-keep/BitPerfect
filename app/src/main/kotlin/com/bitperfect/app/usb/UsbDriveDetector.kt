@@ -205,7 +205,14 @@ class UsbDriveDetector(
             val isReady = executeTestUnitReady(transport, outEndpoint, inEndpoint)
             if (isReady) {
                 val tocCommand = ReadTocCommand(transport, outEndpoint, inEndpoint)
-                val toc = tocCommand.execute()
+                var toc: com.bitperfect.core.models.DiscToc? = null
+                for (attempt in 1..3) {
+                    toc = tocCommand.execute()
+                    if (toc != null) break
+                    if (attempt < 3) {
+                        Thread.sleep(500)
+                    }
+                }
                 if (toc == null) {
                     AppLogger.w(TAG, "TOC is null after DiscReady")
                 }

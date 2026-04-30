@@ -125,10 +125,10 @@ open class AppViewModel(
             }
         }
         viewModelScope.launch {
-            driveStatus.collect { status ->
+            driveStatus.collectLatest { status ->
                 if (status is DriveStatus.DiscReady && status.toc != null) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        _discMetadata.value = lookupMusicBrainz(status.toc)
+                    _discMetadata.value = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        lookupMusicBrainz(status.toc)
                     }
                 } else {
                     _discMetadata.value = null
