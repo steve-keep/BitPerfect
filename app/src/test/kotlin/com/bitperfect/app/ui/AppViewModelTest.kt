@@ -74,6 +74,11 @@ class AppViewModelTest {
         }
         field.set(DeviceStateManager, mockDriveStatusFlow)
 
+        // Reset the singleton so tests run independently
+        val detectorField = DeviceStateManager::class.java.getDeclaredField("usbDriveDetector")
+        detectorField.isAccessible = true
+        detectorField.set(DeviceStateManager, null)
+
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
         viewModel = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
     }
