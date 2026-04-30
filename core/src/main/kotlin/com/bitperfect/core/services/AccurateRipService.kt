@@ -15,6 +15,11 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
         private const val TAG = "AccurateRipService"
     }
 
+    fun getAccurateRipUrl(toc: DiscToc): String {
+        val discId = computeAccurateRipDiscId(toc)
+        return buildAccurateRipUrl(discId)
+    }
+
     suspend fun checkIsKeyDisc(toc: DiscToc): Boolean = withContext(Dispatchers.IO) {
         try {
             val discId = computeAccurateRipDiscId(toc)
