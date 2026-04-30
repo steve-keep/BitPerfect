@@ -215,6 +215,9 @@ class AppViewModelTest {
         val job2 = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.currentAlbumArtUri.collect {}
         }
+        val job3 = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.currentTrack.collect {}
+        }
 
         vm.playAlbum(tracks)
         mutableCurrentMediaId.value = "1"
@@ -241,8 +244,10 @@ class AppViewModelTest {
 
         job.cancel()
         job2.cancel()
+        job3.cancel()
         job.join()
         job2.join()
+        job3.join()
     }
 
     @Test

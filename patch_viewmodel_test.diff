@@ -1,0 +1,31 @@
+<<<<<<< SEARCH
+        val job2 = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.currentAlbumArtUri.collect {}
+        }
+
+        vm.playAlbum(tracks)
+=======
+        val job2 = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.currentAlbumArtUri.collect {}
+        }
+        val job3 = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.currentTrack.collect {}
+        }
+
+        vm.playAlbum(tracks)
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        job.cancel()
+        job2.cancel()
+        job.join()
+        job2.join()
+    }
+=======
+        job.cancel()
+        job2.cancel()
+        job3.cancel()
+        job.join()
+        job2.join()
+        job3.join()
+    }
+>>>>>>> REPLACE
