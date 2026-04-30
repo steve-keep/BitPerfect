@@ -16,4 +16,8 @@ object DeviceStateManager {
             driveStatus = detector.driveStatus
         }
     }
+
+    fun rescan() {
+        usbDriveDetector?.scanForDevices()
+    }
 }
