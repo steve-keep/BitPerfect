@@ -38,7 +38,7 @@ class SettingsScreenTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Send Debug Info").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Send Debug Info").assertDoesNotExist()
         composeTestRule.onNodeWithText("About").performScrollTo().assertIsDisplayed()
     }
 
