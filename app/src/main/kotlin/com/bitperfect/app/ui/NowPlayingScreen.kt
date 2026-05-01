@@ -92,7 +92,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.8f))
+                    .background(Color.Black.copy(alpha = 0.7f))
             )
         } else {
             Box(

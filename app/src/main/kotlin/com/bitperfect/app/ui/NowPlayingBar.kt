@@ -26,16 +26,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
@@ -43,10 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
-import androidx.palette.graphics.Palette
 import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 
 @Composable
@@ -59,34 +49,13 @@ fun NowPlayingBar(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var dominantColor by remember { mutableStateOf(Color.Transparent) }
-
-    LaunchedEffect(currentAlbumArtUri) {
-        if (currentAlbumArtUri == null) {
-            dominantColor = Color.Transparent
-        }
-    }
-
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         color = Color(0xFF191C20),
         tonalElevation = 3.dp
     ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onClick() }
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                dominantColor.copy(alpha = 0.4f),
-                                Color.Transparent
-                            ),
-                            center = Offset(0f, 0f),
-                            radius = 800f
-                        )
-                    )
-            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -113,19 +82,7 @@ fun NowPlayingBar(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(RoundedCornerShape(4.dp)),
-                            contentScale = ContentScale.Crop,
-                            onState = { state ->
-                                if (state is AsyncImagePainter.State.Success) {
-                                    val bitmap = state.result.drawable.toBitmap()
-                                    Palette.from(bitmap).generate { palette ->
-                                        palette?.dominantSwatch?.rgb?.let { colorInt ->
-                                            dominantColor = Color(colorInt)
-                                        } ?: run {
-                                            dominantColor = Color.Transparent
-                                        }
-                                    }
-                                }
-                            }
+                            contentScale = ContentScale.Crop
                         )
                     } else {
                         Box(
@@ -176,6 +133,5 @@ fun NowPlayingBar(
                         )
                     }
                 }
-            }
     }
 }
