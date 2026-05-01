@@ -505,6 +505,9 @@ class UsbDriveDetectorTest {
         org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
         org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
 
+        "TEST_VEND".toByteArray().copyInto(inquiryData, 8)
+        "TEST_PROD".toByteArray().copyInto(inquiryData, 16)
+
         val fakeTransport = FakeUsbTransport(inquiryData, 0, createSyntheticTocResponse(), 0)
         val detector = UsbDriveDetector(context) { _ ->
             fakeTransport
