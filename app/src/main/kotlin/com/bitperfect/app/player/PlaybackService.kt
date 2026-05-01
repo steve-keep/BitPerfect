@@ -1,18 +1,20 @@
 package com.bitperfect.app.player
 
+import android.content.ContentUris
+import android.os.Bundle
+import android.provider.MediaStore
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaConstants
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
 import com.google.common.collect.ImmutableList
-import android.content.ContentUris
-import android.provider.MediaStore
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -48,6 +50,10 @@ class PlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             params: LibraryParams?
         ): ListenableFuture<LibraryResult<MediaItem>> {
+            val rootExtras = Bundle().apply {
+                putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+            }
             val rootItem = MediaItem.Builder()
                 .setMediaId("root")
                 .setMediaMetadata(
@@ -55,6 +61,7 @@ class PlaybackService : MediaLibraryService() {
                         .setTitle("BitPerfect")
                         .setIsBrowsable(true)
                         .setIsPlayable(false)
+                        .setExtras(rootExtras)
                         .build()
                 )
                 .build()
@@ -86,6 +93,10 @@ class PlaybackService : MediaLibraryService() {
                     )
 
                     sortedAlbums.map { (artist, album) ->
+                        val albumExtras = Bundle().apply {
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                        }
                         MediaItem.Builder()
                             .setMediaId("album_${album.id}")
                             .setMediaMetadata(
@@ -96,6 +107,7 @@ class PlaybackService : MediaLibraryService() {
                                     .setArtworkUri(album.artUri)
                                     .setIsBrowsable(false)
                                     .setIsPlayable(true)
+                                    .setExtras(albumExtras)
                                     .build()
                             )
                             .build()

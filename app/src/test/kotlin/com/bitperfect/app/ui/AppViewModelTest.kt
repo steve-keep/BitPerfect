@@ -193,9 +193,7 @@ class AppViewModelTest {
             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
             attempts++
         }
-        if (viewModel.discMetadata.value?.albumTitle != "Unknown Album") {
-            assertEquals(null, viewModel.discMetadata.value)
-        }
+        assertEquals(null, viewModel.discMetadata.value)
 
         job.cancel()
         job.join()

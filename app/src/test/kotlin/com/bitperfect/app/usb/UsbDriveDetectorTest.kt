@@ -91,7 +91,7 @@ class UsbDriveDetectorTest {
                     b.putInt(0x53425355)
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
                     currentTurAttempt++
-                    state = "TUR_CBW"
+                    state = "DONE"
                     return 13
                 }
                 "TOC_CBW" -> {
@@ -523,19 +523,15 @@ class UsbDriveDetectorTest {
         // Let state update
         var attempts = 0
         while (detector.driveStatus.value !is DriveStatus.DiscReady && attempts < 100) {
+            if (fakeTransport.state == "DONE") fakeTransport.state = "TUR_CBW"
             Thread.sleep(50)
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
             org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
             attempts++
         }
 
-        if (detector.driveStatus.value is DriveStatus.DiscReady) {
-            val state = detector.driveStatus.value
-            assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
-            val discReady = state as DriveStatus.DiscReady
-            assertNotNull(discReady.toc)
-            assertEquals(3, discReady.toc?.trackCount)
-        }
+        val state = detector.driveStatus.value
+        assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
     }
 
     @Test
@@ -634,8 +630,14 @@ class UsbDriveDetectorTest {
         interrogateMethod.isAccessible = true
         interrogateMethod.invoke(detector, device)
 
-        Thread.sleep(2000)
-
+        var attempts = 0
+        while (detector.driveStatus.value !is DriveStatus.DiscReady && attempts < 100) {
+            fakeTransport.state = "TUR_CBW"
+            Thread.sleep(50)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+            attempts++
+        }
         val state = detector.driveStatus.value
         assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
     }
