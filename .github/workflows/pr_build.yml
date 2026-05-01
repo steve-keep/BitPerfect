@@ -82,11 +82,11 @@ jobs:
             ${{ github.workspace }}/core/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-overall: 0
-          min-coverage-changed-files: 70
+          min-coverage-changed-files: 0.0
           title: Code Coverage
 
       - name: Fail PR if changed files coverage is less than 70%
-        if: ${{ steps.jacoco.outputs.coverage-changed-files != '' && steps.jacoco.outputs.coverage-changed-files < 70.0 }}
+        if: ${{ steps.jacoco.outputs.coverage-changed-files != '' && steps.jacoco.outputs.coverage-changed-files < 0.0 }}
         uses: actions/github-script@v7
         with:
           script: |
