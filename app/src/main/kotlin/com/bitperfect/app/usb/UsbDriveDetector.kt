@@ -294,7 +294,7 @@ class UsbDriveDetector(
                     if (isReady && currentStatus is DriveStatus.Empty) {
                         val toc = readTocWithRetry(currentTransport, currentOutEndpoint, currentInEndpoint, cbwTag + 50)
                         _driveStatus.value = DriveStatus.DiscReady(info, toc)
-                    } else if (!isReady && currentStatus is DriveStatus.DiscReady) {
+                    } else if (!isReady && (currentStatus is DriveStatus.DiscReady || currentStatus is DriveStatus.Error)) {
                         _driveStatus.value = DriveStatus.Empty(info)
                     }
                 }
