@@ -103,7 +103,13 @@ class ReadTocCommand(
             }
         }
 
-        return DiscToc(entries, leadOutLba)
+        // Normalise to 150-based LBAs (Redbook standard).
+        // Some drives (e.g. ASUS SDRW-08D2S-U) return 0-based LBAs with track 1 at LBA 0.
+        // MusicBrainz, AccurateRip, and the ripping pipeline all expect 150-based offsets.
+        val pregapOffset = if (entries.firstOrNull()?.lba == 0) 150 else 0
+        val normalisedEntries = if (pregapOffset == 0) entries else entries.map { it.copy(lba = it.lba + pregapOffset) }
+        val normalisedLeadOut = leadOutLba + pregapOffset
+        return DiscToc(normalisedEntries, normalisedLeadOut)
     }
 
     companion object {
