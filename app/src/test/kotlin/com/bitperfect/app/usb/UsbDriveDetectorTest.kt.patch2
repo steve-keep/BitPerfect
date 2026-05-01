@@ -1,0 +1,15 @@
+--- app/src/test/kotlin/com/bitperfect/app/usb/UsbDriveDetectorTest.kt
++++ app/src/test/kotlin/com/bitperfect/app/usb/UsbDriveDetectorTest.kt
+@@ -531,9 +531,9 @@
+         }
+
+         val state = detector.driveStatus.value
+-        assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
+-        val discReady = state as DriveStatus.DiscReady
+-        assertNotNull(discReady.toc)
+-        assertEquals(3, discReady.toc?.trackCount)
++        assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
++        val discReady = state as DriveStatus.DiscReady
++        assertNotNull("TOC should not be null", discReady.toc)
++        assertEquals(3, discReady.toc?.trackCount)
+     }

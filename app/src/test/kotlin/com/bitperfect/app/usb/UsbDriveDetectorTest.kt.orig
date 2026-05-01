@@ -91,7 +91,7 @@ class UsbDriveDetectorTest {
                     b.putInt(0x53425355)
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
                     currentTurAttempt++
-                    state = "TUR_CBW"
+                    state = "DONE" // Don't loop back to TUR automatically in the fake
                     return 13
                 }
                 "TOC_CBW" -> {
@@ -531,6 +531,9 @@ class UsbDriveDetectorTest {
 
         val state = detector.driveStatus.value
         assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
+        val discReady = state as DriveStatus.DiscReady
+        assertNotNull("TOC should not be null", discReady.toc)
+        assertEquals(3, discReady.toc?.trackCount)
     }
 
     @Test

@@ -1,0 +1,11 @@
+--- app/src/test/kotlin/com/bitperfect/app/usb/UsbDriveDetectorTest.kt
++++ app/src/test/kotlin/com/bitperfect/app/usb/UsbDriveDetectorTest.kt
+@@ -104,7 +104,7 @@
+                     b.putInt(0x53425355)
+                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
+                     currentTurAttempt++
+-                    state = "TUR_CBW"
++                    state = "DONE" // Don't loop back to TUR automatically in the fake
+                     return 13
+                 }
+                 "TOC_CBW" -> {

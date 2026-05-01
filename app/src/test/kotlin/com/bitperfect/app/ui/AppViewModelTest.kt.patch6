@@ -1,0 +1,13 @@
+--- app/src/test/kotlin/com/bitperfect/app/ui/AppViewModelTest.kt
++++ app/src/test/kotlin/com/bitperfect/app/ui/AppViewModelTest.kt
+@@ -183,9 +183,7 @@
+             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+             attempts++
+         }
+-        if (viewModel.discMetadata.value?.albumTitle != "Unknown Album") {
+-            assertEquals(null, viewModel.discMetadata.value)
+-        }
++        assertEquals(null, viewModel.discMetadata.value)
+
+         job.cancel()
+         job.join()
