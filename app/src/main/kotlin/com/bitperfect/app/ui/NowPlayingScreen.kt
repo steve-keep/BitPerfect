@@ -39,13 +39,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
-import androidx.core.graphics.drawable.toBitmap
-import androidx.palette.graphics.Palette
-import coil.compose.AsyncImagePainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -68,12 +66,6 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
     val currentAlbumState = viewModel.currentAlbum.collectAsState()
     val currentAlbum = currentAlbumState.value
 
-    var dominantColor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Color.Transparent) }
-
-    LaunchedEffect(currentTrack?.albumId) {
-        dominantColor = Color.Transparent
-    }
-
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             viewModel.pollPosition()
@@ -81,19 +73,47 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF121212)) // Dark background like the screenshot
-            .padding(
-                top = 24.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-                bottom = 24.dp,
-                start = 24.dp,
-                end = 24.dp
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        val albumId = currentTrack?.albumId ?: -1L
+        if (albumId != -1L) {
+            val albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(albumArtUri)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(50.dp)
+            )
+            // Dark overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF121212))
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    top = 24.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                    bottom = 24.dp,
+                    start = 24.dp,
+                    end = 24.dp
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top
+        ) {
         // Top Bar
         Row(
             modifier = Modifier
@@ -119,71 +139,42 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
             Box(modifier = Modifier.size(48.dp))
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            // Glowing Background Radial Gradient behind Album Cover
             Box(
                 modifier = Modifier
-                    .fillMaxSize(1.5f) // Extend beyond the album box to create a glowing effect
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                dominantColor.copy(alpha = 0.5f),
-                                Color.Transparent
-                            ),
-                            radius = 600f
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (albumId != -1L) {
+                    val albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(albumArtUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Album Art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF141414)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Album,
+                            contentDescription = "No Album Art",
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    )
-            )
-
-            val albumId = currentTrack?.albumId ?: -1L
-            if (albumId != -1L) {
-                val albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(albumArtUri)
-                        .allowHardware(false) // Required for Palette
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Album Art",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(12.dp)),
-                    onState = { state ->
-                        if (state is AsyncImagePainter.State.Success) {
-                            val bitmap = state.result.drawable.toBitmap()
-                            Palette.from(bitmap).generate { palette ->
-                                palette?.dominantSwatch?.rgb?.let { colorInt ->
-                                    dominantColor = Color(colorInt)
-                                } ?: run {
-                                    dominantColor = Color.Transparent
-                                }
-                            }
-                        }
                     }
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF141414)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Album,
-                        contentDescription = "No Album Art",
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
-        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -287,6 +278,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                     modifier = Modifier.size(32.dp),
                     tint = Color.White
                 )
+            }
             }
         }
     }

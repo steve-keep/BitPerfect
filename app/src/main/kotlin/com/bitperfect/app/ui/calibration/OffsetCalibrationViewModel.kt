@@ -52,7 +52,9 @@ class OffsetCalibrationViewModel(
             updateStepState(activeStepIndex, CalibrationStepState.CheckingDisc)
 
             viewModelScope.launch {
+                var attemptedUrl: String? = null
                 try {
+                    attemptedUrl = accurateRipService.getAccurateRipUrl(toc)
                     val isKeyDisc = accurateRipService.checkIsKeyDisc(toc)
                     // We don't have discTitle extraction from MusicBrainz here directly without the repo,
                     // so we pass null or attempt to fetch it if we had MusicBrainzRepository.
@@ -60,10 +62,10 @@ class OffsetCalibrationViewModel(
                     if (isKeyDisc) {
                         updateStepState(activeStepIndex, CalibrationStepState.KeyDiscConfirmed(null))
                     } else {
-                        updateStepState(activeStepIndex, CalibrationStepState.NotAKeyDisc(null))
+                        updateStepState(activeStepIndex, CalibrationStepState.NotAKeyDisc(null, attemptedUrl))
                     }
                 } catch (e: Exception) {
-                    updateStepState(activeStepIndex, CalibrationStepState.Error(e.message ?: "Unknown error"))
+                    updateStepState(activeStepIndex, CalibrationStepState.Error(e.message ?: "Unknown error", attemptedUrl))
                 }
             }
         }

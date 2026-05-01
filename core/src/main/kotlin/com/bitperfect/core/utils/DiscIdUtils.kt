@@ -27,15 +27,19 @@ fun computeFreedbId(toc: DiscToc): Long {
 
 fun computeAccurateRipDiscId(toc: DiscToc): AccurateRipDiscId {
     var offsetsAdded = 0L
-    var offsetsMultiplied = 1L
+    var offsetsMultiplied = 0L
     for (entry in toc.tracks) {
         offsetsAdded += entry.lba
-        offsetsMultiplied *= maxOf(entry.lba.toLong(), 1L)
+        offsetsMultiplied += maxOf(entry.lba.toLong(), 1L) * entry.trackNumber
     }
     offsetsAdded += toc.leadOutLba
-    offsetsMultiplied *= toc.leadOutLba.toLong()
+    offsetsMultiplied += toc.leadOutLba.toLong() * (toc.trackCount + 1)
     val id3 = computeFreedbId(toc)
-    return AccurateRipDiscId(offsetsAdded, offsetsMultiplied, id3)
+    return AccurateRipDiscId(
+        offsetsAdded and 0xFFFFFFFFL,
+        offsetsMultiplied and 0xFFFFFFFFL,
+        id3
+    )
 }
 
 fun computeMusicBrainzDiscId(toc: DiscToc): String {

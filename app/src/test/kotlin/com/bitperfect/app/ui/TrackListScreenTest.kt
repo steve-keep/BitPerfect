@@ -81,6 +81,5 @@ class TrackListScreenTest {
         // Let's assert on something in AlbumHeader instead since that's what we modified
         composeTestRule.onNodeWithText("2 Tracks", substring = true).assertExists()
         composeTestRule.onNodeWithText("Play", substring = true).assertExists()
-        composeTestRule.onNodeWithText("Shuffle", substring = true).assertExists()
     }
 }

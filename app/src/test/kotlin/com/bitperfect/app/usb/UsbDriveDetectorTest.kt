@@ -452,12 +452,12 @@ class UsbDriveDetectorTest {
 
         // AccurateRip logic:
         // offsetsAdded = 0 + 16000 + 32000 + 48000 = 96000
-        // offsetsMultiplied = max(0, 1)*max(16000, 1)*max(32000, 1)*48000
-        //                   = 1 * 16000 * 32000 * 48000
-        //                   = 24576000000000
+        // offsetsMultiplied = max(0, 1)*1 + max(16000, 1)*2 + max(32000, 1)*3 + 48000 * (3 + 1)
+        //                   = 1 + 32000 + 96000 + 192000
+        //                   = 320001
         val expectedAccurateRipId = com.bitperfect.core.utils.AccurateRipDiscId(
             id1 = 96000L,
-            id2 = 24576000000000L,
+            id2 = 320001L,
             id3 = expectedFreedbId
         )
         val actualAccurateRipId = computeAccurateRipDiscId(toc)

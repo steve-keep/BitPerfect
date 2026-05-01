@@ -74,47 +74,26 @@ class PlaybackService : MediaLibraryService() {
             val items = when {
                 parentId == "root" -> {
                     val artists = libraryRepository.getLibrary(outputFolderUri)
-                    artists.map { artist ->
-                        MediaItem.Builder()
-                            .setMediaId("artist_${artist.id}")
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(artist.name)
-                                    .setIsBrowsable(true)
-                                    .setIsPlayable(false)
-                                    .build()
-                            )
-                            .build()
+                    val allAlbums = artists.flatMap { artist ->
+                        artist.albums.map { album ->
+                            artist to album
+                        }
                     }
-                }
-                parentId.startsWith("artist_") -> {
-                    val artistId = parentId.removePrefix("artist_").toLongOrNull()
-                    val artists = libraryRepository.getLibrary(outputFolderUri)
-                    val artist = artists.find { it.id == artistId }
-                    artist?.albums?.map { album ->
+
+                    val sortedAlbums = allAlbums.sortedWith(
+                        compareBy<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>> { it.first.name }
+                            .thenBy { it.second.title }
+                    )
+
+                    sortedAlbums.map { (artist, album) ->
                         MediaItem.Builder()
                             .setMediaId("album_${album.id}")
                             .setMediaMetadata(
                                 MediaMetadata.Builder()
                                     .setTitle(album.title)
+                                    .setSubtitle(artist.name)
+                                    .setArtist(artist.name)
                                     .setArtworkUri(album.artUri)
-                                    .setIsBrowsable(true)
-                                    .setIsPlayable(true)
-                                    .build()
-                            )
-                            .build()
-                    } ?: emptyList()
-                }
-                parentId.startsWith("album_") -> {
-                    val albumId = parentId.removePrefix("album_").toLongOrNull() ?: -1L
-                    val tracks = libraryRepository.getTracksForAlbum(albumId)
-                    tracks.map { track ->
-                        MediaItem.Builder()
-                            .setMediaId("${track.id}")
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(track.title)
-                                    .setTrackNumber(track.trackNumber)
                                     .setIsBrowsable(false)
                                     .setIsPlayable(true)
                                     .build()
@@ -138,25 +117,49 @@ class PlaybackService : MediaLibraryService() {
             val resolvedItems = mutableListOf<MediaItem>()
 
             for (mediaItem in mediaItems) {
-                val trackId = mediaItem.mediaId.toLongOrNull() ?: continue
-                val foundTrack = libraryRepository.getTrack(trackId)
+                if (mediaItem.mediaId.startsWith("album_")) {
+                    val albumId = mediaItem.mediaId.removePrefix("album_").toLongOrNull() ?: continue
+                    val tracks = libraryRepository.getTracksForAlbum(albumId)
 
-                if (foundTrack != null) {
-                    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
-                    val albumArtUri = if (foundTrack.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId) else null
-                    val resolvedItem = MediaItem.Builder()
-                        .setMediaId(mediaItem.mediaId)
-                        .setUri(uri)
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(foundTrack.title)
-                                .setArtist(foundTrack.artist)
-                                .setTrackNumber(foundTrack.trackNumber)
-                                .setArtworkUri(albumArtUri)
-                                .build()
-                        )
-                        .build()
-                    resolvedItems.add(resolvedItem)
+                    for (track in tracks) {
+                        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
+                        val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
+
+                        val resolvedItem = MediaItem.Builder()
+                            .setMediaId("${track.id}")
+                            .setUri(uri)
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(track.title)
+                                    .setArtist(track.artist)
+                                    .setTrackNumber(track.trackNumber)
+                                    .setArtworkUri(albumArtUri)
+                                    .build()
+                            )
+                            .build()
+                        resolvedItems.add(resolvedItem)
+                    }
+                } else {
+                    val trackId = mediaItem.mediaId.toLongOrNull() ?: continue
+                    val foundTrack = libraryRepository.getTrack(trackId)
+
+                    if (foundTrack != null) {
+                        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
+                        val albumArtUri = if (foundTrack.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId) else null
+                        val resolvedItem = MediaItem.Builder()
+                            .setMediaId(mediaItem.mediaId)
+                            .setUri(uri)
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(foundTrack.title)
+                                    .setArtist(foundTrack.artist)
+                                    .setTrackNumber(foundTrack.trackNumber)
+                                    .setArtworkUri(albumArtUri)
+                                    .build()
+                            )
+                            .build()
+                        resolvedItems.add(resolvedItem)
+                    }
                 }
             }
             return Futures.immediateFuture(resolvedItems)
