@@ -153,7 +153,7 @@ class AppViewModelTest {
         mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
         advanceUntilIdle()
 
-        val startTime = System.currentTimeMillis()
+        var startTime = System.currentTimeMillis()
         while (viewModel.discMetadata.value == null && System.currentTimeMillis() - startTime < 10000) {
             Thread.sleep(10)
             ShadowLooper.idleMainLooper()

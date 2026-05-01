@@ -17,17 +17,17 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
 
     fun getAccurateRipUrl(toc: DiscToc): String {
         val discId = computeAccurateRipDiscId(toc)
-        return buildAccurateRipUrl(discId)
+        return buildAccurateRipUrl(discId.id1, discId.id2, discId.id3, toc.trackCount)
     }
 
     suspend fun checkIsKeyDisc(toc: DiscToc): Boolean = withContext(Dispatchers.IO) {
         try {
             val discId = computeAccurateRipDiscId(toc)
-            val url = buildAccurateRipUrl(discId)
+            val url = buildAccurateRipUrl(discId.id1, discId.id2, discId.id3, toc.trackCount)
 
             val hexId1 = String.format("%08x", discId.id1 and 0xFFFFFFFFL)
             val hexId2 = String.format("%08x", discId.id2 and 0xFFFFFFFFL)
-            val hexId3 = String.format("%08x", discId.id3 and 0xFFFFFFFFL)
+            val hexId3 = String.format("%08x", discId.id3)
             AppLogger.d(TAG, "Raw hex IDs - id1: $hexId1, id2: $hexId2, id3: $hexId3, URL: $url")
 
             val response = client.fetchBin(url)
@@ -46,20 +46,18 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
         }
     }
 
-    private fun buildAccurateRipUrl(discId: AccurateRipDiscId): String {
-        // Last 3 hex nibbles of disc_id_1
-        val hexId1 = String.format("%08x", discId.id1 and 0xFFFFFFFFL)
-        val len = hexId1.length
+    private fun buildAccurateRipUrl(id1: Long, id2: Long, cddb: Long, trackCount: Int): String {
+        val hexId1 = String.format("%08x", id1 and 0xFFFFFFFFL)
 
-        // Ensure we have at least 3 characters
-        val safeHex = if (len >= 3) hexId1 else hexId1.padStart(8, '0')
-        val a = safeHex[safeHex.length - 1]
-        val b = safeHex[safeHex.length - 2]
-        val c = safeHex[safeHex.length - 3]
+        // Extract the last 3 characters in reverse order for the directory path
+        val c1 = hexId1[7]
+        val c2 = hexId1[6]
+        val c3 = hexId1[5]
 
-        val hexId2 = String.format("%08x", discId.id2 and 0xFFFFFFFFL)
-        val hexId3 = String.format("%08x", discId.id3 and 0xFFFFFFFFL)
+        val hexId2 = String.format("%08x", id2 and 0xFFFFFFFFL)
+        val hexCddb = String.format("%08x", cddb)
+        val trackCountStr = String.format("%03d", trackCount)
 
-        return "http://www.accuraterip.com/accuraterip/$a/$b/$c/dAR$safeHex-$hexId2-$hexId3.bin"
+        return "http://www.accuraterip.com/accuraterip/$c1/$c2/$c3/dBAR-$trackCountStr-$hexId1-$hexId2-$hexCddb.bin"
     }
 }
