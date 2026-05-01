@@ -58,8 +58,8 @@ fun NowPlayingBar(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) { onClick() },
-        color = Color(0xFF191C20),
-        tonalElevation = 3.dp
+        color = Color.Transparent,
+        tonalElevation = 0.dp
     ) {
                 Row(
                     modifier = Modifier
