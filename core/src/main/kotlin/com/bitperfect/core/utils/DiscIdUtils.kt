@@ -46,11 +46,11 @@ fun computeMusicBrainzDiscId(toc: DiscToc): String {
     val tokens = mutableListOf<String>()
 
     // Token 1: first track number (always 1 as per instructions: "00000001")
-    tokens.add(String.format("%08X", 1))
+    tokens.add(String.format("%02X", 1))
 
     // Token 2: last track number
     val lastTrack = toc.tracks.size
-    tokens.add(String.format("%08X", lastTrack))
+    tokens.add(String.format("%02X", lastTrack))
 
     // Token 3: lead-out LBA + 150
     tokens.add(String.format("%08X", toc.leadOutLba + 150))
