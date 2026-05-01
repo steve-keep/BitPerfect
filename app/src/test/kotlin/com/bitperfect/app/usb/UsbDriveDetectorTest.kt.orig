@@ -587,7 +587,6 @@ class UsbDriveDetectorTest {
         assertTrue("Expected isMassStorageDevice to return true for Class 8, Subclass 2", result)
     }
 
-    @Ignore("Flaky test")
     @Test
     fun testExecuteTestUnitReadyRetriesAndSucceeds() {
         val inquiryData = ByteArray(36)
@@ -648,7 +647,6 @@ class UsbDriveDetectorTest {
         assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
     }
 
-    @Ignore("Flaky test")
     @Test
     fun testExecuteTestUnitReadyFailsFastOnTransferError() {
         val inquiryData = ByteArray(36)
@@ -703,7 +701,6 @@ class UsbDriveDetectorTest {
         assertTrue("Expected DriveStatus.Empty due to failed fast but was $state", state is DriveStatus.Empty)
     }
 
-    @Ignore("Flaky test")
     @Test
     fun testExecuteTestUnitReadyExhaustsRetries() {
         val inquiryData = ByteArray(36)
