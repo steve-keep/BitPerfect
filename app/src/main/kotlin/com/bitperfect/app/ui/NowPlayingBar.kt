@@ -76,16 +76,6 @@ fun NowPlayingBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onClick() }
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                dominantColor.copy(alpha = 0.4f),
-                                Color.Transparent
-                            ),
-                            center = Offset(0f, 0f),
-                            radius = 800f
-                        )
-                    )
             ) {
                 Row(
                     modifier = Modifier

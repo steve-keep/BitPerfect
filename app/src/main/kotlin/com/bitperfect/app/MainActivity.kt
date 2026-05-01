@@ -102,7 +102,15 @@ class MainActivity : ComponentActivity() {
             val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
                 bottomSheetState = rememberStandardBottomSheetState(
                     initialValue = SheetValue.Hidden,
-                    skipHiddenState = false
+                    skipHiddenState = false,
+                    confirmValueChange = {
+                        // Allow hiding only if we are programmatically closing it because the track ended
+                        if (it == SheetValue.Hidden) {
+                            appViewModel.currentTrackTitle.value == null
+                        } else {
+                            true
+                        }
+                    }
                 )
             )
 
