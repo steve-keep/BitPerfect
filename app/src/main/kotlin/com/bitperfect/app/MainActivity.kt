@@ -35,10 +35,12 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.window.DialogProperties
+import android.view.WindowManager
 import androidx.navigation.compose.*
 import com.bitperfect.app.ui.*
 import com.bitperfect.app.ui.theme.BitPerfectTheme
 import com.bitperfect.app.usb.DeviceStateManager
+import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.core.services.DriveOffsetRepository
 import com.bitperfect.core.utils.SettingsManager
 import kotlinx.coroutines.launch
@@ -105,6 +107,16 @@ class MainActivity : ComponentActivity() {
                     skipHiddenState = false
                 )
             )
+
+            val driveStatus by appViewModel.driveStatus.collectAsState()
+
+            LaunchedEffect(driveStatus) {
+                if (driveStatus !is DriveStatus.NoDrive && driveStatus !is DriveStatus.NotOptical) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+            }
 
             LaunchedEffect(currentTrackTitle) {
                 if (currentTrackTitle != null) {
