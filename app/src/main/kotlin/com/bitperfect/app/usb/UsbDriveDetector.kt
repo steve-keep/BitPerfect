@@ -106,6 +106,11 @@ class UsbDriveDetector(
         scanForDevices()
     }
 
+    fun reportError(message: String) {
+        val currentInfo = _driveStatus.value.info
+        _driveStatus.value = DriveStatus.Error(message, currentInfo)
+    }
+
     fun scanForDevices() {
         _driveStatus.value = DriveStatus.NoDrive
         val deviceList = usbManager.deviceList

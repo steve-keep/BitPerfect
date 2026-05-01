@@ -176,15 +176,19 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
-    fun `lookup with network exception returns null`(): Unit = runBlocking {
+    fun `lookup with network exception throws exception`(): Unit = runBlocking {
         val mockEngine = MockEngine { _ ->
             throw RuntimeException("Network error")
         }
 
         val repository = MusicBrainzRepository(context, mockEngine)
-        val metadata = repository.lookup(getSyntheticToc())
-
-        assertNull(metadata)
+        var exceptionThrown = false
+        try {
+            repository.lookup(getSyntheticToc())
+        } catch (e: Exception) {
+            exceptionThrown = true
+        }
+        assert(exceptionThrown)
     }
 
     @Test

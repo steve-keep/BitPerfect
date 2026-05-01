@@ -20,4 +20,8 @@ object DeviceStateManager {
     fun rescan() {
         usbDriveDetector?.scanForDevices()
     }
+
+    fun reportError(message: String) {
+        usbDriveDetector?.reportError(message)
+    }
 }
