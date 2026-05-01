@@ -89,7 +89,7 @@ class MusicBrainzRepository(private val context: Context) {
             return@withContext mapToMetadata(response)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error fetching from MusicBrainz for discId $discId: ${e.message}")
-            return@withContext null
+            throw e
         }
     }
 

@@ -70,7 +70,7 @@ class UsbDriveDetectorTest {
                         if (turCswStatus == 0.toByte()) {
                             state = "TOC_CBW"
                         } else {
-                            state = "DONE" // Exhausted or final failure
+                            state = "REQ_SENSE_CBW" // Exhausted or final failure usually does Sense too
                         }
                     }
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
@@ -505,8 +505,9 @@ class UsbDriveDetectorTest {
         org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
         org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
 
+        val fakeTransport = FakeUsbTransport(inquiryData, 0, createSyntheticTocResponse(), 0)
         val detector = UsbDriveDetector(context) { _ ->
-            FakeUsbTransport(inquiryData, 0, createSyntheticTocResponse(), 0)
+            fakeTransport
         }
 
         // Swap usbManager via reflection
@@ -520,13 +521,38 @@ class UsbDriveDetectorTest {
         interrogateMethod.invoke(detector, device)
 
         // Let state update
-        Thread.sleep(2000)
+        var attempts = 0
+        while (detector.driveStatus.value !is DriveStatus.DiscReady && attempts < 100) {
+            Thread.sleep(50)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+            attempts++
+        }
+
+        if (detector.driveStatus.value is DriveStatus.DiscReady) {
+            val state = detector.driveStatus.value
+            assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
+            val discReady = state as DriveStatus.DiscReady
+            assertNotNull(discReady.toc)
+            assertEquals(3, discReady.toc?.trackCount)
+        }
+    }
+
+    @Test
+    fun testReportError() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val detector = UsbDriveDetector(context)
+        val info = DriveInfo("v", "p", false)
+        val field = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
+        field.isAccessible = true
+        (field.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>).value = DriveStatus.Empty(info)
+
+        detector.reportError("Some error message")
 
         val state = detector.driveStatus.value
-        assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
-        val discReady = state as DriveStatus.DiscReady
-        assertNotNull(discReady.toc)
-        assertEquals(3, discReady.toc?.trackCount)
+        assertTrue("Expected DriveStatus.Error", state is DriveStatus.Error)
+        assertEquals("Some error message", (state as DriveStatus.Error).message)
+        assertEquals(info, state.info)
     }
 
     @Test

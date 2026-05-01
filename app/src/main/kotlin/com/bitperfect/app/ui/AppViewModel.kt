@@ -127,8 +127,24 @@ open class AppViewModel(
         viewModelScope.launch {
             driveStatus.collectLatest { status ->
                 if (status is DriveStatus.DiscReady && status.toc != null) {
-                    _discMetadata.value = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                        lookupMusicBrainz(status.toc)
+                    try {
+                        val metadata = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            lookupMusicBrainz(status.toc)
+                        }
+                        if (metadata != null) {
+                            _discMetadata.value = metadata
+                        } else {
+                            val trackTitles = (1..status.toc.trackCount).map { "Track $it" }
+                            _discMetadata.value = DiscMetadata(
+                                albumTitle = "Unknown Album",
+                                artistName = "Unknown Artist",
+                                trackTitles = trackTitles,
+                                mbReleaseId = ""
+                            )
+                        }
+                    } catch (e: Exception) {
+                        DeviceStateManager.reportError("Network error: ${e.message ?: "Unknown error"}")
+                        _discMetadata.value = null
                     }
                 } else {
                     _discMetadata.value = null
