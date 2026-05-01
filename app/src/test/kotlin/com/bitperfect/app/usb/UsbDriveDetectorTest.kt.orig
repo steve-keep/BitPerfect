@@ -464,7 +464,6 @@ class UsbDriveDetectorTest {
         assertEquals(expectedAccurateRipId, actualAccurateRipId)
     }
 
-    @org.junit.Ignore("Flaky test")
     @Test
     fun testInterrogateDeviceAttachesTocToDiscReady() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
@@ -515,6 +514,10 @@ class UsbDriveDetectorTest {
         val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
         managerField.isAccessible = true
         managerField.set(detector, mockUsbManager)
+
+        val transportFactoryField = UsbDriveDetector::class.java.getDeclaredField("transportFactory")
+        transportFactoryField.isAccessible = true
+        transportFactoryField.set(detector, { _: android.hardware.usb.UsbDeviceConnection -> fakeTransport })
 
         // Invoke interrogateDevice
         val interrogateMethod = UsbDriveDetector::class.java.getDeclaredMethod("interrogateDevice", android.hardware.usb.UsbDevice::class.java)

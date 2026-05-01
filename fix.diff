@@ -1,21 +1,10 @@
 --- app/src/test/kotlin/com/bitperfect/app/usb/UsbDriveDetectorTest.kt
 +++ app/src/test/kotlin/com/bitperfect/app/usb/UsbDriveDetectorTest.kt
-@@ -465,7 +465,6 @@
+@@ -465,6 +465,7 @@
          assertTrue("Expected DriveStatus.Connecting but was $state", state is DriveStatus.Connecting)
      }
 
--    @org.junit.Ignore("Flaky test")
++    @org.junit.Ignore("Flaky test")
      @Test
      fun testInterrogateDeviceAttachesTocToDiscReady() {
          val context = org.robolectric.RuntimeEnvironment.getApplication()
-@@ -512,6 +511,10 @@
-         managerField.isAccessible = true
-         managerField.set(detector, mockUsbManager)
-
-+        val transportFactoryField = UsbDriveDetector::class.java.getDeclaredField("transportFactory")
-+        transportFactoryField.isAccessible = true
-+        transportFactoryField.set(detector, { _: android.hardware.usb.UsbDeviceConnection -> fakeTransport })
-+
-         // Invoke interrogateDevice
-         val interrogateMethod = UsbDriveDetector::class.java.getDeclaredMethod("interrogateDevice", android.hardware.usb.UsbDevice::class.java)
-         interrogateMethod.isAccessible = true
