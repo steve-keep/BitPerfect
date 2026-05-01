@@ -21,9 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import java.io.File
 import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.usb.DriveInfo
+import com.bitperfect.app.usb.DriveStatus
 
 import android.content.Context
 import com.bitperfect.core.services.DriveOffsetRepository
@@ -272,7 +275,10 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { sendDebugInfo(context, driveInfo) }
+                            .clickable {
+                                val toc = (driveStatus as? DriveStatus.DiscReady)?.toc
+                                sendDebugInfo(context, driveInfo, toc)
+                            }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
@@ -376,54 +382,98 @@ fun SettingsScreen(
     }
 }
 
-private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?) {
+private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?) {
     val sb = java.lang.StringBuilder()
-    sb.appendLine("=== MobileRipper Drive Debug Info ===")
+    sb.appendLine("# BitPerfect Debug Report")
+    sb.appendLine()
+    sb.appendLine("Generated at: ${java.time.LocalDateTime.now()}")
     sb.appendLine()
 
-    sb.appendLine("Drive Information:")
+    sb.appendLine("## Drive Information")
     if (driveInfo != null) {
-        sb.appendLine("  Vendor: ${driveInfo.vendorId}")
-        sb.appendLine("  Model: ${driveInfo.productId}")
+        sb.appendLine("- Vendor: ${driveInfo.vendorId}")
+        sb.appendLine("- Model: ${driveInfo.productId}")
     } else {
-        sb.appendLine("  Vendor: None")
-        sb.appendLine("  Model: None")
+        sb.appendLine("- Vendor: None")
+        sb.appendLine("- Model: None")
     }
     sb.appendLine()
 
-    sb.appendLine("USB Information:")
+    sb.appendLine("## USB Information")
     if (driveInfo != null) {
-        sb.appendLine("  Vendor ID: ${driveInfo.usbVendorId} (0x${driveInfo.usbVendorId.toString(16).uppercase()})")
-        sb.appendLine("  Product ID: ${driveInfo.usbProductId} (0x${driveInfo.usbProductId.toString(16).uppercase()})")
-        sb.appendLine("  Device Path: ${driveInfo.devicePath}")
+        sb.appendLine("- Vendor ID: ${driveInfo.usbVendorId} (0x${driveInfo.usbVendorId.toString(16).uppercase()})")
+        sb.appendLine("- Product ID: ${driveInfo.usbProductId} (0x${driveInfo.usbProductId.toString(16).uppercase()})")
+        sb.appendLine("- Device Path: ${driveInfo.devicePath}")
     } else {
-        sb.appendLine("  Vendor ID: None")
-        sb.appendLine("  Product ID: None")
-        sb.appendLine("  Device Path: None")
+        sb.appendLine("- Vendor ID: None")
+        sb.appendLine("- Product ID: None")
+        sb.appendLine("- Device Path: None")
     }
     sb.appendLine()
 
-    sb.appendLine("Drive Capabilities:")
-    sb.appendLine("  C2 Error Pointers: No")
-    sb.appendLine("  Subchannel Reading: No")
-    sb.appendLine("  Full TOC Reading: No")
-    sb.appendLine("  Read Offset: 0 samples")
+    sb.appendLine("## Drive Capabilities")
+    sb.appendLine("- C2 Error Pointers: No")
+    sb.appendLine("- Subchannel Reading: No")
+    sb.appendLine("- Full TOC Reading: No")
+    sb.appendLine("- Read Offset: 0 samples")
     sb.appendLine()
 
-    sb.appendLine("Transport Settings:")
-    sb.appendLine("  Compatibility Mode: Enabled")
-    sb.appendLine("  Compatibility Cached: No")
+    sb.appendLine("## Transport Settings")
+    sb.appendLine("- Compatibility Mode: Enabled")
+    sb.appendLine("- Compatibility Cached: No")
     sb.appendLine()
 
-    sb.appendLine("Phone Information:")
-    sb.appendLine("  Android Version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
-    sb.appendLine("  Device: ${android.os.Build.MODEL}")
-    sb.appendLine("  Product: ${android.os.Build.PRODUCT}")
+    sb.appendLine("## Phone Information")
+    sb.appendLine("- Android Version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+    sb.appendLine("- Device: ${android.os.Build.MODEL}")
+    sb.appendLine("- Product: ${android.os.Build.PRODUCT}")
+    sb.appendLine()
+
+    sb.appendLine("## Disc")
+    if (toc == null) {
+        sb.appendLine("No disc inserted")
+    } else {
+        sb.appendLine("- Track count: ${toc.trackCount}")
+        sb.appendLine("- Lead-out LBA: ${toc.leadOutLba}")
+        sb.appendLine()
+        sb.appendLine("### Tracks")
+        sb.appendLine("| Track | LBA |")
+        sb.appendLine("|---|---|")
+        for (track in toc.tracks) {
+            sb.appendLine("| ${track.trackNumber} | ${track.lba} |")
+        }
+        sb.appendLine()
+
+        val arId = com.bitperfect.core.utils.computeAccurateRipDiscId(toc)
+        val id1Str = String.format("%08x", arId.id1)
+        val id2Str = String.format("%08x", arId.id2)
+        val id3Str = String.format("%08x", arId.id3)
+        sb.appendLine("### AccurateRip")
+        sb.appendLine("```")
+        sb.appendLine("id1: $id1Str")
+        sb.appendLine("id2: $id2Str")
+        sb.appendLine("id3: $id3Str")
+        sb.appendLine("```")
+        sb.appendLine("URL: `http://www.accuraterip.com/accuraterip/${id1Str.last()}/${id2Str.last()}/${id3Str.last()}/dBAR-${String.format("%03d", toc.trackCount)}-$id1Str-$id2Str-$id3Str.bin`")
+        sb.appendLine()
+
+        val mbId = com.bitperfect.core.utils.computeMusicBrainzDiscId(toc)
+        sb.appendLine("### MusicBrainz")
+        sb.appendLine("ID: `$mbId`")
+        val mbOffsets = toc.tracks.joinToString("+") { (it.lba + 150).toString() }
+        sb.appendLine("Lookup URL: `https://musicbrainz.org/cdtoc/attach?toc=1+${toc.trackCount}+${toc.leadOutLba + 150}+$mbOffsets`")
+    }
+
+    val file = java.io.File(context.cacheDir, "bitperfect-debug.md")
+    file.writeText(sb.toString())
+
+    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_TEXT, sb.toString())
-        type = "text/plain"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        type = "text/markdown"
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
     val shareIntent = Intent.createChooser(sendIntent, null)

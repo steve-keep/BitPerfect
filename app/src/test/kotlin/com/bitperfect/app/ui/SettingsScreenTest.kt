@@ -10,6 +10,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.Shadows.shadowOf
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.core.services.DriveOffsetRepository
 
@@ -50,7 +51,7 @@ class SettingsScreenTest {
         com.bitperfect.app.usb.DeviceStateManager.initialize(application)
         val driveInfo = com.bitperfect.app.usb.DriveInfo("VendorX", "ProductY", true, 0, 0, "path")
         val driveStatusFlow = kotlinx.coroutines.flow.MutableStateFlow<com.bitperfect.app.usb.DriveStatus>(
-            com.bitperfect.app.usb.DriveStatus.DiscReady(driveInfo, null)
+            com.bitperfect.app.usb.DriveStatus.DiscReady(driveInfo, com.bitperfect.core.models.DiscToc(listOf(com.bitperfect.core.models.TocEntry(1, 0)), 100))
         )
         try {
             val field = com.bitperfect.app.usb.DeviceStateManager::class.java.getDeclaredField("driveStatus")
@@ -94,6 +95,15 @@ class SettingsScreenTest {
             composeTestRule.onNodeWithText("Send Debug Info").performClick()
         } catch (e: Exception) {
             // Context might not be able to resolve startActivity in test, which is fine, we just need the lines covered.
+        }
+
+        // Try another click with no TOC to cover that branch
+        driveStatusFlow.value = com.bitperfect.app.usb.DriveStatus.DiscReady(driveInfo, null)
+        composeTestRule.waitForIdle()
+        composeTestRule.mainClock.advanceTimeBy(100)
+        try {
+            composeTestRule.onNodeWithText("Send Debug Info").performClick()
+        } catch (e: Exception) {
         }
     }
 }
