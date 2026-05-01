@@ -35,28 +35,46 @@ class ReadTocCommandTest {
             anyInt(),
             anyInt()
         )).thenAnswer { invocation ->
-            val buffer = invocation.arguments[1] as ByteArray
-            val length = invocation.arguments[2] as Int
+            handleMockTransfer(invocation, track1Lba)
+        }
+        `when`(transport.bulkTransferFully(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            handleMockTransfer(invocation, track1Lba)
+        }
+    }
 
-            if (length == 31) {
-                // CBW
-                length
-            } else if (length == 804) {
-                // TOC Data
-                val fakeData = createFakeTocData(track1Lba)
-                System.arraycopy(fakeData, 0, buffer, 0, fakeData.size)
-                length
-            } else if (length == 13) {
-                // CSW
-                val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
-                cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
-                cswBuffer.putInt(3) // tag
-                cswBuffer.putInt(0) // data residue
-                cswBuffer.put(0.toByte()) // status success
-                length
-            } else {
-                -1
-            }
+    private fun handleMockTransfer(invocation: org.mockito.invocation.InvocationOnMock, track1Lba: Int): Int {
+        val buffer = invocation.arguments[1] as ByteArray
+        val length = invocation.arguments[2] as Int
+
+        if (length == 31) {
+            // CBW
+            return length
+        } else if (length == 4) {
+            // TOC Data Phase 1 (Header)
+            val fakeData = createFakeTocData(track1Lba)
+            System.arraycopy(fakeData, 0, buffer, 0, 4)
+            return 4
+        } else if (length > 0 && length <= 800 && length != 31 && length != 13) {
+            // TOC Data Phase 2 (Body)
+            val fakeData = createFakeTocData(track1Lba)
+            val toCopy = Math.min(length, fakeData.size - 4)
+            System.arraycopy(fakeData, 4, buffer, 0, toCopy)
+            return toCopy
+        } else if (length == 13) {
+            // CSW
+            val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+            cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
+            cswBuffer.putInt(3) // tag
+            cswBuffer.putInt(0) // data residue
+            cswBuffer.put(0.toByte()) // status success
+            return length
+        } else {
+            return -1
         }
     }
 

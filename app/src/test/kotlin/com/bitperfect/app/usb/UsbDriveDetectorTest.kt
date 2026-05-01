@@ -96,14 +96,23 @@ class UsbDriveDetectorTest {
                     return 13
                 }
                 "TOC_CBW" -> {
-                    state = "TOC_DATA"
+                    state = "TOC_DATA_HEADER"
                     return 31
                 }
-                "TOC_DATA" -> {
+                "TOC_DATA_HEADER" -> {
+                    state = "TOC_DATA_BODY"
+                    if (tocResponse != null) {
+                        System.arraycopy(tocResponse, 0, buffer, 0, 4.coerceAtMost(length))
+                        return 4
+                    }
+                    return 0
+                }
+                "TOC_DATA_BODY" -> {
                     state = "TOC_CSW"
                     if (tocResponse != null) {
-                        System.arraycopy(tocResponse, 0, buffer, 0, tocResponse.size.coerceAtMost(length))
-                        return tocResponse.size
+                        val toCopy = (tocResponse.size - 4).coerceAtMost(length)
+                        System.arraycopy(tocResponse, 4, buffer, 0, toCopy)
+                        return toCopy
                     }
                     return 0
                 }

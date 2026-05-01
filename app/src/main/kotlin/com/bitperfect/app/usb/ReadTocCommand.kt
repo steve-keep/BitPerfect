@@ -49,15 +49,30 @@ class ReadTocCommand(
             return null
         }
 
-        // Read Data
-        val tocData = ByteArray(804)
-        transferred = transport.bulkTransfer(inEndpoint, tocData, tocData.size, 5000)
-        if (transferred < 0) {
-            AppLogger.e(TAG, "Failed to read TOC data")
+        // Read Data Phase 1: 4-byte header
+        val headerBuf = ByteArray(4)
+        val headerRead = transport.bulkTransfer(inEndpoint, headerBuf, 4, 5000)
+        if (headerRead < 4) {
+            AppLogger.e(TAG, "Failed to read TOC header")
             return null
         }
+        val tocDataLengthField = ((headerBuf[0].toInt() and 0xFF) shl 8) or (headerBuf[1].toInt() and 0xFF)
+        val expectedTotal = minOf(tocDataLengthField + 2, 804)
 
-        AppLogger.d(TAG, "RAW TOC: ${tocData.take(transferred).joinToString(" ") { "%02x".format(it) }}")
+        // Read Data Phase 2: remaining bytes
+        val tocData = ByteArray(804)
+        System.arraycopy(headerBuf, 0, tocData, 0, 4)
+        val remaining = expectedTotal - 4
+        val bodyBuf = ByteArray(remaining)
+        val bodyRead = transport.bulkTransferFully(inEndpoint, bodyBuf, remaining, 5000)
+        if (bodyRead < 0) {
+            AppLogger.e(TAG, "Failed to read TOC body")
+            return null
+        }
+        System.arraycopy(bodyBuf, 0, tocData, 4, bodyRead)
+        val totalTocRead = 4 + bodyRead
+
+        AppLogger.d(TAG, "RAW TOC: ${tocData.take(totalTocRead).joinToString(" ") { "%02x".format(it) }}")
 
         // Read CSW (Command Status Wrapper)
         val csw = ByteArray(13)
@@ -111,7 +126,7 @@ class ReadTocCommand(
         val pregapOffset = if (entries.firstOrNull()?.lba == 0) 150 else 0
         val normalisedEntries = if (pregapOffset == 0) entries else entries.map { it.copy(lba = it.lba + pregapOffset) }
         val normalisedLeadOut = leadOutLba + pregapOffset
-        return Pair(DiscToc(normalisedEntries, normalisedLeadOut), tocData.copyOf(transferred))
+        return Pair(DiscToc(normalisedEntries, normalisedLeadOut), tocData.copyOf(totalTocRead))
     }
 
     companion object {
