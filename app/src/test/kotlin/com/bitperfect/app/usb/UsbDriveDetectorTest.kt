@@ -402,10 +402,10 @@ class UsbDriveDetectorTest {
 
         assertNotNull(toc)
         assertEquals(3, toc?.trackCount)
-        assertEquals(0, toc?.tracks?.get(0)?.lba)
-        assertEquals(16000, toc?.tracks?.get(1)?.lba)
-        assertEquals(32000, toc?.tracks?.get(2)?.lba)
-        assertEquals(48000, toc?.leadOutLba)
+        assertEquals(150, toc?.tracks?.get(0)?.lba)
+        assertEquals(16150, toc?.tracks?.get(1)?.lba)
+        assertEquals(32150, toc?.tracks?.get(2)?.lba)
+        assertEquals(48150, toc?.leadOutLba)
     }
 
     @Test
