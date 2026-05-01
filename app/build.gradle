@@ -63,6 +63,13 @@ android {
         }
     }
 
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def name = "BitPerfect-${variant.versionName}-${variant.name}.apk"
+            outputFileName = name
+        }
+    }
+
     testOptions {
         unitTests {
             includeAndroidResources = true
