@@ -529,13 +529,12 @@ class UsbDriveDetectorTest {
             attempts++
         }
 
-        if (detector.driveStatus.value is DriveStatus.DiscReady) {
+
             val state = detector.driveStatus.value
             assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
             val discReady = state as DriveStatus.DiscReady
             assertNotNull(discReady.toc)
             assertEquals(3, discReady.toc?.trackCount)
-        }
     }
 
     @Test
