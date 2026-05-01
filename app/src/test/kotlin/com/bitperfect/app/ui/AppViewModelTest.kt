@@ -128,9 +128,7 @@ class AppViewModelTest {
         Thread.sleep(100)
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
 
-        if (viewModel.discMetadata.value?.albumTitle != "Unknown Album") {
-            assertEquals(dummyMetadata, viewModel.discMetadata.value)
-        }
+        assertEquals(dummyMetadata, viewModel.discMetadata.value)
         job.cancel()
         job.join()
         advanceUntilIdle()
@@ -172,9 +170,7 @@ class AppViewModelTest {
         Thread.sleep(100)
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
 
-        if (viewModel.discMetadata.value?.albumTitle != "Unknown Album") {
-            assertEquals(dummyMetadata, viewModel.discMetadata.value)
-        }
+        assertEquals(dummyMetadata, viewModel.discMetadata.value)
 
         mockDriveStatusFlow.value = DriveStatus.NoDrive
         advanceUntilIdle()
