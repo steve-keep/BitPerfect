@@ -17,13 +17,13 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
 
     fun getAccurateRipUrl(toc: DiscToc): String {
         val discId = computeAccurateRipDiscId(toc)
-        return buildAccurateRipUrl(discId.id1, discId.id2, discId.id3, toc.trackCount)
+        return discId.toUrl(toc.trackCount)
     }
 
     suspend fun checkIsKeyDisc(toc: DiscToc): Boolean = withContext(Dispatchers.IO) {
         try {
             val discId = computeAccurateRipDiscId(toc)
-            val url = buildAccurateRipUrl(discId.id1, discId.id2, discId.id3, toc.trackCount)
+            val url = discId.toUrl(toc.trackCount)
 
             val hexId1 = String.format("%08x", discId.id1 and 0xFFFFFFFFL)
             val hexId2 = String.format("%08x", discId.id2 and 0xFFFFFFFFL)
@@ -46,18 +46,4 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
         }
     }
 
-    private fun buildAccurateRipUrl(id1: Long, id2: Long, cddb: Long, trackCount: Int): String {
-        val hexId1 = String.format("%08x", id1 and 0xFFFFFFFFL)
-
-        // Extract the last 3 characters in reverse order for the directory path
-        val c1 = hexId1[7]
-        val c2 = hexId1[6]
-        val c3 = hexId1[5]
-
-        val hexId2 = String.format("%08x", id2 and 0xFFFFFFFFL)
-        val hexCddb = String.format("%08x", cddb)
-        val trackCountStr = String.format("%03d", trackCount)
-
-        return "http://www.accuraterip.com/accuraterip/$c1/$c2/$c3/dBAR-$trackCountStr-$hexId1-$hexId2-$hexCddb.bin"
-    }
 }

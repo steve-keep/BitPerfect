@@ -445,16 +445,16 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         sb.appendLine()
 
         val arId = com.bitperfect.core.utils.computeAccurateRipDiscId(toc)
-        val id1Str = String.format("%08x", arId.id1)
-        val id2Str = String.format("%08x", arId.id2)
-        val id3Str = String.format("%08x", arId.id3)
+
+
+
         sb.appendLine("### AccurateRip")
         sb.appendLine("```")
-        sb.appendLine("id1: $id1Str")
-        sb.appendLine("id2: $id2Str")
-        sb.appendLine("id3: $id3Str")
+        sb.appendLine("id1: ${String.format("%08x", arId.id1 and 0xFFFFFFFFL)}")
+        sb.appendLine("id2: ${String.format("%08x", arId.id2 and 0xFFFFFFFFL)}")
+        sb.appendLine("id3: ${String.format("%08x", arId.id3)}")
         sb.appendLine("```")
-        sb.appendLine("URL: `http://www.accuraterip.com/accuraterip/${id1Str.last()}/${id2Str.last()}/${id3Str.last()}/dBAR-${String.format("%03d", toc.trackCount)}-$id1Str-$id2Str-$id3Str.bin`")
+        sb.appendLine("URL: `${arId.toUrl(toc.trackCount)}`")
         sb.appendLine()
 
         val mbId = com.bitperfect.core.utils.computeMusicBrainzDiscId(toc)

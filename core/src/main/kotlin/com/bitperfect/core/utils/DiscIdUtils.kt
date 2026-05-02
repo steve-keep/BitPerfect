@@ -6,7 +6,16 @@ data class AccurateRipDiscId(
     val id1: Long,   // TrackOffsetsAdded
     val id2: Long,   // TrackOffsetsMultiplied (may overflow Int, use Long)
     val id3: Long    // freedbId
-)
+) {
+    fun toUrl(trackCount: Int): String {
+        val id1Hex = String.format("%08x", id1 and 0xFFFFFFFFL)
+        val id2Hex = String.format("%08x", id2 and 0xFFFFFFFFL)
+        val id3Hex = String.format("%08x", id3)
+        val dir = "${id1Hex[7]}/${id1Hex[6]}/${id1Hex[5]}"
+        return "http://www.accuraterip.com/accuraterip/$dir/" +
+            "dBAR-${trackCount.toString().padStart(3, '0')}-$id1Hex-$id2Hex-$id3Hex.bin"
+    }
+}
 
 fun computeFreedbId(toc: DiscToc): Long {
     // Sum of digit-sum of each track's start time in seconds, mod 255, shifted left 24 bits,
@@ -25,19 +34,23 @@ fun computeFreedbId(toc: DiscToc): Long {
     return ((checksum.toLong() shl 24) or (discLength.toLong() shl 8) or toc.trackCount.toLong())
 }
 
+private const val LEAD_IN_FRAMES = 150
+
 fun computeAccurateRipDiscId(toc: DiscToc): AccurateRipDiscId {
-    var offsetsAdded = 0L
-    var offsetsMultiplied = 0L
+    var id1 = 0L
+    var id2 = 0L
     for (entry in toc.tracks) {
-        offsetsAdded += entry.lba
-        offsetsMultiplied += maxOf(entry.lba.toLong(), 1L) * entry.trackNumber
+        val lsn = (entry.lba - LEAD_IN_FRAMES).toLong()
+        id1 += lsn
+        id2 += maxOf(lsn, 1L) * entry.trackNumber
     }
-    offsetsAdded += toc.leadOutLba
-    offsetsMultiplied += toc.leadOutLba.toLong() * (toc.trackCount + 1)
+    val lsnLeadOut = (toc.leadOutLba - LEAD_IN_FRAMES).toLong()
+    id1 += lsnLeadOut
+    id2 += lsnLeadOut * (toc.trackCount + 1)
     val id3 = computeFreedbId(toc)
     return AccurateRipDiscId(
-        offsetsAdded and 0xFFFFFFFFL,
-        offsetsMultiplied and 0xFFFFFFFFL,
+        id1 and 0xFFFFFFFFL,
+        id2 and 0xFFFFFFFFL,
         id3
     )
 }
