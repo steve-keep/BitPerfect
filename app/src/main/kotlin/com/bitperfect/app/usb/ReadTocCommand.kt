@@ -49,28 +49,13 @@ class ReadTocCommand(
             return null
         }
 
-        // Read Data Phase 1: 4-byte header
-        val headerBuf = ByteArray(4)
-        val headerRead = transport.bulkTransfer(inEndpoint, headerBuf, 4, 5000)
-        if (headerRead < 4) {
-            AppLogger.e(TAG, "Failed to read TOC header")
-            return null
-        }
-        val tocDataLengthField = ((headerBuf[0].toInt() and 0xFF) shl 8) or (headerBuf[1].toInt() and 0xFF)
-        val expectedTotal = minOf(tocDataLengthField + 2, 804)
-
-        // Read Data Phase 2: remaining bytes
+        // Read TOC data in a single buffered read
         val tocData = ByteArray(804)
-        System.arraycopy(headerBuf, 0, tocData, 0, 4)
-        val remaining = expectedTotal - 4
-        val bodyBuf = ByteArray(remaining)
-        val bodyRead = transport.bulkTransferFully(inEndpoint, bodyBuf, remaining, 5000)
-        if (bodyRead < 0) {
-            AppLogger.e(TAG, "Failed to read TOC body")
+        val totalTocRead = transport.bulkTransferFully(inEndpoint, tocData, 804, 5000)
+        if (totalTocRead < 4) {
+            AppLogger.e(TAG, "Failed to read TOC data: only $totalTocRead bytes received")
             return null
         }
-        System.arraycopy(bodyBuf, 0, tocData, 4, bodyRead)
-        val totalTocRead = 4 + bodyRead
 
         AppLogger.d(TAG, "RAW TOC: ${tocData.take(totalTocRead).joinToString(" ") { "%02x".format(it) }}")
 

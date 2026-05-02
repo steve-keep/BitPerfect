@@ -54,16 +54,11 @@ class ReadTocCommandTest {
         if (length == 31) {
             // CBW
             return length
-        } else if (length == 4) {
-            // TOC Data Phase 1 (Header)
+        } else if (length == 804) {
+            // TOC Data Single Phase
             val fakeData = createFakeTocData(track1Lba)
-            System.arraycopy(fakeData, 0, buffer, 0, 4)
-            return 4
-        } else if (length > 0 && length <= 800 && length != 31 && length != 13) {
-            // TOC Data Phase 2 (Body)
-            val fakeData = createFakeTocData(track1Lba)
-            val toCopy = Math.min(length, fakeData.size - 4)
-            System.arraycopy(fakeData, 4, buffer, 0, toCopy)
+            val toCopy = Math.min(length, fakeData.size)
+            System.arraycopy(fakeData, 0, buffer, 0, toCopy)
             return toCopy
         } else if (length == 13) {
             // CSW
