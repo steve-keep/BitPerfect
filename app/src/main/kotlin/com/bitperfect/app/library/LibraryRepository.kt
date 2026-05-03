@@ -94,7 +94,8 @@ open class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.ARTIST
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM
         )
 
         val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
@@ -115,6 +116,7 @@ open class LibraryRepository(private val context: Context) {
             val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
@@ -122,11 +124,12 @@ open class LibraryRepository(private val context: Context) {
                 val rawTrackNumber = cursor.getInt(trackCol)
                 val durationMs = cursor.getLong(durationCol)
                 val artist = cursor.getString(artistCol) ?: "Unknown Artist"
+                val albumTitle = cursor.getString(albumCol) ?: "Unknown Album"
 
                 val baseTrackNumber = if (rawTrackNumber >= 1000) rawTrackNumber % 1000 else rawTrackNumber
                 val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
 
-                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, artist))
+                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist))
             }
         }
 
@@ -140,7 +143,8 @@ open class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.ARTIST
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM
         )
 
         val selection = "${MediaStore.Audio.Media._ID} = ?"
@@ -160,6 +164,7 @@ open class LibraryRepository(private val context: Context) {
                 val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
 
                 val id = cursor.getLong(idCol)
                 val title = cursor.getString(titleCol) ?: "Unknown Track"
@@ -167,11 +172,12 @@ open class LibraryRepository(private val context: Context) {
                 val durationMs = cursor.getLong(durationCol)
                 val albumId = cursor.getLong(albumIdCol)
                 val artist = cursor.getString(artistCol) ?: "Unknown Artist"
+                val albumTitle = cursor.getString(albumCol) ?: "Unknown Album"
 
                 val baseTrackNumber = if (rawTrackNumber >= 1000) rawTrackNumber % 1000 else rawTrackNumber
                 val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
 
-                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, artist)
+                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist)
             }
         }
 

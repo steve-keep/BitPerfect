@@ -59,12 +59,12 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val positionMs by viewModel.positionMs.collectAsState()
     val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
+    val currentTrackArtist by viewModel.currentTrackArtist.collectAsState()
+    val currentAlbumTitle by viewModel.currentAlbumTitle.collectAsState()
+    val currentAlbumArtUri by viewModel.currentAlbumArtUri.collectAsState()
 
     val currentTrackState = viewModel.currentTrack.collectAsState()
     val currentTrack = currentTrackState.value
-
-    val currentAlbumState = viewModel.currentAlbum.collectAsState()
-    val currentAlbum = currentAlbumState.value
 
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
@@ -118,12 +118,10 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                     .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
-                val albumId = currentTrack?.albumId ?: -1L
-                if (albumId != -1L) {
-                    val albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId)
+                if (currentAlbumArtUri != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(albumArtUri)
+                            .data(currentAlbumArtUri)
                             .crossfade(true)
                             .build(),
                         contentDescription = "Album Art",
@@ -163,9 +161,8 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        val currentAlbumId = currentTrack?.albumId ?: -1L
-        val artistName = currentAlbum?.title?.let { _ -> viewModel.artists.value.find { it.albums.any { album -> album.id == currentAlbumId } }?.name } ?: "Unknown Artist"
-        val albumTitle = currentAlbum?.title ?: "Unknown Album"
+        val artistName = currentTrackArtist ?: "Unknown Artist"
+        val albumTitle = currentAlbumTitle ?: "Unknown Album"
         Text(
             text = "$artistName · $albumTitle",
             style = MaterialTheme.typography.bodyLarge,
