@@ -101,6 +101,7 @@ class MainActivity : ComponentActivity() {
             val currentRoute = currentBackStackEntry?.destination?.route ?: AppRoutes.DeviceList
 
             val selectedAlbumTitle by appViewModel.selectedAlbumTitle.collectAsState()
+            val trackListViewState by appViewModel.trackListViewState.collectAsState()
 
             val isPlaying by appViewModel.isPlaying.collectAsState()
             val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
@@ -248,7 +249,7 @@ class MainActivity : ComponentActivity() {
                                         text = when (currentRoute) {
                                             AppRoutes.Settings -> "Settings"
                                             AppRoutes.About -> "About"
-                                            AppRoutes.TrackList -> selectedAlbumTitle ?: "Album"
+                                            AppRoutes.TrackList -> trackListViewState?.title ?: selectedAlbumTitle ?: "Album"
                                             else -> "BitPerfect"
                                         },
                                         modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" }
