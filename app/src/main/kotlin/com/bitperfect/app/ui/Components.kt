@@ -48,6 +48,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.animation.animateColor
+import androidx.compose.animation.core.*
+import coil.compose.SubcomposeAsyncImage
+
+@Composable
+fun throbbingBackgroundModifier(): Modifier {
+    val infiniteTransition = rememberInfiniteTransition()
+    val color by infiniteTransition.animateColor(
+        initialValue = Color(0xFF141414),
+        targetValue = Color(0xFF2A2A2A),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "throbbing color"
+    )
+    return Modifier.background(color)
+}
 
 @Composable
 fun AlbumHeader(
@@ -154,7 +172,7 @@ private fun DiscReadyCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            SubcomposeAsyncImage(
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
                     .data(coverArtUrl)
                     .allowHardware(false)
@@ -165,8 +183,12 @@ private fun DiscReadyCard(
                     .size(56.dp)
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop,
-                placeholder = painterResource(id = R.drawable.app_logo),
-                error = painterResource(id = R.drawable.app_logo)
+                loading = {
+                    Box(modifier = Modifier.fillMaxSize().then(throbbingBackgroundModifier()))
+                },
+                error = {
+                    Box(modifier = Modifier.fillMaxSize().then(throbbingBackgroundModifier()))
+                }
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column {
