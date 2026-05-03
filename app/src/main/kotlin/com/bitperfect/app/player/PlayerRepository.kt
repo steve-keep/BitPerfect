@@ -46,6 +46,9 @@ open class PlayerRepository(
     private val _currentTrackArtist = MutableStateFlow<String?>(null)
     open val currentTrackArtist: StateFlow<String?> = _currentTrackArtist.asStateFlow()
 
+    private val _currentAlbumTitle = MutableStateFlow<String?>(null)
+    open val currentAlbumTitle: StateFlow<String?> = _currentAlbumTitle.asStateFlow()
+
     private val _currentAlbumArtUri = MutableStateFlow<Uri?>(null)
     open val currentAlbumArtUri: StateFlow<Uri?> = _currentAlbumArtUri.asStateFlow()
 
@@ -61,6 +64,7 @@ open class PlayerRepository(
             _currentMediaId.value = controller?.currentMediaItem?.mediaId
             _currentTrackTitle.value = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
             _currentTrackArtist.value = controller?.currentMediaItem?.mediaMetadata?.artist?.toString()
+            _currentAlbumTitle.value = controller?.currentMediaItem?.mediaMetadata?.albumTitle?.toString()
             _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
         }
 
@@ -90,6 +94,7 @@ open class PlayerRepository(
                     _currentMediaId.value = currentMediaItem?.mediaId
                     _currentTrackTitle.value = currentMediaItem?.mediaMetadata?.title?.toString()
                     _currentTrackArtist.value = currentMediaItem?.mediaMetadata?.artist?.toString()
+                    _currentAlbumTitle.value = currentMediaItem?.mediaMetadata?.albumTitle?.toString()
                     _currentAlbumArtUri.value = currentMediaItem?.mediaMetadata?.artworkUri
                     _positionMs.value = currentPosition
                 }
@@ -122,6 +127,7 @@ open class PlayerRepository(
                     MediaMetadata.Builder()
                         .setTitle(track.title)
                         .setArtist(track.artist)
+                        .setAlbumTitle(track.albumTitle)
                         .setTrackNumber(track.trackNumber)
                         .setArtworkUri(albumArtUri)
                         .build()
