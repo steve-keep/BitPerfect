@@ -25,7 +25,6 @@ import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
-import com.bitperfect.core.services.CoverArtRepository
 
 open class AppViewModel(
     application: Application,
@@ -62,7 +61,6 @@ open class AppViewModel(
 
     private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
 
-    private val coverArtRepository = CoverArtRepository(application)
 
     private val _coverArtUrl = MutableStateFlow<String?>(null)
     open val coverArtUrl: StateFlow<String?> = _coverArtUrl.asStateFlow()
@@ -153,8 +151,8 @@ open class AppViewModel(
         }
         viewModelScope.launch {
             discMetadata.collectLatest { metadata ->
-                if (metadata != null) {
-                    _coverArtUrl.value = coverArtRepository.getCoverArtUrl(metadata.mbReleaseId)
+                if (metadata != null && metadata.mbReleaseId.isNotEmpty()) {
+                    _coverArtUrl.value = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front"
                 } else {
                     _coverArtUrl.value = null
                 }
