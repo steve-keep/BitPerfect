@@ -1,0 +1,10 @@
+--- app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
++++ app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
+@@ -9,6 +9,7 @@
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.Search
+ import androidx.compose.material.icons.filled.MusicNote
++import androidx.compose.material.icons.filled.Verified
+ import androidx.compose.material.icons.outlined.*
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.Composable
