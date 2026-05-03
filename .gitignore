@@ -17,6 +17,16 @@ local.properties
 # OS
 .DS_Store
 
+# Temporary files
+*.patch
+*.temp
+*.tmp
+*.orig
+*.swp
+*~
+*.bak
+*.log
+
 # Explicitly include debug keystore for stable signing
 !app/debug.keystore
 jtagger_src/
