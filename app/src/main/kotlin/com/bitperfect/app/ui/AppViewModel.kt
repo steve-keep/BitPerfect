@@ -27,6 +27,14 @@ import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
 import com.bitperfect.core.services.AccurateRipService
 
+data class TrackListViewState(
+    val title: String,
+    val artistName: String,
+    val coverArtUrl: String?,
+    val tracks: List<TrackInfo>,
+    val isCdMode: Boolean
+)
+
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
@@ -50,9 +58,6 @@ open class AppViewModel(
     private val _isOutputFolderConfigured = MutableStateFlow(false)
     val isOutputFolderConfigured: StateFlow<Boolean> = _isOutputFolderConfigured
 
-    private val _tracks = MutableStateFlow<List<TrackInfo>>(emptyList())
-    val tracks: StateFlow<List<TrackInfo>> = _tracks
-
     private val _selectedAlbumId = MutableStateFlow<Long?>(null)
     val selectedAlbumId: StateFlow<Long?> = _selectedAlbumId
 
@@ -60,6 +65,9 @@ open class AppViewModel(
     val selectedAlbumTitle: StateFlow<String?> = _selectedAlbumTitle
 
     open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
+
+    private val _trackListViewState = MutableStateFlow<TrackListViewState?>(null)
+    val trackListViewState: StateFlow<TrackListViewState?> = _trackListViewState
 
     private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
 
@@ -188,12 +196,67 @@ open class AppViewModel(
 
     private fun loadTracks(albumId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            _tracks.value = libraryRepository.getTracksForAlbum(albumId)
+            val albumTracks = libraryRepository.getTracksForAlbum(albumId)
+
+            var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
+            var foundArtistName = ""
+            for (artist in _artists.value) {
+                val album = artist.albums.find { it.id == albumId }
+                if (album != null) {
+                    foundAlbum = album
+                    foundArtistName = artist.name
+                    break
+                }
+            }
+
+            val title = foundAlbum?.title ?: _selectedAlbumTitle.value ?: "Unknown Album"
+            val coverArtUrl = foundAlbum?.artUri?.toString()
+
+            _trackListViewState.value = TrackListViewState(
+                title = title,
+                artistName = foundArtistName,
+                coverArtUrl = coverArtUrl,
+                tracks = albumTracks,
+                isCdMode = false
+            )
         }
     }
 
     fun clearTracks() {
-        _tracks.value = emptyList()
+        _trackListViewState.value = null
+    }
+
+    fun viewCdTracks() {
+        val currentDriveStatus = driveStatus.value
+        if (currentDriveStatus is DriveStatus.DiscReady && currentDriveStatus.toc != null) {
+            val toc = currentDriveStatus.toc
+            val meta = discMetadata.value
+
+            val cdTracks = toc.tracks.mapIndexed { index, _ ->
+                val trackTitle = meta?.trackTitles?.getOrNull(index) ?: "Track ${index + 1}"
+                // Estimate duration from LBA. 75 frames per second.
+                val nextLba = if (index + 1 < toc.tracks.size) toc.tracks[index + 1].lba else toc.leadOutLba
+                val currentLba = toc.tracks[index].lba
+                val durationMs = if (nextLba > currentLba) {
+                    ((nextLba - currentLba) * 1000L) / 75L
+                } else 0L
+
+                TrackInfo(
+                    id = index.toLong(),
+                    title = trackTitle,
+                    trackNumber = index + 1,
+                    durationMs = durationMs
+                )
+            }
+
+            _trackListViewState.value = TrackListViewState(
+                title = meta?.albumTitle ?: "Unknown Album",
+                artistName = meta?.artistName ?: "Unknown Artist",
+                coverArtUrl = coverArtUrl.value,
+                tracks = cdTracks,
+                isCdMode = true
+            )
+        }
     }
 
     override fun onCleared() {

@@ -1,0 +1,65 @@
+--- app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
++++ app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
+@@ -10,6 +10,7 @@
+ import androidx.compose.material.icons.filled.MusicNote
+ import androidx.compose.material.icons.filled.Verified
+ import androidx.compose.material.icons.outlined.*
++import androidx.compose.material.icons.filled.Download
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
+@@ -70,9 +71,11 @@
+
+ @Composable
+ fun AlbumHeader(
+-    albumInfo: AlbumInfo?,
++    title: String,
+     artistName: String,
++    coverArtUrl: String?,
+     trackCount: Int,
++    isCdMode: Boolean = false,
+     modifier: Modifier = Modifier,
+     onPlayClick: () -> Unit = {}
+ ) {
+@@ -93,11 +96,11 @@
+         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+             AsyncImage(
+                 model = coil.request.ImageRequest.Builder(LocalContext.current)
+-                    .data(albumInfo?.artUri)
++                    .data(coverArtUrl)
+                     .allowHardware(false)
+                     .crossfade(true)
+                     .build(),
+-                contentDescription = albumInfo?.title,
++                contentDescription = title,
+                 modifier = Modifier
+                     .size(240.dp)
+                     .clip(RoundedCornerShape(8.dp)),
+@@ -115,7 +118,7 @@
+             )
+             Spacer(modifier = Modifier.height(24.dp))
+             Text(
+-                text = albumInfo?.title ?: "Unknown Album",
++                text = title,
+                 style = MaterialTheme.typography.headlineMedium,
+                 color = Color.White,
+                 fontWeight = FontWeight.Bold,
+@@ -148,9 +151,15 @@
+                     modifier = Modifier.fillMaxWidth(0.5f).height(56.dp),
+                     shape = RoundedCornerShape(12.dp)
+                 ) {
+-                    Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+-                    Spacer(modifier = Modifier.width(8.dp))
+-                    Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
++                    if (isCdMode) {
++                        Icon(Icons.Default.Download, contentDescription = "Save Disc")
++                        Spacer(modifier = Modifier.width(8.dp))
++                        Text(text = "Save Disc", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
++                    } else {
++                        Icon(Icons.Default.PlayArrow, contentDescription = "Play")
++                        Spacer(modifier = Modifier.width(8.dp))
++                        Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
++                    }
+                 }
+             }
+         }

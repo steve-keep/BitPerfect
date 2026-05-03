@@ -1,0 +1,79 @@
+--- app/src/main/kotlin/com/bitperfect/app/ui/TrackListScreen.kt
++++ app/src/main/kotlin/com/bitperfect/app/ui/TrackListScreen.kt
+@@ -29,38 +29,23 @@
+         }
+     }
+
+-    val tracks by viewModel.tracks.collectAsState()
+-    val artists by viewModel.artists.collectAsState()
+-    val albumId by viewModel.selectedAlbumId.collectAsState()
+-
++    val viewState by viewModel.trackListViewState.collectAsState()
+     val currentMediaId by viewModel.currentMediaId.collectAsState()
+
+-    val albumInfo = remember(albumId, artists) {
+-        if (albumId == null) return@remember null
+-        var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
+-        var foundArtistName = ""
+-        for (artist in artists) {
+-            val album = artist.albums.find { it.id == albumId }
+-            if (album != null) {
+-                foundAlbum = album
+-                foundArtistName = artist.name
+-                break
+-            }
+-        }
+-        if (foundAlbum != null) Pair(foundAlbum, foundArtistName) else null
+-    }
+-
+     Box(modifier = Modifier.fillMaxSize()) {
+-        if (tracks.isEmpty()) {
++        val state = viewState
++        if (state == null || state.tracks.isEmpty()) {
+             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                 CircularProgressIndicator(
+                     color = MaterialTheme.colorScheme.primary
+                 )
+             }
+         } else {
+-            val groupedTracks = tracks.groupBy { it.discNumber }
++            val groupedTracks = state.tracks.groupBy { it.discNumber }
+             val isMultiDisc = groupedTracks.size > 1
+
+             LazyColumn(
+                 modifier = Modifier.fillMaxSize(),
+                 contentPadding = PaddingValues(bottom = 16.dp)
+             ) {
+                 item {
+                     AlbumHeader(
+-                        albumInfo = albumInfo?.first,
+-                        artistName = albumInfo?.second ?: "Unknown Artist",
+-                        trackCount = tracks.size,
+-                        onPlayClick = { viewModel.playAlbum(tracks) }
++                        title = state.title,
++                        artistName = state.artistName,
++                        coverArtUrl = state.coverArtUrl,
++                        trackCount = state.tracks.size,
++                        isCdMode = state.isCdMode,
++                        onPlayClick = { viewModel.playAlbum(state.tracks) }
+                     )
+                 }
+
+@@ -93,12 +79,12 @@
+                     }
+
+                     itemsIndexed(discTracks, key = { _, track -> track.id }) { _, track ->
+-                        val globalIndex = tracks.indexOfFirst { it.id == track.id }
++                        val globalIndex = state.tracks.indexOfFirst { it.id == track.id }
+                         val isCurrentTrack = track.id.toString() == currentMediaId
+                         val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                         val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+                         Row(
+                             modifier = Modifier
+                                 .fillMaxWidth()
+-                                .clickable { viewModel.playTrack(tracks, globalIndex) }
++                                .clickable { viewModel.playTrack(state.tracks, globalIndex) }
+                                 .padding(horizontal = 16.dp, vertical = 12.dp),
+                             verticalAlignment = Alignment.CenterVertically
+                         ) {

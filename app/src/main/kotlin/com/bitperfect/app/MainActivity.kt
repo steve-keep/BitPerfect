@@ -307,7 +307,10 @@ class MainActivity : ComponentActivity() {
                             Column(modifier = Modifier.fillMaxSize()) {
                                 DeviceList(
                                     viewModel = appViewModel,
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                                    onViewCd = {
+                                        navController.navigate(AppRoutes.TrackList)
+                                    }
                                 )
                                 LibrarySection(
                                     viewModel = appViewModel,

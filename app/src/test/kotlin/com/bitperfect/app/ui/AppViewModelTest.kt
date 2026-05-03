@@ -274,9 +274,9 @@ class AppViewModelTest {
 
     @Test
     fun testClearTracks() {
-        assertEquals(emptyList<TrackInfo>(), viewModel.tracks.value)
+        assertEquals(null, viewModel.trackListViewState.value)
         viewModel.clearTracks()
-        assertEquals(emptyList<TrackInfo>(), viewModel.tracks.value)
+        assertEquals(null, viewModel.trackListViewState.value)
     }
 
     @Test

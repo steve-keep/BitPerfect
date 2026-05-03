@@ -1,0 +1,19 @@
+--- app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
++++ app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
+@@ -171,13 +171,15 @@
+     toc: DiscToc?,
+     discMetadata: DiscMetadata?,
+     coverArtUrl: String?,
+-    isKeyDisc: Boolean = false
++    isKeyDisc: Boolean = false,
++    onClick: () -> Unit = {}
+ ) {
+     Card(
+         colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+         shape = RoundedCornerShape(14.dp),
+         border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
+-        modifier = Modifier.fillMaxWidth()
++        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+     ) {
+         Row(
+             modifier = Modifier.padding(16.dp),
