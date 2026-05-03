@@ -277,7 +277,8 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .clickable {
                                 val discReady = driveStatus as? DriveStatus.DiscReady
-                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc)
+                                val offset = driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset
+                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset)
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -382,7 +383,7 @@ fun SettingsScreen(
     }
 }
 
-private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?) {
+private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?) {
     val sb = java.lang.StringBuilder()
     sb.appendLine("# BitPerfect Debug Report")
     sb.appendLine()
@@ -415,7 +416,7 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
     sb.appendLine("- C2 Error Pointers: No")
     sb.appendLine("- Subchannel Reading: No")
     sb.appendLine("- Full TOC Reading: No")
-    sb.appendLine("- Read Offset: 0 samples")
+    sb.appendLine("- Read Offset: ${offset ?: "Unknown"} samples")
     sb.appendLine()
 
     sb.appendLine("## Transport Settings")
@@ -470,9 +471,9 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         if (rawToc != null) {
             sb.appendLine("```")
             rawToc.toList().chunked(16).forEachIndexed { index, bytes ->
-                val offset = String.format("%04x", index * 16)
+                val byteOffset = String.format("%04x", index * 16)
                 val hexString = bytes.joinToString(" ") { String.format("%02x", it) }
-                sb.appendLine("$offset: $hexString")
+                sb.appendLine("$byteOffset: $hexString")
             }
             sb.appendLine("```")
         } else {
@@ -481,19 +482,13 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         sb.appendLine()
     }
 
-    val file = java.io.File(context.cacheDir, "bitperfect-debug.md")
-    file.writeText(sb.toString())
-
-    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_STREAM, uri)
-        type = "text/markdown"
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        putExtra(Intent.EXTRA_TEXT, sb.toString())
+        type = "text/plain"
     }
 
-    val shareIntent = Intent.createChooser(sendIntent, null)
+    val shareIntent = Intent.createChooser(sendIntent, "Share Debug Info")
     context.startActivity(shareIntent)
 }
 
