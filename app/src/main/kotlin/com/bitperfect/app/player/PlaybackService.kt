@@ -65,7 +65,12 @@ class PlaybackService : MediaLibraryService() {
                         .build()
                 )
                 .build()
-            return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params))
+
+            val resultParams = LibraryParams.Builder()
+                .setExtras(rootExtras)
+                .build()
+
+            return Futures.immediateFuture(LibraryResult.ofItem(rootItem, resultParams))
         }
 
         override fun onGetChildren(
@@ -116,8 +121,18 @@ class PlaybackService : MediaLibraryService() {
                 else -> emptyList()
             }
 
+            val resultParams = if (parentId == "root") {
+                val gridExtras = Bundle().apply {
+                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                }
+                LibraryParams.Builder().setExtras(gridExtras).build()
+            } else {
+                params
+            }
+
             return Futures.immediateFuture(
-                LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
+                LibraryResult.ofItemList(ImmutableList.copyOf(items), resultParams)
             )
         }
 
