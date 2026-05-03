@@ -109,9 +109,8 @@ class MainActivity : ComponentActivity() {
 
             val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
                 bottomSheetState = rememberStandardBottomSheetState(
-                    initialValue = SheetValue.Hidden,
-                    skipHiddenState = false,
-                    confirmValueChange = { it != SheetValue.Hidden }
+                    initialValue = SheetValue.PartiallyExpanded,
+                    skipHiddenState = true
                 )
             )
 
@@ -125,14 +124,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(currentTrackTitle) {
-                if (currentTrackTitle != null) {
-                    // Only partial expand if we were completely hidden, to avoid collapsing the full screen player when track changes
-                    if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
-                        bottomSheetScaffoldState.bottomSheetState.partialExpand()
-                    }
-                }
-            }
             val coroutineScope = rememberCoroutineScope()
 
             BitPerfectTheme {
