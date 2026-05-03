@@ -52,13 +52,19 @@ class TrackListScreenTest {
             )
         )
 
-        // Force a mock tracks list state using reflection to avoid database dependencies
-        val tracksField = AppViewModel::class.java.getDeclaredField("_tracks")
-        tracksField.isAccessible = true
-        val tracksStateFlow = tracksField.get(mockViewModel) as kotlinx.coroutines.flow.MutableStateFlow<List<com.bitperfect.app.library.TrackInfo>>
+        // Force a mock view state list state using reflection to avoid database dependencies
+        val viewStateField = AppViewModel::class.java.getDeclaredField("_trackListViewState")
+        viewStateField.isAccessible = true
+        val viewStateFlow = viewStateField.get(mockViewModel) as kotlinx.coroutines.flow.MutableStateFlow<TrackListViewState?>
 
-        tracksStateFlow.value = listOf(
-            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L) // 2:05
+        viewStateFlow.value = TrackListViewState(
+            title = "Test Album",
+            artistName = "Test Artist",
+            coverArtUrl = null,
+            tracks = listOf(
+                com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L) // 2:05
+            ),
+            isCdMode = false
         )
 
         mockViewModel.selectAlbum(1L, "Test Album")
@@ -71,9 +77,15 @@ class TrackListScreenTest {
 
         // Ensure that tracks state evaluates first, avoiding 0% coverage.
         // Restore tracks value since it was overwritten by loadTracks coroutine
-        tracksStateFlow.value = listOf(
-            com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L), // 2:05
-            com.bitperfect.app.library.TrackInfo(2L, "Mock Track Title 2", 2, 125000L, discNumber = 2) // multi-disc test
+        viewStateFlow.value = TrackListViewState(
+            title = "Test Album",
+            artistName = "Test Artist",
+            coverArtUrl = null,
+            tracks = listOf(
+                com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L), // 2:05
+                com.bitperfect.app.library.TrackInfo(2L, "Mock Track Title 2", 2, 125000L, discNumber = 2) // multi-disc test
+            ),
+            isCdMode = false
         )
         composeTestRule.mainClock.advanceTimeBy(5000)
         composeTestRule.waitForIdle()

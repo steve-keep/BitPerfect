@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -70,9 +71,11 @@ fun throbbingBackgroundModifier(): Modifier {
 
 @Composable
 fun AlbumHeader(
-    albumInfo: AlbumInfo?,
+    title: String,
     artistName: String,
+    coverArtUrl: String?,
     trackCount: Int,
+    isCdMode: Boolean = false,
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {}
 ) {
@@ -93,11 +96,11 @@ fun AlbumHeader(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AsyncImage(
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(albumInfo?.artUri)
+                    .data(coverArtUrl)
                     .allowHardware(false)
                     .crossfade(true)
                     .build(),
-                contentDescription = albumInfo?.title,
+                contentDescription = title,
                 modifier = Modifier
                     .size(240.dp)
                     .clip(RoundedCornerShape(8.dp)),
@@ -115,7 +118,7 @@ fun AlbumHeader(
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = albumInfo?.title ?: "Unknown Album",
+                text = title,
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -148,9 +151,15 @@ fun AlbumHeader(
                     modifier = Modifier.fillMaxWidth(0.5f).height(56.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Play")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (isCdMode) {
+                        Icon(Icons.Default.Download, contentDescription = "Save Disc")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Save Disc", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -162,13 +171,14 @@ private fun DiscReadyCard(
     toc: DiscToc?,
     discMetadata: DiscMetadata?,
     coverArtUrl: String?,
-    isKeyDisc: Boolean = false
+    isKeyDisc: Boolean = false,
+    onClick: () -> Unit = {}
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -228,7 +238,11 @@ private fun DiscReadyCard(
 }
 
 @Composable
-fun DeviceList(modifier: Modifier = Modifier, viewModel: AppViewModel) {
+fun DeviceList(
+    modifier: Modifier = Modifier,
+    viewModel: AppViewModel,
+    onViewCd: () -> Unit = {}
+) {
     val driveStatus by viewModel.driveStatus.collectAsState()
     val discMetadata by viewModel.discMetadata.collectAsState()
     val coverArtUrl by viewModel.coverArtUrl.collectAsState()
@@ -267,7 +281,11 @@ fun DeviceList(modifier: Modifier = Modifier, viewModel: AppViewModel) {
                     toc = currentStatus.toc,
                     discMetadata = discMetadata,
                     coverArtUrl = coverArtUrl,
-                    isKeyDisc = isKeyDisc
+                    isKeyDisc = isKeyDisc,
+                    onClick = {
+                        viewModel.viewCdTracks()
+                        onViewCd()
+                    }
                 )
             }
             is DriveStatus.Error -> DriveStatusCard(
