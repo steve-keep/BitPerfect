@@ -61,6 +61,10 @@ class OffsetCalibrationViewModel(
                     // For now, null is acceptable.
                     if (isKeyDisc) {
                         updateStepState(activeStepIndex, CalibrationStepState.KeyDiscConfirmed(null))
+                        viewModelScope.launch {
+                            delay(2000)
+                            startScan(activeStepIndex)
+                        }
                     } else {
                         updateStepState(activeStepIndex, CalibrationStepState.NotAKeyDisc(null, attemptedUrl))
                     }

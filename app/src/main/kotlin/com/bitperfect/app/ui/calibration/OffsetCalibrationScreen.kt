@@ -84,8 +84,7 @@ val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>,
 fun CalibrationStepContent(
     stepNumber: Int,
     state: CalibrationStepState,
-    onStateChanged: (CalibrationStepState) -> Unit,
-    onStartScan: () -> Unit
+    onStateChanged: (CalibrationStepState) -> Unit
 ) {
     // Note: the delayed state change is moved to the ViewModel where scanning will occur
 
@@ -177,9 +176,6 @@ fun CalibrationStepContent(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = 24.dp)
                     )
-                }
-                Button(onClick = { onStartScan() }) {
-                    Text("Start Scan")
                 }
             }
             is CalibrationStepState.Scanning -> {
@@ -426,9 +422,8 @@ fun OffsetCalibrationScreen(
                             if (newState is CalibrationStepState.WaitingForDisc) {
                                 viewModel.resetStep(targetStep - 1)
                             }
-                        },
-                            onStartScan = { viewModel.startScan(targetStep - 1) }
-                        )
+                        }
+                    )
                     }
                 }
             }
