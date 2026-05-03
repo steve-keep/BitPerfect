@@ -138,13 +138,23 @@ class MainActivity : ComponentActivity() {
             BitPerfectTheme {
                 BottomSheetScaffold(
                     scaffoldState = bottomSheetScaffoldState,
-                    sheetPeekHeight = 64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                    sheetPeekHeight = if (currentTrackTitle != null) {
+                        64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    } else {
+                        0.dp
+                    },
                     sheetDragHandle = null,
                     sheetContent = {
                         val density = androidx.compose.ui.platform.LocalDensity.current
                         val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
                         val screenHeightPx = with(density) { screenHeight.toPx() }
-                        val peekHeightPx = with(density) { (64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).toPx() }
+                        val peekHeightPx = with(density) {
+                            if (currentTrackTitle != null) {
+                                (64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).toPx()
+                            } else {
+                                0f
+                            }
+                        }
 
                         val progress = try {
                             val offset = bottomSheetScaffoldState.bottomSheetState.requireOffset()
