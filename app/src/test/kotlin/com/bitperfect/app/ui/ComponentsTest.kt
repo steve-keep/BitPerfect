@@ -26,6 +26,7 @@ class ComponentsTest {
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.Connecting(null)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+        Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
         composeTestRule.setContent {
             DeviceList(viewModel = mockViewModel)
@@ -42,6 +43,7 @@ class ComponentsTest {
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.Empty(driveInfo)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+        Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
         composeTestRule.setContent {
             DeviceList(viewModel = mockViewModel)
@@ -58,6 +60,7 @@ class ComponentsTest {
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.DiscReady(driveInfo)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+        Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
         composeTestRule.setContent {
             DeviceList(viewModel = mockViewModel)

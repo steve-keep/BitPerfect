@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -160,7 +161,8 @@ fun AlbumHeader(
 private fun DiscReadyCard(
     toc: DiscToc?,
     discMetadata: DiscMetadata?,
-    coverArtUrl: String?
+    coverArtUrl: String?,
+    isKeyDisc: Boolean = false
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
@@ -192,12 +194,22 @@ private fun DiscReadyCard(
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(
-                    text = discMetadata?.albumTitle ?: "Disc Ready",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = discMetadata?.albumTitle ?: "Disc Ready",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    if (isKeyDisc) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.Verified,
+                            contentDescription = "AccurateRip Verified",
+                            tint = Color(0xFF3DDC68)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = discMetadata?.artistName ?: "Looking up metadata…",
@@ -220,6 +232,7 @@ fun DeviceList(modifier: Modifier = Modifier, viewModel: AppViewModel) {
     val driveStatus by viewModel.driveStatus.collectAsState()
     val discMetadata by viewModel.discMetadata.collectAsState()
     val coverArtUrl by viewModel.coverArtUrl.collectAsState()
+    val isKeyDisc by viewModel.isKeyDisc.collectAsState()
 
     if (driveStatus is DriveStatus.NoDrive) {
         return
@@ -253,7 +266,8 @@ fun DeviceList(modifier: Modifier = Modifier, viewModel: AppViewModel) {
                 DiscReadyCard(
                     toc = currentStatus.toc,
                     discMetadata = discMetadata,
-                    coverArtUrl = coverArtUrl
+                    coverArtUrl = coverArtUrl,
+                    isKeyDisc = isKeyDisc
                 )
             }
             is DriveStatus.Error -> DriveStatusCard(

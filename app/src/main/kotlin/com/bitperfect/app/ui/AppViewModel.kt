@@ -25,6 +25,7 @@ import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
+import com.bitperfect.core.services.AccurateRipService
 
 open class AppViewModel(
     application: Application,
@@ -39,6 +40,7 @@ open class AppViewModel(
 
     private val settingsManager = SettingsManager(application)
     private val libraryRepository = LibraryRepository(application)
+    private val accurateRipService = AccurateRipService()
 
     private val _artists = MutableStateFlow<List<ArtistInfo>>(emptyList())
     val artists: StateFlow<List<ArtistInfo>> = _artists
@@ -67,6 +69,9 @@ open class AppViewModel(
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
     open val discMetadata: StateFlow<DiscMetadata?> = _discMetadata.asStateFlow()
+
+    private val _isKeyDisc = MutableStateFlow(false)
+    open val isKeyDisc: StateFlow<Boolean> = _isKeyDisc.asStateFlow()
 
     val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
@@ -125,6 +130,10 @@ open class AppViewModel(
         viewModelScope.launch {
             driveStatus.collectLatest { status ->
                 if (status is DriveStatus.DiscReady && status.toc != null) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        _isKeyDisc.value = accurateRipService.checkIsKeyDisc(status.toc)
+                    }
+
                     try {
                         val metadata = kotlinx.coroutines.withContext(Dispatchers.IO) {
                             lookupMusicBrainz(status.toc)
@@ -146,6 +155,7 @@ open class AppViewModel(
                     }
                 } else {
                     _discMetadata.value = null
+                    _isKeyDisc.value = false
                 }
             }
         }
