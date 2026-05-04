@@ -252,12 +252,18 @@ class UsbDriveDetector(
             )
 
             // TEST UNIT READY
-            val isReady = executeTestUnitReady(transportLocal, outEndpoint, inEndpoint)
-            if (isReady) {
-                val tocResult = readTocWithRetry(transportLocal, outEndpoint, inEndpoint)
-                _driveStatus.value = DriveStatus.DiscReady(info, tocResult?.first, tocResult?.second)
-            } else {
-                _driveStatus.value = DriveStatus.Empty(info)
+            val turResult = executeTestUnitReady(transportLocal, outEndpoint, inEndpoint)
+            when (turResult) {
+                TurResult.READY -> {
+                    val tocResult = readTocWithRetry(transportLocal, outEndpoint, inEndpoint)
+                    _driveStatus.value = DriveStatus.DiscReady(info, tocResult?.first, tocResult?.second)
+                }
+                TurResult.SPINNING_UP -> {
+                    _driveStatus.value = DriveStatus.SpinningUp(info)
+                }
+                TurResult.NOT_READY -> {
+                    _driveStatus.value = DriveStatus.Empty(info)
+                }
             }
 
             // Start polling loop which takes ownership of cleaning up the connection
@@ -269,6 +275,10 @@ class UsbDriveDetector(
             _driveStatus.value = DriveStatus.Error(e.message ?: "Unknown error", currentInfo)
             cleanupConnection()
         }
+    }
+
+    enum class TurResult {
+        READY, SPINNING_UP, NOT_READY
     }
 
     private fun startPollingLoop(info: DriveInfo) {
@@ -287,15 +297,27 @@ class UsbDriveDetector(
                         break
                     }
 
-                    val isReady = executeSingleTestUnitReady(currentTransport, currentOutEndpoint, currentInEndpoint, cbwTag)
+                    val turResult = executeSingleTestUnitReady(currentTransport, currentOutEndpoint, currentInEndpoint, cbwTag)
                     cbwTag += 2
 
                     val currentStatus = _driveStatus.value
-                    if (isReady && currentStatus is DriveStatus.Empty) {
-                        val tocResult = readTocWithRetry(currentTransport, currentOutEndpoint, currentInEndpoint, cbwTag + 50)
-                        _driveStatus.value = DriveStatus.DiscReady(info, tocResult?.first, tocResult?.second)
-                    } else if (!isReady && (currentStatus is DriveStatus.DiscReady || currentStatus is DriveStatus.Error)) {
-                        _driveStatus.value = DriveStatus.Empty(info)
+                    when (turResult) {
+                        TurResult.READY -> {
+                            if (currentStatus !is DriveStatus.DiscReady) {
+                                val tocResult = readTocWithRetry(currentTransport, currentOutEndpoint, currentInEndpoint, cbwTag + 50)
+                                _driveStatus.value = DriveStatus.DiscReady(info, tocResult?.first, tocResult?.second)
+                            }
+                        }
+                        TurResult.SPINNING_UP -> {
+                            if (currentStatus !is DriveStatus.SpinningUp) {
+                                _driveStatus.value = DriveStatus.SpinningUp(info)
+                            }
+                        }
+                        TurResult.NOT_READY -> {
+                            if (currentStatus !is DriveStatus.Empty) {
+                                _driveStatus.value = DriveStatus.Empty(info)
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -306,20 +328,28 @@ class UsbDriveDetector(
         }
     }
 
-    private fun executeTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): Boolean {
+    private fun executeTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): TurResult {
         for (attempt in 1..10) {
-            if (executeSingleTestUnitReady(transport, outEndpoint, inEndpoint, attempt * 2)) {
-                return true
+            val result = executeSingleTestUnitReady(transport, outEndpoint, inEndpoint, attempt * 2)
+            if (result == TurResult.READY) {
+                return TurResult.READY
+            } else if (result == TurResult.SPINNING_UP) {
+                // If spinning up, we can still wait and retry, but we want to potentially return this state
+                // We'll return NOT_READY for now to keep retrying, unless we decide we want to bubble up the SPINNING_UP state immediately
+                // However, the original code retried TUR multiple times during interrogate. If we want it to bubble up SPINNING_UP immediately during interrogate, we can return it.
+                // Or we can return it after retries exhaust, or wait.
+                // The task asks to transition to SpinningUp state. We can bubble it up so the caller can handle it.
+                return TurResult.SPINNING_UP
             }
             if (attempt < 10) {
                 Thread.sleep(1000)
             }
         }
         AppLogger.w(TAG, "TUR: Exhausted all attempts, drive not ready")
-        return false
+        return TurResult.NOT_READY
     }
 
-    private fun executeSingleTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): Boolean {
+    private fun executeSingleTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): TurResult {
         // CBW: 31 bytes
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -342,7 +372,7 @@ class UsbDriveDetector(
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
         if (transferred < 0) {
             AppLogger.e(TAG, "TUR: Failed to send CBW on tag $tag")
-            return false
+            return TurResult.NOT_READY
         }
 
         // No Data phase for TUR
@@ -352,7 +382,7 @@ class UsbDriveDetector(
         transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
         if (transferred < 0) {
             AppLogger.e(TAG, "TUR: Failed to read CSW on tag $tag")
-            return false
+            return TurResult.NOT_READY
         }
 
         // Validate CSW
@@ -360,16 +390,16 @@ class UsbDriveDetector(
         val cswSignature = cswBuffer.getInt(0)
         if (cswSignature != 0x53425355) {
             AppLogger.e(TAG, "TUR: Invalid CSW signature on tag $tag")
-            return false
+            return TurResult.NOT_READY
         }
         val status = csw[12]
         if (status != 0.toByte()) {
             AppLogger.d(TAG, "TUR: Drive not ready (status=$status) on tag $tag")
-            executeRequestSense(transport, outEndpoint, inEndpoint, tag + 1)
-            return false
+            val isSpinningUp = executeRequestSense(transport, outEndpoint, inEndpoint, tag + 1)
+            return if (isSpinningUp) TurResult.SPINNING_UP else TurResult.NOT_READY
         }
 
-        return true
+        return TurResult.READY
     }
 
     private fun readTocWithRetry(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tagOffset: Int = 50): Pair<com.bitperfect.core.models.DiscToc, ByteArray>? {
@@ -388,7 +418,7 @@ class UsbDriveDetector(
         return tocResult
     }
 
-    private fun executeRequestSense(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int) {
+    private fun executeRequestSense(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): Boolean {
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         buffer.putInt(0x43425355) // dCBWSignature
@@ -408,16 +438,22 @@ class UsbDriveDetector(
 
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 3000)
-        if (transferred < 0) return
+        if (transferred < 0) return false
 
         // Read Data
         val senseData = ByteArray(18)
         transferred = transport.bulkTransfer(inEndpoint, senseData, senseData.size, 3000)
-        if (transferred < 0) return
+        if (transferred < 0) return false
 
         // Read CSW
         val csw = ByteArray(13)
         transport.bulkTransfer(inEndpoint, csw, csw.size, 3000)
+
+        val senseKey = senseData[2].toInt() and 0x0F
+        val asc = senseData[12].toInt() and 0xFF
+        val ascq = senseData[13].toInt() and 0xFF
+
+        return senseKey == 0x02 && asc == 0x04 && ascq == 0x01
     }
 
     companion object {

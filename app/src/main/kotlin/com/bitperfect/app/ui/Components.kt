@@ -276,6 +276,12 @@ fun DeviceList(
                 headline = "No Disc Inserted",
                 subtitle = "Insert a CD to continue"
             )
+            is DriveStatus.SpinningUp -> DriveStatusCard(
+                icon = Icons.Outlined.HourglassBottom,
+                headline = "Spinning Up…",
+                subtitle = "Reading disc information",
+                showSpinner = true
+            )
             is DriveStatus.DiscReady -> {
                 DiscReadyCard(
                     toc = currentStatus.toc,
