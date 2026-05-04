@@ -1,6 +1,7 @@
 package com.bitperfect.app.usb
 
 import android.content.Context
+import android.hardware.usb.UsbEndpoint
 import kotlinx.coroutines.flow.StateFlow
 
 object DeviceStateManager {
@@ -24,4 +25,8 @@ object DeviceStateManager {
     fun reportError(message: String) {
         usbDriveDetector?.reportError(message)
     }
+
+    fun getTransport(): UsbTransport? = usbDriveDetector?.transport
+    fun getInEndpoint(): UsbEndpoint? = usbDriveDetector?.inEndpoint
+    fun getOutEndpoint(): UsbEndpoint? = usbDriveDetector?.outEndpoint
 }

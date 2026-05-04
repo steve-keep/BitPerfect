@@ -37,9 +37,9 @@ class UsbDriveDetector(
 
     private var usbConnection: android.hardware.usb.UsbDeviceConnection? = null
     private var massStorageInterface: UsbInterface? = null
-    private var transport: UsbTransport? = null
-    private var inEndpoint: UsbEndpoint? = null
-    private var outEndpoint: UsbEndpoint? = null
+    var transport: UsbTransport? = null
+    var inEndpoint: UsbEndpoint? = null
+    var outEndpoint: UsbEndpoint? = null
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var pollingJob: Job? = null

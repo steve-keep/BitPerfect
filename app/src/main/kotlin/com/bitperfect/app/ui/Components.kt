@@ -71,6 +71,7 @@ fun throbbingBackgroundModifier(): Modifier {
 
 @Composable
 fun AlbumHeader(
+    onSaveClick: () -> Unit = {},
     title: String,
     artistName: String,
     coverArtUrl: String?,
@@ -143,7 +144,7 @@ fun AlbumHeader(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(
-                    onClick = onPlayClick,
+                    onClick = if (isCdMode) onSaveClick else onPlayClick,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.Black

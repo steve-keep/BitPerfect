@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.bitperfect.app"
-        minSdk 26
+        minSdk 28
         targetSdk 34
         versionCode project.findProperty("versionCode")?.toInteger() ?: 1
         versionName project.findProperty("versionName") ?: "1.0"
