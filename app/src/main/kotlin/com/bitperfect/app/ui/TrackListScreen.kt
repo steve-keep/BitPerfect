@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -124,6 +125,38 @@ fun TrackListScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+
+                            if (!state.isCdMode) {
+                                var showMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(onClick = { showMenu = true }) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Play Next") },
+                                            onClick = {
+                                                viewModel.playNext(track)
+                                                showMenu = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Queue") },
+                                            onClick = {
+                                                viewModel.addToQueue(track)
+                                                showMenu = false
+                                            }
+                                        )
+                                    }
+                                }
                             }
 
                             if (state.isCdMode && ripState != null) {
