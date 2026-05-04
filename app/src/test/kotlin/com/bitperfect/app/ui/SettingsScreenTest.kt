@@ -24,8 +24,9 @@ class SettingsScreenTest {
     @Test
     fun verifySettingsScreenRenders() {
         val application = org.robolectric.RuntimeEnvironment.getApplication()
-        val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
-        val mockViewModel = AppViewModel(application, com.bitperfect.app.player.PlayerRepository(application, fakeFactory))
+        val mockViewModel = org.mockito.Mockito.mock(AppViewModel::class.java)
+        org.mockito.Mockito.`when`(mockViewModel.driveStatus).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(com.bitperfect.app.usb.DriveStatus.NoDrive))
+        org.mockito.Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(null))
         val settingsManager = SettingsManager(application)
         val driveOffsetRepository = DriveOffsetRepository(application)
 
@@ -46,7 +47,6 @@ class SettingsScreenTest {
     @Test
     fun verifySettingsScreenCalibrateClick() {
         val application = org.robolectric.RuntimeEnvironment.getApplication()
-        val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
 
         com.bitperfect.app.usb.DeviceStateManager.initialize(application)
         val driveInfo = com.bitperfect.app.usb.DriveInfo("VendorX", "ProductY", true, 0, 0, "path")
@@ -59,7 +59,9 @@ class SettingsScreenTest {
             field.set(com.bitperfect.app.usb.DeviceStateManager, driveStatusFlow)
         } catch (e: Exception) {}
 
-        val mockViewModel = AppViewModel(application, com.bitperfect.app.player.PlayerRepository(application, fakeFactory))
+        val mockViewModel = org.mockito.Mockito.mock(AppViewModel::class.java)
+        org.mockito.Mockito.`when`(mockViewModel.driveStatus).thenReturn(driveStatusFlow)
+        org.mockito.Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(kotlinx.coroutines.flow.MutableStateFlow("http://example.com/cover.jpg"))
         val settingsManager = SettingsManager(application)
         val driveOffsetRepository = DriveOffsetRepository(application)
 
