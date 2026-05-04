@@ -91,6 +91,9 @@ open class AppViewModel(
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
     val positionMs: StateFlow<Long> = playerRepository.positionMs
 
+    val upNextQueue: StateFlow<List<androidx.media3.common.MediaItem>> = playerRepository.currentTimeline
+    val currentQueueIndex: StateFlow<Int> = playerRepository.currentIndex
+
     val currentTrackTitle: StateFlow<String?> = playerRepository.currentTrackTitle
     val currentTrackArtist: StateFlow<String?> = playerRepository.currentTrackArtist
     val currentAlbumTitle: StateFlow<String?> = playerRepository.currentAlbumTitle
@@ -350,6 +353,14 @@ open class AppViewModel(
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
         _playingTracks.value = tracks
         playerRepository.playTrack(tracks, index)
+    }
+
+    fun playNext(track: TrackInfo) {
+        playerRepository.playNext(track)
+    }
+
+    fun addToQueue(track: TrackInfo) {
+        playerRepository.addToQueue(track)
     }
 
     fun togglePlayPause() {

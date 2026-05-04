@@ -55,6 +55,12 @@ open class PlayerRepository(
     private val _positionMs = MutableStateFlow(0L)
     open val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
+    private val _currentTimeline = MutableStateFlow<List<MediaItem>>(emptyList())
+    open val currentTimeline: StateFlow<List<MediaItem>> = _currentTimeline.asStateFlow()
+
+    private val _currentIndex = MutableStateFlow(0)
+    open val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = controller?.isPlaying ?: false
@@ -66,6 +72,23 @@ open class PlayerRepository(
             _currentTrackArtist.value = controller?.currentMediaItem?.mediaMetadata?.artist?.toString()
             _currentAlbumTitle.value = controller?.currentMediaItem?.mediaMetadata?.albumTitle?.toString()
             _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
+            _currentIndex.value = controller?.currentMediaItemIndex ?: 0
+        }
+
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            val items = mutableListOf<MediaItem>()
+            val c = controller
+            if (c != null && !timeline.isEmpty) {
+                for (i in 0 until timeline.windowCount) {
+                    val window = androidx.media3.common.Timeline.Window()
+                    timeline.getWindow(i, window)
+                    if (window.mediaItem != null) {
+                        items.add(window.mediaItem!!)
+                    }
+                }
+            }
+            _currentTimeline.value = items
+            _currentIndex.value = controller?.currentMediaItemIndex ?: 0
         }
 
         override fun onPositionDiscontinuity(
@@ -97,6 +120,20 @@ open class PlayerRepository(
                     _currentAlbumTitle.value = currentMediaItem?.mediaMetadata?.albumTitle?.toString()
                     _currentAlbumArtUri.value = currentMediaItem?.mediaMetadata?.artworkUri
                     _positionMs.value = currentPosition
+
+                    val items = mutableListOf<MediaItem>()
+                    val tl = currentTimeline
+                    if (!tl.isEmpty) {
+                        for (i in 0 until tl.windowCount) {
+                            val window = androidx.media3.common.Timeline.Window()
+                            tl.getWindow(i, window)
+                            if (window.mediaItem != null) {
+                                items.add(window.mediaItem!!)
+                            }
+                        }
+                    }
+                    _currentTimeline.value = items
+                    _currentIndex.value = currentMediaItemIndex
                 }
             }
         } catch (e: Throwable) {
@@ -140,6 +177,47 @@ open class PlayerRepository(
             seekToDefaultPosition(index)
             prepare()
             play()
+        }
+    }
+
+    private fun trackToMediaItem(track: TrackInfo): MediaItem {
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
+        val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
+        return MediaItem.Builder()
+            .setUri(uri)
+            .setMediaId(track.id.toString())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
+                    .setAlbumTitle(track.albumTitle)
+                    .setTrackNumber(track.trackNumber)
+                    .setArtworkUri(albumArtUri)
+                    .build()
+            )
+            .build()
+    }
+
+    open fun playNext(track: TrackInfo) {
+        controller?.let {
+            val item = trackToMediaItem(track)
+            val insertIndex = if (it.mediaItemCount > 0) it.currentMediaItemIndex + 1 else 0
+            it.addMediaItem(insertIndex, item)
+            if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
+                it.prepare()
+                it.play()
+            }
+        }
+    }
+
+    open fun addToQueue(track: TrackInfo) {
+        controller?.let {
+            val item = trackToMediaItem(track)
+            it.addMediaItem(item)
+            if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
+                it.prepare()
+                it.play()
+            }
         }
     }
 
