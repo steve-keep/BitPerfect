@@ -279,15 +279,25 @@ open class AppViewModel(
             val toc = currentDriveStatus.toc
             val meta = discMetadata.value ?: return
 
+            val driveInfo = currentDriveStatus.info
+
             viewModelScope.launch(Dispatchers.IO) {
+                val offset = if (driveInfo != null) {
+                    val driveOffsetRepository = com.bitperfect.core.services.DriveOffsetRepository(getApplication<Application>())
+                    driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset ?: 0
+                } else {
+                    0
+                }
+
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
                 val ripManager = RipManager(
-                    context = getApplication(),
+                    context = getApplication<Application>(),
                     outputFolderUriString = outputUri,
                     toc = toc,
                     metadata = meta,
                     expectedChecksums = expectedChecksums,
-                    coverArtUrl = _coverArtUrl.value
+                    coverArtUrl = _coverArtUrl.value,
+                    driveOffset = offset
                 )
                 _ripManager = ripManager
 
