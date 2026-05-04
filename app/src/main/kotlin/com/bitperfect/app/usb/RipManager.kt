@@ -37,7 +37,7 @@ class RipManager(
     private val toc: DiscToc,
     private val metadata: DiscMetadata,
     private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
-    private val coverArtUrl: String?
+    private val artworkBytes: ByteArray?
 ) {
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
@@ -80,16 +80,6 @@ class RipManager(
         if (albumDir == null) {
             AppLogger.e("RipManager", "Could not create album directory")
             return@withContext
-        }
-
-        // Download cover art once
-        var coverArtBytes: ByteArray? = null
-        if (!coverArtUrl.isNullOrEmpty()) {
-            try {
-                coverArtBytes = URL(coverArtUrl).readBytes()
-            } catch (e: Exception) {
-                AppLogger.w("RipManager", "Failed to download cover art: ${e.message}")
-            }
         }
 
         for (i in 0 until toc.tracks.size) {
@@ -163,9 +153,9 @@ class RipManager(
                     tag.setField(FieldKey.TITLE, trackTitle)
                     tag.setField(FieldKey.TRACK, trackNumber.toString())
 
-                    if (coverArtBytes != null) {
+                    if (artworkBytes != null) {
                         val artwork = ArtworkFactory.getNew()
-                        artwork.binaryData = coverArtBytes
+                        artwork.binaryData = artworkBytes
                         artwork.mimeType = "image/jpeg"
                         artwork.description = ""
                         artwork.pictureType = 3 // Front Cover
