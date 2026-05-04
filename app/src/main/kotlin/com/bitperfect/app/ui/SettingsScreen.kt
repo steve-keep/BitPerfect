@@ -42,6 +42,7 @@ fun SettingsScreen(
 ) {
     val driveStatus by viewModel.driveStatus.collectAsState()
     val driveInfo = driveStatus.info
+    val coverArtUrl by viewModel.coverArtUrl.collectAsState()
 
     var outputFolderUri by remember { mutableStateOf(settingsManager.outputFolderUri) }
 
@@ -278,7 +279,7 @@ fun SettingsScreen(
                             .clickable {
                                 val discReady = driveStatus as? DriveStatus.DiscReady
                                 val offset = driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset
-                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset)
+                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset, coverArtUrl)
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -383,7 +384,7 @@ fun SettingsScreen(
     }
 }
 
-private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?) {
+private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?, coverArtUrl: String?) {
     val sb = java.lang.StringBuilder()
     sb.appendLine("# BitPerfect Debug Report")
     sb.appendLine()
@@ -464,6 +465,12 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         val mbOffsets = toc.tracks.joinToString("+") { (it.lba + 150).toString() }
         sb.appendLine("Lookup URL: `https://musicbrainz.org/cdtoc/attach?toc=1+${toc.trackCount}+${toc.leadOutLba + 150}+$mbOffsets`")
         sb.appendLine()
+
+        if (coverArtUrl != null) {
+            sb.appendLine("### Cover Art")
+            sb.appendLine("URL: `$coverArtUrl`")
+            sb.appendLine()
+        }
     }
 
     if (toc != null || rawToc != null) {
