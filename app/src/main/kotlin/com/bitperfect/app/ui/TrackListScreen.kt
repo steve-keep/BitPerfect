@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.bitperfect.app.usb.RipStatus
 
 private fun numberToWord(n: Int): String {
     val words = arrayOf("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
@@ -32,6 +37,7 @@ fun TrackListScreen(
 
     val viewState by viewModel.trackListViewState.collectAsState()
     val currentMediaId by viewModel.currentMediaId.collectAsState()
+    val ripStates by viewModel.ripStates.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         val state = viewState
@@ -56,6 +62,7 @@ fun TrackListScreen(
                         coverArtUrl = state.coverArtUrl,
                         trackCount = state.tracks.size,
                         isCdMode = state.isCdMode,
+                        onSaveClick = { viewModel.startRip() },
                         onPlayClick = { viewModel.playAlbum(state.tracks) }
                     )
                 }
@@ -83,11 +90,14 @@ fun TrackListScreen(
                         val isCurrentTrack = track.id.toString() == currentMediaId
                         val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        val ripState = ripStates[track.trackNumber]
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.playTrack(state.tracks, globalIndex) }
+                                .clickable(enabled = !state.isCdMode) {
+                                    if (!state.isCdMode) viewModel.playTrack(state.tracks, globalIndex)
+                                }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -114,6 +124,52 @@ fun TrackListScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+
+                            if (state.isCdMode && ripState != null) {
+                                Spacer(modifier = Modifier.width(16.dp))
+                                when (ripState.status) {
+                                    RipStatus.RIPPING, RipStatus.VERIFYING -> {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(
+                                                progress = { ripState.progress },
+                                                modifier = Modifier.size(24.dp),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = Color.DarkGray
+                                            )
+                                            Text(
+                                                text = "${(ripState.progress * 100).toInt()}%",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                    RipStatus.SUCCESS -> {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Success",
+                                            tint = Color(0xFF3DDC68),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    RipStatus.WARNING -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Warning",
+                                            tint = Color(0xFFFFC107),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    RipStatus.ERROR -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Error,
+                                            contentDescription = "Error",
+                                            tint = Color(0xFFF44336),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    else -> {}
+                                }
                             }
                         }
                         HorizontalDivider(color = Color(0x14FFFFFF))

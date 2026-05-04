@@ -5,6 +5,7 @@ import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.core.utils.AccurateRipDiscId
 import com.bitperfect.core.utils.computeAccurateRipDiscId
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.readBytes
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,6 +15,8 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
     companion object {
         private const val TAG = "AccurateRipService"
     }
+
+    private val verifier = AccurateRipVerifier()
 
     fun getAccurateRipUrl(toc: DiscToc): String {
         val discId = computeAccurateRipDiscId(toc)
@@ -33,11 +36,8 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
             val response = client.fetchBin(url)
 
             if (response.status == HttpStatusCode.OK) {
-                // For now, if we get a 200 OK, we consider it a Key Disc
-                // Further parsing would go here if we need to extract expected checksums
                 return@withContext true
             } else {
-                AppLogger.d(TAG, "AccurateRip returned status ${response.status} for URL $url")
                 return@withContext false
             }
         } catch (e: Exception) {
@@ -46,4 +46,22 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
         }
     }
 
+    suspend fun getExpectedChecksums(toc: DiscToc): Map<Int, List<AccurateRipTrackMetadata>> = withContext(Dispatchers.IO) {
+        try {
+            val discId = computeAccurateRipDiscId(toc)
+            val url = discId.toUrl(toc.trackCount)
+
+            val response = client.fetchBin(url)
+
+            if (response.status == HttpStatusCode.OK) {
+                val bytes = response.readBytes()
+                return@withContext verifier.parseAccurateRipResponse(bytes)
+            } else {
+                return@withContext emptyMap()
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Error fetching expected checksums: ${e.message}")
+            return@withContext emptyMap()
+        }
+    }
 }
