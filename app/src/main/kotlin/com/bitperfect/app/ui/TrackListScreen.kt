@@ -102,12 +102,62 @@ fun TrackListScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = track.trackNumber.toString().padStart(2, '0'),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = tintColor,
-                                modifier = Modifier.width(32.dp)
-                            )
+                            Box(
+                                modifier = Modifier.width(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (state.isCdMode && ripState != null && ripState.status != RipStatus.IDLE) {
+                                    when (ripState.status) {
+                                        RipStatus.RIPPING, RipStatus.VERIFYING -> {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                CircularProgressIndicator(
+                                                    progress = { ripState.progress },
+                                                    modifier = Modifier.size(32.dp),
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    trackColor = Color.DarkGray
+                                                )
+                                                Text(
+                                                    text = "${(ripState.progress * 100).toInt()}%",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                        RipStatus.SUCCESS -> {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Success",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                        RipStatus.WARNING -> {
+                                            Icon(
+                                                imageVector = Icons.Default.Warning,
+                                                contentDescription = "Warning",
+                                                tint = Color(0xFFFFC107),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                        RipStatus.ERROR -> {
+                                            Icon(
+                                                imageVector = Icons.Default.Error,
+                                                contentDescription = "Error",
+                                                tint = Color(0xFFF44336),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                        else -> {}
+                                    }
+                                } else {
+                                    Text(
+                                        text = track.trackNumber.toString().padStart(2, '0'),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = tintColor,
+                                        modifier = Modifier.align(Alignment.CenterStart)
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -156,52 +206,6 @@ fun TrackListScreen(
                                             }
                                         )
                                     }
-                                }
-                            }
-
-                            if (state.isCdMode && ripState != null) {
-                                Spacer(modifier = Modifier.width(16.dp))
-                                when (ripState.status) {
-                                    RipStatus.RIPPING, RipStatus.VERIFYING -> {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            CircularProgressIndicator(
-                                                progress = { ripState.progress },
-                                                modifier = Modifier.size(24.dp),
-                                                color = MaterialTheme.colorScheme.primary,
-                                                trackColor = Color.DarkGray
-                                            )
-                                            Text(
-                                                text = "${(ripState.progress * 100).toInt()}%",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-                                    RipStatus.SUCCESS -> {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "Success",
-                                            tint = Color(0xFF3DDC68),
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                    RipStatus.WARNING -> {
-                                        Icon(
-                                            imageVector = Icons.Default.Warning,
-                                            contentDescription = "Warning",
-                                            tint = Color(0xFFFFC107),
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                    RipStatus.ERROR -> {
-                                        Icon(
-                                            imageVector = Icons.Default.Error,
-                                            contentDescription = "Error",
-                                            tint = Color(0xFFF44336),
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                    else -> {}
                                 }
                             }
                         }
