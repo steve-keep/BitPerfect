@@ -124,19 +124,22 @@ fun AlbumHeader(
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = artistName,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "$trackCount Tracks",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0x99FFFFFF)
+                color = Color(0x99FFFFFF),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
             Row(

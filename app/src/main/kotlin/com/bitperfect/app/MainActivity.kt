@@ -252,7 +252,9 @@ class MainActivity : ComponentActivity() {
                                             AppRoutes.TrackList -> trackListViewState?.title ?: selectedAlbumTitle ?: "Album"
                                             else -> "BitPerfect"
                                         },
-                                        modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" }
+                                        modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
                             },
