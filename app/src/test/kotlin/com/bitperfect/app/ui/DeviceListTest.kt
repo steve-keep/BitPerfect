@@ -58,8 +58,9 @@ class DeviceListTest(
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
+        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
         composeTestRule.setContent {
-            DeviceList(viewModel = mockViewModel)
+            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
         }
 
         composeTestRule.waitForIdle()
@@ -74,8 +75,9 @@ class DeviceListTest(
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
+        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
         composeTestRule.setContent {
-            DeviceList(viewModel = mockViewModel)
+            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
         }
 
         composeTestRule.waitForIdle()
@@ -98,8 +100,9 @@ class DeviceListTest(
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow("http://example.com/art.jpg"))
         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
+        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
         composeTestRule.setContent {
-            DeviceList(viewModel = mockViewModel)
+            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
         }
 
         composeTestRule.waitForIdle()
@@ -121,8 +124,9 @@ class DeviceListTest(
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
 
+        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
         composeTestRule.setContent {
-            DeviceList(viewModel = mockViewModel)
+            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
         }
 
         composeTestRule.waitForIdle()

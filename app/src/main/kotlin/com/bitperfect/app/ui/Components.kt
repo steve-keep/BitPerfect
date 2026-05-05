@@ -44,6 +44,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.core.graphics.drawable.toBitmap
 import androidx.palette.graphics.Palette
 import androidx.compose.ui.graphics.Brush
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -176,6 +180,78 @@ fun AlbumHeader(
 }
 
 @Composable
+private fun RipProgressContent(
+    bannerState: RipBannerState,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Artwork thumbnail
+        if (bannerState.artworkBytes != null) {
+            Image(
+                bitmap = BitmapFactory.decodeByteArray(
+                    bannerState.artworkBytes, 0, bannerState.artworkBytes.size
+                ).asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Album,
+                    contentDescription = null
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        // Text and progress
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = "Ripping ${bannerState.completedTracks} of ${bannerState.totalTracks} tracks",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            LinearProgressIndicator(
+                progress = { bannerState.overallProgress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                color = Color(0xFF3DDC68),
+                trackColor = Color(0xFF2A2A2A)
+            )
+            Text(
+                text = bannerState.artistName,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0x99FFFFFF)
+            )
+            Text(
+                text = bannerState.totalTracksLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0x66FFFFFF)
+            )
+        }
+    }
+}
+
+@Composable
 private fun DiscReadyCard(
     toc: DiscToc?,
     discMetadata: DiscMetadata?,
@@ -250,6 +326,8 @@ private fun DiscReadyCard(
 fun DeviceList(
     modifier: Modifier = Modifier,
     viewModel: AppViewModel,
+    bannerState: RipBannerState,
+    onNavigateToTrackList: () -> Unit = {},
     onViewCd: () -> Unit = {}
 ) {
     val driveStatus by viewModel.driveStatus.collectAsState()
@@ -262,6 +340,20 @@ fun DeviceList(
     }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        if (bannerState.isVisible) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
+                modifier = Modifier.fillMaxWidth().clickable { onNavigateToTrackList() }
+            ) {
+                RipProgressContent(
+                    bannerState = bannerState
+                )
+            }
+            return@Box
+        }
+
         when (val currentStatus = driveStatus) {
             is DriveStatus.NoDrive -> { /* Should not be reached, handled above */ }
             is DriveStatus.Connecting -> DriveStatusCard(

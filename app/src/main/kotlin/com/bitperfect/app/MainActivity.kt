@@ -24,6 +24,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
@@ -307,10 +308,15 @@ class MainActivity : ComponentActivity() {
                         popExitTransition = { slideOutHorizontally { width -> width } + fadeOut() }
                     ) {
                         composable(AppRoutes.DeviceList) {
+                            val bannerState by appViewModel.ripBannerState.collectAsStateWithLifecycle()
                             Column(modifier = Modifier.fillMaxSize()) {
                                 DeviceList(
                                     viewModel = appViewModel,
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                                    bannerState = bannerState,
+                                    onNavigateToTrackList = {
+                                        navController.navigate(AppRoutes.TrackList)
+                                    },
                                     onViewCd = {
                                         navController.navigate(AppRoutes.TrackList)
                                     }

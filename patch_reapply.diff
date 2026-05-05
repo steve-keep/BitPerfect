@@ -1,0 +1,456 @@
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -118,6 +118,7 @@
+     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+     implementation 'androidx.activity:activity-compose:1.9.0'
+     implementation platform('androidx.compose:compose-bom:2024.04.01')
++    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
+     implementation 'androidx.compose.ui:ui'
+     implementation 'androidx.compose.ui:ui-graphics'
+     implementation 'androidx.compose.ui:ui-tooling-preview'
+
+--- a/app/src/main/kotlin/com/bitperfect/app/MainActivity.kt
++++ b/app/src/main/kotlin/com/bitperfect/app/MainActivity.kt
+@@ -24,6 +24,7 @@
+ import coil.request.ImageRequest
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.foundation.layout.*
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.filled.ArrowBack
+ import androidx.compose.material.icons.filled.Settings
+@@ -308,10 +309,15 @@
+                         popExitTransition = { slideOutHorizontally { width -> width } + fadeOut() }
+                     ) {
+                         composable(AppRoutes.DeviceList) {
++                            val bannerState by appViewModel.ripBannerState.collectAsStateWithLifecycle()
+                             Column(modifier = Modifier.fillMaxSize()) {
+                                 DeviceList(
+                                     viewModel = appViewModel,
+                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
++                                    bannerState = bannerState,
++                                    onNavigateToTrackList = {
++                                        navController.navigate(AppRoutes.TrackList)
++                                    },
+                                     onViewCd = {
+                                         navController.navigate(AppRoutes.TrackList)
+                                     }
+
+--- a/app/src/main/kotlin/com/bitperfect/app/ui/AppViewModel.kt
++++ b/app/src/main/kotlin/com/bitperfect/app/ui/AppViewModel.kt
+@@ -41,6 +41,16 @@
+     val isCdMode: Boolean
+ )
+
++data class RipBannerState(
++    val isVisible: Boolean,
++    val completedTracks: Int,
++    val totalTracks: Int,
++    val overallProgress: Float,
++    val artistName: String,
++    val totalTracksLabel: String,
++    val artworkBytes: ByteArray?
++)
++
+ open class AppViewModel(
+     application: Application,
+     private val playerRepository: PlayerRepository,
+@@ -110,6 +120,33 @@
+
+     val isRipping: StateFlow<Boolean> = ripSession.isRipping
+
++    val ripBannerState: StateFlow<RipBannerState> = combine(
++        ripSession.isRipping,
++        ripSession.ripStates
++    ) { isRipping, states ->
++        val completedStatuses = setOf(
++            RipStatus.SUCCESS, RipStatus.WARNING, RipStatus.ERROR, RipStatus.RIPPING
++        )
++        val completed = states.values.count { it.status in completedStatuses }
++        val total = states.size
++        val progress = if (total == 0) 0f
++            else states.values.map { it.progress }.average().toFloat()
++        val meta = discMetadata.value
++        RipBannerState(
++            isVisible = isRipping || states.isNotEmpty(),
++            completedTracks = completed,
++            totalTracks = total,
++            overallProgress = progress,
++            artistName = meta?.artistName ?: "",
++            totalTracksLabel = "$total tracks",
++            artworkBytes = _artworkBytes.value
++        )
++    }.stateIn(
++        viewModelScope,
++        SharingStarted.Eagerly,
++        RipBannerState(false, 0, 0, 0f, "", "", null)
++    )
++
+     private var hasHandledRipCompletion = false
+
+     val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
+
+--- a/app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
++++ b/app/src/main/kotlin/com/bitperfect/app/ui/Components.kt
+@@ -44,6 +44,10 @@
+ import androidx.core.graphics.drawable.toBitmap
+ import androidx.palette.graphics.Palette
+ import androidx.compose.ui.graphics.Brush
++import android.graphics.BitmapFactory
++import androidx.compose.foundation.Image
++import androidx.compose.ui.graphics.asImageBitmap
++import coil.compose.SubcomposeAsyncImage
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.getValue
+@@ -178,6 +182,78 @@
+         }
+     }
+ }
++
++@Composable
++private fun RipProgressContent(
++    bannerState: RipBannerState,
++    modifier: Modifier = Modifier
++) {
++    Row(
++        modifier = modifier
++            .fillMaxWidth()
++            .padding(16.dp),
++        verticalAlignment = Alignment.CenterVertically
++    ) {
++        // Artwork thumbnail
++        if (bannerState.artworkBytes != null) {
++            Image(
++                bitmap = BitmapFactory.decodeByteArray(
++                    bannerState.artworkBytes, 0, bannerState.artworkBytes.size
++                ).asImageBitmap(),
++                contentDescription = null,
++                modifier = Modifier
++                    .size(56.dp)
++                    .clip(RoundedCornerShape(8.dp)),
++                contentScale = ContentScale.Crop
++            )
++        } else {
++            Box(
++                modifier = Modifier
++                    .size(56.dp)
++                    .clip(RoundedCornerShape(8.dp))
++                    .background(MaterialTheme.colorScheme.surfaceVariant),
++                contentAlignment = Alignment.Center
++            ) {
++                Icon(
++                    imageVector = Icons.Outlined.Album,
++                    contentDescription = null
++                )
++            }
++        }
++
++        Spacer(modifier = Modifier.width(16.dp))
++
++        // Text and progress
++        Column(
++            modifier = Modifier.weight(1f)
++        ) {
++            Text(
++                text = "Ripping ${bannerState.completedTracks} of ${bannerState.totalTracks} tracks",
++                style = MaterialTheme.typography.titleMedium,
++                fontWeight = FontWeight.Bold,
++                color = Color.White
++            )
++            LinearProgressIndicator(
++                progress = { bannerState.overallProgress },
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .padding(vertical = 4.dp),
++                color = Color(0xFF3DDC68),
++                trackColor = Color(0xFF2A2A2A)
++            )
++            Text(
++                text = bannerState.artistName,
++                style = MaterialTheme.typography.bodySmall,
++                color = Color(0x99FFFFFF)
++            )
++            Text(
++                text = bannerState.totalTracksLabel,
++                style = MaterialTheme.typography.bodySmall,
++                color = Color(0x66FFFFFF)
++            )
++        }
++    }
++}
+
+ @Composable
+ private fun DiscReadyCard(
+@@ -254,6 +330,8 @@
+ fun DeviceList(
+     modifier: Modifier = Modifier,
+     viewModel: AppViewModel,
++    bannerState: RipBannerState,
++    onNavigateToTrackList: () -> Unit = {},
+     onViewCd: () -> Unit = {}
+ ) {
+     val driveStatus by viewModel.driveStatus.collectAsState()
+@@ -266,6 +344,20 @@
+     }
+
+     Box(modifier = modifier, contentAlignment = Alignment.Center) {
++        if (bannerState.isVisible) {
++            Card(
++                colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
++                shape = RoundedCornerShape(14.dp),
++                border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
++                modifier = Modifier.fillMaxWidth().clickable { onNavigateToTrackList() }
++            ) {
++                RipProgressContent(
++                    bannerState = bannerState
++                )
++            }
++            return@Box
++        }
++
+         when (val currentStatus = driveStatus) {
+             is DriveStatus.NoDrive -> { /* Should not be reached, handled above */ }
+             is DriveStatus.Connecting -> DriveStatusCard(
+
+--- a/app/src/test/kotlin/com/bitperfect/app/ui/AppViewModelTest.kt
++++ b/app/src/test/kotlin/com/bitperfect/app/ui/AppViewModelTest.kt
+@@ -11,6 +11,9 @@
+ import com.bitperfect.app.usb.DeviceStateManager
+ import com.bitperfect.app.usb.DriveStatus
+ import com.bitperfect.app.usb.DriveInfo
++import com.bitperfect.app.usb.RipSession
++import com.bitperfect.app.usb.RipStatus
++import com.bitperfect.app.usb.TrackRipState
+ import com.bitperfect.core.models.DiscMetadata
+ import com.bitperfect.core.models.DiscToc
+ import com.google.common.util.concurrent.Futures
+@@ -291,6 +294,145 @@
+         assertEquals(123L, viewModel.selectedAlbumId.value)
+         assertEquals("Test Album", viewModel.selectedAlbumTitle.value)
+     }
++
++    @Test
++    fun testRipBannerState_HiddenByDefault() {
++        val application = ApplicationProvider.getApplicationContext<Application>()
++        val vm = AppViewModel(application)
++
++        val bannerState = vm.ripBannerState.value
++        assertEquals(false, bannerState.isVisible)
++        assertEquals(0, bannerState.completedTracks)
++        assertEquals(0, bannerState.totalTracks)
++        assertEquals(0f, bannerState.overallProgress)
++    }
++
++    @Test
++    fun testRipBannerState_VisibleWhenRipping() = runTest {
++        val application = ApplicationProvider.getApplicationContext<Application>()
++        val ripSession = RipSession.getInstance(application)
++
++        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
++        isRippingField.isAccessible = true
++        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
++
++        val vm = AppViewModel(application)
++
++        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
++            vm.ripBannerState.collect {}
++        }
++
++        advanceUntilIdle()
++
++        val bannerState = vm.ripBannerState.value
++        assertEquals(true, bannerState.isVisible)
++
++        job.cancel()
++        job.join()
++
++        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
++    }
++
++    @Test
++    fun testRipBannerState_CountsCompletedTracksCorrectly() = runTest {
++        val application = ApplicationProvider.getApplicationContext<Application>()
++        val ripSession = RipSession.getInstance(application)
++
++        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
++        ripStatesField.isAccessible = true
++
++        val states = mapOf(
++            1 to TrackRipState(1, 1f, RipStatus.SUCCESS),
++            2 to TrackRipState(2, 0.5f, RipStatus.RIPPING),
++            3 to TrackRipState(3, 0f, RipStatus.IDLE)
++        )
++        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
++
++        val vm = AppViewModel(application)
++
++        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
++            vm.ripBannerState.collect {}
++        }
++
++        advanceUntilIdle()
++
++        val bannerState = vm.ripBannerState.value
++        assertEquals(2, bannerState.completedTracks)
++        assertEquals(3, bannerState.totalTracks)
++        assertEquals("3 tracks", bannerState.totalTracksLabel)
++
++        job.cancel()
++        job.join()
++
++        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
++    }
++
++    @Test
++    fun testRipBannerState_CalculatesOverallProgress() = runTest {
++        val application = ApplicationProvider.getApplicationContext<Application>()
++        val ripSession = RipSession.getInstance(application)
++
++        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
++        ripStatesField.isAccessible = true
++
++        val states = mapOf(
++            1 to TrackRipState(1, 1.0f, RipStatus.SUCCESS),
++            2 to TrackRipState(2, 0.5f, RipStatus.RIPPING)
++        )
++        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
++
++        val vm = AppViewModel(application)
++
++        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
++            vm.ripBannerState.collect {}
++        }
++
++        advanceUntilIdle()
++
++        val bannerState = vm.ripBannerState.value
++        assertEquals(0.75f, bannerState.overallProgress)
++
++        job.cancel()
++        job.join()
++
++        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
++    }
++
++    @Test
++    fun testRipBannerState_VisibleAfterRipCompletes() = runTest {
++        val application = ApplicationProvider.getApplicationContext<Application>()
++        val ripSession = RipSession.getInstance(application)
++
++        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
++        isRippingField.isAccessible = true
++
++        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
++        ripStatesField.isAccessible = true
++
++        // Ripping finished, isRipping is false, but ripStates is not empty
++        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
++        val states = mapOf(
++            1 to TrackRipState(1, 1.0f, RipStatus.SUCCESS)
++        )
++        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
++
++        val vm = AppViewModel(application)
++
++        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
++            vm.ripBannerState.collect {}
++        }
++
++        advanceUntilIdle()
++
++        val bannerState = vm.ripBannerState.value
++        assertEquals(true, bannerState.isVisible) // Visible because states.isNotEmpty()
++        assertEquals(1, bannerState.completedTracks)
++
++        job.cancel()
++        job.join()
++
++        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
++    }
+
+     @Test
+     fun testPlaybackDelegates() {
+
+--- a/app/src/test/kotlin/com/bitperfect/app/ui/DeviceListTest.kt
++++ b/app/src/test/kotlin/com/bitperfect/app/ui/DeviceListTest.kt
+@@ -58,8 +58,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.waitForIdle()
+@@ -84,8 +85,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.waitForIdle()
+@@ -100,8 +102,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow("http://example.com/art.jpg"))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.waitForIdle()
+@@ -124,8 +127,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.waitForIdle()
+
+--- a/app/src/test/kotlin/com/bitperfect/app/ui/ComponentsTest.kt
++++ b/app/src/test/kotlin/com/bitperfect/app/ui/ComponentsTest.kt
+@@ -28,8 +28,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.onNodeWithText("No Disc Inserted").assertIsDisplayed()
+@@ -45,8 +46,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.onNodeWithText("Connecting…").assertIsDisplayed()
+@@ -62,8 +64,9 @@
+         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
+         Mockito.`when`(mockViewModel.isKeyDisc).thenReturn(MutableStateFlow(false))
+
++        val emptyBannerState = RipBannerState(false, 0, 0, 0f, "", "", null)
+         composeTestRule.setContent {
+-            DeviceList(viewModel = mockViewModel)
++            DeviceList(viewModel = mockViewModel, bannerState = emptyBannerState)
+         }
+
+         composeTestRule.onNodeWithText("No Drive Connected").assertDoesNotExist()
