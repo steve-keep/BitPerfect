@@ -1,0 +1,24 @@
+-keep class com.bitperfect.core.** { *; }
+-dontwarn java.awt.image.BufferedImage
+-dontwarn javax.imageio.ImageIO
+-dontwarn javax.imageio.stream.ImageInputStream
+-keep class org.jaudiotagger.** { *; }
+-keep class io.opentelemetry.** { *; }
+# Please add these rules to your existing keep rules in order to suppress warnings.
+# This is generated automatically by the Android Gradle plugin.
+-dontwarn io.grpc.CallOptions
+-dontwarn io.grpc.ClientCall
+-dontwarn io.grpc.Drainable
+-dontwarn io.grpc.KnownLength
+-dontwarn io.grpc.ManagedChannel
+-dontwarn io.grpc.stub.ClientCalls
+-dontwarn java.awt.Graphics2D
+-dontwarn java.awt.Image
+-dontwarn java.awt.geom.AffineTransform
+-dontwarn java.awt.image.ImageObserver
+-dontwarn java.awt.image.RenderedImage
+-dontwarn javax.imageio.ImageWriter
+-dontwarn javax.imageio.stream.ImageOutputStream
+-dontwarn javax.swing.filechooser.FileFilter
+-dontwarn org.osgi.annotation.bundle.Export
+-dontwarn org.slf4j.impl.StaticLoggerBinder
