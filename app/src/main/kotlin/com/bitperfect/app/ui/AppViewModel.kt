@@ -93,10 +93,14 @@ open class AppViewModel(
     private val _isKeyDisc = MutableStateFlow(false)
     open val isKeyDisc: StateFlow<Boolean> = _isKeyDisc.asStateFlow()
 
-    private var _ripManager: RipManager? = null
+    private val ripSession = com.bitperfect.app.usb.RipSession.getInstance(application)
 
     private val _ripStates = MutableStateFlow<Map<Int, TrackRipState>>(emptyMap())
     val ripStates: StateFlow<Map<Int, TrackRipState>> = _ripStates.asStateFlow()
+
+    val isRipping: StateFlow<Boolean> = ripSession.isRipping
+
+    private var hasHandledRipCompletion = false
 
     val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
@@ -148,6 +152,53 @@ open class AppViewModel(
 
     init {
         loadLibrary()
+
+        viewModelScope.launch {
+            ripSession.ripStates.collect { states ->
+                _ripStates.value = states
+
+                // Check if all tracks are done ripping
+                val isDone = states.values.all {
+                    it.status == RipStatus.SUCCESS ||
+                    it.status == RipStatus.WARNING ||
+                    it.status == RipStatus.ERROR
+                }
+
+                if (states.isNotEmpty() && isDone && !hasHandledRipCompletion) {
+                    hasHandledRipCompletion = true
+                    // Give it a moment to settle, then rescan media and switch to library view
+                    withContext(Dispatchers.Main) {
+                        loadLibrary()
+
+                        // Find the newly ripped album in the library
+                        viewModelScope.launch(Dispatchers.IO) {
+                            kotlinx.coroutines.delay(1000) // Wait for MediaStore
+                            val meta = discMetadata.value ?: return@launch
+                            val outputUri = settingsManager.outputFolderUri
+                            val safeArtist = meta.artistName
+                            val safeAlbum = meta.albumTitle
+
+                            val newArtists = libraryRepository.getLibrary(outputUri)
+                            val foundArtist = newArtists.find { it.name.equals(safeArtist, ignoreCase = true) }
+                            val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
+
+                            if (foundAlbum != null) {
+                                withContext(Dispatchers.Main) {
+                                    selectAlbum(foundAlbum.id, foundAlbum.title)
+                                }
+                            } else {
+                                // Fallback, just switch out of CD mode if we can't find it
+                                val currentState = _trackListViewState.value
+                                if (currentState != null) {
+                                    _trackListViewState.value = currentState.copy(isCdMode = false)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         viewModelScope.launch {
             try {
                 playerRepository.connect()
@@ -263,9 +314,7 @@ open class AppViewModel(
 
     fun clearTracks() {
         _trackListViewState.value = null
-        _ripStates.value = emptyMap()
-        _ripManager?.cancel()
-        _ripManager = null
+        ripSession.clearResults()
     }
 
     fun viewCdTracks() {
@@ -309,62 +358,17 @@ open class AppViewModel(
             val toc = currentDriveStatus.toc
             val meta = discMetadata.value ?: return
 
+            hasHandledRipCompletion = false
+
             viewModelScope.launch(Dispatchers.IO) {
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
-                val ripManager = RipManager(
-                    context = getApplication(),
+                ripSession.startRip(
                     outputFolderUriString = outputUri,
                     toc = toc,
                     metadata = meta,
                     expectedChecksums = expectedChecksums,
                     artworkBytes = _artworkBytes.value
                 )
-                _ripManager = ripManager
-
-                launch {
-                    ripManager.trackStates.collect { states ->
-                        _ripStates.value = states
-
-                        // Check if all tracks are done ripping
-                        val isDone = states.values.all {
-                            it.status == RipStatus.SUCCESS ||
-                            it.status == RipStatus.WARNING ||
-                            it.status == RipStatus.ERROR
-                        }
-
-                        if (states.isNotEmpty() && isDone) {
-                            // Give it a moment to settle, then rescan media and switch to library view
-                            withContext(Dispatchers.Main) {
-                                loadLibrary()
-
-                                // Find the newly ripped album in the library
-                                viewModelScope.launch(Dispatchers.IO) {
-                                    kotlinx.coroutines.delay(1000) // Wait for MediaStore
-                                    val safeArtist = meta.artistName
-                                    val safeAlbum = meta.albumTitle
-
-                                    val newArtists = libraryRepository.getLibrary(outputUri)
-                                    val foundArtist = newArtists.find { it.name.equals(safeArtist, ignoreCase = true) }
-                                    val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
-
-                                    if (foundAlbum != null) {
-                                        withContext(Dispatchers.Main) {
-                                            selectAlbum(foundAlbum.id, foundAlbum.title)
-                                        }
-                                    } else {
-                                        // Fallback, just switch out of CD mode if we can't find it
-                                        val currentState = _trackListViewState.value
-                                        if (currentState != null) {
-                                            _trackListViewState.value = currentState.copy(isCdMode = false)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                ripManager.startRipping()
             }
         }
     }
@@ -372,7 +376,6 @@ open class AppViewModel(
     override fun onCleared() {
         super.onCleared()
         playerRepository.disconnect()
-        _ripManager?.cancel()
     }
 
     fun playAlbum(tracks: List<TrackInfo>) {
