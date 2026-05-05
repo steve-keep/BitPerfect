@@ -3,8 +3,16 @@ package com.bitperfect.app.usb
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import com.bitperfect.core.utils.AppLogger
 import java.io.OutputStream
 import java.nio.ByteBuffer
+
+internal fun isFLACHeader(buffer: ByteArray, offset: Int, size: Int): Boolean =
+    size >= 4 &&
+    buffer[offset] == 0x66.toByte() &&   // 'f'
+    buffer[offset + 1] == 0x4C.toByte() && // 'L'
+    buffer[offset + 2] == 0x61.toByte() && // 'a'
+    buffer[offset + 3] == 0x43.toByte()    // 'C'
 
 class FlacEncoder(
     private val outputStream: OutputStream,
@@ -13,11 +21,9 @@ class FlacEncoder(
 ) {
     private var mediaCodec: MediaCodec? = null
     private var isConfigured = false
+    internal var hasWrittenHeader = false
 
     fun start() {
-        // Write FLAC header
-        outputStream.write("fLaC".toByteArray())
-
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_FLAC, sampleRate, channelCount)
         format.setInteger(MediaFormat.KEY_FLAC_COMPRESSION_LEVEL, 5)
 
@@ -65,16 +71,15 @@ class FlacEncoder(
             } else if (outputBufferIndex >= 0) {
                 val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
                 if (outputBuffer != null && bufferInfo.size > 0) {
-                    // For FLAC, MediaCodec often puts CSD (STREAMINFO) in the first buffer or buffers with BUFFER_FLAG_CODEC_CONFIG.
-                    // Actually, Android MediaCodec outputs raw FLAC frames. The FLAC header "fLaC" and STREAMINFO block
-                    // are required. Some devices output just raw frames, while others output the "fLaC" and STREAMINFO in the config block.
+                    // BUFFER_FLAG_CODEC_CONFIG carries the FLAC STREAMINFO block on most devices.
+                    // We write it as normal output — do not skip it. The manual "fLaC" header write
+                    // has been removed from start() so this is the sole source of the container header.
                     val chunk = ByteArray(bufferInfo.size)
                     outputBuffer.position(bufferInfo.offset)
                     outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                     outputBuffer.get(chunk)
 
-                    // Write out
-                    outputStream.write(chunk)
+                    processAndWriteChunk(chunk)
                 }
 
                 codec.releaseOutputBuffer(outputBufferIndex, false)
@@ -86,15 +91,27 @@ class FlacEncoder(
         }
     }
 
+    internal fun processAndWriteChunk(chunk: ByteArray) {
+        if (isFLACHeader(chunk, 0, chunk.size)) {
+            if (!hasWrittenHeader) {
+                outputStream.write(chunk)
+                hasWrittenHeader = true
+            } else {
+                AppLogger.w("FlacEncoder", "Duplicate FLAC header detected, skipping")
+            }
+        } else {
+            outputStream.write(chunk)
+        }
+    }
+
     fun stop() {
         val codec = mediaCodec ?: return
         encode(ByteArray(0), isEndOfStream = true)
-
-        drainEncoder(codec)
 
         codec.stop()
         codec.release()
         mediaCodec = null
         isConfigured = false
+        hasWrittenHeader = false
     }
 }
