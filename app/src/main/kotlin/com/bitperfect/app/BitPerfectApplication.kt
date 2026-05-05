@@ -13,5 +13,6 @@ class BitPerfectApplication : Application() {
         TagOptionSingleton.getInstance().isAndroid = true
         OpenTelemetryProvider.initialize(this)
         DeviceStateManager.initialize(this)
+        com.bitperfect.app.usb.RipSession.getInstance(this)
     }
 }
