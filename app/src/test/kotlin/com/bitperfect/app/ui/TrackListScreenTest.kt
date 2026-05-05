@@ -26,7 +26,7 @@ class TrackListScreenTest {
         mockViewModel.selectAlbum(1L, "Test Album")
 
         composeTestRule.setContent {
-            TrackListScreen(viewModel = mockViewModel)
+            TrackListScreen(viewModel = mockViewModel, onShareRipInfo = {})
         }
 
         // When tracks is empty, CircularProgressIndicator is shown, but there is no specific text.
@@ -70,7 +70,7 @@ class TrackListScreenTest {
         mockViewModel.selectAlbum(1L, "Test Album")
 
         composeTestRule.setContent {
-            TrackListScreen(viewModel = mockViewModel)
+            TrackListScreen(viewModel = mockViewModel, onShareRipInfo = {})
         }
 
         composeTestRule.waitForIdle()

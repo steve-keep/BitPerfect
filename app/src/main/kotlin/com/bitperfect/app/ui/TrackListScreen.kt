@@ -28,7 +28,8 @@ private fun numberToWord(n: Int): String {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackListScreen(
-    viewModel: AppViewModel
+    viewModel: AppViewModel,
+    onShareRipInfo: (trackNumber: Int) -> Unit
 ) {
     DisposableEffect(Unit) {
         onDispose {
@@ -141,12 +142,17 @@ fun TrackListScreen(
                                             )
                                         }
                                         RipStatus.WARNING -> {
-                                            Icon(
-                                                imageVector = Icons.Default.Warning,
-                                                contentDescription = "Warning",
-                                                tint = Color(0xFFFFC107),
+                                            IconButton(
+                                                onClick = { onShareRipInfo(track.trackNumber) },
                                                 modifier = Modifier.size(32.dp)
-                                            )
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Warning,
+                                                    contentDescription = "AccurateRip verification failed – tap to share details",
+                                                    tint = Color(0xFFFFC107),
+                                                    modifier = Modifier.size(32.dp)
+                                                )
+                                            }
                                         }
                                         RipStatus.ERROR -> {
                                             Icon(
