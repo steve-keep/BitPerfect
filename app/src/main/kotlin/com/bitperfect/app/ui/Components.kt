@@ -335,71 +335,68 @@ fun DeviceList(
     val coverArtUrl by viewModel.coverArtUrl.collectAsState()
     val isKeyDisc by viewModel.isKeyDisc.collectAsState()
 
-    if (driveStatus is DriveStatus.NoDrive) {
-        return
-    }
-
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        if (bannerState.isVisible) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
-                modifier = Modifier.fillMaxWidth().clickable { onNavigateToTrackList() }
-            ) {
-                RipProgressContent(
-                    bannerState = bannerState
+    if (driveStatus !is DriveStatus.NoDrive) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            if (bannerState.isVisible) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToTrackList() }
+                ) {
+                    RipProgressContent(
+                        bannerState = bannerState
+                    )
+                }
+            } else {
+                when (val currentStatus = driveStatus) {
+                    is DriveStatus.NoDrive -> { /* Should not be reached, handled above */ }
+                    is DriveStatus.Connecting -> DriveStatusCard(
+                        icon = Icons.Outlined.HourglassEmpty,
+                        headline = "Connecting…",
+                        subtitle = "Detecting drive capabilities",
+                        showSpinner = true
+                    )
+                is DriveStatus.PermissionDenied -> DriveStatusCard(
+                    icon = Icons.Outlined.Lock,
+                    headline = "Access Denied",
+                    subtitle = "Re-connect and allow access when prompted"
                 )
-            }
-            return@Box
-        }
-
-        when (val currentStatus = driveStatus) {
-            is DriveStatus.NoDrive -> { /* Should not be reached, handled above */ }
-            is DriveStatus.Connecting -> DriveStatusCard(
-                icon = Icons.Outlined.HourglassEmpty,
-                headline = "Connecting…",
-                subtitle = "Detecting drive capabilities",
-                showSpinner = true
-            )
-            is DriveStatus.PermissionDenied -> DriveStatusCard(
-                icon = Icons.Outlined.Lock,
-                headline = "Access Denied",
-                subtitle = "Re-connect and allow access when prompted"
-            )
-            is DriveStatus.NotOptical -> DriveStatusCard(
-                icon = Icons.Outlined.DeviceUnknown,
-                headline = "Unsupported Device",
-                subtitle = "Connected device is not a CD drive"
-            )
-            is DriveStatus.Empty -> DriveStatusCard(
-                icon = Icons.Outlined.Album,
-                headline = "No Disc Inserted",
-                subtitle = "Insert a CD to continue"
-            )
-            is DriveStatus.SpinningUp -> DriveStatusCard(
-                icon = Icons.Outlined.HourglassBottom,
-                headline = "Spinning Up…",
-                subtitle = "Reading disc information",
-                showSpinner = true
-            )
-            is DriveStatus.DiscReady -> {
-                DiscReadyCard(
-                    toc = currentStatus.toc,
-                    discMetadata = discMetadata,
-                    coverArtUrl = coverArtUrl,
-                    isKeyDisc = isKeyDisc,
-                    onClick = {
-                        viewModel.viewCdTracks()
-                        onViewCd()
-                    }
+                is DriveStatus.NotOptical -> DriveStatusCard(
+                    icon = Icons.Outlined.DeviceUnknown,
+                    headline = "Unsupported Device",
+                    subtitle = "Connected device is not a CD drive"
                 )
+                is DriveStatus.Empty -> DriveStatusCard(
+                    icon = Icons.Outlined.Album,
+                    headline = "No Disc Inserted",
+                    subtitle = "Insert a CD to continue"
+                )
+                is DriveStatus.SpinningUp -> DriveStatusCard(
+                    icon = Icons.Outlined.HourglassBottom,
+                    headline = "Spinning Up…",
+                    subtitle = "Reading disc information",
+                    showSpinner = true
+                )
+                is DriveStatus.DiscReady -> {
+                    DiscReadyCard(
+                        toc = currentStatus.toc,
+                        discMetadata = discMetadata,
+                        coverArtUrl = coverArtUrl,
+                        isKeyDisc = isKeyDisc,
+                        onClick = {
+                            viewModel.viewCdTracks()
+                            onViewCd()
+                        }
+                    )
+                }
+                    is DriveStatus.Error -> DriveStatusCard(
+                        icon = Icons.Outlined.ErrorOutline,
+                        headline = "Drive Error",
+                        subtitle = currentStatus.message
+                    )
+                }
             }
-            is DriveStatus.Error -> DriveStatusCard(
-                icon = Icons.Outlined.ErrorOutline,
-                headline = "Drive Error",
-                subtitle = currentStatus.message
-            )
         }
     }
 }
