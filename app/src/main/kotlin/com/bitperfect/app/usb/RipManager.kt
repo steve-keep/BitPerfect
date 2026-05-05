@@ -21,6 +21,7 @@ import org.jaudiotagger.tag.images.ArtworkFactory
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.RandomAccessFile
 import java.net.URL
 
 enum class RipStatus {
@@ -113,145 +114,155 @@ class RipManager(
 
             updateTrackState(trackNumber, RipStatus.RIPPING, 0f)
 
-            for (attempt in 1..3) {
-                if (isCancelled) break
+            if (isCancelled) break
 
-                val safeTitle = trackTitle.replace("/", "_")
-                val filename = String.format("%02d - %s.flac", trackNumber, safeTitle)
+            val safeTitle = trackTitle.replace("/", "_")
+            val filename = String.format("%02d - %s.flac", trackNumber, safeTitle)
 
-                // Write to local cache first so jaudiotagger can operate on a standard File
-                val cacheFile = File(context.cacheDir, filename)
-                if (cacheFile.exists()) cacheFile.delete()
+            // Write to local cache first so jaudiotagger can operate on a standard File
+            val cacheFile = File(context.cacheDir, filename)
+            if (cacheFile.exists()) cacheFile.delete()
 
-                var outputStream: java.io.OutputStream? = null
-                var encoder: FlacEncoder? = null
-                var finalChecksum = 0L
+            var outputStream: java.io.OutputStream? = null
+            var encoder: FlacEncoder? = null
+            var finalChecksum = 0L
 
-                try {
-                    outputStream = FileOutputStream(cacheFile)
-                    encoder = FlacEncoder(outputStream)
-                    encoder.start()
+            try {
+                outputStream = FileOutputStream(cacheFile)
+                encoder = FlacEncoder(outputStream)
+                encoder.start()
 
-                    val checksumAccumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
+                val checksumAccumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
 
-                    val chunkSize = 26 // read ~26 sectors at a time
-                    var sectorsRead = 0
-                    var isFirstChunk = true
-                    var nextCarryBuffer = ByteArray(0)
+                val chunkSize = 26 // read ~26 sectors at a time
+                var sectorsRead = 0
+                var isFirstChunk = true
+                var nextCarryBuffer = ByteArray(0)
 
-                    while (sectorsRead < totalSectors && !isCancelled) {
-                        val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
-                        val pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
+                while (sectorsRead < totalSectors && !isCancelled) {
+                    val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
+                    val pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
 
-                        if (pcmData != null) {
-                            encoder.encode(pcmData)
+                    if (pcmData != null) {
+                        encoder.encode(pcmData)
 
-                            var dataForAccumulator = pcmData
-                            if (isFirstChunk && carryBuffer.isNotEmpty()) {
-                                dataForAccumulator = ByteArray(carryBuffer.size + pcmData.size)
-                                System.arraycopy(carryBuffer, 0, dataForAccumulator, 0, carryBuffer.size)
-                                System.arraycopy(pcmData, 0, dataForAccumulator, carryBuffer.size, pcmData.size)
-                            }
-
-                            if (driveOffset < 0 && (sectorsRead + sectorsToRead == totalSectors)) {
-                                val bytesToCarry = Math.abs(driveOffset) * 4
-                                if (dataForAccumulator.size >= bytesToCarry) {
-                                    nextCarryBuffer = ByteArray(bytesToCarry)
-                                    System.arraycopy(dataForAccumulator, dataForAccumulator.size - bytesToCarry, nextCarryBuffer, 0, bytesToCarry)
-                                }
-                            }
-
-                            checksumAccumulator.accumulate(dataForAccumulator, sectorsToRead)
-                        } else {
-                            AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
-                            val silence = ByteArray(sectorsToRead * 2352)
-                            encoder.encode(silence)
-                            checksumAccumulator.accumulate(null, sectorsToRead)
+                        var dataForAccumulator = pcmData
+                        if (isFirstChunk && carryBuffer.isNotEmpty()) {
+                            dataForAccumulator = ByteArray(carryBuffer.size + pcmData.size)
+                            System.arraycopy(carryBuffer, 0, dataForAccumulator, 0, carryBuffer.size)
+                            System.arraycopy(pcmData, 0, dataForAccumulator, carryBuffer.size, pcmData.size)
                         }
 
-                        isFirstChunk = false
-                        sectorsRead += sectorsToRead
-                        updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
-                    }
-
-                    encoder.stop()
-                    if (attempt == 1 || isCancelled || finalChecksum > 0 /* will be overwritten below */) { // Just doing it every time to ensure carry buffer is updated at least once per track. Since it is reset at track loop level we just want to ensure it is passed onto next track iteration
-                        carryBuffer = nextCarryBuffer
-                    }
-                    finalChecksum = checksumAccumulator.finalise()
-                } catch (e: Exception) {
-                    AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
-                } finally {
-                    try {
-                        outputStream?.close()
-                    } catch (e: Exception) {
-                        // Ignore
-                    }
-                }
-
-                updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
-
-                // Apply tags
-                try {
-                    val audioFile = AudioFileIO.read(cacheFile)
-                    val tag = audioFile.tagOrCreateAndSetDefault
-                    tag.setField(FieldKey.ARTIST, metadata.artistName)
-                    tag.setField(FieldKey.ALBUM, metadata.albumTitle)
-                    tag.setField(FieldKey.TITLE, trackTitle)
-                    tag.setField(FieldKey.TRACK, trackNumber.toString())
-
-                    if (artworkBytes != null) {
-                        val artwork = ArtworkFactory.getNew()
-                        artwork.binaryData = artworkBytes
-                        artwork.mimeType = "image/jpeg"
-                        artwork.description = ""
-                        artwork.pictureType = 3 // Front Cover
-                        tag.deleteArtworkField()
-                        tag.setField(artwork)
-                    }
-
-                    audioFile.commit()
-                } catch (e: Exception) {
-                    AppLogger.w("RipManager", "Failed to tag file: ${e.message}")
-                }
-
-                // Verify checksum
-                val expectedForTrack = expectedChecksums[trackNumber]
-                val isAccurate = expectedForTrack?.any { it.checksum == finalChecksum } ?: true
-
-                // Move from cache to SAF destination
-                try {
-                    albumDir.findFile(filename)?.delete()
-                    val destFile = albumDir.createFile("audio/flac", filename)
-                    if (destFile != null) {
-                        context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
-                            cacheFile.inputStream().use { input ->
-                                input.copyTo(out)
+                        if (driveOffset < 0 && (sectorsRead + sectorsToRead == totalSectors)) {
+                            val bytesToCarry = Math.abs(driveOffset) * 4
+                            if (dataForAccumulator.size >= bytesToCarry) {
+                                nextCarryBuffer = ByteArray(bytesToCarry)
+                                System.arraycopy(dataForAccumulator, dataForAccumulator.size - bytesToCarry, nextCarryBuffer, 0, bytesToCarry)
                             }
+                        }
+
+                        checksumAccumulator.accumulate(dataForAccumulator, sectorsToRead)
+                    } else {
+                        AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
+                        val silence = ByteArray(sectorsToRead * 2352)
+                        encoder.encode(silence)
+                        checksumAccumulator.accumulate(null, sectorsToRead)
+                    }
+
+                    isFirstChunk = false
+                    sectorsRead += sectorsToRead
+                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
+                }
+
+                encoder.stop()
+
+                // Patch the FLAC STREAMINFO total_samples directly in the output file
+                try {
+                    RandomAccessFile(cacheFile, "rw").use { raf ->
+                        if (raf.length() >= 26) {
+                            raf.seek(18)
+                            val currentSamplesWord = raf.readLong()
+                            val upper28Bits = currentSamplesWord and -0x1000000000L
+                            val newSamplesWord = upper28Bits or (totalSamples and 0xFFFFFFFFFL)
+                            raf.seek(18)
+                            raf.writeLong(newSamplesWord)
                         }
                     }
                 } catch (e: Exception) {
-                    AppLogger.e("RipManager", "Failed to move file to SAF destination", e)
-                } finally {
-                    cacheFile.delete()
+                    AppLogger.w("RipManager", "Failed to patch FLAC total_samples: ${e.message}")
                 }
 
-                if (isAccurate) {
-                    updateTrackState(trackNumber, RipStatus.SUCCESS, 1f)
-                    break
-                } else {
-                    AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber (attempt $attempt).")
-                    if (attempt == 3) {
-                        updateTrackState(
-                            trackNumber,
-                            RipStatus.WARNING,
-                            1f,
-                            accurateRipUrl = accurateRipUrl,
-                            computedChecksum = finalChecksum,
-                            expectedChecksums = expectedForTrack?.map { it.checksum } ?: emptyList()
-                        )
+                carryBuffer = nextCarryBuffer
+                finalChecksum = checksumAccumulator.finalise()
+            } catch (e: Exception) {
+                AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
+            } finally {
+                try {
+                    outputStream?.close()
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+
+            updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
+
+            // Apply tags
+            try {
+                val audioFile = AudioFileIO.read(cacheFile)
+                val tag = audioFile.tagOrCreateAndSetDefault
+                tag.setField(FieldKey.ARTIST, metadata.artistName)
+                tag.setField(FieldKey.ALBUM, metadata.albumTitle)
+                tag.setField(FieldKey.TITLE, trackTitle)
+                tag.setField(FieldKey.TRACK, trackNumber.toString())
+
+                if (artworkBytes != null) {
+                    val artwork = ArtworkFactory.getNew()
+                    artwork.binaryData = artworkBytes
+                    artwork.mimeType = "image/jpeg"
+                    artwork.description = ""
+                    artwork.pictureType = 3 // Front Cover
+                    tag.deleteArtworkField()
+                    tag.setField(artwork)
+                }
+
+                audioFile.commit()
+            } catch (e: Exception) {
+                AppLogger.w("RipManager", "Failed to tag file: ${e.message}")
+            }
+
+            // Verify checksum
+            val expectedForTrack = expectedChecksums[trackNumber]
+            val isAccurate = expectedForTrack?.any { it.checksum == finalChecksum } ?: true
+
+            // Move from cache to SAF destination
+            try {
+                albumDir.findFile(filename)?.delete()
+                val destFile = albumDir.createFile("audio/flac", filename)
+                if (destFile != null) {
+                    context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
+                        cacheFile.inputStream().use { input ->
+                            input.copyTo(out)
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                AppLogger.e("RipManager", "Failed to move file to SAF destination", e)
+            } finally {
+                cacheFile.delete()
+            }
+
+            if (isAccurate) {
+                updateTrackState(trackNumber, RipStatus.SUCCESS, 1f)
+            } else {
+                AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
+                updateTrackState(
+                    trackNumber,
+                    RipStatus.WARNING,
+                    1f,
+                    accurateRipUrl = accurateRipUrl,
+                    computedChecksum = finalChecksum,
+                    expectedChecksums = expectedForTrack?.map { it.checksum } ?: emptyList()
+                )
             }
         }
     }

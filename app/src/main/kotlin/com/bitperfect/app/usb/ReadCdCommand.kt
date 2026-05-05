@@ -38,8 +38,8 @@ class ReadCdCommand(
         buffer.put((sectorCount shr 8).toByte())
         buffer.put(sectorCount.toByte())
 
-        // Sync=1, all headers, user data, EDC/ECC, no C2 (0xF8)
-        buffer.put(0xF8.toByte())
+        // Sync=0, header=0, user data=1, EDC/ECC=0, no C2 (0x10)
+        buffer.put(0x10.toByte())
         buffer.put(0)                // Subchannel: 0x00=none
         buffer.put(0)                // Reserved
 
