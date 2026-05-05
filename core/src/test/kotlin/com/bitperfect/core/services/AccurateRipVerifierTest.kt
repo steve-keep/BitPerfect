@@ -1,11 +1,128 @@
 package com.bitperfect.core.services
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class AccurateRipVerifierTest {
 
     private val verifier = AccurateRipVerifier()
+
+    @Test
+    fun `parseAccurateRipResponse - empty input returns empty map`() {
+        val result = verifier.parseAccurateRipResponse(ByteArray(0))
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `parseAccurateRipResponse - single disc entry, two tracks`() {
+        val buffer = ByteBuffer.allocate(9 + 2 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        // Header
+        buffer.put(2.toByte()) // trackCount = 2
+        buffer.putInt(0x11111111) // discId1
+        buffer.putInt(0x22222222) // discId2
+
+        // Track 1
+        buffer.put(5.toByte()) // confidence
+        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1
+        buffer.putInt(0xBBBBBBBB.toInt()) // crcV2
+
+        // Track 2
+        buffer.put(10.toByte()) // confidence
+        buffer.putInt(0xCCCCCCCC.toInt()) // crcV1
+        buffer.putInt(0xDDDDDDDD.toInt()) // crcV2
+
+        val result = verifier.parseAccurateRipResponse(buffer.array())
+
+        assertEquals(2, result.size)
+        assertEquals(1, result[1]?.size)
+        assertEquals(0xAAAAAAAAL, result[1]?.get(0)?.checksum)
+        assertEquals(5, result[1]?.get(0)?.confidence)
+
+        assertEquals(1, result[2]?.size)
+        assertEquals(0xCCCCCCCCL, result[2]?.get(0)?.checksum)
+        assertEquals(10, result[2]?.get(0)?.confidence)
+    }
+
+    @Test
+    fun `parseAccurateRipResponse - multiple disc entries`() {
+        val buffer = ByteBuffer.allocate((9 + 1 * 9) * 2).order(ByteOrder.LITTLE_ENDIAN)
+
+        // Entry 1
+        buffer.put(1.toByte()) // trackCount = 1
+        buffer.putInt(0x11111111) // discId1
+        buffer.putInt(0x22222222) // discId2
+        buffer.put(3.toByte()) // confidence
+        buffer.putInt(0x11111111) // crcV1
+        buffer.putInt(0) // crcV2
+
+        // Entry 2
+        buffer.put(1.toByte()) // trackCount = 1
+        buffer.putInt(0x33333333) // discId1
+        buffer.putInt(0x44444444) // discId2
+        buffer.put(7.toByte()) // confidence
+        buffer.putInt(0x33333333) // crcV1
+        buffer.putInt(0) // crcV2
+
+        val result = verifier.parseAccurateRipResponse(buffer.array())
+
+        assertEquals(1, result.size) // Only 1 track in total
+        assertEquals(2, result[1]?.size) // Track 1 should have 2 entries
+
+        assertEquals(0x11111111L, result[1]?.get(0)?.checksum)
+        assertEquals(3, result[1]?.get(0)?.confidence)
+
+        assertEquals(0x33333333L, result[1]?.get(1)?.checksum)
+        assertEquals(7, result[1]?.get(1)?.confidence)
+    }
+
+    @Test
+    fun `parseAccurateRipResponse - truncated entry`() {
+        // Header promises 3 tracks, but we only supply 2 tracks
+        val buffer = ByteBuffer.allocate(9 + 2 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.put(3.toByte()) // trackCount = 3
+        buffer.putInt(0x11111111) // discId1
+        buffer.putInt(0x22222222) // discId2
+
+        // Track 1
+        buffer.put(5.toByte())
+        buffer.putInt(0xAAAAAAAA.toInt())
+        buffer.putInt(0)
+
+        // Track 2
+        buffer.put(10.toByte())
+        buffer.putInt(0xCCCCCCCC.toInt())
+        buffer.putInt(0)
+
+        val result = verifier.parseAccurateRipResponse(buffer.array())
+
+        // Should break and return empty map
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `parseAccurateRipResponse - discId1 and discId2 read without corrupting buffer offsets`() {
+        val buffer = ByteBuffer.allocate(9 + 1 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        // Header
+        buffer.put(1.toByte()) // trackCount = 1
+        buffer.putInt(0x12345678) // discId1
+        buffer.putInt(0x87654321.toInt()) // discId2
+
+        // Track 1
+        buffer.put(5.toByte()) // confidence
+        buffer.putInt(0xABCDEF01.toInt()) // crcV1
+        buffer.putInt(0) // crcV2
+
+        val result = verifier.parseAccurateRipResponse(buffer.array())
+
+        // If discId1 and discId2 were not read correctly, the buffer offset would be wrong
+        // and we wouldn't get the correct track checksum.
+        assertEquals(1, result.size)
+        assertEquals(0xABCDEF01L, result[1]?.get(0)?.checksum)
+        assertEquals(5, result[1]?.get(0)?.confidence)
+    }
 
     @Test
     fun `computeChecksumChunk - single chunk, all excluded, returns 0L`() {

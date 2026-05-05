@@ -1,6 +1,7 @@
 package com.bitperfect.core.services
 
 import com.bitperfect.core.models.DiscToc
+import com.bitperfect.core.utils.AppLogger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -15,31 +16,28 @@ class AccurateRipVerifier {
         val buffer = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
 
         while (buffer.remaining() >= 9) {
-            val count = buffer.get().toInt() and 0xFF
-            val checksum1 = buffer.getInt().toLong() and 0xFFFFFFFFL
-            val checksum2 = buffer.getInt().toLong() and 0xFFFFFFFFL
+            val trackCount = buffer.get().toInt() and 0xFF
+            val discId1 = buffer.getInt().toLong() and 0xFFFFFFFFL
+            val discId2 = buffer.getInt().toLong() and 0xFFFFFFFFL
 
-            // Track metadata size is count * 9
-            val trackCount = count
+            AppLogger.d("AccurateRipVerifier", "Parsed disc entry header: discId1=${String.format("%08x", discId1)}, discId2=${String.format("%08x", discId2)}")
 
             if (buffer.remaining() < trackCount * 9) {
+                AppLogger.w("AccurateRipVerifier", "Truncated AccurateRip response: expected ${trackCount * 9} bytes for $trackCount tracks, but only ${buffer.remaining()} bytes remaining")
                 break
             }
 
             for (i in 0 until trackCount) {
-                // The structure for each track seems to be track number or similar, but
-                // normally AR DB contains confidence, track number, and checksum
-                // Just assuming simplified structure for this implementation based on typical AR parsing.
                 val confidence = buffer.get().toInt() and 0xFF
-                val trackChecksum = buffer.getInt().toLong() and 0xFFFFFFFFL
-                val trackChecksumV2 = buffer.getInt().toLong() and 0xFFFFFFFFL
+                val crcV1 = buffer.getInt().toLong() and 0xFFFFFFFFL
+                val crcV2 = buffer.getInt().toLong() and 0xFFFFFFFFL // AR v2 checksum — stored for future use, not currently matched
 
-                // Track numbers in AR DB usually go from 1 to count
                 val trackNumber = i + 1
                 tracksInfo.getOrPut(trackNumber) { mutableListOf() }.add(
-                    AccurateRipTrackMetadata(trackChecksum, confidence)
+                    AccurateRipTrackMetadata(crcV1, confidence)
                 )
             }
+            AppLogger.d("AccurateRipVerifier", "Parsed $trackCount tracks for this disc entry")
         }
         return tracksInfo
     }
