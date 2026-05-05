@@ -169,7 +169,7 @@ fun TrackListScreen(
                                         text = track.trackNumber.toString().padStart(2, '0'),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = tintColor,
-                                        modifier = Modifier.align(Alignment.CenterStart)
+                                        modifier = Modifier.align(Alignment.Center)
                                     )
                                 }
                             }
