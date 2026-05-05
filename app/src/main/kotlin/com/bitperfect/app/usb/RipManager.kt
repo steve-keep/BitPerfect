@@ -37,8 +37,7 @@ class RipManager(
     private val toc: DiscToc,
     private val metadata: DiscMetadata,
     private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
-    private val coverArtUrl: String?,
-    private val driveOffset: Int = 0
+    private val artworkBytes: ByteArray?
 ) {
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
@@ -83,16 +82,6 @@ class RipManager(
             return@withContext
         }
 
-        // Download cover art once
-        var coverArtBytes: ByteArray? = null
-        if (!coverArtUrl.isNullOrEmpty()) {
-            try {
-                coverArtBytes = URL(coverArtUrl).readBytes()
-            } catch (e: Exception) {
-                AppLogger.w("RipManager", "Failed to download cover art: ${e.message}")
-            }
-        }
-
         for (i in 0 until toc.tracks.size) {
             if (isCancelled) break
 
@@ -124,90 +113,22 @@ class RipManager(
                     encoder.start()
 
                     val chunkSize = 26 // read ~26 sectors at a time
-                    var bytesWritten = 0L
-                    val totalBytesForTrack = totalSectors * 2352L
+                    var sectorsRead = 0
+                    while (sectorsRead < totalSectors && !isCancelled) {
+                        val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
+                        val pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
 
-                    // The driveOffset is in samples. 1 sample = 4 bytes (16-bit stereo)
-                    val offsetBytes = driveOffset * 4
-
-                    val offsetSectors = if (driveOffset > 0) {
-                        -Math.ceil(driveOffset.toDouble() / 588.0).toInt()
-                    } else if (driveOffset < 0) {
-                        Math.floor(Math.abs(driveOffset).toDouble() / 588.0).toInt()
-                    } else {
-                        0
-                    }
-                    val baseReadLba = entry.lba + offsetSectors
-                    var currentReadSector = baseReadLba
-                    var leftoverBuffer = ByteArray(0)
-
-                    if (driveOffset < 0) {
-                        val silenceSamples = Math.abs(driveOffset)
-                        leftoverBuffer = ByteArray(silenceSamples * 4) // Prepend silence
-                    }
-
-                    var pendingDiscardSamples = if (driveOffset > 0) {
-                        val N = driveOffset
-                        val shiftedSectors = Math.ceil(N.toDouble() / 588.0).toInt()
-                        (shiftedSectors * 588) - N
-                    } else {
-                        0
-                    }
-
-                    while (bytesWritten < totalBytesForTrack && !isCancelled) {
-                        val bytesRemaining = totalBytesForTrack - bytesWritten
-
-                        val bytesToReadFromDrive = maxOf(0L, bytesRemaining - leftoverBuffer.size + (pendingDiscardSamples * 4))
-                        val neededSectors = ((bytesToReadFromDrive + 2351) / 2352).toInt()
-
-                        val sectorsToRead = minOf(chunkSize, maxOf(if (bytesToReadFromDrive > 0) 1 else 0, neededSectors))
-
-                        var usableData = if (sectorsToRead > 0) {
-                            val pcmData = readCmd.execute(currentReadSector, sectorsToRead)
-                            if (pcmData != null) {
-                                pcmData
-                            } else {
-                                AppLogger.w("RipManager", "Failed to read sector at $currentReadSector")
-                                ByteArray(sectorsToRead * 2352)
-                            }
+                        if (pcmData != null) {
+                            encoder.encode(pcmData)
+                            checksum += verifier.computeChecksum(pcmData)
                         } else {
-                            ByteArray(0)
+                            AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
+                            val silence = ByteArray(sectorsToRead * 2352)
+                            encoder.encode(silence)
                         }
 
-                        var processBuffer = if (leftoverBuffer.isNotEmpty()) {
-                            leftoverBuffer + usableData
-                        } else {
-                            usableData
-                        }
-
-                        if (pendingDiscardSamples > 0) {
-                            val discardBytes = pendingDiscardSamples * 4
-                            if (discardBytes <= processBuffer.size) {
-                                processBuffer = processBuffer.copyOfRange(discardBytes, processBuffer.size)
-                                pendingDiscardSamples = 0
-                            } else {
-                                pendingDiscardSamples -= processBuffer.size / 4
-                                processBuffer = ByteArray(0)
-                            }
-                        }
-
-                        val bytesToExtract = minOf(bytesRemaining, processBuffer.size.toLong()).toInt()
-                        val dataToWrite = processBuffer.copyOfRange(0, bytesToExtract)
-
-                        leftoverBuffer = if (bytesToExtract < processBuffer.size) {
-                            processBuffer.copyOfRange(bytesToExtract, processBuffer.size)
-                        } else {
-                            ByteArray(0)
-                        }
-
-                        if (dataToWrite.isNotEmpty()) {
-                            encoder.encode(dataToWrite)
-                            checksum += verifier.computeChecksum(dataToWrite)
-                            bytesWritten += dataToWrite.size
-                        }
-
-                        currentReadSector += sectorsToRead
-                        updateTrackState(trackNumber, RipStatus.RIPPING, bytesWritten.toFloat() / totalBytesForTrack)
+                        sectorsRead += sectorsToRead
+                        updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
                     }
 
                     encoder.stop()
@@ -232,9 +153,9 @@ class RipManager(
                     tag.setField(FieldKey.TITLE, trackTitle)
                     tag.setField(FieldKey.TRACK, trackNumber.toString())
 
-                    if (coverArtBytes != null) {
+                    if (artworkBytes != null) {
                         val artwork = ArtworkFactory.getNew()
-                        artwork.binaryData = coverArtBytes
+                        artwork.binaryData = artworkBytes
                         artwork.mimeType = "image/jpeg"
                         artwork.description = ""
                         artwork.pictureType = 3 // Front Cover

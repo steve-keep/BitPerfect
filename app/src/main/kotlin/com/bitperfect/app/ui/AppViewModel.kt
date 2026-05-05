@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,6 +29,9 @@ import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
 import com.bitperfect.core.services.AccurateRipService
+import com.bitperfect.core.services.ItunesArtwork
+import com.bitperfect.core.services.ItunesArtworkRepository
+import java.net.URL
 
 data class TrackListViewState(
     val title: String,
@@ -40,7 +44,10 @@ data class TrackListViewState(
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
-    private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) }
+    private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
+    private val fetchItunesArtwork: suspend (String, String) -> ItunesArtwork? = { artist, album ->
+        ItunesArtworkRepository(application).fetchItunesArtwork(artist, album)
+    }
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
@@ -73,8 +80,12 @@ open class AppViewModel(
 
     private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
 
-    private val _coverArtUrl = MutableStateFlow<String?>(null)
-    open val coverArtUrl: StateFlow<String?> = _coverArtUrl.asStateFlow()
+    private val _artwork = MutableStateFlow<ItunesArtwork?>(null)
+    private val _artworkBytes = MutableStateFlow<ByteArray?>(null)
+
+    open val coverArtUrl: StateFlow<String?> = _artwork
+        .map { it?.previewUrl }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
     open val discMetadata: StateFlow<DiscMetadata?> = _discMetadata.asStateFlow()
@@ -178,10 +189,29 @@ open class AppViewModel(
         }
         viewModelScope.launch {
             discMetadata.collectLatest { metadata ->
-                if (metadata != null && metadata.mbReleaseId.isNotEmpty()) {
-                    _coverArtUrl.value = "https://coverartarchive.org/release/\${metadata.mbReleaseId}/front"
+                if (metadata != null) {
+                    val artwork = fetchItunesArtwork(metadata.artistName, metadata.albumTitle)
+                    _artwork.value = artwork
+                    _artworkBytes.value = null
+                    if (artwork != null) {
+                        try {
+                            _artworkBytes.value = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                URL(artwork.highResUrl).readBytes()
+                            }
+                        } catch (e: Exception) {
+                            com.bitperfect.core.utils.AppLogger.w("AppViewModel", "High-res art download failed, trying preview: ${e.message}")
+                            try {
+                                _artworkBytes.value = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                    URL(artwork.previewUrl).readBytes()
+                                }
+                            } catch (e2: Exception) {
+                                com.bitperfect.core.utils.AppLogger.w("AppViewModel", "Preview art download also failed: ${e2.message}")
+                            }
+                        }
+                    }
                 } else {
-                    _coverArtUrl.value = null
+                    _artwork.value = null
+                    _artworkBytes.value = null
                 }
             }
         }
@@ -279,25 +309,15 @@ open class AppViewModel(
             val toc = currentDriveStatus.toc
             val meta = discMetadata.value ?: return
 
-            val driveInfo = currentDriveStatus.info
-
             viewModelScope.launch(Dispatchers.IO) {
-                val offset = if (driveInfo != null) {
-                    val driveOffsetRepository = com.bitperfect.core.services.DriveOffsetRepository(getApplication<Application>())
-                    driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset ?: 0
-                } else {
-                    0
-                }
-
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
                 val ripManager = RipManager(
-                    context = getApplication<Application>(),
+                    context = getApplication(),
                     outputFolderUriString = outputUri,
                     toc = toc,
                     metadata = meta,
                     expectedChecksums = expectedChecksums,
-                    coverArtUrl = _coverArtUrl.value,
-                    driveOffset = offset
+                    artworkBytes = _artworkBytes.value
                 )
                 _ripManager = ripManager
 
