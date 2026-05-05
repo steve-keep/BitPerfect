@@ -12,8 +12,8 @@ import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.RipSession
-import com.bitperfect.app.usb.RipStatus
-import com.bitperfect.app.usb.TrackRipState
+import com.bitperfect.app.usb.RipStatus as UsbRipStatus
+import com.bitperfect.app.usb.TrackRipState as UsbTrackRipState
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.google.common.util.concurrent.Futures
@@ -342,11 +342,11 @@ class AppViewModelTest {
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to TrackRipState(1, 1f, RipStatus.SUCCESS),
-            2 to TrackRipState(2, 0.5f, RipStatus.RIPPING),
-            3 to TrackRipState(3, 0f, RipStatus.IDLE)
+            1 to UsbTrackRipState(1, 1f, UsbRipStatus.SUCCESS),
+            2 to UsbTrackRipState(2, 0.5f, UsbRipStatus.RIPPING),
+            3 to UsbTrackRipState(3, 0f, UsbRipStatus.IDLE)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
         val vm = AppViewModel(application)
 
@@ -364,7 +364,7 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
     }
 
     @Test
@@ -376,10 +376,10 @@ class AppViewModelTest {
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to TrackRipState(1, 1.0f, RipStatus.SUCCESS),
-            2 to TrackRipState(2, 0.5f, RipStatus.RIPPING)
+            1 to UsbTrackRipState(1, 1.0f, UsbRipStatus.SUCCESS),
+            2 to UsbTrackRipState(2, 0.5f, UsbRipStatus.RIPPING)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
         val vm = AppViewModel(application)
 
@@ -395,7 +395,7 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
     }
 
     @Test
@@ -412,9 +412,9 @@ class AppViewModelTest {
         // Ripping finished, isRipping is false, but ripStates is not empty
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
         val states = mapOf(
-            1 to TrackRipState(1, 1.0f, RipStatus.SUCCESS)
+            1 to UsbTrackRipState(1, 1.0f, UsbRipStatus.SUCCESS)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
         val vm = AppViewModel(application)
 
@@ -431,7 +431,7 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
     }
 
     @Test
