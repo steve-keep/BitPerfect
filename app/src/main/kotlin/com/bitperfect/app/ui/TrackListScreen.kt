@@ -40,6 +40,14 @@ fun TrackListScreen(
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val ripStates by viewModel.ripStates.collectAsState()
 
+    val isRipping = remember(ripStates) {
+        ripStates.isNotEmpty() && !ripStates.values.all {
+            it.status == RipStatus.SUCCESS ||
+            it.status == RipStatus.WARNING ||
+            it.status == RipStatus.ERROR
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         val state = viewState
         if (state == null || state.tracks.isEmpty()) {
@@ -63,6 +71,7 @@ fun TrackListScreen(
                         coverArtUrl = state.coverArtUrl,
                         trackCount = state.tracks.size,
                         isCdMode = state.isCdMode,
+                        isRipping = isRipping,
                         onSaveClick = { viewModel.startRip() },
                         onPlayClick = { viewModel.playAlbum(state.tracks) }
                     )
