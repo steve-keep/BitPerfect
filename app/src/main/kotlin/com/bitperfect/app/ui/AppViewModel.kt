@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import android.content.Intent
 
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
@@ -95,8 +99,11 @@ open class AppViewModel(
 
     private val ripSession = com.bitperfect.app.usb.RipSession.getInstance(application)
 
-    private val _ripStates = MutableStateFlow<Map<Int, TrackRipState>>(emptyMap())
+    internal val _ripStates = MutableStateFlow<Map<Int, TrackRipState>>(emptyMap())
     val ripStates: StateFlow<Map<Int, TrackRipState>> = _ripStates.asStateFlow()
+
+    private val _shareIntent = MutableSharedFlow<Intent>(replay = 0, extraBufferCapacity = 1)
+    val shareIntent: SharedFlow<Intent> = _shareIntent.asSharedFlow()
 
     val isRipping: StateFlow<Boolean> = ripSession.isRipping
 
@@ -414,5 +421,46 @@ open class AppViewModel(
 
     fun pollPosition() {
         playerRepository.pollPosition()
+    }
+
+    fun shareRipInfo(trackNumber: Int) {
+        val state = _ripStates.value[trackNumber] ?: return
+        if (state.status != RipStatus.WARNING) return
+
+        val meta = discMetadata.value
+        val trackTitle = meta?.trackTitles?.getOrNull(trackNumber - 1) ?: "Track $trackNumber"
+        val albumTitle = meta?.albumTitle ?: "Unknown Album"
+        val artistName = meta?.artistName ?: "Unknown Artist"
+
+        val expectedHex = state.expectedChecksums
+            .joinToString(", ") { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
+        val computedHex = state.computedChecksum
+            ?.let { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
+            ?: "unknown"
+
+        val body = buildString {
+            appendLine("AccurateRip verification failed")
+            appendLine()
+            appendLine("Track:    $trackTitle")
+            appendLine("Album:    $albumTitle")
+            appendLine("Artist:   $artistName")
+            appendLine("Track #:  $trackNumber")
+            appendLine()
+            appendLine("Computed checksum:  $computedHex")
+            appendLine("Expected checksums: $expectedHex")
+            appendLine()
+            appendLine("AccurateRip URL:")
+            appendLine(state.accurateRipUrl ?: "unavailable")
+        }
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "BitPerfect: AccurateRip mismatch – $trackTitle")
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+
+        viewModelScope.launch {
+            _shareIntent.emit(intent)
+        }
     }
 }

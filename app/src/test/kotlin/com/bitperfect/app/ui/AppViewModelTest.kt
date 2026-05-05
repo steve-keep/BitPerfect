@@ -10,6 +10,8 @@ import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
+import com.bitperfect.app.usb.TrackRipState
+import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
@@ -313,5 +315,101 @@ class AppViewModelTest {
 
         viewModel.skipPrev()
         verify(mockRepository).skipPrev()
+    }
+
+    @Test
+    fun testShareRipInfo_withNonWarningTrack_isNoOp() = runTest {
+        viewModel._ripStates.value = mapOf(
+            1 to TrackRipState(
+                trackNumber = 1,
+                status = RipStatus.SUCCESS
+            )
+        )
+        val emissions = mutableListOf<android.content.Intent>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.shareIntent.collect { emissions.add(it) }
+        }
+
+        viewModel.shareRipInfo(1)
+        advanceUntilIdle()
+
+        assertEquals(0, emissions.size)
+        job.cancel()
+        job.join()
+    }
+
+    @Test
+    fun testShareRipInfo_withWarningTrack_emitsCorrectIntent() = runTest {
+        val accurateRipUrl = "http://accuraterip.com/path"
+        val computedChecksum = 0x12345678L
+        val expectedChecksums = listOf(0x87654321L, 0xABCDEF01L)
+
+        viewModel._ripStates.value = mapOf(
+            2 to TrackRipState(
+                trackNumber = 2,
+                status = RipStatus.WARNING,
+                accurateRipUrl = accurateRipUrl,
+                computedChecksum = computedChecksum,
+                expectedChecksums = expectedChecksums
+            )
+        )
+
+        // Mock disc metadata so track title can be formatted
+        val dummyToc = DiscToc(emptyList(), 10)
+        val dummyMetadata = DiscMetadata("Test Album", "Test Artist", listOf("Track 1", "Track 2"), "mbid")
+        mockLookupMusicBrainz = { if (it == dummyToc) dummyMetadata else null }
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
+        advanceUntilIdle()
+
+        var attempts = 0
+        while (viewModel.discMetadata.value == null && attempts < 100) {
+            Thread.sleep(50)
+            ShadowLooper.idleMainLooper()
+            ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+            attempts++
+        }
+
+        val emissions = mutableListOf<android.content.Intent>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.shareIntent.collect { emissions.add(it) }
+        }
+
+        viewModel.shareRipInfo(2)
+        advanceUntilIdle()
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+        assertEquals(1, emissions.size)
+        val intent = emissions[0]
+        assertEquals(android.content.Intent.ACTION_SEND, intent.action)
+        assertEquals("text/plain", intent.type)
+
+        val subject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT)
+        assertEquals("BitPerfect: AccurateRip mismatch – Track 2", subject)
+
+        val text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: ""
+        assertTrue(text.contains(accurateRipUrl))
+        assertTrue(text.contains("0x12345678"))
+        assertTrue(text.contains("0x87654321"))
+        assertTrue(text.contains("0xABCDEF01"))
+
+        job.cancel()
+        job.join()
+    }
+
+    @Test
+    fun testShareRipInfo_withUnknownTrackNumber_isNoOp() = runTest {
+        viewModel._ripStates.value = emptyMap()
+
+        val emissions = mutableListOf<android.content.Intent>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.shareIntent.collect { emissions.add(it) }
+        }
+
+        viewModel.shareRipInfo(99)
+        advanceUntilIdle()
+
+        assertEquals(0, emissions.size)
+        job.cancel()
+        job.join()
     }
 }

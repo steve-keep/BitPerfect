@@ -96,6 +96,12 @@ class MainActivity : ComponentActivity() {
         settingsManager = SettingsManager(this)
 
         setContent {
+            LaunchedEffect(Unit) {
+                appViewModel.shareIntent.collect { intent ->
+                    startActivity(Intent.createChooser(intent, "Share rip info"))
+                }
+            }
+
             val navController = rememberNavController()
             val currentBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = currentBackStackEntry?.destination?.route ?: AppRoutes.DeviceList
@@ -359,7 +365,8 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(AppRoutes.TrackList) {
                             TrackListScreen(
-                                viewModel = appViewModel
+                                viewModel = appViewModel,
+                                onShareRipInfo = { trackNumber -> appViewModel.shareRipInfo(trackNumber) }
                             )
                         }
                     }
