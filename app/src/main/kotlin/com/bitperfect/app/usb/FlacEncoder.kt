@@ -35,25 +35,29 @@ class FlacEncoder(
 
     fun encode(pcmData: ByteArray, isEndOfStream: Boolean = false) {
         if (!isConfigured) start()
-
         val codec = mediaCodec ?: return
+
         var offset = 0
-        while (offset < pcmData.size || isEndOfStream) {
+        var eosSubmitted = false
+
+        while (offset < pcmData.size || (isEndOfStream && !eosSubmitted)) {
             val inputBufferIndex = codec.dequeueInputBuffer(10000)
             if (inputBufferIndex >= 0) {
                 val inputBuffer = codec.getInputBuffer(inputBufferIndex)
                 inputBuffer?.clear()
 
-                val length = minOf(pcmData.size - offset, inputBuffer?.capacity() ?: 0)
+                val remaining = pcmData.size - offset
+                val length = minOf(remaining, inputBuffer?.capacity() ?: 0)
                 if (length > 0) {
                     inputBuffer?.put(pcmData, offset, length)
                 }
+                offset += length
 
-                val flags = if (isEndOfStream && offset + length >= pcmData.size) MediaCodec.BUFFER_FLAG_END_OF_STREAM else 0
+                val atEnd = isEndOfStream && offset >= pcmData.size
+                val flags = if (atEnd) MediaCodec.BUFFER_FLAG_END_OF_STREAM else 0
                 codec.queueInputBuffer(inputBufferIndex, 0, length, 0, flags)
 
-                offset += length
-                if (isEndOfStream && offset >= pcmData.size) break
+                if (atEnd) eosSubmitted = true
             }
 
             drainEncoder(codec)
