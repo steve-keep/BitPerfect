@@ -1,0 +1,2 @@
+-keep class com.bitperfect.core.** { *; }
+-dontwarn java.lang.invoke.StringConcatFactory
