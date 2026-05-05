@@ -44,18 +44,51 @@ class AccurateRipVerifier {
         return tracksInfo
     }
 
-    // Simplistic mock checksum for PCM. A real ARv1/v2 checksum would be more involved.
-    fun computeChecksum(pcmData: ByteArray): Long {
-        var checksum = 0L
-        for (i in pcmData.indices step 4) {
-            if (i + 3 < pcmData.size) {
-                val sample = (pcmData[i].toInt() and 0xFF) or
-                             ((pcmData[i+1].toInt() and 0xFF) shl 8) or
-                             ((pcmData[i+2].toInt() and 0xFF) shl 16) or
-                             ((pcmData[i+3].toInt() and 0xFF) shl 24)
-                checksum += sample
+    @Deprecated("Replaced by computeChecksumChunk — remove after RipManager is updated in Chunk 2")
+    fun computeChecksum(pcmData: ByteArray): Long = 0L
+
+    /**
+     * Accumulates the AccurateRip v1 checksum contribution for [pcmData].
+     *
+     * @param pcmData        Raw 16-bit stereo PCM, little-endian, 4 bytes per sample.
+     * @param samplePosition The 1-based index of the first sample in [pcmData] within the track.
+     * @param totalSamples   Total number of samples in the full track (used to determine the
+     *                       exclusion window at the end of the track).
+     * @return A [ChunkChecksumResult] containing the partial checksum contribution and the
+     *         next sample position to pass to the following chunk.
+     */
+    fun computeChecksumChunk(
+        pcmData: ByteArray,
+        samplePosition: Long,
+        totalSamples: Long
+    ): ChunkChecksumResult {
+        var partialChecksum = 0L
+        var currentSamplePos = samplePosition
+
+        for (i in 0 until (pcmData.size / 4) * 4 step 4) {
+            val sample = ((pcmData[i].toLong() and 0xFF) or
+                         ((pcmData[i+1].toLong() and 0xFF) shl 8) or
+                         ((pcmData[i+2].toLong() and 0xFF) shl 16) or
+                         ((pcmData[i+3].toLong() and 0xFF) shl 24))
+
+            val sampleValue = sample and 0xFFFFFFFFL
+
+            if (currentSamplePos > 2940 && currentSamplePos <= totalSamples - 2940) {
+                partialChecksum += sampleValue * currentSamplePos
             }
+            currentSamplePos++
         }
-        return checksum and 0xFFFFFFFFL
+
+        return ChunkChecksumResult(partialChecksum, currentSamplePos)
     }
+
+    /**
+     * Masks a raw accumulated checksum to 32 bits, as required by AccurateRip.
+     */
+    fun finaliseChecksum(accumulated: Long): Long = accumulated and 0xFFFFFFFFL
 }
+
+data class ChunkChecksumResult(
+    val partialChecksum: Long,
+    val nextSamplePosition: Long
+)
