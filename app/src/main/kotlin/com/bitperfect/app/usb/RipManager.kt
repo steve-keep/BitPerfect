@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import androidx.documentfile.provider.DocumentFile
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.DiscMetadata
+import com.bitperfect.core.services.AccurateRipService
 import com.bitperfect.core.services.AccurateRipVerifier
 import com.bitperfect.core.services.AccurateRipTrackMetadata
 import com.bitperfect.core.utils.AppLogger
@@ -28,7 +29,10 @@ enum class RipStatus {
 data class TrackRipState(
     val trackNumber: Int,
     val progress: Float = 0f,
-    val status: RipStatus = RipStatus.IDLE
+    val status: RipStatus = RipStatus.IDLE,
+    val accurateRipUrl: String? = null,
+    val computedChecksum: Long? = null,
+    val expectedChecksums: List<Long> = emptyList()
 )
 
 class RipManager(
@@ -82,6 +86,8 @@ class RipManager(
             return@withContext
         }
 
+        val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
+
         for (i in 0 until toc.tracks.size) {
             if (isCancelled) break
 
@@ -90,6 +96,7 @@ class RipManager(
             val trackTitle = metadata.trackTitles.getOrNull(i) ?: "Track $trackNumber"
             val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
             val totalSectors = nextLba - entry.lba
+            val totalSamples = totalSectors.toLong() * 588L
 
             updateTrackState(trackNumber, RipStatus.RIPPING, 0f)
 
@@ -105,12 +112,14 @@ class RipManager(
 
                 var outputStream: java.io.OutputStream? = null
                 var encoder: FlacEncoder? = null
-                var checksum = 0L
+                var finalChecksum = 0L
 
                 try {
                     outputStream = FileOutputStream(cacheFile)
                     encoder = FlacEncoder(outputStream)
                     encoder.start()
+
+                    val checksumAccumulator = ChecksumAccumulator(verifier)
 
                     val chunkSize = 26 // read ~26 sectors at a time
                     var sectorsRead = 0
@@ -120,11 +129,12 @@ class RipManager(
 
                         if (pcmData != null) {
                             encoder.encode(pcmData)
-                            checksum += verifier.computeChecksum(pcmData)
+                            checksumAccumulator.accumulate(pcmData, sectorsToRead, totalSamples)
                         } else {
                             AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
                             val silence = ByteArray(sectorsToRead * 2352)
                             encoder.encode(silence)
+                            checksumAccumulator.accumulate(null, sectorsToRead, totalSamples)
                         }
 
                         sectorsRead += sectorsToRead
@@ -132,6 +142,7 @@ class RipManager(
                     }
 
                     encoder.stop()
+                    finalChecksum = checksumAccumulator.finalise()
                 } catch (e: Exception) {
                     AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
                 } finally {
@@ -169,9 +180,8 @@ class RipManager(
                 }
 
                 // Verify checksum
-                checksum = checksum and 0xFFFFFFFFL
                 val expectedForTrack = expectedChecksums[trackNumber]
-                val isAccurate = expectedForTrack?.any { it.checksum == checksum } ?: true
+                val isAccurate = expectedForTrack?.any { it.checksum == finalChecksum } ?: true
 
                 // Move from cache to SAF destination
                 try {
@@ -196,16 +206,33 @@ class RipManager(
                 } else {
                     AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber (attempt $attempt).")
                     if (attempt == 3) {
-                        updateTrackState(trackNumber, RipStatus.WARNING, 1f)
+                        updateTrackState(
+                            trackNumber,
+                            RipStatus.WARNING,
+                            1f,
+                            accurateRipUrl = accurateRipUrl,
+                            computedChecksum = finalChecksum,
+                            expectedChecksums = expectedForTrack?.map { it.checksum } ?: emptyList()
+                        )
                     }
                 }
             }
         }
     }
 
-    private fun updateTrackState(trackNumber: Int, status: RipStatus, progress: Float) {
+    private fun updateTrackState(
+        trackNumber: Int,
+        status: RipStatus,
+        progress: Float,
+        accurateRipUrl: String? = null,
+        computedChecksum: Long? = null,
+        expectedChecksums: List<Long> = emptyList()
+    ) {
         val currentStates = _trackStates.value.toMutableMap()
-        currentStates[trackNumber] = TrackRipState(trackNumber, progress, status)
+        currentStates[trackNumber] = TrackRipState(
+            trackNumber, progress, status,
+            accurateRipUrl, computedChecksum, expectedChecksums
+        )
         _trackStates.value = currentStates
     }
 
