@@ -60,4 +60,24 @@ class FlacEncoderTest {
         // Output stream should NOT have changed (duplicate skipped)
         assertArrayEquals(expectedAfterData, outputStream.toByteArray())
     }
+
+    @Test
+    fun encode_eosWithEmptyPcmAndNullCodec_returnsWithoutHanging() {
+        val outputStream = ByteArrayOutputStream()
+        val encoder = FlacEncoder(outputStream)
+
+        // Set isConfigured to true via reflection to bypass start() which calls Android Media APIs
+        // that throw in pure unit tests. This leaves mediaCodec as null.
+        val field = FlacEncoder::class.java.getDeclaredField("isConfigured")
+        field.isAccessible = true
+        field.set(encoder, true)
+
+        // This should return immediately without throwing or hanging
+        encoder.encode(ByteArray(0), isEndOfStream = true)
+
+        // Note: Testing that eosSubmitted logic exits the loop after EOS is queued
+        // when MediaCodec is present requires an integration test with a real codec,
+        // because MediaCodec APIs are largely native and hard to mock thoroughly
+        // for this exact timing scenario.
+    }
 }
