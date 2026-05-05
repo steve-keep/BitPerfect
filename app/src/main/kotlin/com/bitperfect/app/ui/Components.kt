@@ -77,6 +77,7 @@ fun AlbumHeader(
     coverArtUrl: String?,
     trackCount: Int,
     isCdMode: Boolean = false,
+    isRipping: Boolean = false,
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {}
 ) {
@@ -148,17 +149,21 @@ fun AlbumHeader(
             ) {
                 Button(
                     onClick = if (isCdMode) onSaveClick else onPlayClick,
+                    enabled = if (isCdMode) !isRipping else true,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.Black
+                        contentColor = Color.Black,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                     ),
                     modifier = Modifier.fillMaxWidth(0.5f).height(56.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isCdMode) {
-                        Icon(Icons.Default.Download, contentDescription = "Save Disc")
+                        val text = if (isRipping) "Ripping..." else "Save Disc"
+                        Icon(Icons.Default.Download, contentDescription = text)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Save Disc", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(text = text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     } else {
                         Icon(Icons.Default.PlayArrow, contentDescription = "Play")
                         Spacer(modifier = Modifier.width(8.dp))
