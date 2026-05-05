@@ -9,6 +9,7 @@ import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.services.AccurateRipService
 import com.bitperfect.core.services.AccurateRipVerifier
 import com.bitperfect.core.services.AccurateRipTrackMetadata
+import com.bitperfect.core.services.DriveOffsetRepository
 import com.bitperfect.core.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +42,9 @@ class RipManager(
     private val toc: DiscToc,
     private val metadata: DiscMetadata,
     private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
-    private val artworkBytes: ByteArray?
+    private val artworkBytes: ByteArray?,
+    private val driveVendor: String,
+    private val driveProduct: String
 ) {
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
@@ -52,6 +55,14 @@ class RipManager(
     private val verifier = AccurateRipVerifier()
 
     suspend fun startRipping() = withContext(Dispatchers.IO) {
+        val driveOffset: Int = try {
+            DriveOffsetRepository(context).findOffset(driveVendor, driveProduct)?.offset ?: 0
+        } catch (e: Exception) {
+            AppLogger.w("RipManager", "Could not determine drive offset, defaulting to 0: ${e.message}")
+            0
+        }
+        AppLogger.d("RipManager", "Drive offset: $driveOffset samples")
+
         val transport = DeviceStateManager.getTransport()
         val inEndpoint = DeviceStateManager.getInEndpoint()
         val outEndpoint = DeviceStateManager.getOutEndpoint()
@@ -88,6 +99,8 @@ class RipManager(
 
         val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
 
+        var carryBuffer = ByteArray(0)
+
         for (i in 0 until toc.tracks.size) {
             if (isCancelled) break
 
@@ -119,29 +132,52 @@ class RipManager(
                     encoder = FlacEncoder(outputStream)
                     encoder.start()
 
-                    val checksumAccumulator = ChecksumAccumulator(verifier)
+                    val checksumAccumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
 
                     val chunkSize = 26 // read ~26 sectors at a time
                     var sectorsRead = 0
+                    var isFirstChunk = true
+                    var nextCarryBuffer = ByteArray(0)
+
                     while (sectorsRead < totalSectors && !isCancelled) {
                         val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
                         val pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
 
                         if (pcmData != null) {
                             encoder.encode(pcmData)
-                            checksumAccumulator.accumulate(pcmData, sectorsToRead, totalSamples)
+
+                            var dataForAccumulator = pcmData
+                            if (isFirstChunk && carryBuffer.isNotEmpty()) {
+                                dataForAccumulator = ByteArray(carryBuffer.size + pcmData.size)
+                                System.arraycopy(carryBuffer, 0, dataForAccumulator, 0, carryBuffer.size)
+                                System.arraycopy(pcmData, 0, dataForAccumulator, carryBuffer.size, pcmData.size)
+                            }
+
+                            if (driveOffset < 0 && (sectorsRead + sectorsToRead == totalSectors)) {
+                                val bytesToCarry = Math.abs(driveOffset) * 4
+                                if (dataForAccumulator.size >= bytesToCarry) {
+                                    nextCarryBuffer = ByteArray(bytesToCarry)
+                                    System.arraycopy(dataForAccumulator, dataForAccumulator.size - bytesToCarry, nextCarryBuffer, 0, bytesToCarry)
+                                }
+                            }
+
+                            checksumAccumulator.accumulate(dataForAccumulator, sectorsToRead)
                         } else {
                             AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
                             val silence = ByteArray(sectorsToRead * 2352)
                             encoder.encode(silence)
-                            checksumAccumulator.accumulate(null, sectorsToRead, totalSamples)
+                            checksumAccumulator.accumulate(null, sectorsToRead)
                         }
 
+                        isFirstChunk = false
                         sectorsRead += sectorsToRead
                         updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
                     }
 
                     encoder.stop()
+                    if (attempt == 1 || isCancelled || finalChecksum > 0 /* will be overwritten below */) { // Just doing it every time to ensure carry buffer is updated at least once per track. Since it is reset at track loop level we just want to ensure it is passed onto next track iteration
+                        carryBuffer = nextCarryBuffer
+                    }
                     finalChecksum = checksumAccumulator.finalise()
                 } catch (e: Exception) {
                     AppLogger.e("RipManager", "Error ripping track $trackNumber", e)

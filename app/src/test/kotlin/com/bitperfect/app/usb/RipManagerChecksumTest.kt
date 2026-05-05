@@ -17,20 +17,19 @@ class RipManagerChecksumTest {
     @Test
     fun `ChecksumAccumulator position threading across chunks`() {
         val verifier = AccurateRipVerifier()
-        val accumulator = ChecksumAccumulator(verifier)
-
         val totalSamples = 20L * 588L
+        val accumulator = ChecksumAccumulator(verifier, totalSamples)
 
         // Provide 10 sectors of dummy PCM data
         val chunk1Pcm = ByteArray(10 * 2352) { it.toByte() }
-        accumulator.accumulate(chunk1Pcm, 10, totalSamples)
+        accumulator.accumulate(chunk1Pcm, 10)
 
         // After 10 sectors (5880 samples), position should be 5881
         assertEquals(1L + (10 * 588L), accumulator.samplePosition)
 
         // Provide another 10 sectors of dummy PCM data
         val chunk2Pcm = ByteArray(10 * 2352) { (it + 1).toByte() }
-        accumulator.accumulate(chunk2Pcm, 10, totalSamples)
+        accumulator.accumulate(chunk2Pcm, 10)
 
         // After another 10 sectors, position should be 11761
         assertEquals(1L + (20 * 588L), accumulator.samplePosition)
@@ -39,19 +38,18 @@ class RipManagerChecksumTest {
     @Test
     fun `ChecksumAccumulator silence advancement`() {
         val verifier = AccurateRipVerifier()
-        val accumulator = ChecksumAccumulator(verifier)
-
         val totalSamples = 20L * 588L
+        val accumulator = ChecksumAccumulator(verifier, totalSamples)
 
         // Simulate read failure for 10 sectors
-        accumulator.accumulate(null, 10, totalSamples)
+        accumulator.accumulate(null, 10)
 
         // Position should still advance by 10 sectors' worth of samples
         assertEquals(1L + (10 * 588L), accumulator.samplePosition)
 
         // Provide 10 sectors of dummy PCM data
         val chunk2Pcm = ByteArray(10 * 2352) { it.toByte() }
-        accumulator.accumulate(chunk2Pcm, 10, totalSamples)
+        accumulator.accumulate(chunk2Pcm, 10)
 
         assertEquals(1L + (20 * 588L), accumulator.samplePosition)
     }

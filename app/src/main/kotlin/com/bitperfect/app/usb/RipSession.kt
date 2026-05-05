@@ -33,13 +33,19 @@ class RipSession(private val context: Context) {
     ) {
         if (_isRipping.value) return  // prevent double-start
 
+        val info = DeviceStateManager.driveStatus.value.info
+        val driveVendor = info?.vendorId ?: ""
+        val driveProduct = info?.productId ?: ""
+
         val manager = RipManager(
             context = context,
             outputFolderUriString = outputFolderUriString,
             toc = toc,
             metadata = metadata,
             expectedChecksums = expectedChecksums,
-            artworkBytes = artworkBytes
+            artworkBytes = artworkBytes,
+            driveVendor = driveVendor,
+            driveProduct = driveProduct
         )
         ripManager = manager
         _isRipping.value = true
