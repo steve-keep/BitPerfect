@@ -13,6 +13,9 @@ import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.TrackRipState
 import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.app.usb.DriveInfo
+import com.bitperfect.app.usb.RipSession
+import com.bitperfect.app.usb.RipStatus as UsbRipStatus
+import com.bitperfect.app.usb.TrackRipState as UsbTrackRipState
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.google.common.util.concurrent.Futures
@@ -292,6 +295,145 @@ class AppViewModelTest {
         viewModel.selectAlbum(123L, "Test Album")
         assertEquals(123L, viewModel.selectedAlbumId.value)
         assertEquals("Test Album", viewModel.selectedAlbumTitle.value)
+    }
+
+    @Test
+    fun testRipBannerState_HiddenByDefault() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val vm = AppViewModel(application)
+
+        val bannerState = vm.ripBannerState.value
+        assertEquals(false, bannerState.isVisible)
+        assertEquals(0, bannerState.completedTracks)
+        assertEquals(0, bannerState.totalTracks)
+        assertEquals(0f, bannerState.overallProgress)
+    }
+
+    @Test
+    fun testRipBannerState_VisibleWhenRipping() = runTest {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val ripSession = RipSession.getInstance(application)
+
+        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        isRippingField.isAccessible = true
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
+
+        val vm = AppViewModel(application)
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.ripBannerState.collect {}
+        }
+
+        advanceUntilIdle()
+
+        val bannerState = vm.ripBannerState.value
+        assertEquals(true, bannerState.isVisible)
+
+        job.cancel()
+        job.join()
+
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
+    }
+
+    @Test
+    fun testRipBannerState_CountsCompletedTracksCorrectly() = runTest {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val ripSession = RipSession.getInstance(application)
+
+        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
+        ripStatesField.isAccessible = true
+
+        val states = mapOf(
+            1 to UsbTrackRipState(1, 1f, UsbRipStatus.SUCCESS),
+            2 to UsbTrackRipState(2, 0.5f, UsbRipStatus.RIPPING),
+            3 to UsbTrackRipState(3, 0f, UsbRipStatus.IDLE)
+        )
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+
+        val vm = AppViewModel(application)
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.ripBannerState.collect {}
+        }
+
+        advanceUntilIdle()
+
+        val bannerState = vm.ripBannerState.value
+        assertEquals(2, bannerState.completedTracks)
+        assertEquals(3, bannerState.totalTracks)
+        assertEquals("3 tracks", bannerState.totalTracksLabel)
+
+        job.cancel()
+        job.join()
+
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+    }
+
+    @Test
+    fun testRipBannerState_CalculatesOverallProgress() = runTest {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val ripSession = RipSession.getInstance(application)
+
+        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
+        ripStatesField.isAccessible = true
+
+        val states = mapOf(
+            1 to UsbTrackRipState(1, 1.0f, UsbRipStatus.SUCCESS),
+            2 to UsbTrackRipState(2, 0.5f, UsbRipStatus.RIPPING)
+        )
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+
+        val vm = AppViewModel(application)
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.ripBannerState.collect {}
+        }
+
+        advanceUntilIdle()
+
+        val bannerState = vm.ripBannerState.value
+        assertEquals(0.75f, bannerState.overallProgress)
+
+        job.cancel()
+        job.join()
+
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+    }
+
+    @Test
+    fun testRipBannerState_VisibleAfterRipCompletes() = runTest {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val ripSession = RipSession.getInstance(application)
+
+        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        isRippingField.isAccessible = true
+
+        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
+        ripStatesField.isAccessible = true
+
+        // Ripping finished, isRipping is false, but ripStates is not empty
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
+        val states = mapOf(
+            1 to UsbTrackRipState(1, 1.0f, UsbRipStatus.SUCCESS)
+        )
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+
+        val vm = AppViewModel(application)
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.ripBannerState.collect {}
+        }
+
+        advanceUntilIdle()
+
+        val bannerState = vm.ripBannerState.value
+        assertEquals(true, bannerState.isVisible) // Visible because states.isNotEmpty()
+        assertEquals(1, bannerState.completedTracks)
+
+        job.cancel()
+        job.join()
+
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
     }
 
     @Test

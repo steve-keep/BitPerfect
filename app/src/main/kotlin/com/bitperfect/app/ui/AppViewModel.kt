@@ -45,6 +45,16 @@ data class TrackListViewState(
     val isCdMode: Boolean
 )
 
+data class RipBannerState(
+    val isVisible: Boolean,
+    val completedTracks: Int,
+    val totalTracks: Int,
+    val overallProgress: Float,
+    val artistName: String,
+    val totalTracksLabel: String,
+    val artworkBytes: ByteArray?
+)
+
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
@@ -106,6 +116,33 @@ open class AppViewModel(
     val shareIntent: SharedFlow<Intent> = _shareIntent.asSharedFlow()
 
     val isRipping: StateFlow<Boolean> = ripSession.isRipping
+
+    val ripBannerState: StateFlow<RipBannerState> = combine(
+        ripSession.isRipping,
+        ripSession.ripStates
+    ) { isRipping, states ->
+        val completedStatuses = setOf(
+            RipStatus.SUCCESS, RipStatus.WARNING, RipStatus.ERROR, RipStatus.RIPPING
+        )
+        val completed = states.values.count { it.status in completedStatuses }
+        val total = states.size
+        val progress = if (total == 0) 0f
+            else states.values.map { it.progress }.average().toFloat()
+        val meta = discMetadata.value
+        RipBannerState(
+            isVisible = isRipping || states.isNotEmpty(),
+            completedTracks = completed,
+            totalTracks = total,
+            overallProgress = progress,
+            artistName = meta?.artistName ?: "",
+            totalTracksLabel = "$total tracks",
+            artworkBytes = _artworkBytes.value
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        RipBannerState(false, 0, 0, 0f, "", "", null)
+    )
 
     private var hasHandledRipCompletion = false
 
