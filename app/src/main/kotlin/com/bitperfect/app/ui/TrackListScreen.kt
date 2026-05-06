@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.RipStatus
 
 private fun numberToWord(n: Int): String {
@@ -30,7 +31,8 @@ private fun numberToWord(n: Int): String {
 @Composable
 fun TrackListScreen(
     viewModel: AppViewModel,
-    onShareRipInfo: (trackNumber: Int) -> Unit
+    onShareRipInfo: (trackNumber: Int) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     val viewState by viewModel.trackListViewState.collectAsState()
     val isCdMode = viewState?.isCdMode == true
@@ -52,6 +54,14 @@ fun TrackListScreen(
             it.status == RipStatus.UNVERIFIED ||
             it.status == RipStatus.WARNING ||
             it.status == RipStatus.ERROR
+        }
+    }
+
+    val driveStatus by viewModel.driveStatus.collectAsState()
+
+    LaunchedEffect(driveStatus) {
+        if (driveStatus is DriveStatus.NoDrive && !isRipping && isCdMode) {
+            onNavigateBack()
         }
     }
 
