@@ -177,6 +177,10 @@ class UsbDriveDetector(
     }
 
     private fun interrogateDevice(device: UsbDevice) {
+        pollingJob?.cancel()
+        pollingJob = null
+        cleanupConnection()
+
         _driveStatus.value = DriveStatus.Connecting()
         var massStorageInterface: UsbInterface? = null
         var inEndpoint: UsbEndpoint? = null
