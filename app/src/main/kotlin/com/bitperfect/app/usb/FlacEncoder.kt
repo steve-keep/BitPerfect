@@ -117,7 +117,8 @@ class FlacEncoder(
         encode(ByteArray(0), isEndOfStream = true)
 
         val bufferInfo = MediaCodec.BufferInfo()
-        val deadlineMs = System.currentTimeMillis() + 10_000L  // 10s max
+        val audioDurationMs = presentationTimeUs / 1000L
+        val deadlineMs = System.currentTimeMillis() + audioDurationMs + 5_000L
         while (System.currentTimeMillis() < deadlineMs) {
             val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
             if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
