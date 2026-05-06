@@ -458,6 +458,14 @@ open class AppViewModel(
         playerRepository.clearQueue()
     }
 
+    fun removeQueueItem(index: Int) {
+        playerRepository.removeMediaItem(index)
+    }
+
+    fun moveQueueItem(currentIndex: Int, newIndex: Int) {
+        playerRepository.moveMediaItem(currentIndex, newIndex)
+    }
+
     fun togglePlayPause() {
         playerRepository.togglePlayPause()
     }
