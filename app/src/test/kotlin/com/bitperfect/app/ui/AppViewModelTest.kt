@@ -320,6 +320,10 @@ class AppViewModelTest {
 
         val vm = AppViewModel(application)
 
+        // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
+        // to call ripSession.cancel(), which immediately sets _isRipping back to false.
+        // So we override it to DiscReady here, before advancing the idle.
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(com.bitperfect.app.usb.DriveInfo("vendor", "product", true), com.bitperfect.core.models.DiscToc(emptyList(), 150), null)
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
         }

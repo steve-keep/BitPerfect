@@ -168,6 +168,10 @@ class RipManager(
 
                         checksumAccumulator.accumulate(dataForAccumulator, sectorsToRead)
                     } else {
+                        if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
+                            isCancelled = true
+                            break
+                        }
                         AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
                         val silence = ByteArray(sectorsToRead * 2352)
                         encoder.encode(silence)
