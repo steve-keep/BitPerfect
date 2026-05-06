@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -83,7 +84,8 @@ fun AlbumHeader(
     isCdMode: Boolean = false,
     isRipping: Boolean = false,
     modifier: Modifier = Modifier,
-    onPlayClick: () -> Unit = {}
+    onPlayClick: () -> Unit = {},
+    onAddToQueueClick: (() -> Unit)? = null
 ) {
     var backgroundColor by remember { mutableStateOf(Color(0xFF141414)) }
 
@@ -149,7 +151,8 @@ fun AlbumHeader(
             Spacer(modifier = Modifier.height(24.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
                     onClick = if (isCdMode) onSaveClick else onPlayClick,
@@ -172,6 +175,32 @@ fun AlbumHeader(
                         Icon(Icons.Default.PlayArrow, contentDescription = "Play")
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (!isCdMode && onAddToQueueClick != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Add to Queue") },
+                                onClick = {
+                                    onAddToQueueClick()
+                                    showMenu = false
+                                }
+                            )
+                        }
                     }
                 }
             }
