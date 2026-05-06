@@ -55,6 +55,8 @@ fun TrackListScreen(
         }
     }
 
+    var showStopDialog by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         val state = viewState
         if (state == null || state.tracks.isEmpty()) {
@@ -85,7 +87,11 @@ fun TrackListScreen(
                         isRipping = isRipping,
                         onSaveClick = { viewModel.startRip() },
                         onPlayClick = { viewModel.playAlbum(state.tracks) },
-                        onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) }
+                        onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
+                        onStopRipClick = {
+                            viewModel.cancelRip(false)
+                            showStopDialog = true
+                        }
                     )
                 }
 
@@ -266,5 +272,30 @@ fun TrackListScreen(
                 }
             }
         }
+    }
+
+    if (showStopDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showStopDialog = false
+            },
+            title = { Text("Delete Rip Files?") },
+            text = { Text("Do you want to delete the files created during this rip?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.cancelRip(true)
+                    showStopDialog = false
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showStopDialog = false
+                }) {
+                    Text("No")
+                }
+            }
+        )
     }
 }
