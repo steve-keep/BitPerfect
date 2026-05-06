@@ -281,6 +281,9 @@ open class AppViewModel(
                         _discMetadata.value = null
                     }
                 } else {
+                    if (ripSession.isRipping.value) {
+                        ripSession.cancel()
+                    }
                     _discMetadata.value = null
                     _isKeyDisc.value = false
                 }
