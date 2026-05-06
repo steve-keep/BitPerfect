@@ -405,6 +405,51 @@ class AppViewModelTest {
     }
 
     @Test
+    fun testRipBannerState_UpdatesOnMetadataAndArtwork() = runTest {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val ripSession = RipSession.getInstance(application)
+
+        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        isRippingField.isAccessible = true
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
+
+        val vm = AppViewModel(application)
+
+        val discMetadataField = AppViewModel::class.java.getDeclaredField("_discMetadata")
+        discMetadataField.isAccessible = true
+
+        val artworkBytesField = AppViewModel::class.java.getDeclaredField("_artworkBytes")
+        artworkBytesField.isAccessible = true
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.ripBannerState.collect {}
+        }
+
+        advanceUntilIdle()
+
+        var bannerState = vm.ripBannerState.value
+        assertEquals("", bannerState.artistName)
+        assertEquals(null, bannerState.artworkBytes)
+
+        val dummyMetadata = DiscMetadata("Album", "Test Artist", emptyList(), "mbid")
+        val dummyArtwork = byteArrayOf(1, 2, 3)
+
+        (discMetadataField.get(vm) as MutableStateFlow<DiscMetadata?>).value = dummyMetadata
+        (artworkBytesField.get(vm) as MutableStateFlow<ByteArray?>).value = dummyArtwork
+
+        advanceUntilIdle()
+
+        bannerState = vm.ripBannerState.value
+        assertEquals("Test Artist", bannerState.artistName)
+        assertEquals(dummyArtwork, bannerState.artworkBytes)
+
+        job.cancel()
+        job.join()
+
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
+    }
+
+    @Test
     fun testRipBannerState_VisibleAfterRipCompletes() = runTest {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipSession.getInstance(application)
