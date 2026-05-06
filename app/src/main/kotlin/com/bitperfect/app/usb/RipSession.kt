@@ -75,6 +75,7 @@ class RipSession(private val context: Context) {
             manager?.deleteRipFiles()
         }
         _isRipping.value = false
+        _ripStates.value = emptyMap()
     }
 
     fun clearResults() {
