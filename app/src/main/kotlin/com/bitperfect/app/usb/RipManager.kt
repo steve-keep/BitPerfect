@@ -105,7 +105,7 @@ class RipManager(
 
         val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
 
-        var carryBuffer = ByteArray(0)
+        var carryBuffer = if (driveOffset > 0) ByteArray(driveOffset * 4) else ByteArray(0)
 
         for (i in 0 until toc.tracks.size) {
             if (isCancelled) break
@@ -139,9 +139,9 @@ class RipManager(
 
                 val checksumAccumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
 
+                val trackPcmBuffer = java.io.ByteArrayOutputStream()
                 val chunkSize = 26 // read ~26 sectors at a time
                 var sectorsRead = 0
-                var isFirstChunk = true
                 var nextCarryBuffer = ByteArray(0)
 
                 while (sectorsRead < totalSectors && !isCancelled) {
@@ -150,23 +150,7 @@ class RipManager(
 
                     if (pcmData != null) {
                         encoder.encode(pcmData)
-
-                        var dataForAccumulator = pcmData
-                        if (isFirstChunk && carryBuffer.isNotEmpty()) {
-                            dataForAccumulator = ByteArray(carryBuffer.size + pcmData.size)
-                            System.arraycopy(carryBuffer, 0, dataForAccumulator, 0, carryBuffer.size)
-                            System.arraycopy(pcmData, 0, dataForAccumulator, carryBuffer.size, pcmData.size)
-                        }
-
-                        if (driveOffset < 0 && (sectorsRead + sectorsToRead == totalSectors)) {
-                            val bytesToCarry = Math.abs(driveOffset) * 4
-                            if (dataForAccumulator.size >= bytesToCarry) {
-                                nextCarryBuffer = ByteArray(bytesToCarry)
-                                System.arraycopy(dataForAccumulator, dataForAccumulator.size - bytesToCarry, nextCarryBuffer, 0, bytesToCarry)
-                            }
-                        }
-
-                        checksumAccumulator.accumulate(dataForAccumulator, sectorsToRead)
+                        trackPcmBuffer.write(pcmData)
                     } else {
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
@@ -175,15 +159,41 @@ class RipManager(
                         AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
                         val silence = ByteArray(sectorsToRead * 2352)
                         encoder.encode(silence)
-                        checksumAccumulator.accumulate(null, sectorsToRead)
+                        trackPcmBuffer.write(silence)
                     }
 
-                    isFirstChunk = false
                     sectorsRead += sectorsToRead
                     updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
                 }
 
                 encoder.stop()
+
+                val trackBytes = trackPcmBuffer.toByteArray()
+                var dataForAccumulator = trackBytes
+
+                if (driveOffset > 0) {
+                    val offsetBytes = driveOffset * 4
+                    val usableBytes = trackBytes.size - offsetBytes
+                    dataForAccumulator = ByteArray(offsetBytes + usableBytes)
+                    System.arraycopy(carryBuffer, 0, dataForAccumulator, 0, offsetBytes)
+                    System.arraycopy(trackBytes, 0, dataForAccumulator, offsetBytes, usableBytes)
+                    nextCarryBuffer = trackBytes.copyOfRange(trackBytes.size - offsetBytes, trackBytes.size)
+                } else if (driveOffset < 0) {
+                    val offsetBytes = Math.abs(driveOffset) * 4
+                    if (carryBuffer.isNotEmpty()) {
+                        dataForAccumulator = ByteArray(carryBuffer.size + trackBytes.size)
+                        System.arraycopy(carryBuffer, 0, dataForAccumulator, 0, carryBuffer.size)
+                        System.arraycopy(trackBytes, 0, dataForAccumulator, carryBuffer.size, trackBytes.size)
+                    }
+                    nextCarryBuffer = ByteArray(offsetBytes)
+                    if (dataForAccumulator.size >= offsetBytes) {
+                        System.arraycopy(dataForAccumulator, dataForAccumulator.size - offsetBytes, nextCarryBuffer, 0, offsetBytes)
+                    }
+                } else {
+                    nextCarryBuffer = ByteArray(0)
+                }
+
+                checksumAccumulator.accumulate(dataForAccumulator, 0)
 
                 // Patch the FLAC STREAMINFO total_samples directly in the output file
                 try {

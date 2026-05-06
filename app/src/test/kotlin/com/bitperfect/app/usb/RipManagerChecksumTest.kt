@@ -72,4 +72,77 @@ class RipManagerChecksumTest {
         assertEquals(123456L, state.computedChecksum)
         assertEquals(listOf(654321L), state.expectedChecksums)
     }
+
+    @Test
+    fun `Positive offset shifts samples and carries between tracks`() {
+        val driveOffset = 10
+        val offsetBytes = driveOffset * 4
+
+        // 10 sectors track length to ensure we are accumulating (10 * 588 = 5880 samples)
+        // AccurateRip checksum accumulates samples 2941 to totalSamples - 2940.
+        // For a 10 sector track, it's exactly 5880 samples, which gives no accumulation because 5880 <= 5880.
+        // Let's use 20 sectors (11760 samples) per track. Accumulation window is 2941..8820.
+        val sectorsPerTrack = 20
+        val trackBytesSize = sectorsPerTrack * 2352
+        val totalSamples = sectorsPerTrack * 588L
+
+        // Simulated track 1 PCM output from drive (shifted by offset)
+        // Has a pattern we can trace
+        val track1Pcm = ByteArray(trackBytesSize) { (it % 256).toByte() }
+
+        // Track 2 PCM output from drive
+        val track2Pcm = ByteArray(trackBytesSize) { ((it + 1) % 256).toByte() }
+
+        // Expected dataForAccumulator for track 1:
+        // First `driveOffset` samples are 0 (silence).
+        // Remaining `totalSamples - driveOffset` samples are from `track1Pcm`
+        val expectedTrack1Data = ByteArray(trackBytesSize)
+        // First offsetBytes are already 0
+        System.arraycopy(track1Pcm, 0, expectedTrack1Data, offsetBytes, trackBytesSize - offsetBytes)
+
+        // Expected dataForAccumulator for track 2:
+        // First `driveOffset` samples are the last `driveOffset` samples from `track1Pcm`
+        // Remaining are from `track2Pcm`
+        val expectedTrack2Data = ByteArray(trackBytesSize)
+        System.arraycopy(track1Pcm, trackBytesSize - offsetBytes, expectedTrack2Data, 0, offsetBytes)
+        System.arraycopy(track2Pcm, 0, expectedTrack2Data, offsetBytes, trackBytesSize - offsetBytes)
+
+        val verifier = AccurateRipVerifier()
+
+        // Run expected through verifier to get expected checksums
+        val expectedChecksum1 = verifier.computeChecksumChunk(expectedTrack1Data, 1, totalSamples).partialChecksum
+        val expectedChecksum2 = verifier.computeChecksumChunk(expectedTrack2Data, 1, totalSamples).partialChecksum
+
+        // Now simulate the RipManager logic
+        var carryBuffer = ByteArray(offsetBytes)
+
+        // --- Track 1 ---
+        val trackBytes1 = track1Pcm
+        var dataForAccumulator1 = trackBytes1
+        val usableBytes1 = trackBytes1.size - offsetBytes
+        dataForAccumulator1 = ByteArray(offsetBytes + usableBytes1)
+        System.arraycopy(carryBuffer, 0, dataForAccumulator1, 0, offsetBytes)
+        System.arraycopy(trackBytes1, 0, dataForAccumulator1, offsetBytes, usableBytes1)
+        var nextCarryBuffer1 = trackBytes1.copyOfRange(trackBytes1.size - offsetBytes, trackBytes1.size)
+        carryBuffer = nextCarryBuffer1
+
+        val accumulator1 = ChecksumAccumulator(verifier, totalSamples, 0) // offset 0 because RipManager passes 0 or it doesn't affect `samplePosition=1` for positive offsets. Wait, the actual RipManager passes `driveOffset`. Let's check `ChecksumAccumulator` constructor.
+        // Actually, ChecksumAccumulator sets samplePosition = 1L + driveOffset IF driveOffset < 0. For > 0, it sets 1L.
+        // So passing `driveOffset` or 0 is same for positive offsets in ChecksumAccumulator.
+        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, driveOffset)
+        accumulatorT1.accumulate(dataForAccumulator1, 0)
+        assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
+
+        // --- Track 2 ---
+        val trackBytes2 = track2Pcm
+        var dataForAccumulator2 = trackBytes2
+        val usableBytes2 = trackBytes2.size - offsetBytes
+        dataForAccumulator2 = ByteArray(offsetBytes + usableBytes2)
+        System.arraycopy(carryBuffer, 0, dataForAccumulator2, 0, offsetBytes)
+        System.arraycopy(trackBytes2, 0, dataForAccumulator2, offsetBytes, usableBytes2)
+
+        val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, driveOffset)
+        accumulatorT2.accumulate(dataForAccumulator2, 0)
+        assertEquals("Track 2 checksum mismatch", expectedChecksum2, accumulatorT2.ripChecksum)
+    }
 }
