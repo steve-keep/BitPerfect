@@ -179,7 +179,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .background(if (isDragging) Color(0xFF2A2A2A) else Color.Transparent)
+                                                .background(if (isDragging) Color(0xFF2A2A2A) else MaterialTheme.colorScheme.surfaceContainerLow)
                                                 .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
