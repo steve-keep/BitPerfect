@@ -150,11 +150,12 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                     if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                                         val actualIndex = index + currentQueueIndex + 1
                                         viewModel.removeQueueItem(actualIndex)
-                                        true
+                                        false
                                     } else {
                                         false
                                     }
-                                }
+                                },
+                                positionalThreshold = { it * 0.4f }
                             )
 
                             ReorderableItem(reorderState, key = item.mediaId + "_" + System.identityHashCode(item)) { isDragging ->
