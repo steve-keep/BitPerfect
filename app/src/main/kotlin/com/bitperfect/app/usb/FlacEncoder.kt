@@ -1,7 +1,6 @@
 package com.bitperfect.app.usb
 
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import com.bitperfect.core.utils.AppLogger
 import java.io.OutputStream
@@ -22,6 +21,7 @@ class FlacEncoder(
     private var mediaCodec: MediaCodec? = null
     private var isConfigured = false
     internal var hasWrittenHeader = false
+    private var presentationTimeUs = 0L
 
     fun start() {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_FLAC, sampleRate, channelCount)
@@ -55,7 +55,11 @@ class FlacEncoder(
 
                 val atEnd = isEndOfStream && offset >= pcmData.size
                 val flags = if (atEnd) MediaCodec.BUFFER_FLAG_END_OF_STREAM else 0
-                codec.queueInputBuffer(inputBufferIndex, 0, length, 0, flags)
+
+                codec.queueInputBuffer(inputBufferIndex, 0, length, presentationTimeUs, flags)
+
+                val samplesInBuffer = length / (channelCount * 2) // 16-bit PCM: 2 bytes per sample per channel
+                presentationTimeUs += (samplesInBuffer * 1_000_000L) / sampleRate
 
                 if (atEnd) eosSubmitted = true
             }
@@ -112,10 +116,39 @@ class FlacEncoder(
         val codec = mediaCodec ?: return
         encode(ByteArray(0), isEndOfStream = true)
 
+        val bufferInfo = MediaCodec.BufferInfo()
+        val audioDurationMs = presentationTimeUs / 1000L
+        val deadlineMs = System.currentTimeMillis() + audioDurationMs + 5_000L
+        while (System.currentTimeMillis() < deadlineMs) {
+            val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
+            if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                continue
+            } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                continue
+            } else if (outputBufferIndex >= 0) {
+                val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
+                if (outputBuffer != null && bufferInfo.size > 0) {
+                    val chunk = ByteArray(bufferInfo.size)
+                    outputBuffer.position(bufferInfo.offset)
+                    outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                    outputBuffer.get(chunk)
+
+                    processAndWriteChunk(chunk)
+                }
+
+                codec.releaseOutputBuffer(outputBufferIndex, false)
+
+                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                    break
+                }
+            }
+        }
+
         codec.stop()
         codec.release()
         mediaCodec = null
         isConfigured = false
         hasWrittenHeader = false
+        presentationTimeUs = 0L
     }
 }
