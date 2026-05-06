@@ -493,37 +493,49 @@ open class AppViewModel(
 
     fun shareRipInfo(trackNumber: Int) {
         val state = _ripStates.value[trackNumber] ?: return
-        if (state.status != RipStatus.WARNING) return
+        if (state.status != RipStatus.WARNING && state.status != RipStatus.ERROR) return
 
         val meta = discMetadata.value
         val trackTitle = meta?.trackTitles?.getOrNull(trackNumber - 1) ?: "Track $trackNumber"
         val albumTitle = meta?.albumTitle ?: "Unknown Album"
         val artistName = meta?.artistName ?: "Unknown Artist"
 
-        val expectedHex = state.expectedChecksums
-            .joinToString(", ") { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
-        val computedHex = state.computedChecksum
-            ?.let { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
-            ?: "unknown"
+        val isError = state.status == RipStatus.ERROR
+        val subjectTitle = if (isError) "Rip Error" else "AccurateRip mismatch"
 
         val body = buildString {
-            appendLine("AccurateRip verification failed")
+            if (isError) {
+                appendLine("Track Rip Error")
+            } else {
+                appendLine("AccurateRip verification failed")
+            }
             appendLine()
             appendLine("Track:    $trackTitle")
             appendLine("Album:    $albumTitle")
             appendLine("Artist:   $artistName")
             appendLine("Track #:  $trackNumber")
             appendLine()
-            appendLine("Computed checksum:  $computedHex")
-            appendLine("Expected checksums: $expectedHex")
-            appendLine()
-            appendLine("AccurateRip URL:")
-            appendLine(state.accurateRipUrl ?: "unavailable")
+
+            if (isError) {
+                appendLine("Error details:")
+                appendLine(state.errorMessage ?: "Unknown error")
+            } else {
+                val expectedHex = state.expectedChecksums
+                    .joinToString(", ") { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
+                val computedHex = state.computedChecksum
+                    ?.let { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
+                    ?: "unknown"
+                appendLine("Computed checksum:  $computedHex")
+                appendLine("Expected checksums: $expectedHex")
+                appendLine()
+                appendLine("AccurateRip URL:")
+                appendLine(state.accurateRipUrl ?: "unavailable")
+            }
         }
 
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "BitPerfect: AccurateRip mismatch – $trackTitle")
+            putExtra(Intent.EXTRA_SUBJECT, "BitPerfect: $subjectTitle – $trackTitle")
             putExtra(Intent.EXTRA_TEXT, body)
         }
 

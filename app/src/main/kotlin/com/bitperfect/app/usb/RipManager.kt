@@ -39,7 +39,8 @@ data class TrackRipState(
     val status: RipStatus = RipStatus.IDLE,
     val accurateRipUrl: String? = null,
     val computedChecksum: Long? = null,
-    val expectedChecksums: List<Long> = emptyList()
+    val expectedChecksums: List<Long> = emptyList(),
+    val errorMessage: String? = null
 )
 
 class RipManager(
@@ -131,6 +132,7 @@ class RipManager(
             var outputStream: java.io.OutputStream? = null
             var encoder: FlacEncoder? = null
             var finalChecksum = 0L
+            var sectorsRead = 0
 
             try {
                 outputStream = FileOutputStream(cacheFile)
@@ -141,7 +143,6 @@ class RipManager(
 
                 val trackPcmBuffer = java.io.ByteArrayOutputStream()
                 val chunkSize = 26 // read ~26 sectors at a time
-                var sectorsRead = 0
                 var nextCarryBuffer = ByteArray(0)
 
                 while (sectorsRead < totalSectors && !isCancelled) {
@@ -156,10 +157,7 @@ class RipManager(
                             isCancelled = true
                             break
                         }
-                        AppLogger.w("RipManager", "Failed to read sector at ${entry.lba + sectorsRead}")
-                        val silence = ByteArray(sectorsToRead * 2352)
-                        encoder.encode(silence)
-                        trackPcmBuffer.write(silence)
+                        throw java.io.IOException("Failed to read sector at ${entry.lba + sectorsRead}")
                     }
 
                     sectorsRead += sectorsToRead
@@ -215,6 +213,13 @@ class RipManager(
                 finalChecksum = checksumAccumulator.finalise()
             } catch (e: Exception) {
                 AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
+                updateTrackState(
+                    trackNumber = trackNumber,
+                    status = RipStatus.ERROR,
+                    progress = sectorsRead.toFloat() / totalSectors,
+                    errorMessage = e.message ?: "Unknown error"
+                )
+                continue
             } finally {
                 try {
                     outputStream?.close()
@@ -301,12 +306,13 @@ class RipManager(
         progress: Float,
         accurateRipUrl: String? = null,
         computedChecksum: Long? = null,
-        expectedChecksums: List<Long> = emptyList()
+        expectedChecksums: List<Long> = emptyList(),
+        errorMessage: String? = null
     ) {
         val currentStates = _trackStates.value.toMutableMap()
         currentStates[trackNumber] = TrackRipState(
             trackNumber, progress, status,
-            accurateRipUrl, computedChecksum, expectedChecksums
+            accurateRipUrl, computedChecksum, expectedChecksums, errorMessage
         )
         _trackStates.value = currentStates
     }
