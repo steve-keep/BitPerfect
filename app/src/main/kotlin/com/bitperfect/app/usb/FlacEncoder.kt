@@ -1,7 +1,6 @@
 package com.bitperfect.app.usb
 
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import com.bitperfect.core.utils.AppLogger
 import java.io.OutputStream
@@ -118,7 +117,8 @@ class FlacEncoder(
         encode(ByteArray(0), isEndOfStream = true)
 
         val bufferInfo = MediaCodec.BufferInfo()
-        while (true) {
+        val deadlineMs = System.currentTimeMillis() + 10_000L  // 10s max
+        while (System.currentTimeMillis() < deadlineMs) {
             val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
             if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                 continue
