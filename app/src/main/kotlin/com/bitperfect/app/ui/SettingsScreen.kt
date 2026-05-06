@@ -279,7 +279,7 @@ fun SettingsScreen(
                             .clickable {
                                 val discReady = driveStatus as? DriveStatus.DiscReady
                                 val offset = driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset
-                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset, coverArtUrl)
+                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset, coverArtUrl, viewModel.ripStates.value)
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -384,7 +384,7 @@ fun SettingsScreen(
     }
 }
 
-private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?, coverArtUrl: String?) {
+private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?, coverArtUrl: String?, ripStates: Map<Int, com.bitperfect.app.usb.TrackRipState>) {
     val sb = java.lang.StringBuilder()
     sb.appendLine("# BitPerfect Debug Report")
     sb.appendLine()
@@ -432,6 +432,7 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
     sb.appendLine()
 
     sb.appendLine("## Disc")
+    val arId = toc?.let { com.bitperfect.core.utils.computeAccurateRipDiscId(it) }
     if (toc == null) {
         sb.appendLine("No disc inserted")
     } else {
@@ -446,13 +447,9 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         }
         sb.appendLine()
 
-        val arId = com.bitperfect.core.utils.computeAccurateRipDiscId(toc)
-
-
-
         sb.appendLine("### AccurateRip")
         sb.appendLine("```")
-        sb.appendLine("id1: ${String.format("%08x", arId.id1 and 0xFFFFFFFFL)}")
+        sb.appendLine("id1: ${String.format("%08x", arId!!.id1 and 0xFFFFFFFFL)}")
         sb.appendLine("id2: ${String.format("%08x", arId.id2 and 0xFFFFFFFFL)}")
         sb.appendLine("id3: ${String.format("%08x", arId.id3)}")
         sb.appendLine("```")
@@ -485,6 +482,72 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
             sb.appendLine("```")
         } else {
             sb.appendLine("Not available")
+        }
+        sb.appendLine()
+    }
+
+    if (toc != null) {
+        sb.appendLine("---")
+        sb.appendLine()
+        sb.appendLine("## Test Fixture")
+        sb.appendLine()
+
+        sb.appendLine("### Disc IDs")
+        sb.appendLine("id1:   ${String.format("%08x", arId!!.id1 and 0xFFFFFFFFL)}")
+        sb.appendLine("id2:   ${String.format("%08x", arId.id2 and 0xFFFFFFFFL)}")
+        sb.appendLine("cddbId: ${String.format("%08x", arId.id3)}")
+        sb.appendLine()
+
+        sb.appendLine("### TOC (JSON)")
+        sb.appendLine("```json")
+        val tocJson = org.json.JSONObject()
+        val tracksArray = org.json.JSONArray()
+        for (track in toc.tracks) {
+            val trackJson = org.json.JSONObject()
+            trackJson.put("trackNumber", track.trackNumber)
+            trackJson.put("lba", track.lba)
+            tracksArray.put(trackJson)
+        }
+        tocJson.put("tracks", tracksArray)
+        tocJson.put("leadOutLba", toc.leadOutLba)
+        sb.appendLine(tocJson.toString(2))
+        sb.appendLine("```")
+        sb.appendLine()
+
+        sb.appendLine("### Drive")
+        sb.appendLine("vendor:  ${driveInfo?.vendorId ?: ""}")
+        sb.appendLine("product: ${driveInfo?.productId ?: ""}")
+        sb.appendLine("offset:  ${offset ?: "0"}")
+        sb.appendLine()
+
+        sb.appendLine("### Track Checksums")
+        if (ripStates.isEmpty()) {
+            sb.appendLine("No rip data available this session.")
+        } else {
+            sb.appendLine("| Track | Status | Computed | Expected |")
+            sb.appendLine("|-------|--------|----------|----------|")
+            for (i in 1..toc.trackCount) {
+                val state = ripStates[i]
+                if (state != null) {
+                    val status = state.status.name
+
+                    val computedStr = if (state.status == com.bitperfect.app.usb.RipStatus.IDLE || state.computedChecksum == null) {
+                        "—"
+                    } else {
+                        String.format("0x%08X", state.computedChecksum)
+                    }
+
+                    val expectedStr = if (state.status == com.bitperfect.app.usb.RipStatus.IDLE) {
+                        "—"
+                    } else if (state.expectedChecksums.isEmpty()) {
+                        "none"
+                    } else {
+                        state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it) }
+                    }
+
+                    sb.appendLine("| $i | $status | $computedStr | $expectedStr |")
+                }
+            }
         }
         sb.appendLine()
     }

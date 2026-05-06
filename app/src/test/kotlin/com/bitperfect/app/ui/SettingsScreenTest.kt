@@ -62,6 +62,7 @@ class SettingsScreenTest {
         val mockViewModel = org.mockito.Mockito.mock(AppViewModel::class.java)
         org.mockito.Mockito.`when`(mockViewModel.driveStatus).thenReturn(driveStatusFlow)
         org.mockito.Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(kotlinx.coroutines.flow.MutableStateFlow("http://example.com/cover.jpg"))
+        org.mockito.Mockito.`when`(mockViewModel.ripStates).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyMap()))
         val settingsManager = SettingsManager(application)
         val driveOffsetRepository = DriveOffsetRepository(application)
 

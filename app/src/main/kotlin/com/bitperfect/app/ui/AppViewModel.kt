@@ -110,7 +110,7 @@ open class AppViewModel(
     private val ripSession = com.bitperfect.app.usb.RipSession.getInstance(application)
 
     internal val _ripStates = MutableStateFlow<Map<Int, TrackRipState>>(emptyMap())
-    val ripStates: StateFlow<Map<Int, TrackRipState>> = _ripStates.asStateFlow()
+    open val ripStates: StateFlow<Map<Int, TrackRipState>> = _ripStates.asStateFlow()
 
     private val _shareIntent = MutableSharedFlow<Intent>(replay = 0, extraBufferCapacity = 1)
     val shareIntent: SharedFlow<Intent> = _shareIntent.asSharedFlow()
