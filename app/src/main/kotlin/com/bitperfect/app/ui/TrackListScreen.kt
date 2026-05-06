@@ -60,8 +60,12 @@ fun TrackListScreen(
                 )
             }
         } else {
-            val groupedTracks = state.tracks.groupBy { it.discNumber }
+            val groupedTracks = remember(state.tracks) { state.tracks.groupBy { it.discNumber } }
             val isMultiDisc = groupedTracks.size > 1
+
+            val trackIndices = remember(state.tracks) {
+                state.tracks.mapIndexed { index, track -> track.id to index }.toMap()
+            }
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -100,7 +104,7 @@ fun TrackListScreen(
                     }
 
                     itemsIndexed(discTracks, key = { _, track -> track.id }) { _, track ->
-                        val globalIndex = state.tracks.indexOfFirst { it.id == track.id }
+                        val globalIndex = trackIndices[track.id] ?: 0
                         val isCurrentTrack = track.id.toString() == currentMediaId
                         val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -215,7 +219,7 @@ fun TrackListScreen(
                                 val minutes = durationSeconds / 60
                                 val seconds = durationSeconds % 60
                                 Text(
-                                    text = String.format("%d:%02d", minutes, seconds),
+                                    text = "$minutes:${seconds.toString().padStart(2, '0')}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
