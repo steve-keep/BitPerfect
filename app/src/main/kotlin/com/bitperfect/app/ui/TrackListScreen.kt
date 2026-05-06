@@ -32,13 +32,17 @@ fun TrackListScreen(
     viewModel: AppViewModel,
     onShareRipInfo: (trackNumber: Int) -> Unit
 ) {
-    DisposableEffect(Unit) {
+    val viewState by viewModel.trackListViewState.collectAsState()
+    val isCdMode = viewState?.isCdMode == true
+
+    DisposableEffect(isCdMode) {
         onDispose {
-            viewModel.clearTracks()
+            if (!isCdMode) {
+                viewModel.clearTracks()
+            }
         }
     }
 
-    val viewState by viewModel.trackListViewState.collectAsState()
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val ripStates by viewModel.ripStates.collectAsState()
 
