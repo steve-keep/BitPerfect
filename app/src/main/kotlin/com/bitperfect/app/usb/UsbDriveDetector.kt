@@ -314,7 +314,7 @@ class UsbDriveDetector(
                             }
                         }
                         TurResult.NOT_READY -> {
-                            if (currentStatus !is DriveStatus.Empty) {
+                            if (currentStatus is DriveStatus.DiscReady) {
                                 _driveStatus.value = DriveStatus.Empty(info)
                             }
                         }
