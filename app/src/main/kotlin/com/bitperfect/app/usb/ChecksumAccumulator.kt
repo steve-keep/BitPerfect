@@ -14,8 +14,7 @@ internal class ChecksumAccumulator(
 
     fun accumulate(pcmData: ByteArray?, sectorsToRead: Int) {
         if (pcmData != null) {
-            val adjustedPosition = samplePosition - driveOffset
-            val result = verifier.computeChecksumChunk(pcmData, adjustedPosition, totalSamples)
+            val result = verifier.computeChecksumChunk(pcmData, samplePosition, totalSamples)
             ripChecksum += result.partialChecksum
             samplePosition += pcmData.size / 4
         } else {

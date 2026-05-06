@@ -85,4 +85,27 @@ class ChecksumAccumulatorTest {
         assertEquals(0L, accumulator.ripChecksum) // Because all positions are <= 0
         assertEquals(589L, accumulator.samplePosition) // 1 + 588
     }
+
+    @Test
+    fun testDriveOffsetDoesNotShiftChecksumPosition() {
+        val verifier = AccurateRipVerifier()
+        val totalSamples = 10000L
+        val driveOffset = 667
+
+        // Use non-zero dummy PCM data for meaningul checksum calculation
+        val pcmData = ByteArray(20000) // 5000 samples
+        for (i in pcmData.indices) {
+            pcmData[i] = ((i % 251) + 1).toByte()
+        }
+
+        val accumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
+        accumulator.accumulate(pcmData, sectorsToRead = 0)
+
+        // The exact same checksum should be produced as if calling the verifier directly
+        // with samplePosition = 1, because drive offset should not shift track-relative positions
+        // used in the multiply step.
+        val directResult = verifier.computeChecksumChunk(pcmData, samplePosition = 1, totalSamples = totalSamples)
+
+        assertEquals(directResult.partialChecksum, accumulator.ripChecksum)
+    }
 }
