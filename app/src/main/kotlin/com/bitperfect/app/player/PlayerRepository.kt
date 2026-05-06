@@ -248,4 +248,14 @@ open class PlayerRepository(
             _positionMs.value = it.currentPosition
         }
     }
+
+    open fun clearQueue() {
+        controller?.let {
+            val count = it.mediaItemCount
+            val currentIndex = it.currentMediaItemIndex
+            if (currentIndex + 1 < count) {
+                it.removeMediaItems(currentIndex + 1, count)
+            }
+        }
+    }
 }

@@ -440,6 +440,10 @@ open class AppViewModel(
         playerRepository.addToQueue(track)
     }
 
+    fun clearQueue() {
+        playerRepository.clearQueue()
+    }
+
     fun togglePlayPause() {
         playerRepository.togglePlayPause()
     }
