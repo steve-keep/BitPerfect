@@ -147,7 +147,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                         itemsIndexed(upcomingItems, key = { _, item -> item.mediaId + "_" + System.identityHashCode(item) }) { index, item ->
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { dismissValue ->
-                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                                         val actualIndex = index + currentQueueIndex + 1
                                         viewModel.removeQueueItem(actualIndex)
                                         true
@@ -160,6 +160,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                             ReorderableItem(reorderState, key = item.mediaId + "_" + System.identityHashCode(item)) { isDragging ->
                                 SwipeToDismissBox(
                                     state = dismissState,
+                                    enableDismissFromStartToEnd = false,
                                     backgroundContent = {
                                         Box(
                                             modifier = Modifier
