@@ -77,6 +77,7 @@ class RipSessionTest {
 
         // Assert state is unchanged
         assertTrue(ripSession.isRipping.value)
+        assertFalse(ripSession.ripStates.value.isEmpty())
         assertEquals(initialStates, ripSession.ripStates.value)
     }
 
@@ -118,9 +119,11 @@ class RipSessionTest {
             artworkBytes = null
         )
 
-        // Simulate completion by cancelling
-        ripSession.cancel()
-        assertFalse(ripSession.isRipping.value)
+        // Force completion without cancelling
+        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        isRippingField.isAccessible = true
+        val stateFlow = isRippingField.get(ripSession) as kotlinx.coroutines.flow.MutableStateFlow<Boolean>
+        stateFlow.value = false
 
         // Now clear
         ripSession.clearResults()
@@ -130,7 +133,7 @@ class RipSessionTest {
     }
 
     @Test
-    fun cancel_setsIsRippingToFalse() {
+    fun cancel_setsIsRippingToFalseAndClearsState() {
         // Start rip
         ripSession.startRip(
             outputFolderUriString = "content://dummy",
@@ -140,11 +143,13 @@ class RipSessionTest {
             artworkBytes = null
         )
         assertTrue(ripSession.isRipping.value)
+        assertFalse(ripSession.ripStates.value.isEmpty())
 
         // Cancel
         ripSession.cancel()
 
         // Assert isRipping is false
         assertFalse(ripSession.isRipping.value)
+        assertTrue(ripSession.ripStates.value.isEmpty())
     }
 }

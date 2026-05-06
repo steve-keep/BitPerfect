@@ -89,7 +89,6 @@ fun TrackListScreen(
                         onPlayClick = { viewModel.playAlbum(state.tracks) },
                         onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
                         onStopRipClick = {
-                            viewModel.cancelRip(false)
                             showStopDialog = true
                         }
                     )
@@ -296,6 +295,7 @@ fun TrackListScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
+                    viewModel.cancelRip(false)
                     showStopDialog = false
                 }) {
                     Text("No")
