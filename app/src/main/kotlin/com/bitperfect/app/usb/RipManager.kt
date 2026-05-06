@@ -53,6 +53,10 @@ class RipManager(
     private val driveVendor: String,
     private val driveProduct: String
 ) {
+    companion object {
+        private const val MAX_READ_RETRIES = 3
+    }
+
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
     )
@@ -149,7 +153,17 @@ class RipManager(
 
                 while (sectorsRead < totalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
-                    val pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
+                    var pcmData: ByteArray? = null
+
+                    for (attempt in 1..MAX_READ_RETRIES) {
+                        pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
+                        if (pcmData != null) {
+                            break
+                        }
+                        if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
+                            break
+                        }
+                    }
 
                     if (pcmData != null) {
                         encoder.encode(pcmData)
@@ -157,9 +171,9 @@ class RipManager(
                     } else {
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
-                            break
+                            throw java.io.IOException("Disc removed or drive not ready during rip")
                         }
-                        throw java.io.IOException("Failed to read sector at ${entry.lba + sectorsRead}")
+                        throw java.io.IOException("Failed to read sector ${entry.lba + sectorsRead} after $MAX_READ_RETRIES attempts")
                     }
 
                     sectorsRead += sectorsToRead
