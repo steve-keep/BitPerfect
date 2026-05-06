@@ -60,6 +60,8 @@ class RipManager(
     private var isCancelled = false
     private val verifier = AccurateRipVerifier()
 
+    private var albumDir: DocumentFile? = null
+
     suspend fun startRipping() = withContext(Dispatchers.IO) {
         val driveOffset: Int = try {
             DriveOffsetRepository(context).findOffset(driveVendor, driveProduct)?.offset ?: 0
@@ -97,7 +99,7 @@ class RipManager(
             return@withContext
         }
 
-        val albumDir = artistDir.findFile(safeAlbum) ?: artistDir.createDirectory(safeAlbum)
+        albumDir = artistDir.findFile(safeAlbum) ?: artistDir.createDirectory(safeAlbum)
         if (albumDir == null) {
             AppLogger.e("RipManager", "Could not create album directory")
             return@withContext
@@ -252,8 +254,8 @@ class RipManager(
 
             // Move from cache to SAF destination
             try {
-                albumDir.findFile(filename)?.delete()
-                val destFile = albumDir.createFile("audio/flac", filename)
+                albumDir?.findFile(filename)?.delete()
+                val destFile = albumDir?.createFile("audio/flac", filename)
                 if (destFile != null) {
                     context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
                         cacheFile.inputStream().use { input ->
@@ -315,8 +317,17 @@ class RipManager(
         isCancelled = true
     }
 
+    fun deleteRipFiles() {
+        try {
+            albumDir?.delete()
+        } catch (e: Exception) {
+            AppLogger.e("RipManager", "Failed to delete album directory", e)
+        }
+    }
 
-    private fun writeRipLog(albumDir: DocumentFile, driveOffset: Int, ripStates: Map<Int, TrackRipState>) {
+
+    private fun writeRipLog(albumDir: DocumentFile?, driveOffset: Int, ripStates: Map<Int, TrackRipState>) {
+        val dir = albumDir ?: return
         try {
             val sb = java.lang.StringBuilder()
             sb.append("BitPerfect Rip Log\n")
@@ -368,8 +379,8 @@ class RipManager(
                 sb.append("\n")
             }
 
-            albumDir.findFile("rip.txt")?.delete()
-            val destFile = albumDir.createFile("text/plain", "rip.txt")
+            dir.findFile("rip.txt")?.delete()
+            val destFile = dir.createFile("text/plain", "rip.txt")
             if (destFile != null) {
                 context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
                     out.write(sb.toString().toByteArray(Charsets.UTF_8))

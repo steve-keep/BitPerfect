@@ -402,6 +402,10 @@ open class AppViewModel(
         }
     }
 
+    fun cancelRip(deleteFiles: Boolean) {
+        ripSession.cancel(deleteFiles)
+    }
+
     fun startRip() {
         val outputUri = settingsManager.outputFolderUri
         if (outputUri.isNullOrBlank()) return

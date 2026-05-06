@@ -85,7 +85,8 @@ fun AlbumHeader(
     isRipping: Boolean = false,
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {},
-    onAddToQueueClick: (() -> Unit)? = null
+    onAddToQueueClick: (() -> Unit)? = null,
+    onStopRipClick: () -> Unit = {}
 ) {
     var backgroundColor by remember { mutableStateOf(Color(0xFF141414)) }
 
@@ -155,8 +156,10 @@ fun AlbumHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = if (isCdMode) onSaveClick else onPlayClick,
-                    enabled = if (isCdMode) !isRipping else true,
+                    onClick = if (isCdMode) {
+                        if (isRipping) onStopRipClick else onSaveClick
+                    } else onPlayClick,
+                    enabled = true,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.Black,
@@ -167,8 +170,9 @@ fun AlbumHeader(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isCdMode) {
-                        val text = if (isRipping) "Ripping..." else "Save Disc"
-                        Icon(Icons.Default.Download, contentDescription = text)
+                        val text = if (isRipping) "Stop Rip" else "Save Disc"
+                        val icon = if (isRipping) Icons.Default.Clear else Icons.Default.Download
+                        Icon(icon, contentDescription = text)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     } else {

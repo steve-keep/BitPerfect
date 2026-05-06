@@ -68,8 +68,12 @@ class RipSession(private val context: Context) {
         }
     }
 
-    fun cancel() {
-        ripManager?.cancel()
+    fun cancel(deleteFiles: Boolean = false) {
+        val manager = ripManager
+        manager?.cancel()
+        if (deleteFiles) {
+            manager?.deleteRipFiles()
+        }
         _isRipping.value = false
     }
 
