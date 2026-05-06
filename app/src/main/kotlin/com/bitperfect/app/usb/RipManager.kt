@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
-import org.jaudiotagger.tag.images.ArtworkFactory
+
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -216,13 +216,11 @@ class RipManager(
                 tag.setField(FieldKey.TRACK, trackNumber.toString())
 
                 if (artworkBytes != null) {
-                    val artwork = ArtworkFactory.getNew()
-                    artwork.binaryData = artworkBytes
-                    artwork.mimeType = "image/jpeg"
-                    artwork.description = ""
-                    artwork.pictureType = 3 // Front Cover
+                    val picture = org.jaudiotagger.audio.flac.metadatablock.MetadataBlockDataPicture(
+                        artworkBytes, 3, "image/jpeg", "", 0, 0, 0, 0 // TODO: detect MIME type if non-JPEG sources are added
+                    )
                     tag.deleteArtworkField()
-                    tag.setField(artwork)
+                    (tag as org.jaudiotagger.tag.flac.FlacTag).setField(picture)
                 }
 
                 audioFile.commit()
