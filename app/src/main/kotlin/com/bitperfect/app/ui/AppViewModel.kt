@@ -115,6 +115,9 @@ open class AppViewModel(
     private val _shareIntent = MutableSharedFlow<Intent>(replay = 0, extraBufferCapacity = 1)
     val shareIntent: SharedFlow<Intent> = _shareIntent.asSharedFlow()
 
+    private val _uiEvent = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 1)
+    val uiEvent: SharedFlow<String> = _uiEvent.asSharedFlow()
+
     val isRipping: StateFlow<Boolean> = ripSession.isRipping
 
     val ripBannerState: StateFlow<RipBannerState> = combine(
@@ -434,10 +437,16 @@ open class AppViewModel(
 
     fun playNext(track: TrackInfo) {
         playerRepository.playNext(track)
+        viewModelScope.launch {
+            _uiEvent.emit("Added to play next")
+        }
     }
 
     fun addToQueue(track: TrackInfo) {
         playerRepository.addToQueue(track)
+        viewModelScope.launch {
+            _uiEvent.emit("Added to queue")
+        }
     }
 
     fun togglePlayPause() {

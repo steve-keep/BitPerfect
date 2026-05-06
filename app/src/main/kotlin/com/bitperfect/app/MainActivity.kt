@@ -115,11 +115,13 @@ class MainActivity : ComponentActivity() {
             val currentTrackArtist by appViewModel.currentTrackArtist.collectAsState()
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
 
+            val snackbarHostState = remember { SnackbarHostState() }
             val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
                 bottomSheetState = rememberStandardBottomSheetState(
                     initialValue = SheetValue.PartiallyExpanded,
                     skipHiddenState = true
-                )
+                ),
+                snackbarHostState = snackbarHostState
             )
 
             val driveStatus by appViewModel.driveStatus.collectAsState()
@@ -132,11 +134,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            LaunchedEffect(Unit) {
+                appViewModel.uiEvent.collect { message ->
+                    snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+                }
+            }
+
             val coroutineScope = rememberCoroutineScope()
 
             BitPerfectTheme {
                 BottomSheetScaffold(
                     scaffoldState = bottomSheetScaffoldState,
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
                     sheetPeekHeight = if (currentTrackTitle != null) {
                         64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     } else {
