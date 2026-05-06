@@ -362,7 +362,9 @@ open class AppViewModel(
 
     fun clearTracks() {
         _trackListViewState.value = null
-        ripSession.clearResults()
+        if (!ripSession.isRipping.value) {
+            ripSession.clearResults()
+        }
     }
 
     fun viewCdTracks() {
