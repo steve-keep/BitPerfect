@@ -1,0 +1,26 @@
+<<<<<<< SEARCH
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { dismissValue ->
+                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                                        val actualIndex = index + currentQueueIndex + 1
+                                        viewModel.removeQueueItem(actualIndex)
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                            )
+=======
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { dismissValue ->
+                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                                        val actualIndex = index + currentQueueIndex + 1
+                                        viewModel.removeQueueItem(actualIndex)
+                                        false // Return false so it doesn't stay in the dismissed (red) state
+                                    } else {
+                                        false
+                                    }
+                                },
+                                positionalThreshold = { it * 0.4f } // Make it easier to trigger the delete
+                            )
+>>>>>>> REPLACE
