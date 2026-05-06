@@ -74,7 +74,8 @@ fun TrackListScreen(
                         isCdMode = state.isCdMode,
                         isRipping = isRipping,
                         onSaveClick = { viewModel.startRip() },
-                        onPlayClick = { viewModel.playAlbum(state.tracks) }
+                        onPlayClick = { viewModel.playAlbum(state.tracks) },
+                        onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) }
                     )
                 }
 

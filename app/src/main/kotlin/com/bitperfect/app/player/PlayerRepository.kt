@@ -221,6 +221,17 @@ open class PlayerRepository(
         }
     }
 
+    open fun addAlbumToQueue(tracks: List<TrackInfo>) {
+        controller?.let {
+            val mediaItems = tracks.map { track -> trackToMediaItem(track) }
+            it.addMediaItems(mediaItems)
+            if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
+                it.prepare()
+                it.play()
+            }
+        }
+    }
+
     open fun togglePlayPause() {
         controller?.let {
             if (it.isPlaying) {

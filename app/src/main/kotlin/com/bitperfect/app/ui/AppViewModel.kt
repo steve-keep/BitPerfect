@@ -449,6 +449,10 @@ open class AppViewModel(
         }
     }
 
+    fun addAlbumToQueue(tracks: List<TrackInfo>) {
+        playerRepository.addAlbumToQueue(tracks)
+    }
+
     fun togglePlayPause() {
         playerRepository.togglePlayPause()
     }
