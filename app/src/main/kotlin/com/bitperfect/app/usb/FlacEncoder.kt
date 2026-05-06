@@ -22,6 +22,7 @@ class FlacEncoder(
     private var mediaCodec: MediaCodec? = null
     private var isConfigured = false
     internal var hasWrittenHeader = false
+    private var presentationTimeUs = 0L
 
     fun start() {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_FLAC, sampleRate, channelCount)
@@ -55,7 +56,11 @@ class FlacEncoder(
 
                 val atEnd = isEndOfStream && offset >= pcmData.size
                 val flags = if (atEnd) MediaCodec.BUFFER_FLAG_END_OF_STREAM else 0
-                codec.queueInputBuffer(inputBufferIndex, 0, length, 0, flags)
+
+                codec.queueInputBuffer(inputBufferIndex, 0, length, presentationTimeUs, flags)
+
+                val samplesInBuffer = length / (channelCount * 2) // 16-bit PCM: 2 bytes per sample per channel
+                presentationTimeUs += (samplesInBuffer * 1_000_000L) / sampleRate
 
                 if (atEnd) eosSubmitted = true
             }
@@ -117,5 +122,6 @@ class FlacEncoder(
         mediaCodec = null
         isConfigured = false
         hasWrittenHeader = false
+        presentationTimeUs = 0L
     }
 }
