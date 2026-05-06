@@ -186,12 +186,17 @@ fun TrackListScreen(
                                             }
                                         }
                                         RipStatus.ERROR -> {
-                                            Icon(
-                                                imageVector = Icons.Default.Error,
-                                                contentDescription = "Error",
-                                                tint = Color(0xFFF44336),
+                                            IconButton(
+                                                onClick = { onShareRipInfo(track.trackNumber) },
                                                 modifier = Modifier.size(32.dp)
-                                            )
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Error,
+                                                    contentDescription = "Rip error – tap to share details",
+                                                    tint = Color(0xFFF44336),
+                                                    modifier = Modifier.size(32.dp)
+                                                )
+                                            }
                                         }
                                         else -> {}
                                     }
