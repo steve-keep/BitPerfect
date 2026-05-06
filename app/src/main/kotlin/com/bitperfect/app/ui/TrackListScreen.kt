@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +45,7 @@ fun TrackListScreen(
     val isRipping = remember(ripStates) {
         ripStates.isNotEmpty() && !ripStates.values.all {
             it.status == RipStatus.SUCCESS ||
+            it.status == RipStatus.UNVERIFIED ||
             it.status == RipStatus.WARNING ||
             it.status == RipStatus.ERROR
         }
@@ -102,6 +104,7 @@ fun TrackListScreen(
                         val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         val ripState = ripStates[track.trackNumber]
+                        var showUnverifiedDialog by remember { mutableStateOf(false) }
 
                         Row(
                             modifier = Modifier
@@ -154,6 +157,19 @@ fun TrackListScreen(
                                                 )
                                             }
                                         }
+                                        RipStatus.UNVERIFIED -> {
+                                            IconButton(
+                                                onClick = { showUnverifiedDialog = true },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.RemoveCircle,
+                                                    contentDescription = "Unverified",
+                                                    tint = Color.Gray,
+                                                    modifier = Modifier.size(32.dp)
+                                                )
+                                            }
+                                        }
                                         RipStatus.ERROR -> {
                                             Icon(
                                                 imageVector = Icons.Default.Error,
@@ -172,6 +188,18 @@ fun TrackListScreen(
                                         modifier = Modifier.align(Alignment.Center)
                                     )
                                 }
+                            }
+                            if (showUnverifiedDialog) {
+                                AlertDialog(
+                                    onDismissRequest = { showUnverifiedDialog = false },
+                                    title = { Text("Not in AccurateRip Database") },
+                                    text = { Text("This track could not be verified because it was not found in the AccurateRip database. This does not necessarily indicate a problem with the rip.") },
+                                    confirmButton = {
+                                        TextButton(onClick = { showUnverifiedDialog = false }) {
+                                            Text("OK")
+                                        }
+                                    }
+                                )
                             }
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {

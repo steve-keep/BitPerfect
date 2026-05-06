@@ -25,7 +25,7 @@ import java.io.RandomAccessFile
 import java.net.URL
 
 enum class RipStatus {
-    IDLE, RIPPING, VERIFYING, SUCCESS, WARNING, ERROR, CANCELLED
+    IDLE, RIPPING, VERIFYING, SUCCESS, UNVERIFIED, WARNING, ERROR, CANCELLED
 }
 
 data class TrackRipState(
@@ -232,7 +232,6 @@ class RipManager(
 
             // Verify checksum
             val expectedForTrack = expectedChecksums[trackNumber]
-            val isAccurate = expectedForTrack?.any { it.checksum == finalChecksum } ?: true
 
             // Move from cache to SAF destination
             try {
@@ -251,18 +250,25 @@ class RipManager(
                 cacheFile.delete()
             }
 
-            if (isAccurate) {
-                updateTrackState(trackNumber, RipStatus.SUCCESS, 1f)
-            } else {
-                AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
-                updateTrackState(
-                    trackNumber,
-                    RipStatus.WARNING,
-                    1f,
-                    accurateRipUrl = accurateRipUrl,
-                    computedChecksum = finalChecksum,
-                    expectedChecksums = expectedForTrack?.map { it.checksum } ?: emptyList()
-                )
+            when {
+                expectedForTrack == null -> {
+                    AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
+                    updateTrackState(trackNumber, RipStatus.UNVERIFIED, 1f)
+                }
+                expectedForTrack.any { it.checksum == finalChecksum } -> {
+                    updateTrackState(trackNumber, RipStatus.SUCCESS, 1f)
+                }
+                else -> {
+                    AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
+                    updateTrackState(
+                        trackNumber,
+                        RipStatus.WARNING,
+                        1f,
+                        accurateRipUrl = accurateRipUrl,
+                        computedChecksum = finalChecksum,
+                        expectedChecksums = expectedForTrack.map { it.checksum }
+                    )
+                }
             }
         }
     }

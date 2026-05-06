@@ -122,7 +122,7 @@ open class AppViewModel(
         ripSession.ripStates
     ) { isRipping, states ->
         val completedStatuses = setOf(
-            RipStatus.SUCCESS, RipStatus.WARNING, RipStatus.ERROR, RipStatus.RIPPING
+            RipStatus.SUCCESS, RipStatus.UNVERIFIED, RipStatus.WARNING, RipStatus.ERROR, RipStatus.RIPPING
         )
         val completed = states.values.count { it.status in completedStatuses }
         val total = states.size
@@ -204,6 +204,7 @@ open class AppViewModel(
                 // Check if all tracks are done ripping
                 val isDone = states.values.all {
                     it.status == RipStatus.SUCCESS ||
+                    it.status == RipStatus.UNVERIFIED ||
                     it.status == RipStatus.WARNING ||
                     it.status == RipStatus.ERROR
                 }
