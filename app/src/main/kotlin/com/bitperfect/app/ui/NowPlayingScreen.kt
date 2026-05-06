@@ -66,9 +66,17 @@ import kotlin.math.abs
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
     val isPlaying by viewModel.isPlaying.collectAsState()
@@ -124,63 +132,116 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                         Text("No upcoming tracks", color = Color.Gray)
                     }
                 } else {
+                    val lazyListState = rememberLazyListState()
+                    val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
+                        val fromActualIndex = from.index + currentQueueIndex + 1
+                        val toActualIndex = to.index + currentQueueIndex + 1
+                        viewModel.moveQueueItem(fromActualIndex, toActualIndex)
+                    }
+
                     LazyColumn(
+                        state = lazyListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        items(upcomingItems) { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val artworkUri = item.mediaMetadata.artworkUri
-                                if (artworkUri != null) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(artworkUri)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = "Album Art",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF141414)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Album,
-                                            contentDescription = "No Album Art",
-                                            modifier = Modifier.size(24.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                        itemsIndexed(upcomingItems, key = { _, item -> item.mediaId + "_" + System.identityHashCode(item) }) { index, item ->
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { dismissValue ->
+                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        val actualIndex = index + currentQueueIndex + 1
+                                        viewModel.removeQueueItem(actualIndex)
+                                        true
+                                    } else {
+                                        false
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.mediaMetadata.title?.toString() ?: "Unknown",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color.Gray,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                            )
+
+                            ReorderableItem(reorderState, key = item.mediaId + "_" + System.identityHashCode(item)) { isDragging ->
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    backgroundContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(vertical = 8.dp)
+                                                .background(Color.Red, RoundedCornerShape(8.dp)),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Text(
+                                                text = "Delete",
+                                                color = Color.White,
+                                                modifier = Modifier.padding(end = 16.dp)
+                                            )
+                                        }
+                                    },
+                                    content = {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(if (isDragging) Color(0xFF2A2A2A) else Color.Transparent)
+                                                .padding(vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val artworkUri = item.mediaMetadata.artworkUri
+                                            if (artworkUri != null) {
+                                                AsyncImage(
+                                                    model = ImageRequest.Builder(LocalContext.current)
+                                                        .data(artworkUri)
+                                                        .crossfade(true)
+                                                        .build(),
+                                                    contentDescription = "Album Art",
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .size(48.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(48.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(Color(0xFF141414)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Album,
+                                                        contentDescription = "No Album Art",
+                                                        modifier = Modifier.size(24.dp),
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = item.mediaMetadata.title?.toString() ?: "Unknown",
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    color = Color.White,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.Gray,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = {},
+                                                modifier = Modifier.draggableHandle()
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DragHandle,
+                                                    contentDescription = "Reorder",
+                                                    tint = Color.Gray
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
                             }
                         }
                         item {

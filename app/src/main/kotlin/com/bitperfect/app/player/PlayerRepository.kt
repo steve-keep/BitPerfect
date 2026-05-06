@@ -269,4 +269,12 @@ open class PlayerRepository(
             }
         }
     }
+
+    open fun removeMediaItem(index: Int) {
+        controller?.removeMediaItem(index)
+    }
+
+    open fun moveMediaItem(currentIndex: Int, newIndex: Int) {
+        controller?.moveMediaItem(currentIndex, newIndex)
+    }
 }
