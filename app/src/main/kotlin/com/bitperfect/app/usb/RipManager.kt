@@ -24,6 +24,11 @@ import java.io.InputStream
 import java.io.RandomAccessFile
 import java.net.URL
 
+import com.bitperfect.core.utils.computeAccurateRipDiscId
+import com.bitperfect.core.utils.computeMusicBrainzDiscId
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
 enum class RipStatus {
     IDLE, RIPPING, VERIFYING, SUCCESS, UNVERIFIED, WARNING, ERROR, CANCELLED
 }
@@ -268,6 +273,11 @@ class RipManager(
                     )
                 }
             }
+
+        }
+
+        if (!isCancelled) {
+            writeRipLog(albumDir, driveOffset, _trackStates.value)
         }
     }
 
@@ -289,5 +299,70 @@ class RipManager(
 
     fun cancel() {
         isCancelled = true
+    }
+
+
+    private fun writeRipLog(albumDir: DocumentFile, driveOffset: Int, ripStates: Map<Int, TrackRipState>) {
+        try {
+            val sb = java.lang.StringBuilder()
+            sb.append("BitPerfect Rip Log\n")
+            sb.append("Generated: ").append(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.now())).append("\n\n")
+
+            sb.append("Album:  ").append(metadata.albumTitle).append("\n")
+            sb.append("Artist: ").append(metadata.artistName).append("\n\n")
+
+            sb.append("Drive:  ").append(driveVendor).append(" ").append(driveProduct).append("\n")
+            sb.append("Offset: ").append(driveOffset).append(" samples\n\n")
+
+            val arId = computeAccurateRipDiscId(toc)
+            sb.append("Disc IDs\n")
+            sb.append("  AccurateRip id1:   ").append(String.format("%08x", arId.id1 and 0xFFFFFFFFL)).append("\n")
+            sb.append("  AccurateRip id2:   ").append(String.format("%08x", arId.id2 and 0xFFFFFFFFL)).append("\n")
+            sb.append("  FreeDB id:         ").append(String.format("%08x", arId.id3)).append("\n")
+            sb.append("  MusicBrainz:       ").append(computeMusicBrainzDiscId(toc)).append("\n\n")
+
+            sb.append("Tracks\n")
+            sb.append("  #  Title                          Status   Checksum\n")
+            sb.append("  ---------------------------------------------------------\n")
+
+            val states = ripStates.values.sortedBy { it.trackNumber }
+            for (state in states) {
+                val trackTitle = metadata.trackTitles.getOrNull(state.trackNumber - 1) ?: "Track ${state.trackNumber}"
+
+                val paddedTitle = if (trackTitle.length > 30) {
+                    trackTitle.take(29) + "…"
+                } else {
+                    trackTitle.padEnd(30, ' ')
+                }
+
+                val statusStr = state.status.name.padEnd(8, ' ')
+                val checksumStr = if (state.computedChecksum != null) {
+                    String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
+                } else {
+                    "—       "
+                }
+
+                sb.append("  ").append(String.format("%02d", state.trackNumber))
+                  .append(" ").append(paddedTitle)
+                  .append("  ").append(statusStr)
+                  .append("  ").append(checksumStr)
+
+                if (state.status == RipStatus.WARNING) {
+                    val expectedStr = state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                    sb.append("  [expected: ").append(expectedStr).append("]")
+                }
+                sb.append("\n")
+            }
+
+            albumDir.findFile("rip.txt")?.delete()
+            val destFile = albumDir.createFile("text/plain", "rip.txt")
+            if (destFile != null) {
+                context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
+                    out.write(sb.toString().toByteArray(Charsets.UTF_8))
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.w("RipManager", "Failed to write rip.txt: ${e.message}")
+        }
     }
 }
