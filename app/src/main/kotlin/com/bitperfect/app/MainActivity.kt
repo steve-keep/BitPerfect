@@ -381,7 +381,8 @@ class MainActivity : ComponentActivity() {
                         composable(AppRoutes.TrackList) {
                             TrackListScreen(
                                 viewModel = appViewModel,
-                                onShareRipInfo = { trackNumber -> appViewModel.shareRipInfo(trackNumber) }
+                                onShareRipInfo = { trackNumber -> appViewModel.shareRipInfo(trackNumber) },
+                                onNavigateBack = { navController.popBackStack() }
                             )
                         }
                     }
