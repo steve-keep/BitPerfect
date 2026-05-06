@@ -122,8 +122,10 @@ open class AppViewModel(
 
     val ripBannerState: StateFlow<RipBannerState> = combine(
         ripSession.isRipping,
-        ripSession.ripStates
-    ) { isRipping, states ->
+        ripSession.ripStates,
+        discMetadata,
+        _artworkBytes
+    ) { isRipping, states, meta, artworkBytes ->
         val completedStatuses = setOf(
             RipStatus.SUCCESS, RipStatus.UNVERIFIED, RipStatus.WARNING, RipStatus.ERROR, RipStatus.RIPPING
         )
@@ -131,7 +133,6 @@ open class AppViewModel(
         val total = states.size
         val progress = if (total == 0) 0f
             else states.values.map { it.progress }.average().toFloat()
-        val meta = discMetadata.value
         RipBannerState(
             isVisible = isRipping || states.isNotEmpty(),
             completedTracks = completed,
@@ -139,7 +140,7 @@ open class AppViewModel(
             overallProgress = progress,
             artistName = meta?.artistName ?: "",
             totalTracksLabel = "$total tracks",
-            artworkBytes = _artworkBytes.value
+            artworkBytes = artworkBytes
         )
     }.stateIn(
         viewModelScope,
