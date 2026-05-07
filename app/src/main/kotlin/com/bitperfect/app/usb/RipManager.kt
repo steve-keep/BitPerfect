@@ -40,7 +40,14 @@ data class TrackRipState(
     val accurateRipUrl: String? = null,
     val computedChecksum: Long? = null,
     val expectedChecksums: List<Long> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // Diagnostic fields
+    val startLba: Int = 0,
+    val endLba: Int = 0,
+    val totalSectors: Int = 0,
+    val sectorsRead: Int = 0,
+    val totalSamples: Long = 0L,
+    val durationSeconds: Double = 0.0
 )
 
 class RipManager(
@@ -182,6 +189,18 @@ class RipManager(
 
                 encoder.stop()
 
+                updateTrackState(
+                    trackNumber = trackNumber,
+                    status = RipStatus.RIPPING,
+                    progress = sectorsRead.toFloat() / totalSectors,
+                    startLba = entry.lba,
+                    endLba = nextLba,
+                    totalSectors = totalSectors,
+                    sectorsRead = sectorsRead,
+                    totalSamples = totalSamples,
+                    durationSeconds = sectorsRead.toLong() * 588L / 44100.0
+                )
+
                 val trackBytes = trackPcmBuffer.toByteArray()
                 var dataForAccumulator = trackBytes
 
@@ -233,7 +252,13 @@ class RipManager(
                     trackNumber = trackNumber,
                     status = RipStatus.ERROR,
                     progress = sectorsRead.toFloat() / totalSectors,
-                    errorMessage = e.message ?: "Unknown error"
+                    errorMessage = e.message ?: "Unknown error",
+                    startLba = entry.lba,
+                    endLba = nextLba,
+                    totalSectors = totalSectors,
+                    sectorsRead = sectorsRead,
+                    totalSamples = totalSamples,
+                    durationSeconds = sectorsRead.toLong() * 588L / 44100.0
                 )
                 continue
             } finally {
@@ -323,12 +348,30 @@ class RipManager(
         accurateRipUrl: String? = null,
         computedChecksum: Long? = null,
         expectedChecksums: List<Long> = emptyList(),
-        errorMessage: String? = null
+        errorMessage: String? = null,
+        startLba: Int? = null,
+        endLba: Int? = null,
+        totalSectors: Int? = null,
+        sectorsRead: Int? = null,
+        totalSamples: Long? = null,
+        durationSeconds: Double? = null
     ) {
         val currentStates = _trackStates.value.toMutableMap()
-        currentStates[trackNumber] = TrackRipState(
-            trackNumber, progress, status,
-            accurateRipUrl, computedChecksum, expectedChecksums, errorMessage
+        val existingState = currentStates[trackNumber] ?: TrackRipState(trackNumber)
+
+        currentStates[trackNumber] = existingState.copy(
+            progress = progress,
+            status = status,
+            accurateRipUrl = accurateRipUrl ?: existingState.accurateRipUrl,
+            computedChecksum = computedChecksum ?: existingState.computedChecksum,
+            expectedChecksums = if (expectedChecksums.isNotEmpty()) expectedChecksums else existingState.expectedChecksums,
+            errorMessage = errorMessage ?: existingState.errorMessage,
+            startLba = startLba ?: existingState.startLba,
+            endLba = endLba ?: existingState.endLba,
+            totalSectors = totalSectors ?: existingState.totalSectors,
+            sectorsRead = sectorsRead ?: existingState.sectorsRead,
+            totalSamples = totalSamples ?: existingState.totalSamples,
+            durationSeconds = durationSeconds ?: existingState.durationSeconds
         )
         _trackStates.value = currentStates
     }
@@ -366,37 +409,59 @@ class RipManager(
             sb.append("  FreeDB id:         ").append(String.format("%08x", arId.id3)).append("\n")
             sb.append("  MusicBrainz:       ").append(computeMusicBrainzDiscId(toc)).append("\n\n")
 
-            sb.append("Tracks\n")
-            sb.append("  #  Title                          Status   Checksum\n")
-            sb.append("  ---------------------------------------------------------\n")
-
             val states = ripStates.values.sortedBy { it.trackNumber }
+            val firstAccurateRipUrl: String? = states.firstNotNullOfOrNull { it.accurateRipUrl }
+                ?: AccurateRipService().getAccurateRipUrl(toc)
+
+            if (firstAccurateRipUrl != null) {
+                sb.append("AccurateRip URL:\n")
+                sb.append("  ").append(firstAccurateRipUrl).append("\n\n")
+            }
+
+            sb.append("Tracks\n")
+
             for (state in states) {
+                sb.append("  ---------------------------------------------------------------\n")
+
                 val trackTitle = metadata.trackTitles.getOrNull(state.trackNumber - 1) ?: "Track ${state.trackNumber}"
+                sb.append(String.format("  %02d  %s\n", state.trackNumber, trackTitle))
+                sb.append("      Status:    ").append(state.status.name).append("\n")
 
-                val paddedTitle = if (trackTitle.length > 30) {
-                    trackTitle.take(29) + "…"
-                } else {
-                    trackTitle.padEnd(30, ' ')
+                sb.append("      LBA:       ").append(state.startLba).append(" → ").append(state.endLba)
+                  .append("  (").append(state.totalSectors).append(" sectors expected, ")
+                  .append(state.sectorsRead).append(" read)\n")
+
+                if (state.totalSectors != state.sectorsRead) {
+                    sb.append("  *** TRUNCATED ***\n")
                 }
 
-                val statusStr = state.status.name.padEnd(8, ' ')
-                val checksumStr = if (state.computedChecksum != null) {
-                    String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
-                } else {
-                    "—       "
-                }
+                val formattedDuration = String.format(java.util.Locale.US, "%.2fs", state.durationSeconds)
+                sb.append("      Duration:  ").append(formattedDuration).append(" (ripped)\n")
 
-                sb.append("  ").append(String.format("%02d", state.trackNumber))
-                  .append(" ").append(paddedTitle)
-                  .append("  ").append(statusStr)
-                  .append("  ").append(checksumStr)
-
-                if (state.status == RipStatus.WARNING) {
-                    val expectedStr = state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-                    sb.append("  [expected: ").append(expectedStr).append("]")
+                if (state.status == RipStatus.ERROR) {
+                    sb.append("      Error:     ").append(state.errorMessage ?: "Unknown error").append("\n")
+                } else if (state.computedChecksum != null) {
+                    val computedStr = String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
+                    when (state.status) {
+                        RipStatus.SUCCESS -> {
+                            sb.append("      Checksum:  ").append(computedStr).append("  ✓ matched\n")
+                        }
+                        RipStatus.WARNING -> {
+                            sb.append("      Checksum:  ").append(computedStr).append("  ← computed\n")
+                            val expectedStr = state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                            sb.append("      Expected:  ").append(expectedStr).append("\n")
+                        }
+                        RipStatus.UNVERIFIED -> {
+                            sb.append("      Checksum:  ").append(computedStr).append("  (not in AccurateRip database)\n")
+                        }
+                        else -> {
+                            sb.append("      Checksum:  ").append(computedStr).append("\n")
+                        }
+                    }
                 }
-                sb.append("\n")
+            }
+            if (states.isNotEmpty()) {
+                sb.append("  ---------------------------------------------------------------\n")
             }
 
             dir.findFile("rip.txt")?.delete()
