@@ -35,6 +35,22 @@ class UsbDriveDetectorTest {
         var currentTurAttempt = 1
         var state = "INQUIRY_CBW"
 
+        override fun bulkTransfer(endpoint: UsbEndpoint, buffer: ByteArray, offset: Int, length: Int, timeout: Int): Int {
+            // Because our fake relies on simulating short reads/chunks without actually splitting,
+            // we create a temporary buffer that fits the requested length.
+            val tempBuffer = ByteArray(length)
+            val result = bulkTransfer(endpoint, tempBuffer, length, timeout)
+            if (result > 0) {
+                // Ensure we don't copy more bytes than result or what is available
+                System.arraycopy(tempBuffer, 0, buffer, offset, result)
+            }
+            return result
+        }
+
+        override fun bulkTransferFully(endpoint: UsbEndpoint, buffer: ByteArray, maxLength: Int, timeout: Int): Int {
+            return bulkTransfer(endpoint, buffer, 0, maxLength, timeout)
+        }
+
         override fun bulkTransfer(endpoint: UsbEndpoint, buffer: ByteArray, length: Int, timeout: Int): Int {
             transferCount++
             when (state) {
