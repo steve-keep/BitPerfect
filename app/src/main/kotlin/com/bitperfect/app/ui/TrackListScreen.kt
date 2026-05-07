@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material3.*
@@ -17,7 +18,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.RipStatus
@@ -27,7 +31,7 @@ private fun numberToWord(n: Int): String {
     return if (n in 0..10) words[n] else n.toString()
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun TrackListScreen(
     viewModel: AppViewModel,
@@ -128,7 +132,7 @@ fun TrackListScreen(
                         val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         val ripState = ripStates[track.trackNumber]
-                        var showUnverifiedDialog by remember { mutableStateOf(false) }
+                        var showRipDetailSheet by remember { mutableStateOf(false) }
 
                         Row(
                             modifier = Modifier
@@ -161,16 +165,21 @@ fun TrackListScreen(
                                             }
                                         }
                                         RipStatus.SUCCESS -> {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Success",
-                                                tint = MaterialTheme.colorScheme.primary,
+                                            IconButton(
+                                                onClick = { showRipDetailSheet = true },
                                                 modifier = Modifier.size(32.dp)
-                                            )
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = "Success - tap for details",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(32.dp)
+                                                )
+                                            }
                                         }
                                         RipStatus.WARNING -> {
                                             IconButton(
-                                                onClick = { onShareRipInfo(track.trackNumber) },
+                                                onClick = { showRipDetailSheet = true },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -183,7 +192,7 @@ fun TrackListScreen(
                                         }
                                         RipStatus.UNVERIFIED -> {
                                             IconButton(
-                                                onClick = { showUnverifiedDialog = true },
+                                                onClick = { showRipDetailSheet = true },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -196,7 +205,7 @@ fun TrackListScreen(
                                         }
                                         RipStatus.ERROR -> {
                                             IconButton(
-                                                onClick = { onShareRipInfo(track.trackNumber) },
+                                                onClick = { showRipDetailSheet = true },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -218,17 +227,115 @@ fun TrackListScreen(
                                     )
                                 }
                             }
-                            if (showUnverifiedDialog) {
-                                AlertDialog(
-                                    onDismissRequest = { showUnverifiedDialog = false },
-                                    title = { Text("Not in AccurateRip Database") },
-                                    text = { Text("This track could not be verified because it was not found in the AccurateRip database. This does not necessarily indicate a problem with the rip.") },
-                                    confirmButton = {
-                                        TextButton(onClick = { showUnverifiedDialog = false }) {
-                                            Text("OK")
+                            if (showRipDetailSheet && ripState != null) {
+                                val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                                ModalBottomSheet(
+                                    onDismissRequest = { showRipDetailSheet = false },
+                                    sheetState = sheetState
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .padding(bottom = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        val statusColor = when (ripState.status) {
+                                            RipStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+                                            RipStatus.WARNING -> Color(0xFFFFC107)
+                                            RipStatus.UNVERIFIED -> Color.Gray
+                                            RipStatus.ERROR -> Color(0xFFF44336)
+                                            else -> MaterialTheme.colorScheme.onSurface
                                         }
+
+                                        // Header
+                                        Text(
+                                            text = "${track.trackNumber.toString().padStart(2, '0')} - ${track.title}",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Surface(
+                                            color = statusColor.copy(alpha = 0.1f),
+                                            shape = MaterialTheme.shapes.small
+                                        ) {
+                                            Text(
+                                                text = ripState.status.name,
+                                                color = statusColor,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                style = MaterialTheme.typography.labelMedium
+                                            )
+                                        }
+
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                                        // Diagnostic section
+                                        val durationExpected = ripState.totalSectors * 588 / 44100.0
+                                        Text("LBA Range     ${ripState.startLba} → ${ripState.endLba}", style = MaterialTheme.typography.bodyMedium)
+
+                                        val isTruncated = ripState.sectorsRead != ripState.totalSectors
+                                        Text(
+                                            buildAnnotatedString {
+                                                append("Sectors       ${ripState.totalSectors} expected  /  ${ripState.sectorsRead} read")
+                                                if (isTruncated) {
+                                                    withStyle(SpanStyle(color = Color(0xFFF44336))) {
+                                                        append("   *** TRUNCATED ***")
+                                                    }
+                                                }
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text("Duration      ${String.format(java.util.Locale.US, "%.2f", ripState.durationSeconds)}s ripped  /  ${String.format(java.util.Locale.US, "%.2f", durationExpected)}s expected", style = MaterialTheme.typography.bodyMedium)
+
+                                        // Checksum section
+                                        if (ripState.computedChecksum != null) {
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                            val computedStr = String.format("0x%08X", ripState.computedChecksum and 0xFFFFFFFFL)
+                                            when (ripState.status) {
+                                                RipStatus.SUCCESS -> {
+                                                    Text("Checksum  $computedStr  ✓ matched", style = MaterialTheme.typography.bodyMedium)
+                                                }
+                                                RipStatus.WARNING -> {
+                                                    Text("Computed   $computedStr", style = MaterialTheme.typography.bodyMedium)
+                                                    val expectedStr = ripState.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    Text("Expected   $expectedStr", style = MaterialTheme.typography.bodyMedium)
+                                                }
+                                                RipStatus.UNVERIFIED -> {
+                                                    Text("Checksum  $computedStr  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
+                                                }
+                                                else -> {} // ERROR may or may not have a checksum, but usually doesn't output it specifically
+                                            }
+                                        }
+
+                                        if (ripState.status == RipStatus.ERROR && ripState.errorMessage != null) {
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                            Text("Error  ${ripState.errorMessage}", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFF44336))
+                                        }
+
+                                        // Action row
+                                        if (ripState.status == RipStatus.WARNING || ripState.status == RipStatus.ERROR) {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        onShareRipInfo(track.trackNumber)
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Share,
+                                                        contentDescription = "Share",
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("Share Details")
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                                     }
-                                )
+                                }
                             }
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
