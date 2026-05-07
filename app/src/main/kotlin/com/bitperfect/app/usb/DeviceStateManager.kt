@@ -26,6 +26,14 @@ object DeviceStateManager {
         usbDriveDetector?.reportError(message)
     }
 
+    fun pausePolling() {
+        usbDriveDetector?.pausePolling()
+    }
+
+    fun resumePolling() {
+        usbDriveDetector?.resumePolling()
+    }
+
     fun getTransport(): UsbTransport? = usbDriveDetector?.transport
     fun getInEndpoint(): UsbEndpoint? = usbDriveDetector?.inEndpoint
     fun getOutEndpoint(): UsbEndpoint? = usbDriveDetector?.outEndpoint
