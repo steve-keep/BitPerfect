@@ -156,7 +156,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                         false
                                     }
                                 },
-                                positionalThreshold = { it * 0.4f }
+                                positionalThreshold = { it * 0.75f }
                             )
 
                             ReorderableItem(reorderState, key = item.mediaId + "_" + System.identityHashCode(item)) { isDragging ->
@@ -234,7 +234,10 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                             }
                                             IconButton(
                                                 onClick = {},
-                                                modifier = Modifier.draggableHandle()
+                                                modifier = Modifier.longPressDraggableHandle(
+                                                    onDragStarted = {},
+                                                    onDragStopped = {}
+                                                )
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.DragHandle,
