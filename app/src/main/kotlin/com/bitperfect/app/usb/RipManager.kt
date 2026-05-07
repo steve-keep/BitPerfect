@@ -155,7 +155,7 @@ class RipManager(
                 val checksumAccumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
 
                 val trackPcmBuffer = java.io.ByteArrayOutputStream()
-                val chunkSize = 26 // read ~26 sectors at a time
+                val chunkSize = 8 // read ~8 sectors at a time
                 var nextCarryBuffer = ByteArray(0)
 
                 while (sectorsRead < totalSectors && !isCancelled) {
@@ -173,8 +173,15 @@ class RipManager(
                     }
 
                     if (pcmData != null) {
+                        val sectorsActuallyRead = pcmData.size / 2352
+                        if (sectorsActuallyRead < sectorsToRead) {
+                            AppLogger.w("RipManager", "Short read at LBA ${entry.lba + sectorsRead}: " +
+                                "got $sectorsActuallyRead of $sectorsToRead sectors")
+                        }
+
                         encoder.encode(pcmData)
                         trackPcmBuffer.write(pcmData)
+                        sectorsRead += sectorsActuallyRead
                     } else {
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
@@ -183,7 +190,6 @@ class RipManager(
                         throw java.io.IOException("Failed to read sector ${entry.lba + sectorsRead} after $MAX_READ_RETRIES attempts")
                     }
 
-                    sectorsRead += sectorsToRead
                     updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
                 }
 
