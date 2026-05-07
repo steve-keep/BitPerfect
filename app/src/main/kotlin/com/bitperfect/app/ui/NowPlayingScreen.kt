@@ -145,10 +145,11 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
                         itemsIndexed(upcomingItems, key = { _, item -> item.mediaId + "_" + System.identityHashCode(item) }) { index, item ->
+                            val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { dismissValue ->
                                     if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                                        val actualIndex = index + currentQueueIndex + 1
+                                        val actualIndex = currentItemIndex + currentQueueIndex + 1
                                         viewModel.removeQueueItem(actualIndex)
                                         false
                                     } else {
