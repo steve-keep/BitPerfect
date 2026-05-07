@@ -1,6 +1,8 @@
 package com.bitperfect.app.player
 
+import android.app.PendingIntent
 import android.content.ContentUris
+import android.content.Intent
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.media3.common.AudioAttributes
@@ -12,6 +14,7 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaConstants
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import com.bitperfect.app.MainActivity
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
 import com.google.common.collect.ImmutableList
@@ -40,7 +43,15 @@ class PlaybackService : MediaLibraryService() {
 
         player = exoPlayer
 
+        val sessionActivityPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, BrowseCallback())
+            .setSessionActivity(sessionActivityPendingIntent)
             .build()
     }
 
