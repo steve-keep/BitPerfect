@@ -51,7 +51,7 @@ class ReadTocCommand(
 
         // Read TOC data in a single buffered read
         val tocData = ByteArray(804)
-        val totalTocRead = transport.bulkTransferFully(inEndpoint, tocData, 804, 5000)
+        val totalTocRead = transport.bulkTransfer(inEndpoint, tocData, 804, 5000)
         if (totalTocRead < 4) {
             AppLogger.e(TAG, "Failed to read TOC data: only $totalTocRead bytes received")
             return null
