@@ -53,8 +53,10 @@ class ReadCdCommand(
         // Read Audio Data
         val audioData = ByteArray(transferLength)
         val totalRead = transport.bulkTransferFully(inEndpoint, audioData, transferLength, 5000)
-        if (totalRead < transferLength) {
-            AppLogger.e(TAG, "Failed to read full audio data: requested $transferLength, got $totalRead")
+
+        val remainder = totalRead % 2352
+        if (totalRead <= 0 || remainder != 0) {
+            AppLogger.e(TAG, "Bad read: totalRead=$totalRead for $sectorCount sectors")
             return null
         }
 
@@ -77,6 +79,12 @@ class ReadCdCommand(
         if (status != 0.toByte()) {
             AppLogger.e(TAG, "CSW indicates command failure: status=$status")
             return null
+        }
+
+        val sectorsActuallyRead = totalRead / 2352
+        if (sectorsActuallyRead < sectorCount) {
+            AppLogger.w(TAG, "Short read: got $sectorsActuallyRead of $sectorCount sectors")
+            return audioData.copyOf(sectorsActuallyRead * 2352)
         }
 
         return audioData
