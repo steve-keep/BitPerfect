@@ -285,6 +285,18 @@ class UsbDriveDetector(
         READY, SPINNING_UP, NOT_READY
     }
 
+    fun pausePolling() {
+        pollingJob?.cancel()
+        pollingJob = null
+    }
+
+    fun resumePolling() {
+        val currentStatus = _driveStatus.value
+        val info = currentStatus.info ?: return
+        // Only restart if we have a connected drive
+        startPollingLoop(info)
+    }
+
     private fun startPollingLoop(info: DriveInfo) {
         pollingJob?.cancel()
         pollingJob = scope.launch {
