@@ -15,6 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -106,12 +107,13 @@ class UsbDriveDetectorTest {
                     return 31
                 }
                 "TOC_DATA" -> {
-                    state = "TOC_CSW"
                     if (tocResponse != null) {
                         val toCopy = tocResponse.size.coerceAtMost(length)
                         System.arraycopy(tocResponse, 0, buffer, 0, toCopy)
+                        state = "TOC_CSW"
                         return toCopy
                     }
+                    state = "TOC_CSW"
                     return 0
                 }
                 "TOC_CSW" -> {
@@ -402,7 +404,9 @@ class UsbDriveDetectorTest {
         fakeTransport.state = "TOC_CBW"
 
         val outEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
+        `when`(outEndpoint.maxPacketSize).thenReturn(512)
         val inEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
+        `when`(inEndpoint.maxPacketSize).thenReturn(512)
 
         val command = ReadTocCommand(fakeTransport, outEndpoint, inEndpoint)
         val result = command.execute()
@@ -422,7 +426,9 @@ class UsbDriveDetectorTest {
         fakeTransport.state = "TOC_CBW"
 
         val outEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
+        `when`(outEndpoint.maxPacketSize).thenReturn(512)
         val inEndpoint = mock(android.hardware.usb.UsbEndpoint::class.java)
+        `when`(inEndpoint.maxPacketSize).thenReturn(512)
 
         val command = ReadTocCommand(fakeTransport, outEndpoint, inEndpoint)
         val result = command.execute()
