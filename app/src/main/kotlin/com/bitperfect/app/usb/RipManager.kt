@@ -114,7 +114,7 @@ class RipManager(
 
         val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
 
-        var carryBuffer = if (driveOffset > 0) ByteArray(driveOffset * 4) else ByteArray(0)
+        var carryBuffer = ByteArray(0)
 
         for (i in 0 until toc.tracks.size) {
             if (isCancelled) break
@@ -238,7 +238,7 @@ class RipManager(
                 encoder.stop()
 
                 if (driveOffset != 0 && chunkCarry.isNotEmpty()) {
-                    if (driveOffset < 0) {
+                    if (driveOffset < 0 || isLastTrack) {
                         checksumAccumulator.accumulate(chunkCarry)
                     }
                 }
