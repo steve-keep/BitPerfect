@@ -16,11 +16,12 @@ internal fun isFLACHeader(buffer: ByteArray, offset: Int, size: Int): Boolean =
 class FlacEncoder(
     private val outputStream: OutputStream,
     private val sampleRate: Int = 44100,
-    private val channelCount: Int = 2
+    private val channelCount: Int = 2,
+    private val writeHeader: Boolean = true
 ) {
     private var mediaCodec: MediaCodec? = null
     private var isConfigured = false
-    internal var hasWrittenHeader = false
+    internal var hasWrittenHeader = !writeHeader
     private var presentationTimeUs = 0L
 
     fun start() {

@@ -15,14 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import org.jaudiotagger.audio.AudioFileIO
-import org.jaudiotagger.tag.FieldKey
 
-import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.RandomAccessFile
-import java.net.URL
+import java.io.ByteArrayOutputStream
+import java.io.BufferedOutputStream
 
 import com.bitperfect.core.utils.computeAccurateRipDiscId
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
@@ -138,9 +133,24 @@ class RipManager(
             val safeTitle = trackTitle.replace("/", "_")
             val filename = String.format("%02d - %s.flac", trackNumber, safeTitle)
 
-            // Write to local cache first so jaudiotagger can operate on a standard File
-            val cacheFile = File(context.cacheDir, filename)
-            if (cacheFile.exists()) cacheFile.delete()
+            albumDir?.findFile(filename)?.delete()
+            val destFile = albumDir?.createFile("audio/flac", filename)
+            if (destFile == null) {
+                AppLogger.e("RipManager", "Failed to create SAF destination for track $trackNumber")
+                updateTrackState(
+                    trackNumber = trackNumber,
+                    status = RipStatus.ERROR,
+                    progress = 0f,
+                    errorMessage = "Failed to create destination file",
+                    startLba = entry.lba,
+                    endLba = nextLba,
+                    totalSectors = totalSectors,
+                    sectorsRead = 0,
+                    totalSamples = totalSamples,
+                    durationSeconds = 0.0
+                )
+                continue
+            }
 
             var outputStream: java.io.OutputStream? = null
             var encoder: FlacEncoder? = null
@@ -148,8 +158,14 @@ class RipManager(
             var sectorsRead = 0
 
             try {
-                outputStream = FileOutputStream(cacheFile)
-                encoder = FlacEncoder(outputStream)
+                val rawStream = context.contentResolver.openOutputStream(destFile.uri)
+                    ?: throw java.io.IOException("Cannot open SAF output stream")
+                outputStream = BufferedOutputStream(rawStream, 1024 * 1024)
+
+                val metadataBytes = buildFlacMetadata(totalSamples, metadata.artistName, metadata.albumTitle, trackTitle, trackNumber, artworkBytes)
+                outputStream.write(metadataBytes)
+
+                encoder = FlacEncoder(outputStream, writeHeader = false)
                 encoder.start()
 
                 val isFirstTrack = (i == 0)
@@ -239,22 +255,6 @@ class RipManager(
                     durationSeconds = sectorsRead.toLong() * 588L / 44100.0
                 )
 
-                // Patch the FLAC STREAMINFO total_samples directly in the output file
-                try {
-                    RandomAccessFile(cacheFile, "rw").use { raf ->
-                        if (raf.length() >= 26) {
-                            raf.seek(18)
-                            val currentSamplesWord = raf.readLong()
-                            val upper28Bits = currentSamplesWord and -0x1000000000L
-                            val newSamplesWord = upper28Bits or (totalSamples and 0xFFFFFFFFFL)
-                            raf.seek(18)
-                            raf.writeLong(newSamplesWord)
-                        }
-                    }
-                } catch (e: Exception) {
-                    AppLogger.w("RipManager", "Failed to patch FLAC total_samples: ${e.message}")
-                }
-
                 carryBuffer = if (driveOffset > 0) chunkCarry else ByteArray(0)
                 finalChecksum = checksumAccumulator.finalise()
             } catch (e: Exception) {
@@ -282,47 +282,8 @@ class RipManager(
 
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
 
-            // Apply tags
-            try {
-                val audioFile = AudioFileIO.read(cacheFile)
-                val tag = audioFile.tagOrCreateAndSetDefault
-                tag.setField(FieldKey.ARTIST, metadata.artistName)
-                tag.setField(FieldKey.ALBUM, metadata.albumTitle)
-                tag.setField(FieldKey.TITLE, trackTitle)
-                tag.setField(FieldKey.TRACK, trackNumber.toString())
-
-                if (artworkBytes != null) {
-                    val picture = org.jaudiotagger.audio.flac.metadatablock.MetadataBlockDataPicture(
-                        artworkBytes, 3, "image/jpeg", "", 0, 0, 0, 0 // TODO: detect MIME type if non-JPEG sources are added
-                    )
-                    tag.deleteArtworkField()
-                    (tag as org.jaudiotagger.tag.flac.FlacTag).setField(picture)
-                }
-
-                audioFile.commit()
-            } catch (e: Exception) {
-                AppLogger.w("RipManager", "Failed to tag file: ${e.message}")
-            }
-
             // Verify checksum
             val expectedForTrack = expectedChecksums[trackNumber]
-
-            // Move from cache to SAF destination
-            try {
-                albumDir?.findFile(filename)?.delete()
-                val destFile = albumDir?.createFile("audio/flac", filename)
-                if (destFile != null) {
-                    context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
-                        cacheFile.inputStream().use { input ->
-                            input.copyTo(out)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                AppLogger.e("RipManager", "Failed to move file to SAF destination", e)
-            } finally {
-                cacheFile.delete()
-            }
 
             when {
                 expectedForTrack == null -> {
@@ -399,6 +360,117 @@ class RipManager(
         }
     }
 
+
+    private fun buildFlacMetadata(totalSamples: Long, artist: String?, album: String?, title: String?, track: Int, artworkBytes: ByteArray?): ByteArray {
+        val out = ByteArrayOutputStream()
+        // fLaC
+        out.write(byteArrayOf(0x66, 0x4C, 0x61, 0x43))
+
+        // STREAMINFO (type 0, length 34 = 0x22)
+        val hasPicture = artworkBytes != null
+        out.write(0x00) // Type 0, last = false
+        out.write(byteArrayOf(0x00, 0x00, 0x22))
+
+        val streamInfo = java.nio.ByteBuffer.allocate(34)
+        streamInfo.putShort(4096) // min block size
+        streamInfo.putShort(4096) // max block size
+        streamInfo.put(byteArrayOf(0, 0, 0)) // min frame size
+        streamInfo.put(byteArrayOf(0, 0, 0)) // max frame size
+
+        // sample rate 44100 (20 bits), channels 2 (3 bits), bps 16 (5 bits), total samples (36 bits)
+        val sr = 44100
+        val ch = 2 - 1
+        val bps = 16 - 1
+
+        val b1 = (sr shr 12) and 0xFF
+        val b2 = (sr shr 4) and 0xFF
+        val b3 = ((sr and 0xF) shl 4) or (ch shl 1) or ((bps shr 4) and 0x1)
+        val b4 = ((bps and 0xF) shl 4) or ((totalSamples shr 32).toInt() and 0xF)
+        val b5 = (totalSamples shr 24).toInt() and 0xFF
+        val b6 = (totalSamples shr 16).toInt() and 0xFF
+        val b7 = (totalSamples shr 8).toInt() and 0xFF
+        val b8 = totalSamples.toInt() and 0xFF
+
+        streamInfo.put(byteArrayOf(b1.toByte(), b2.toByte(), b3.toByte(), b4.toByte(), b5.toByte(), b6.toByte(), b7.toByte(), b8.toByte()))
+        streamInfo.put(ByteArray(16)) // MD5 zeroed
+        out.write(streamInfo.array())
+
+        // VORBIS_COMMENT (type 4)
+        val isLast = !hasPicture
+        val vcType = if (isLast) 0x84 else 0x04
+
+        val vcPayload = ByteArrayOutputStream()
+        val vendorString = "BitPerfect".toByteArray(Charsets.UTF_8)
+        vcPayload.writeLittleEndianInt(vendorString.size)
+        vcPayload.write(vendorString)
+
+        val comments = mutableListOf<String>()
+        if (artist != null) comments.add("ARTIST=$artist")
+        if (album != null) comments.add("ALBUM=$album")
+        if (title != null) comments.add("TITLE=$title")
+        comments.add("TRACKNUMBER=$track")
+
+        vcPayload.writeLittleEndianInt(comments.size)
+        for (comment in comments) {
+            val bytes = comment.toByteArray(Charsets.UTF_8)
+            vcPayload.writeLittleEndianInt(bytes.size)
+            vcPayload.write(bytes)
+        }
+
+        val vcBytes = vcPayload.toByteArray()
+        out.write(vcType)
+        out.write(byteArrayOf((vcBytes.size shr 16).toByte(), (vcBytes.size shr 8).toByte(), vcBytes.size.toByte()))
+        out.write(vcBytes)
+
+        if (hasPicture) {
+            val picType = 0x86 // Last block = true, type 6
+            val mimeType = detectMimeType(artworkBytes!!)
+            val mimeBytes = mimeType.toByteArray(Charsets.US_ASCII)
+            val picPayload = ByteArrayOutputStream()
+
+            picPayload.writeBigEndianInt(3) // Picture type: Front cover
+            picPayload.writeBigEndianInt(mimeBytes.size)
+            picPayload.write(mimeBytes)
+            picPayload.writeBigEndianInt(0) // Description length
+            picPayload.writeBigEndianInt(0) // width
+            picPayload.writeBigEndianInt(0) // height
+            picPayload.writeBigEndianInt(0) // color depth
+            picPayload.writeBigEndianInt(0) // indexed colors
+            picPayload.writeBigEndianInt(artworkBytes.size)
+            picPayload.write(artworkBytes)
+
+            val picBytes = picPayload.toByteArray()
+            out.write(picType)
+            out.write(byteArrayOf((picBytes.size shr 16).toByte(), (picBytes.size shr 8).toByte(), picBytes.size.toByte()))
+            out.write(picBytes)
+        }
+
+        return out.toByteArray()
+    }
+
+    private fun detectMimeType(bytes: ByteArray): String {
+        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()) {
+            return "image/jpeg"
+        }
+        if (bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()) {
+            return "image/png"
+        }
+        return "image/jpeg"
+    }
+
+    private fun ByteArrayOutputStream.writeLittleEndianInt(value: Int) {
+        write(value and 0xFF)
+        write((value shr 8) and 0xFF)
+        write((value shr 16) and 0xFF)
+        write((value shr 24) and 0xFF)
+    }
+
+    private fun ByteArrayOutputStream.writeBigEndianInt(value: Int) {
+        write((value shr 24) and 0xFF)
+        write((value shr 16) and 0xFF)
+        write((value shr 8) and 0xFF)
+        write(value and 0xFF)
+    }
 
     private fun writeRipLog(albumDir: DocumentFile?, driveOffset: Int, ripStates: Map<Int, TrackRipState>) {
         val dir = albumDir ?: return
