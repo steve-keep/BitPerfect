@@ -21,7 +21,7 @@ class ChecksumAccumulatorTest {
         val pcmData = createDummyPcmData(4000) // 1000 samples
 
         val accumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset = 0)
-        accumulator.accumulate(pcmData, sectorsToRead = pcmData.size / 2352)
+        accumulator.accumulate(pcmData)
 
         val directResult = verifier.computeChecksumChunk(pcmData, samplePosition = 1, totalSamples = totalSamples)
 
@@ -37,7 +37,7 @@ class ChecksumAccumulatorTest {
         val pcmData = createDummyPcmData(400) // 100 samples
 
         val accumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
-        accumulator.accumulate(pcmData, sectorsToRead = 0)
+        accumulator.accumulate(pcmData)
 
         // For positive offset 10, the first 10 samples have adjusted positions <= 0.
         // AccurateRipVerifier internally handles skipping or not accumulating for positions outside [2941, totalSamples - 2940].
@@ -63,7 +63,7 @@ class ChecksumAccumulatorTest {
         assertEquals(-4L, accumulator.samplePosition)
 
         val pcmData = createDummyPcmData(40) // 10 samples
-        accumulator.accumulate(pcmData, sectorsToRead = 0)
+        accumulator.accumulate(pcmData)
 
         // Adjusted position for first chunk is -4 - (-5) = 1.
         // Processing 10 samples sets samplePosition to -4 + 10 = 6.
@@ -77,10 +77,10 @@ class ChecksumAccumulatorTest {
         val driveOffset = 1000
         val pcmData = createDummyPcmData(2352) // 588 samples, 1 sector
 
-        val accumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
+        val accumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset, isFirstTrack = true, isLastTrack = true)
 
         // This should not throw an exception even though adjusted sample positions are <= 0
-        accumulator.accumulate(pcmData, sectorsToRead = 1)
+        accumulator.accumulate(pcmData)
 
         assertEquals(0L, accumulator.ripChecksum) // Because all positions are <= 0
         assertEquals(589L, accumulator.samplePosition) // 1 + 588
@@ -99,7 +99,7 @@ class ChecksumAccumulatorTest {
         }
 
         val accumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
-        accumulator.accumulate(pcmData, sectorsToRead = 0)
+        accumulator.accumulate(pcmData)
 
         // The exact same checksum should be produced as if calling the verifier directly
         // with samplePosition = 1, because drive offset should not shift track-relative positions
