@@ -81,12 +81,19 @@ class FlacEncoder(
                 val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
                 if (outputBuffer != null && bufferInfo.size > 0) {
                     // BUFFER_FLAG_CODEC_CONFIG carries the FLAC STREAMINFO block on most devices.
-                    // We write it as normal output — do not skip it. The manual "fLaC" header write
-                    // has been removed from start() so this is the sole source of the container header.
+                    // We write it as normal output unless writeHeader is false.
                     val chunk = ByteArray(bufferInfo.size)
                     outputBuffer.position(bufferInfo.offset)
                     outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                     outputBuffer.get(chunk)
+
+                    if (!writeHeader && (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                        codec.releaseOutputBuffer(outputBufferIndex, false)
+                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            break
+                        }
+                        continue
+                    }
 
                     processAndWriteChunk(chunk)
                 }
@@ -134,6 +141,14 @@ class FlacEncoder(
                     outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                     outputBuffer.get(chunk)
 
+                    if (!writeHeader && (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                        codec.releaseOutputBuffer(outputBufferIndex, false)
+                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            break
+                        }
+                        continue
+                    }
+
                     processAndWriteChunk(chunk)
                 }
 
@@ -149,7 +164,6 @@ class FlacEncoder(
         codec.release()
         mediaCodec = null
         isConfigured = false
-        hasWrittenHeader = false
         presentationTimeUs = 0L
     }
 }
