@@ -124,42 +124,6 @@ class FlacEncoder(
         val codec = mediaCodec ?: return
         encode(ByteArray(0), isEndOfStream = true)
 
-        val bufferInfo = MediaCodec.BufferInfo()
-        val audioDurationMs = presentationTimeUs / 1000L
-        val deadlineMs = System.currentTimeMillis() + audioDurationMs + 5_000L
-        while (System.currentTimeMillis() < deadlineMs) {
-            val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
-            if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                continue
-            } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                continue
-            } else if (outputBufferIndex >= 0) {
-                val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
-                if (outputBuffer != null && bufferInfo.size > 0) {
-                    val chunk = ByteArray(bufferInfo.size)
-                    outputBuffer.position(bufferInfo.offset)
-                    outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                    outputBuffer.get(chunk)
-
-                    if (!writeHeader && (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                        codec.releaseOutputBuffer(outputBufferIndex, false)
-                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                            break
-                        }
-                        continue
-                    }
-
-                    processAndWriteChunk(chunk)
-                }
-
-                codec.releaseOutputBuffer(outputBufferIndex, false)
-
-                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    break
-                }
-            }
-        }
-
         codec.stop()
         codec.release()
         mediaCodec = null
