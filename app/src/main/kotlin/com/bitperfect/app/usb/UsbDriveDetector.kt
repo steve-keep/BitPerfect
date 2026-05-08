@@ -338,8 +338,6 @@ class UsbDriveDetector(
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error in polling loop", e)
-            } finally {
-                cleanupConnection()
             }
         }
     }
