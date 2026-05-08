@@ -58,10 +58,15 @@ class AccurateRipVerifier {
     fun computeChecksumChunk(
         pcmData: ByteArray,
         samplePosition: Long,
-        totalSamples: Long
+        totalSamples: Long,
+        isFirstTrack: Boolean = false,
+        isLastTrack: Boolean = false
     ): ChunkChecksumResult {
         var partialChecksum = 0L
         var currentSamplePos = samplePosition
+
+        val skipStart = if (isFirstTrack) 2940L else 0L
+        val skipEnd   = if (isLastTrack)  2940L else 0L
 
         for (i in 0 until (pcmData.size / 4) * 4 step 4) {
             val sample = ((pcmData[i].toLong() and 0xFF) or
@@ -71,7 +76,7 @@ class AccurateRipVerifier {
 
             val sampleValue = sample and 0xFFFFFFFFL
 
-            if (currentSamplePos > 2940 && currentSamplePos <= totalSamples - 2940) {
+            if (currentSamplePos > skipStart && currentSamplePos <= totalSamples - skipEnd) {
                 partialChecksum += sampleValue * currentSamplePos
             }
             currentSamplePos++

@@ -133,7 +133,10 @@ class AccurateRipVerifierTest {
             pcmData[i] = 1
         }
 
-        val result = verifier.computeChecksumChunk(pcmData, 1, samples.toLong())
+        val result = verifier.computeChecksumChunk(
+            pcmData, 1, samples.toLong(),
+            isFirstTrack = true, isLastTrack = true
+        )
 
         assertEquals(0L, result.partialChecksum)
         assertEquals(samples.toLong() + 1, result.nextSamplePosition)
@@ -153,7 +156,10 @@ class AccurateRipVerifierTest {
             pcmData[i+3] = 0
         }
 
-        val result = verifier.computeChecksumChunk(pcmData, 1, samples)
+        val result = verifier.computeChecksumChunk(
+            pcmData, 1, samples,
+            isFirstTrack = true, isLastTrack = true
+        )
 
         // Expected partial sum: sum of i for i in 2941..5880
         var expectedSum = 0L
@@ -177,7 +183,10 @@ class AccurateRipVerifierTest {
         }
 
         // Single chunk calculation
-        val singleResult = verifier.computeChecksumChunk(pcmData, 1, totalSamples)
+        val singleResult = verifier.computeChecksumChunk(
+            pcmData, 1, totalSamples,
+            isFirstTrack = true, isLastTrack = true
+        )
 
         // Split into 3 chunks
         val chunk1SizeSamples = 3000
@@ -188,9 +197,9 @@ class AccurateRipVerifierTest {
         val chunk2 = pcmData.copyOfRange(chunk1SizeSamples * 4, (chunk1SizeSamples + chunk2SizeSamples) * 4)
         val chunk3 = pcmData.copyOfRange((chunk1SizeSamples + chunk2SizeSamples) * 4, pcmData.size)
 
-        val result1 = verifier.computeChecksumChunk(chunk1, 1, totalSamples)
-        val result2 = verifier.computeChecksumChunk(chunk2, result1.nextSamplePosition, totalSamples)
-        val result3 = verifier.computeChecksumChunk(chunk3, result2.nextSamplePosition, totalSamples)
+        val result1 = verifier.computeChecksumChunk(chunk1, 1, totalSamples, isFirstTrack = true, isLastTrack = true)
+        val result2 = verifier.computeChecksumChunk(chunk2, result1.nextSamplePosition, totalSamples, isFirstTrack = true, isLastTrack = true)
+        val result3 = verifier.computeChecksumChunk(chunk3, result2.nextSamplePosition, totalSamples, isFirstTrack = true, isLastTrack = true)
 
         val multiChunkTotal = result1.partialChecksum + result2.partialChecksum + result3.partialChecksum
 

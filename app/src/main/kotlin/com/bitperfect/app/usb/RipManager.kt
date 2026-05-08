@@ -152,7 +152,16 @@ class RipManager(
                 encoder = FlacEncoder(outputStream)
                 encoder.start()
 
-                val checksumAccumulator = ChecksumAccumulator(verifier, totalSamples, driveOffset)
+                val isFirstTrack = (i == 0)
+                val isLastTrack  = (i == toc.tracks.size - 1)
+
+                val checksumAccumulator = ChecksumAccumulator(
+                    verifier      = verifier,
+                    totalSamples  = totalSamples,
+                    driveOffset   = driveOffset,
+                    isFirstTrack  = isFirstTrack,
+                    isLastTrack   = isLastTrack
+                )
 
                 val trackPcmBuffer = java.io.ByteArrayOutputStream()
                 val chunkSize = 8 // read ~8 sectors at a time
@@ -232,7 +241,7 @@ class RipManager(
                     nextCarryBuffer = ByteArray(0)
                 }
 
-                checksumAccumulator.accumulate(dataForAccumulator, 0)
+                checksumAccumulator.accumulate(dataForAccumulator)
 
                 // Patch the FLAC STREAMINFO total_samples directly in the output file
                 try {

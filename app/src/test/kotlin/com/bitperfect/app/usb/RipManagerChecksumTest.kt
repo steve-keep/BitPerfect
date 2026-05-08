@@ -22,35 +22,16 @@ class RipManagerChecksumTest {
 
         // Provide 10 sectors of dummy PCM data
         val chunk1Pcm = ByteArray(10 * 2352) { it.toByte() }
-        accumulator.accumulate(chunk1Pcm, 10)
+        accumulator.accumulate(chunk1Pcm)
 
         // After 10 sectors (5880 samples), position should be 5881
         assertEquals(1L + (10 * 588L), accumulator.samplePosition)
 
         // Provide another 10 sectors of dummy PCM data
         val chunk2Pcm = ByteArray(10 * 2352) { (it + 1).toByte() }
-        accumulator.accumulate(chunk2Pcm, 10)
+        accumulator.accumulate(chunk2Pcm)
 
         // After another 10 sectors, position should be 11761
-        assertEquals(1L + (20 * 588L), accumulator.samplePosition)
-    }
-
-    @Test
-    fun `ChecksumAccumulator silence advancement`() {
-        val verifier = AccurateRipVerifier()
-        val totalSamples = 20L * 588L
-        val accumulator = ChecksumAccumulator(verifier, totalSamples)
-
-        // Simulate read failure for 10 sectors
-        accumulator.accumulate(null, 10)
-
-        // Position should still advance by 10 sectors' worth of samples
-        assertEquals(1L + (10 * 588L), accumulator.samplePosition)
-
-        // Provide 10 sectors of dummy PCM data
-        val chunk2Pcm = ByteArray(10 * 2352) { it.toByte() }
-        accumulator.accumulate(chunk2Pcm, 10)
-
         assertEquals(1L + (20 * 588L), accumulator.samplePosition)
     }
 
@@ -110,8 +91,14 @@ class RipManagerChecksumTest {
         val verifier = AccurateRipVerifier()
 
         // Run expected through verifier to get expected checksums
-        val expectedChecksum1 = verifier.computeChecksumChunk(expectedTrack1Data, 1, totalSamples).partialChecksum
-        val expectedChecksum2 = verifier.computeChecksumChunk(expectedTrack2Data, 1, totalSamples).partialChecksum
+        val expectedChecksum1 = verifier.computeChecksumChunk(
+            expectedTrack1Data, 1, totalSamples,
+            isFirstTrack = true, isLastTrack = false
+        ).partialChecksum
+        val expectedChecksum2 = verifier.computeChecksumChunk(
+            expectedTrack2Data, 1, totalSamples,
+            isFirstTrack = false, isLastTrack = true
+        ).partialChecksum
 
         // Now simulate the RipManager logic
         var carryBuffer = ByteArray(offsetBytes)
@@ -126,11 +113,11 @@ class RipManagerChecksumTest {
         var nextCarryBuffer1 = trackBytes1.copyOfRange(trackBytes1.size - offsetBytes, trackBytes1.size)
         carryBuffer = nextCarryBuffer1
 
-        val accumulator1 = ChecksumAccumulator(verifier, totalSamples, 0) // offset 0 because RipManager passes 0 or it doesn't affect `samplePosition=1` for positive offsets. Wait, the actual RipManager passes `driveOffset`. Let's check `ChecksumAccumulator` constructor.
-        // Actually, ChecksumAccumulator sets samplePosition = 1L + driveOffset IF driveOffset < 0. For > 0, it sets 1L.
-        // So passing `driveOffset` or 0 is same for positive offsets in ChecksumAccumulator.
-        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, driveOffset)
-        accumulatorT1.accumulate(dataForAccumulator1, 0)
+        val accumulatorT1 = ChecksumAccumulator(
+            verifier, totalSamples, driveOffset,
+            isFirstTrack = true, isLastTrack = false
+        )
+        accumulatorT1.accumulate(dataForAccumulator1)
         assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
 
         // --- Track 2 ---
@@ -141,8 +128,11 @@ class RipManagerChecksumTest {
         System.arraycopy(carryBuffer, 0, dataForAccumulator2, 0, offsetBytes)
         System.arraycopy(trackBytes2, 0, dataForAccumulator2, offsetBytes, usableBytes2)
 
-        val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, driveOffset)
-        accumulatorT2.accumulate(dataForAccumulator2, 0)
+        val accumulatorT2 = ChecksumAccumulator(
+            verifier, totalSamples, driveOffset,
+            isFirstTrack = false, isLastTrack = true
+        )
+        accumulatorT2.accumulate(dataForAccumulator2)
         assertEquals("Track 2 checksum mismatch", expectedChecksum2, accumulatorT2.ripChecksum)
     }
 }
