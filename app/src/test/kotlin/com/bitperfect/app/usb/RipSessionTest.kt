@@ -24,6 +24,7 @@ class RipSessionTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        DeviceStateManager.initialize(context)
         // We use a clean instance for each test to isolate state
         ripSession = RipSession(context)
 
