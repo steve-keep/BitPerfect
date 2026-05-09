@@ -114,7 +114,19 @@ class RipManager(
 
         val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
 
-        var carryBuffer = ByteArray(0)
+        val tocOffset = run {
+            var toc = driveOffset / 588
+            var rem = driveOffset % 588
+            if (rem < 0) { rem += 588; toc-- }
+            toc
+        }
+        val sampleOffset = run {
+            var rem = driveOffset % 588
+            if (rem < 0) rem += 588
+            rem
+        }
+        val skipBytes = sampleOffset * 4
+        var overreadBuffer: ByteArray? = null
 
         for (i in 0 until toc.tracks.size) {
             if (isCancelled) break
@@ -186,21 +198,27 @@ class RipManager(
                 val checksumAccumulator = ChecksumAccumulator(
                     verifier      = verifier,
                     totalSamples  = totalSamples,
-                    driveOffset   = driveOffset,
                     isFirstTrack  = isFirstTrack,
                     isLastTrack   = isLastTrack
                 )
 
                 val chunkSize = 8 // read ~8 sectors at a time
-                var chunkCarry = carryBuffer
-                val offsetBytes = Math.abs(driveOffset) * 4
+                val lbaStart = entry.lba + tocOffset
+
+                if (overreadBuffer != null) {
+                    encoder.encode(overreadBuffer!!)
+                    checksumAccumulator.accumulate(overreadBuffer!!)
+                    sectorsRead = 1
+                }
+
+                var isFirstSector = true
 
                 while (sectorsRead < totalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
                     var pcmData: ByteArray? = null
 
                     for (attempt in 1..MAX_READ_RETRIES) {
-                        pcmData = readCmd.execute(entry.lba + sectorsRead - toc.pregapOffset, sectorsToRead)
+                        pcmData = readCmd.execute(lbaStart + sectorsRead - toc.pregapOffset, sectorsToRead)
                         if (pcmData != null) {
                             break
                         }
@@ -212,48 +230,62 @@ class RipManager(
                     if (pcmData != null) {
                         val sectorsActuallyRead = pcmData.size / 2352
                         if (sectorsActuallyRead < sectorsToRead) {
-                            AppLogger.w("RipManager", "Short read at LBA ${entry.lba + sectorsRead}: " +
+                            AppLogger.w("RipManager", "Short read at LBA ${lbaStart + sectorsRead}: " +
                                 "got $sectorsActuallyRead of $sectorsToRead sectors")
                         }
 
-                        encoder.encode(pcmData)
+                        val trimmed = if (isFirstSector && skipBytes > 0) pcmData.copyOfRange(skipBytes, pcmData.size) else pcmData
+                        encoder.encode(trimmed)
+                        checksumAccumulator.accumulate(trimmed)
+                        isFirstSector = false
+
                         sectorsRead += sectorsActuallyRead
-
-                        val chunkForChecksum: ByteArray = when {
-                            driveOffset > 0 -> {
-                                val combined = chunkCarry + pcmData
-                                chunkCarry = combined.copyOfRange(combined.size - offsetBytes, combined.size)
-                                combined.copyOfRange(0, combined.size - offsetBytes)
-                            }
-                            driveOffset < 0 -> {
-                                val combined = chunkCarry + pcmData
-                                chunkCarry = combined.copyOfRange(0, offsetBytes)
-                                combined.copyOfRange(offsetBytes, combined.size)
-                            }
-                            else -> pcmData
-                        }
-
-                        if (chunkForChecksum.isNotEmpty()) {
-                            checksumAccumulator.accumulate(chunkForChecksum)
-                        }
                     } else {
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
                             throw java.io.IOException("Disc removed or drive not ready during rip")
                         }
-                        throw java.io.IOException("Failed to read sector ${entry.lba + sectorsRead} after $MAX_READ_RETRIES attempts")
+                        throw java.io.IOException("Failed to read sector ${lbaStart + sectorsRead} after $MAX_READ_RETRIES attempts")
                     }
 
                     updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
                 }
 
-                encoder.stop()
-
-                if (driveOffset != 0 && chunkCarry.isNotEmpty()) {
-                    if (driveOffset < 0 || isLastTrack) {
-                        checksumAccumulator.accumulate(chunkCarry)
+                if (sampleOffset > 0) {
+                    if (!isLastTrack) {
+                        var overreadPcm: ByteArray? = null
+                        for (attempt in 1..MAX_READ_RETRIES) {
+                            overreadPcm = readCmd.execute(lbaStart + totalSectors - toc.pregapOffset, 1)
+                            if (overreadPcm != null) break
+                            if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) break
+                        }
+                        if (overreadPcm == null) {
+                            if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
+                                isCancelled = true
+                                throw java.io.IOException("Disc removed or drive not ready during rip")
+                            }
+                            throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors} after $MAX_READ_RETRIES attempts")
+                        }
+                        val toFeed = overreadPcm.copyOfRange(0, skipBytes)
+                        encoder.encode(toFeed)
+                        checksumAccumulator.accumulate(toFeed)
+                        overreadBuffer = overreadPcm.copyOfRange(skipBytes, overreadPcm.size)
+                    } else {
+                        val silence = ByteArray(skipBytes)
+                        encoder.encode(silence)
+                        checksumAccumulator.accumulate(silence)
+                        overreadBuffer = null
                     }
+                } else {
+                    overreadBuffer = null
                 }
+
+                if (isLastTrack && tocOffset > 0) {
+                    val silence = ByteArray(tocOffset * 2352)
+                    encoder.encode(silence)
+                }
+
+                encoder.stop()
 
                 updateTrackState(
                     trackNumber = trackNumber,
@@ -267,7 +299,6 @@ class RipManager(
                     durationSeconds = sectorsRead.toLong() * 588L / 44100.0
                 )
 
-                carryBuffer = if (driveOffset > 0) chunkCarry else ByteArray(0)
                 finalChecksum = checksumAccumulator.finalise()
             } catch (e: Exception) {
                 AppLogger.e("RipManager", "Error ripping track $trackNumber", e)

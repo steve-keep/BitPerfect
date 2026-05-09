@@ -33,3 +33,4 @@ jtagger_src/
 kotlinc/
 *.jar
 Test*
+*.py

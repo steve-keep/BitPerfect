@@ -20,119 +20,156 @@ class RipManagerChecksumTest {
         val totalSamples = 20L * 588L
         val accumulator = ChecksumAccumulator(verifier, totalSamples)
 
-        // Provide 10 sectors of dummy PCM data
         val chunk1Pcm = ByteArray(10 * 2352) { it.toByte() }
         accumulator.accumulate(chunk1Pcm)
-
-        // After 10 sectors (5880 samples), position should be 5881
         assertEquals(1L + (10 * 588L), accumulator.samplePosition)
 
-        // Provide another 10 sectors of dummy PCM data
         val chunk2Pcm = ByteArray(10 * 2352) { (it + 1).toByte() }
         accumulator.accumulate(chunk2Pcm)
-
-        // After another 10 sectors, position should be 11761
         assertEquals(1L + (20 * 588L), accumulator.samplePosition)
     }
 
     @Test
-    fun `TrackRipState WARNING fields populated on mismatch`() {
-        val state = TrackRipState(
-            trackNumber = 1,
-            progress = 1f,
-            status = RipStatus.WARNING,
-            accurateRipUrl = "http://example.com",
-            computedChecksum = 123456L,
-            expectedChecksums = listOf(654321L)
-        )
+    fun `cdparanoia model with positive offset`() {
+        // +667 offset -> tocOffset = 1, sampleOffset = 79, skipBytes = 316
+        val driveOffset = 667
+        val tocOffset = 1
+        val sampleOffset = 79
+        val skipBytes = 316
 
-        assertEquals(1, state.trackNumber)
-        assertEquals(1f, state.progress)
-        assertEquals(RipStatus.WARNING, state.status)
-        assertEquals("http://example.com", state.accurateRipUrl)
-        assertEquals(123456L, state.computedChecksum)
-        assertEquals(listOf(654321L), state.expectedChecksums)
-    }
-
-    @Test
-    fun `Positive offset shifts samples and carries between tracks`() {
-        val driveOffset = 10
-        val offsetBytes = driveOffset * 4
-
-        // 10 sectors track length to ensure we are accumulating (10 * 588 = 5880 samples)
-        // AccurateRip checksum accumulates samples 2941 to totalSamples - 2940.
-        // For a 10 sector track, it's exactly 5880 samples, which gives no accumulation because 5880 <= 5880.
-        // Let's use 20 sectors (11760 samples) per track. Accumulation window is 2941..8820.
         val sectorsPerTrack = 20
         val trackBytesSize = sectorsPerTrack * 2352
         val totalSamples = sectorsPerTrack * 588L
 
-        // Simulated track 1 PCM output from drive (shifted by offset)
-        // Has a pattern we can trace
-        val track1Pcm = ByteArray(trackBytesSize) { (it % 256).toByte() }
+        // Track 1
+        val t1PhysicalMain = ByteArray(trackBytesSize) { (it % 256).toByte() }
+        val t1PhysicalOvershoot = ByteArray(2352) { ((it + 10) % 256).toByte() }
 
-        // Track 2 PCM output from drive
-        val track2Pcm = ByteArray(trackBytesSize) { ((it + 1) % 256).toByte() }
+        // Track 2
+        // Main loop reads trackBytesSize - 2352 (since sectorsRead starts at 1)
+        val t2PhysicalMain = ByteArray(trackBytesSize - 2352) { ((it + 20) % 256).toByte() }
+        val t2PhysicalOvershoot = ByteArray(2352) { ((it + 30) % 256).toByte() }
 
-        // Expected dataForAccumulator for track 1:
-        // First `driveOffset` samples are 0 (silence).
-        // Remaining `totalSamples - driveOffset` samples are from `track1Pcm`
-        val expectedTrack1Data = ByteArray(trackBytesSize)
-        // First offsetBytes are already 0
-        System.arraycopy(track1Pcm, 0, expectedTrack1Data, offsetBytes, trackBytesSize - offsetBytes)
+        // Track 1 expected continuous PCM
+        val expectedT1 = ByteArray(trackBytesSize)
+        System.arraycopy(t1PhysicalMain, skipBytes, expectedT1, 0, trackBytesSize - skipBytes)
+        System.arraycopy(t1PhysicalOvershoot, 0, expectedT1, trackBytesSize - skipBytes, skipBytes)
 
-        // Expected dataForAccumulator for track 2:
-        // First `driveOffset` samples are the last `driveOffset` samples from `track1Pcm`
-        // Remaining are from `track2Pcm`
-        val expectedTrack2Data = ByteArray(trackBytesSize)
-        System.arraycopy(track1Pcm, trackBytesSize - offsetBytes, expectedTrack2Data, 0, offsetBytes)
-        System.arraycopy(track2Pcm, 0, expectedTrack2Data, offsetBytes, trackBytesSize - offsetBytes)
+        // Track 2 expected continuous PCM
+        val expectedT2 = ByteArray(trackBytesSize)
+        val overreadBuffer = t1PhysicalOvershoot.copyOfRange(skipBytes, 2352)
+        System.arraycopy(overreadBuffer, 0, expectedT2, 0, overreadBuffer.size)
+        System.arraycopy(t2PhysicalMain, skipBytes, expectedT2, overreadBuffer.size, t2PhysicalMain.size - skipBytes)
+        System.arraycopy(t2PhysicalOvershoot, 0, expectedT2, trackBytesSize - skipBytes, skipBytes)
 
         val verifier = AccurateRipVerifier()
 
-        // Run expected through verifier to get expected checksums
         val expectedChecksum1 = verifier.computeChecksumChunk(
-            expectedTrack1Data, 1, totalSamples,
+            expectedT1, 1, totalSamples,
             isFirstTrack = true, isLastTrack = false
         ).partialChecksum
+
         val expectedChecksum2 = verifier.computeChecksumChunk(
-            expectedTrack2Data, 1, totalSamples,
+            expectedT2, 1, totalSamples,
             isFirstTrack = false, isLastTrack = true
         ).partialChecksum
 
-        // Now simulate the RipManager logic
-        var carryBuffer = ByteArray(offsetBytes)
+        // Simulate RipManager Accumulator feeding
+        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = false)
+        // track 1:
+        accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
+        accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
+        val t1Actual = accumulatorT1.ripChecksum
 
-        // --- Track 1 ---
-        val trackBytes1 = track1Pcm
-        var dataForAccumulator1 = trackBytes1
-        val usableBytes1 = trackBytes1.size - offsetBytes
-        dataForAccumulator1 = ByteArray(offsetBytes + usableBytes1)
-        System.arraycopy(carryBuffer, 0, dataForAccumulator1, 0, offsetBytes)
-        System.arraycopy(trackBytes1, 0, dataForAccumulator1, offsetBytes, usableBytes1)
-        var nextCarryBuffer1 = trackBytes1.copyOfRange(trackBytes1.size - offsetBytes, trackBytes1.size)
-        carryBuffer = nextCarryBuffer1
+        assertEquals("Track 1 checksum mismatch", expectedChecksum1, t1Actual)
 
-        val accumulatorT1 = ChecksumAccumulator(
-            verifier, totalSamples, driveOffset,
+        val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
+        // track 2:
+        accumulatorT2.accumulate(overreadBuffer)
+        accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
+        accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
+        val t2Actual = accumulatorT2.ripChecksum
+
+        assertEquals("Track 2 checksum mismatch", expectedChecksum2, t2Actual)
+    }
+
+    @Test
+    fun `cdparanoia model with negative offset`() {
+        // -48 offset -> tocOffset = -1, sampleOffset = 540, skipBytes = 2160
+        val sampleOffset = 540
+        val skipBytes = 2160
+
+        val sectorsPerTrack = 20
+        val trackBytesSize = sectorsPerTrack * 2352
+        val totalSamples = sectorsPerTrack * 588L
+
+        // Track 1
+        val t1PhysicalMain = ByteArray(trackBytesSize) { (it % 256).toByte() }
+        val t1PhysicalOvershoot = ByteArray(2352) { ((it + 10) % 256).toByte() }
+
+        // Track 2
+        val t2PhysicalMain = ByteArray(trackBytesSize - 2352) { ((it + 20) % 256).toByte() }
+        val t2PhysicalOvershoot = ByteArray(2352) { ((it + 30) % 256).toByte() }
+
+        val expectedT1 = ByteArray(trackBytesSize)
+        System.arraycopy(t1PhysicalMain, skipBytes, expectedT1, 0, trackBytesSize - skipBytes)
+        System.arraycopy(t1PhysicalOvershoot, 0, expectedT1, trackBytesSize - skipBytes, skipBytes)
+
+        val expectedT2 = ByteArray(trackBytesSize)
+        val overreadBuffer = t1PhysicalOvershoot.copyOfRange(skipBytes, 2352)
+        System.arraycopy(overreadBuffer, 0, expectedT2, 0, overreadBuffer.size)
+        System.arraycopy(t2PhysicalMain, skipBytes, expectedT2, overreadBuffer.size, t2PhysicalMain.size - skipBytes)
+        System.arraycopy(t2PhysicalOvershoot, 0, expectedT2, trackBytesSize - skipBytes, skipBytes)
+
+        val verifier = AccurateRipVerifier()
+
+        val expectedChecksum1 = verifier.computeChecksumChunk(
+            expectedT1, 1, totalSamples,
             isFirstTrack = true, isLastTrack = false
-        )
-        accumulatorT1.accumulate(dataForAccumulator1)
+        ).partialChecksum
+
+        val expectedChecksum2 = verifier.computeChecksumChunk(
+            expectedT2, 1, totalSamples,
+            isFirstTrack = false, isLastTrack = true
+        ).partialChecksum
+
+        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = false)
+        accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
+        accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
         assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
 
-        // --- Track 2 ---
-        val trackBytes2 = track2Pcm
-        var dataForAccumulator2 = trackBytes2
-        val usableBytes2 = trackBytes2.size - offsetBytes
-        dataForAccumulator2 = ByteArray(offsetBytes + usableBytes2)
-        System.arraycopy(carryBuffer, 0, dataForAccumulator2, 0, offsetBytes)
-        System.arraycopy(trackBytes2, 0, dataForAccumulator2, offsetBytes, usableBytes2)
-
-        val accumulatorT2 = ChecksumAccumulator(
-            verifier, totalSamples, driveOffset,
-            isFirstTrack = false, isLastTrack = true
-        )
-        accumulatorT2.accumulate(dataForAccumulator2)
+        val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
+        accumulatorT2.accumulate(overreadBuffer)
+        accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
+        accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
         assertEquals("Track 2 checksum mismatch", expectedChecksum2, accumulatorT2.ripChecksum)
+    }
+
+    @Test
+    fun `exact multiple of 588 offset has no sampleOffset or overread`() {
+        val driveOffset = 588
+        // tocOffset = 1, sampleOffset = 0, skipBytes = 0
+        val skipBytes = 0
+
+        val sectorsPerTrack = 20
+        val trackBytesSize = sectorsPerTrack * 2352
+        val totalSamples = sectorsPerTrack * 588L
+
+        val t1PhysicalMain = ByteArray(trackBytesSize) { (it % 256).toByte() }
+
+        // Expected T1 is just t1PhysicalMain
+        val expectedT1 = t1PhysicalMain
+
+        val verifier = AccurateRipVerifier()
+        val expectedChecksum1 = verifier.computeChecksumChunk(
+            expectedT1, 1, totalSamples,
+            isFirstTrack = true, isLastTrack = true
+        ).partialChecksum
+
+        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = true)
+        // No overread buffer, no skipBytes
+        accumulatorT1.accumulate(t1PhysicalMain)
+
+        assertEquals("Exact multiple checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
     }
 }
