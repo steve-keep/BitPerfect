@@ -67,7 +67,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=recordings+artists"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=recordings+artists+genres+artist-credits"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -100,11 +100,23 @@ class MusicBrainzRepository(private val context: Context) {
         val trackTitles = release.media.firstOrNull()?.tracks?.map { it.title } ?: emptyList()
         val mbReleaseId = release.id
 
+        val year = release.date?.takeIf { it.length >= 4 }?.substring(0, 4)
+
+        val albumArtist = release.artistCredit.joinToString("") {
+            (it.name ?: it.artist.name) + (it.joinphrase ?: "")
+        }.takeIf { it.isNotBlank() }
+
+        val genre = release.genres.firstOrNull()?.name
+            ?: release.artistCredit.firstOrNull()?.artist?.genres?.firstOrNull()?.name
+
         return DiscMetadata(
             albumTitle = albumTitle,
             artistName = artistName,
             trackTitles = trackTitles,
-            mbReleaseId = mbReleaseId
+            mbReleaseId = mbReleaseId,
+            year = year,
+            genre = genre,
+            albumArtist = albumArtist
         )
     }
 }
