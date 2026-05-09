@@ -1,4 +1,4 @@
-package com.bitperfect.app.usb
+content = """package com.bitperfect.app.usb
 
 import com.bitperfect.core.services.AccurateRipVerifier
 import org.junit.Assert.assertEquals
@@ -29,3 +29,6 @@ class ChecksumAccumulatorTest {
         assertEquals(1001L, accumulator.samplePosition)
     }
 }
+"""
+with open("app/src/test/kotlin/com/bitperfect/app/usb/ChecksumAccumulatorTest.kt", "w") as f:
+    f.write(content)

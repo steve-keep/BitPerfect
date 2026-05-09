@@ -1,4 +1,4 @@
-package com.bitperfect.app.usb
+content = """package com.bitperfect.app.usb
 
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
@@ -173,3 +173,6 @@ class RipManagerChecksumTest {
         assertEquals("Exact multiple checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
     }
 }
+"""
+with open("app/src/test/kotlin/com/bitperfect/app/usb/RipManagerChecksumTest.kt", "w") as f:
+    f.write(content)
