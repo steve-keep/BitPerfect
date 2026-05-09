@@ -55,12 +55,12 @@ fun NowPlayingBar(
         modifier = modifier
             .fillMaxWidth(),
         color = Color.Transparent,
-        tonalElevation = 0.dp,
-        onClick = onClick
+        tonalElevation = 0.dp
     ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable(onClick = onClick)
                         .padding(
                             top = 8.dp,
                             start = 16.dp,
