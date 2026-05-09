@@ -60,13 +60,6 @@ fun NowPlayingBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onClick)
-                        .padding(
-                            top = 8.dp,
-                            start = 16.dp,
-                            end = 16.dp,
-                            bottom = 8.dp
-                        )
                         .padding(
                             bottom = WindowInsets.navigationBars
                                 .asPaddingValues()
@@ -74,51 +67,63 @@ fun NowPlayingBar(
                         ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (currentAlbumArtUri != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(currentAlbumArtUri)
-                                .allowHardware(false)
-                                .build(),
-                            contentDescription = "Album Art",
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF141414))
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(
+                    Row(
                         modifier = Modifier
                             .weight(1f)
-                            .testTag("now_playing_text_column")
+                            .clickable(onClick = onClick)
+                            .padding(
+                                top = 8.dp,
+                                start = 16.dp,
+                                bottom = 8.dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = currentTrackTitle ?: "",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.testTag("now_playing_title")
-                        )
-                        if (!currentTrackArtist.isNullOrEmpty()) {
+                        if (currentAlbumArtUri != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(currentAlbumArtUri)
+                                    .allowHardware(false)
+                                    .build(),
+                                contentDescription = "Album Art",
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF141414))
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("now_playing_text_column")
+                        ) {
                             Text(
-                                text = currentTrackArtist,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.7f),
+                                text = currentTrackTitle ?: "",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.testTag("now_playing_artist")
+                                modifier = Modifier.testTag("now_playing_title")
                             )
+                            if (!currentTrackArtist.isNullOrEmpty()) {
+                                Text(
+                                    text = currentTrackArtist,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.testTag("now_playing_artist")
+                                )
+                            }
                         }
                     }
 
@@ -126,7 +131,9 @@ fun NowPlayingBar(
 
                     IconButton(
                         onClick = onPlayPause,
-                        modifier = Modifier.testTag("now_playing_play_pause")
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .testTag("now_playing_play_pause")
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
