@@ -162,7 +162,19 @@ class RipManager(
                     ?: throw java.io.IOException("Cannot open SAF output stream")
                 outputStream = BufferedOutputStream(rawStream, 1024 * 1024)
 
-                val metadataBytes = buildFlacMetadata(totalSamples, metadata.artistName, metadata.albumTitle, trackTitle, trackNumber, artworkBytes)
+                val metadataBytes = buildFlacMetadata(
+                    totalSamples = totalSamples,
+                    artist = metadata.artistName,
+                    album = metadata.albumTitle,
+                    title = trackTitle,
+                    track = trackNumber,
+                    year = metadata.year,
+                    genre = metadata.genre,
+                    albumArtist = metadata.albumArtist,
+                    mbReleaseId = metadata.mbReleaseId,
+                    accurateRipUrl = accurateRipUrl,
+                    artworkBytes = artworkBytes
+                )
                 outputStream.write(metadataBytes)
 
                 encoder = FlacEncoder(outputStream, writeHeader = false)
@@ -361,7 +373,19 @@ class RipManager(
     }
 
 
-    private fun buildFlacMetadata(totalSamples: Long, artist: String?, album: String?, title: String?, track: Int, artworkBytes: ByteArray?): ByteArray {
+    private fun buildFlacMetadata(
+        totalSamples: Long,
+        artist: String?,
+        album: String?,
+        title: String?,
+        track: Int,
+        year: String?,
+        genre: String?,
+        albumArtist: String?,
+        mbReleaseId: String?,
+        accurateRipUrl: String?,
+        artworkBytes: ByteArray?
+    ): ByteArray {
         val out = ByteArrayOutputStream()
         // fLaC
         out.write(byteArrayOf(0x66, 0x4C, 0x61, 0x43))
@@ -409,6 +433,22 @@ class RipManager(
         if (album != null) comments.add("ALBUM=$album")
         if (title != null) comments.add("TITLE=$title")
         comments.add("TRACKNUMBER=$track")
+        if (year != null) comments.add("DATE=$year")
+        if (genre != null) comments.add("GENRE=$genre")
+        if (albumArtist != null) comments.add("ALBUMARTIST=$albumArtist")
+        if (mbReleaseId != null) comments.add("MUSICBRAINZ_ALBUMID=$mbReleaseId")
+        if (accurateRipUrl != null) {
+            // URL format: http://.../dBAR-010-000bba6a-006fbb59-71089d0a.bin
+            // We want the IDs part: 010-000bba6a-006fbb59-71089d0a
+            val regex = "dBAR-([^.]+)\\.bin".toRegex()
+            val match = regex.find(accurateRipUrl)
+            if (match != null) {
+                comments.add("ACCURATERIPDISCID=${match.groupValues[1]}")
+            }
+        }
+        comments.add("BITDEPTH=16")
+        comments.add("SAMPLERATE=44100")
+        comments.add("COMMENT=Ripped with BitPerfect")
 
         vcPayload.writeLittleEndianInt(comments.size)
         for (comment in comments) {
