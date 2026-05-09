@@ -111,7 +111,7 @@ class ReadTocCommand(
         val pregapOffset = if (entries.firstOrNull()?.lba == 0) 150 else 0
         val normalisedEntries = if (pregapOffset == 0) entries else entries.map { it.copy(lba = it.lba + pregapOffset) }
         val normalisedLeadOut = leadOutLba + pregapOffset
-        return Pair(DiscToc(normalisedEntries, normalisedLeadOut), tocData.copyOf(totalTocRead))
+        return Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset), tocData.copyOf(totalTocRead))
     }
 
     companion object {

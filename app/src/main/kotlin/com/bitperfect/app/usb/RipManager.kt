@@ -188,7 +188,7 @@ class RipManager(
                     var pcmData: ByteArray? = null
 
                     for (attempt in 1..MAX_READ_RETRIES) {
-                        pcmData = readCmd.execute(entry.lba + sectorsRead, sectorsToRead)
+                        pcmData = readCmd.execute(entry.lba + sectorsRead - toc.pregapOffset, sectorsToRead)
                         if (pcmData != null) {
                             break
                         }
