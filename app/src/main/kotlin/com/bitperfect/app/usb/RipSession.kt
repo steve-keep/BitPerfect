@@ -54,6 +54,9 @@ class RipSession(private val context: Context) {
         // Synchronously copy the initial states from RipManager so that it is instantly available
         _ripStates.value = manager.trackStates.value
 
+        val intent = android.content.Intent(context, RipService::class.java)
+        androidx.core.content.ContextCompat.startForegroundService(context, intent)
+
         scope.launch {
             manager.trackStates.collect { states ->
                 _ripStates.value = states
