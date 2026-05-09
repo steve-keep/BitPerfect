@@ -234,7 +234,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                             }
                                             IconButton(
                                                 onClick = {},
-                                                modifier = Modifier.longPressDraggableHandle(
+                                                modifier = Modifier.draggableHandle(
                                                     onDragStarted = {},
                                                     onDragStopped = {}
                                                 )
