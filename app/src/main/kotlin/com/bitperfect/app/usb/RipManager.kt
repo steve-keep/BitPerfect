@@ -211,7 +211,7 @@ class RipManager(
                     sectorsRead = 1
                 }
 
-                var isFirstSector = overreadBuffer == null
+                var isFirstSector = true
 
                 while (sectorsRead < totalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)

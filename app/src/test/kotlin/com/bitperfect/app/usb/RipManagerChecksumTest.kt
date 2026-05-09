@@ -59,7 +59,7 @@ class RipManagerChecksumTest {
         val expectedT2 = ByteArray(trackBytesSize)
         val overreadBuffer = t1PhysicalOvershoot.copyOfRange(skipBytes, 2352)
         System.arraycopy(overreadBuffer, 0, expectedT2, 0, overreadBuffer.size)
-        System.arraycopy(t2PhysicalMain, 0, expectedT2, overreadBuffer.size, t2PhysicalMain.size)
+        System.arraycopy(t2PhysicalMain, skipBytes, expectedT2, overreadBuffer.size, t2PhysicalMain.size - skipBytes)
         System.arraycopy(t2PhysicalOvershoot, 0, expectedT2, trackBytesSize - skipBytes, skipBytes)
 
         val verifier = AccurateRipVerifier()
@@ -86,7 +86,7 @@ class RipManagerChecksumTest {
         val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
         // track 2:
         accumulatorT2.accumulate(overreadBuffer)
-        accumulatorT2.accumulate(t2PhysicalMain)
+        accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
         accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
         val t2Actual = accumulatorT2.ripChecksum
 
@@ -118,7 +118,7 @@ class RipManagerChecksumTest {
         val expectedT2 = ByteArray(trackBytesSize)
         val overreadBuffer = t1PhysicalOvershoot.copyOfRange(skipBytes, 2352)
         System.arraycopy(overreadBuffer, 0, expectedT2, 0, overreadBuffer.size)
-        System.arraycopy(t2PhysicalMain, 0, expectedT2, overreadBuffer.size, t2PhysicalMain.size)
+        System.arraycopy(t2PhysicalMain, skipBytes, expectedT2, overreadBuffer.size, t2PhysicalMain.size - skipBytes)
         System.arraycopy(t2PhysicalOvershoot, 0, expectedT2, trackBytesSize - skipBytes, skipBytes)
 
         val verifier = AccurateRipVerifier()
@@ -140,7 +140,7 @@ class RipManagerChecksumTest {
 
         val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
         accumulatorT2.accumulate(overreadBuffer)
-        accumulatorT2.accumulate(t2PhysicalMain)
+        accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
         accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
         assertEquals("Track 2 checksum mismatch", expectedChecksum2, accumulatorT2.ripChecksum)
     }
