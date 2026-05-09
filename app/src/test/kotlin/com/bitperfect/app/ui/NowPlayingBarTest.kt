@@ -131,5 +131,11 @@ class NowPlayingBarTest {
 
         composeTestRule.onNodeWithText("Test Song", useUnmergedTree = true).performClick()
         assert(onClickClicked)
+
+        playPauseClicked = false
+        onClickClicked = false
+        composeTestRule.onNodeWithTag("now_playing_play_pause", useUnmergedTree = true).performClick()
+        assert(playPauseClicked)
+        assert(!onClickClicked)
     }
 }

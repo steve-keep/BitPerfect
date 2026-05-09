@@ -53,13 +53,10 @@ fun NowPlayingBar(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onClick() },
+            .fillMaxWidth(),
         color = Color.Transparent,
-        tonalElevation = 0.dp
+        tonalElevation = 0.dp,
+        onClick = onClick
     ) {
                 Row(
                     modifier = Modifier
