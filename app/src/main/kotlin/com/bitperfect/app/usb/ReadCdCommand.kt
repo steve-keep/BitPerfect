@@ -10,7 +10,8 @@ class ReadCdCommand(
     private val outEndpoint: UsbEndpoint,
     private val inEndpoint: UsbEndpoint
 ) {
-    fun execute(lba: Int, sectorCount: Int = 1, tag: Int = transport.nextTag()): ByteArray? {
+    fun execute(lba: Int, sectorCount: Int = 1): ByteArray? {
+        val tag = transport.nextTag()
         val transferLength = sectorCount * 2352
 
         // CBW: 31 bytes

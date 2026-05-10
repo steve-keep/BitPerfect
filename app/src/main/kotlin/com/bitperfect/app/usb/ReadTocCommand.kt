@@ -12,7 +12,8 @@ class ReadTocCommand(
     private val outEndpoint: UsbEndpoint,
     private val inEndpoint: UsbEndpoint
 ) {
-    fun execute(tag: Int = transport.nextTag()): Pair<DiscToc, ByteArray>? {
+    fun execute(): Pair<DiscToc, ByteArray>? {
+        val tag = transport.nextTag()
         // CBW: 31 bytes
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(ByteOrder.LITTLE_ENDIAN)

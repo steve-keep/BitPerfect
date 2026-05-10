@@ -129,7 +129,7 @@ class ReadTocCommandTest {
     fun `test normalises zero based LBA`() {
         setupMockTransfer(0)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
 
         assertNotNull(result)
         val toc = result!!.first
@@ -146,7 +146,7 @@ class ReadTocCommandTest {
     fun `test standard LBA not modified`() {
         setupMockTransfer(150)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
 
         assertNotNull(result)
         val toc = result!!.first
@@ -163,7 +163,7 @@ class ReadTocCommandTest {
     fun `test unexpected LBA not modified`() {
         setupMockTransfer(75)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
 
         assertNotNull(result)
         val toc = result!!.first
@@ -181,7 +181,7 @@ class ReadTocCommandTest {
         // Tag is configured to 3 in setUp, return CSW with tag 99
         setupMockTransfer(150, cswTag = 99)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
         org.junit.Assert.assertNull(result)
     }
 }
