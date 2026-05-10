@@ -46,11 +46,24 @@ class UsbTransportTest {
             callCount++
             return size
         }
+
+        override fun nextTag(): Int = 1
+    }
+
+    @Test
+    fun `bulkTransferFully returns immediately if single read is complete`() {
+        val fakeTransport = FakeUsbTransport(listOf(1536))
+        val buffer = ByteArray(1536)
+
+        val totalRead = fakeTransport.bulkTransferFully(endpoint, buffer, 1536, 1000)
+
+        assertEquals(1536, totalRead)
+        assertEquals(1, fakeTransport.callCount)
     }
 
     @Test
     fun `bulkTransferFully loops until maxLength is reached`() {
-        // 3 calls, each returning a full chunk (512 bytes)
+        // partial read (512), then 2 loop reads (512, 512)
         val fakeTransport = FakeUsbTransport(listOf(512, 512, 512))
         val buffer = ByteArray(1536)
 
@@ -107,6 +120,18 @@ class UsbTransportTest {
         val totalRead = fakeTransport.bulkTransferFully(endpoint, buffer, 1536, 1000)
 
         assertEquals(-1, totalRead)
+        assertEquals(1, fakeTransport.callCount)
+    }
+
+    @Test
+    fun `bulkTransferFully returns 0 on ZLP on first call`() {
+        // The transport returns ZLP (0) immediately
+        val fakeTransport = FakeUsbTransport(listOf(0))
+        val buffer = ByteArray(1536)
+
+        val totalRead = fakeTransport.bulkTransferFully(endpoint, buffer, 1536, 1000)
+
+        assertEquals(0, totalRead)
         assertEquals(1, fakeTransport.callCount)
     }
 }

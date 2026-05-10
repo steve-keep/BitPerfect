@@ -22,20 +22,21 @@ class ReadTocCommandTest {
     @Before
     fun setUp() {
         transport = mock(UsbTransport::class.java)
+        `when`(transport.nextTag()).thenReturn(3)
         inEndpoint = mock(UsbEndpoint::class.java)
         outEndpoint = mock(UsbEndpoint::class.java)
 
         readTocCommand = ReadTocCommand(transport, outEndpoint, inEndpoint)
     }
 
-    private fun setupMockTransfer(track1Lba: Int) {
+    private fun setupMockTransfer(track1Lba: Int, cswTag: Int = 3) {
         `when`(transport.bulkTransfer(
             any(UsbEndpoint::class.java) ?: inEndpoint,
             any(ByteArray::class.java) ?: ByteArray(0),
             anyInt(),
             anyInt()
         )).thenAnswer { invocation ->
-            handleMockTransfer(invocation, track1Lba)
+            handleMockTransfer(invocation, track1Lba, cswTag)
         }
         `when`(transport.bulkTransferFully(
             any(UsbEndpoint::class.java) ?: inEndpoint,
@@ -43,11 +44,11 @@ class ReadTocCommandTest {
             anyInt(),
             anyInt()
         )).thenAnswer { invocation ->
-            handleMockTransfer(invocation, track1Lba)
+            handleMockTransfer(invocation, track1Lba, cswTag)
         }
     }
 
-    private fun handleMockTransfer(invocation: org.mockito.invocation.InvocationOnMock, track1Lba: Int): Int {
+    private fun handleMockTransfer(invocation: org.mockito.invocation.InvocationOnMock, track1Lba: Int, cswTag: Int): Int {
         val buffer = invocation.arguments[1] as ByteArray
         val length = invocation.arguments[2] as Int
 
@@ -64,7 +65,7 @@ class ReadTocCommandTest {
             // CSW
             val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
             cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
-            cswBuffer.putInt(3) // tag
+            cswBuffer.putInt(cswTag) // tag
             cswBuffer.putInt(0) // data residue
             cswBuffer.put(0.toByte()) // status success
             return length
@@ -128,7 +129,7 @@ class ReadTocCommandTest {
     fun `test normalises zero based LBA`() {
         setupMockTransfer(0)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
 
         assertNotNull(result)
         val toc = result!!.first
@@ -145,7 +146,7 @@ class ReadTocCommandTest {
     fun `test standard LBA not modified`() {
         setupMockTransfer(150)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
 
         assertNotNull(result)
         val toc = result!!.first
@@ -162,7 +163,7 @@ class ReadTocCommandTest {
     fun `test unexpected LBA not modified`() {
         setupMockTransfer(75)
 
-        val result = readTocCommand.execute(3)
+        val result = readTocCommand.execute()
 
         assertNotNull(result)
         val toc = result!!.first
@@ -173,5 +174,14 @@ class ReadTocCommandTest {
         assertEquals(10075, toc.tracks[1].lba)
         assertEquals(20075, toc.tracks[2].lba)
         assertEquals(30075, toc.leadOutLba)
+    }
+
+    @Test
+    fun `test mismatched tag returns null`() {
+        // Tag is configured to 3 in setUp, return CSW with tag 99
+        setupMockTransfer(150, cswTag = 99)
+
+        val result = readTocCommand.execute()
+        org.junit.Assert.assertNull(result)
     }
 }

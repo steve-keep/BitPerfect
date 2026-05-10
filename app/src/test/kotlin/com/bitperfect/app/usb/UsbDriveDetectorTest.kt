@@ -51,6 +51,8 @@ class UsbDriveDetectorTest {
             return bulkTransfer(endpoint, buffer, 0, maxLength, timeout)
         }
 
+        override fun nextTag(): Int = 3
+
         override fun bulkTransfer(endpoint: UsbEndpoint, buffer: ByteArray, length: Int, timeout: Int): Int {
             transferCount++
             when (state) {
@@ -134,6 +136,7 @@ class UsbDriveDetectorTest {
                     val csw = ByteArray(13)
                     val b = java.nio.ByteBuffer.wrap(csw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
                     b.putInt(0x53425355)
+                    b.putInt(3) // csw tag
                     csw[12] = tocCswStatus
                     System.arraycopy(csw, 0, buffer, 0, csw.size.coerceAtMost(length))
                     state = "DONE"

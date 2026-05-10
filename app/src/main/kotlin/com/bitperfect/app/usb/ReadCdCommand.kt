@@ -10,7 +10,8 @@ class ReadCdCommand(
     private val outEndpoint: UsbEndpoint,
     private val inEndpoint: UsbEndpoint
 ) {
-    fun execute(lba: Int, sectorCount: Int = 1, tag: Int = 1000): ByteArray? {
+    fun execute(lba: Int, sectorCount: Int = 1): ByteArray? {
+        val tag = transport.nextTag()
         val transferLength = sectorCount * 2352
 
         // CBW: 31 bytes
@@ -73,6 +74,11 @@ class ReadCdCommand(
         val cswSignature = cswBuffer.getInt(0)
         if (cswSignature != CSW_SIGNATURE) {
             AppLogger.e(TAG, "Invalid CSW signature for READ CD")
+            return null
+        }
+        val cswTag = cswBuffer.getInt(4)
+        if (cswTag != tag) {
+            AppLogger.e(TAG, "CSW tag mismatch: expected $tag, got $cswTag")
             return null
         }
         val status = csw[12]
