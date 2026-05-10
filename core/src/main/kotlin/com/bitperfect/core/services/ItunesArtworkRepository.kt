@@ -25,6 +25,8 @@ data class ItunesSearchResponse(
 
 @Serializable
 data class ItunesAlbumResult(
+    val artistName: String? = null,
+    val collectionName: String? = null,
     val artworkUrl100: String? = null
 )
 
@@ -66,15 +68,20 @@ class ItunesArtworkRepository(private val context: Context) {
         try {
             val encodedArtist = URLEncoder.encode(artist, "UTF-8")
             val encodedAlbum = URLEncoder.encode(album, "UTF-8")
-            val url = "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&limit=5"
+            val url = "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&limit=20"
 
             val response: ItunesSearchResponse = client.get(url).body()
 
             if (response.results.isEmpty()) return@withContext null
 
-            val firstWithArt = response.results.firstOrNull { it.artworkUrl100 != null }
-            if (firstWithArt?.artworkUrl100 != null) {
-                val base = firstWithArt.artworkUrl100
+            val match = response.results.firstOrNull {
+                it.artworkUrl100 != null &&
+                it.artistName?.contains(artist, ignoreCase = true) == true &&
+                it.collectionName?.contains(album, ignoreCase = true) == true
+            }
+
+            if (match?.artworkUrl100 != null) {
+                val base = match.artworkUrl100
                 val previewUrl = base.replace("100x100bb", "600x600bb")
                 val highResUrl = base.replace("100x100bb", "3000x3000bb")
                 return@withContext ItunesArtwork(previewUrl, highResUrl)

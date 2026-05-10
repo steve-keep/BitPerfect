@@ -19,12 +19,14 @@ class ItunesArtworkRepositoryTest {
 
     @Test
     fun `fetchItunesArtwork returns previewUrl and highResUrl on success`() = runBlocking {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             val jsonResponse = """
                 {
                     "resultCount": 1,
                     "results": [
                         {
+                            "artistName": "Artist",
+                            "collectionName": "Album",
                             "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/80/7e/ab/807eab7e-ccf8-3e91-cd20-4050d2bb2e40/12345.jpg/100x100bb.jpg"
                         }
                     ]
@@ -46,8 +48,43 @@ class ItunesArtworkRepositoryTest {
     }
 
     @Test
+    fun `fetchItunesArtwork ignores items with non-matching artist names`() = runBlocking {
+        val mockEngine = MockEngine { _ ->
+            val jsonResponse = """
+                {
+                    "resultCount": 2,
+                    "results": [
+                        {
+                            "artistName": "Tribute Fake",
+                            "collectionName": "Album",
+                            "artworkUrl100": "https://example.com/wrong.jpg/100x100bb.jpg"
+                        },
+                        {
+                            "artistName": "Artist",
+                            "collectionName": "Album",
+                            "artworkUrl100": "https://example.com/right.jpg/100x100bb.jpg"
+                        }
+                    ]
+                }
+            """.trimIndent()
+
+            respond(
+                content = jsonResponse,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = ItunesArtworkRepository(mockContext, mockEngine)
+        val result = repository.fetchItunesArtwork("Artist", "Album")
+
+        assertEquals("https://example.com/right.jpg/600x600bb.jpg", result?.previewUrl)
+        assertEquals("https://example.com/right.jpg/3000x3000bb.jpg", result?.highResUrl)
+    }
+
+    @Test
     fun `fetchItunesArtwork returns null when results is empty`() = runBlocking {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             val jsonResponse = """
                 {
                     "resultCount": 0,
@@ -70,7 +107,7 @@ class ItunesArtworkRepositoryTest {
 
     @Test
     fun `fetchItunesArtwork returns null when results lacks artworkUrl100`() = runBlocking {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             val jsonResponse = """
                 {
                     "resultCount": 1,
@@ -95,7 +132,7 @@ class ItunesArtworkRepositoryTest {
 
     @Test
     fun `fetchItunesArtwork returns null on error`() = runBlocking {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = MockEngine { _ ->
             respondError(HttpStatusCode.InternalServerError)
         }
 
