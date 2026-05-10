@@ -164,18 +164,23 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        val progress = try {
-                            val offset = bottomSheetScaffoldState.bottomSheetState.requireOffset()
-                            // offset is y coordinate. When expanded, offset is 0.
-                            // When partial, offset is screenHeightPx - peekHeightPx.
-                            val maxOffset = screenHeightPx - peekHeightPx
-                            if (maxOffset <= 0) 0f else {
-                                val fraction = 1f - (offset / maxOffset)
-                                fraction.coerceIn(0f, 1f)
+                        val progressProvider: () -> Float = {
+                            try {
+                                val offset = bottomSheetScaffoldState.bottomSheetState.requireOffset()
+                                // offset is y coordinate. When expanded, offset is 0.
+                                // When partial, offset is screenHeightPx - peekHeightPx.
+                                val maxOffset = screenHeightPx - peekHeightPx
+                                if (maxOffset <= 0) 0f else {
+                                    val fraction = 1f - (offset / maxOffset)
+                                    fraction.coerceIn(0f, 1f)
+                                }
+                            } catch (e: IllegalStateException) {
+                                if (bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) 1f else 0f
                             }
-                        } catch (e: IllegalStateException) {
-                            if (bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) 1f else 0f
                         }
+
+                        val showBar by remember { derivedStateOf { progressProvider() < 0.99f } }
+                        val showScreen by remember { derivedStateOf { progressProvider() > 0.01f } }
 
                         Box(modifier = Modifier.fillMaxWidth()) {
                             // Shared Blurred Album Art Background
@@ -205,11 +210,11 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            if (progress < 0.99f) {
+                            if (showBar) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .graphicsLayer { alpha = 1f - progress }
+                                        .graphicsLayer { alpha = 1f - progressProvider() }
                                 ) {
                                     NowPlayingBar(
                                         isPlaying = isPlaying,
@@ -229,11 +234,11 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             }
-                            if (progress > 0.01f) {
+                            if (showScreen) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .graphicsLayer { alpha = progress }
+                                        .graphicsLayer { alpha = progressProvider() }
                                 ) {
                                     NowPlayingScreen(
                                         viewModel = appViewModel,
