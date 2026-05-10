@@ -201,7 +201,7 @@ class AccurateRipVerifierTest {
         val result2 = verifier.computeChecksumChunk(chunk2, result1.nextSamplePosition, totalSamples, isFirstTrack = true, isLastTrack = true)
         val result3 = verifier.computeChecksumChunk(chunk3, result2.nextSamplePosition, totalSamples, isFirstTrack = true, isLastTrack = true)
 
-        val multiChunkTotal = result1.partialChecksum + result2.partialChecksum + result3.partialChecksum
+        val multiChunkTotal = (result1.partialChecksum + result2.partialChecksum + result3.partialChecksum) and 0xFFFFFFFFL
 
         assertEquals(singleResult.partialChecksum, multiChunkTotal)
         assertEquals(singleResult.nextSamplePosition, result3.nextSamplePosition)
@@ -218,5 +218,63 @@ class AccurateRipVerifierTest {
         val input2 = -1L // All bits set
         val expected2 = 0xFFFFFFFFL
         assertEquals(expected2, verifier.finaliseChecksum(input2))
+    }
+
+    @Test
+    fun `computeChecksumChunk - no overflow on full-length track`() {
+        // Track 1 of White Blood Cells: 13901 sectors = 8,173,788 samples
+        // Overflow would occur at ~157 sectors with a 64-bit Long accumulator.
+        // Use 300 sectors (176,400 samples) — well past the overflow point.
+        val sectors = 300
+        val totalSamples = sectors * 588L
+        // Fill PCM with 0xFFFFFFFF (max value) to maximise accumulator growth
+        val pcmData = ByteArray(sectors * 2352) { 0xFF.toByte() }
+
+        val result = verifier.computeChecksumChunk(
+            pcmData, 1L, totalSamples,
+            isFirstTrack = false, isLastTrack = false
+        )
+
+        // Key assertion: partialChecksum must be in 0..0xFFFFFFFF (32-bit range)
+        // A Long overflow would produce a value outside this range or a negative value
+        assertTrue(
+            "partialChecksum overflowed 32 bits: ${result.partialChecksum}",
+            result.partialChecksum in 0L..0xFFFFFFFFL
+        )
+
+        // Verify against Python reference for the same input:
+        // sum((0xFFFFFFFF * i) & 0xFFFFFFFF for i in range(1, 176401)) & 0xFFFFFFFF
+        // = 0x60a316f8  (pre-computed — include this assertion)
+        assertEquals(0x60A316F8L, result.partialChecksum)
+    }
+
+    @Test
+    fun `computeChecksumChunk - chunked and single-pass agree at overflow-triggering size`() {
+        val sectors = 300
+        val totalSamples = sectors * 588L
+        val pcmData = ByteArray(sectors * 2352)
+        // Fill with a non-trivial pattern
+        for (i in pcmData.indices) pcmData[i] = (i * 31 + 7).toByte()
+
+        // Single pass
+        val single = verifier.computeChecksumChunk(pcmData, 1L, totalSamples)
+
+        // Chunked (8 sectors per chunk, matching RipManager default)
+        var accumulated = 0L
+        var pos = 1L
+        var offset = 0
+        while (offset < pcmData.size) {
+            val chunkBytes = minOf(8 * 2352, pcmData.size - offset)
+            val chunk = pcmData.copyOfRange(offset, offset + chunkBytes)
+            val r = verifier.computeChecksumChunk(chunk, pos, totalSamples)
+            accumulated = (accumulated + r.partialChecksum) and 0xFFFFFFFFL
+            pos = r.nextSamplePosition
+            offset += chunkBytes
+        }
+
+        assertEquals(
+            verifier.finaliseChecksum(single.partialChecksum),
+            verifier.finaliseChecksum(accumulated)
+        )
     }
 }

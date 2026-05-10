@@ -205,6 +205,14 @@ class RipManager(
                 val chunkSize = 8 // read ~8 sectors at a time
                 val lbaStart = entry.lba + tocOffset
 
+                val (firstLba, lastReadableLba) = ripLbaRange(
+                    trackLba      = entry.lba,
+                    nextLba       = nextLba,
+                    tocOffset     = tocOffset,
+                    pregapOffset  = toc.pregapOffset,
+                    isLastTrack   = isLastTrack
+                )
+
                 var isFirstSector = true
 
                 if (overreadBuffer != null) {
@@ -214,12 +222,14 @@ class RipManager(
                     isFirstSector = false
                 }
 
-                while (sectorsRead < totalSectors && !isCancelled) {
-                    val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
+                val effectiveTotalSectors = lastReadableLba - firstLba + 1
+
+                while (sectorsRead < effectiveTotalSectors && !isCancelled) {
+                    val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
                     var pcmData: ByteArray? = null
 
                     for (attempt in 1..MAX_READ_RETRIES) {
-                        pcmData = readCmd.execute(lbaStart + sectorsRead - toc.pregapOffset, sectorsToRead)
+                        pcmData = readCmd.execute(firstLba + sectorsRead, sectorsToRead)
                         if (pcmData != null) {
                             break
                         }
@@ -231,7 +241,7 @@ class RipManager(
                     if (pcmData != null) {
                         val sectorsActuallyRead = pcmData.size / 2352
                         if (sectorsActuallyRead < sectorsToRead) {
-                            AppLogger.w("RipManager", "Short read at LBA ${lbaStart + sectorsRead}: " +
+                            AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
                                 "got $sectorsActuallyRead of $sectorsToRead sectors")
                         }
 
@@ -246,10 +256,10 @@ class RipManager(
                             isCancelled = true
                             throw java.io.IOException("Disc removed or drive not ready during rip")
                         }
-                        throw java.io.IOException("Failed to read sector ${lbaStart + sectorsRead} after $MAX_READ_RETRIES attempts")
+                        throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after $MAX_READ_RETRIES attempts")
                     }
 
-                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / totalSectors)
+                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors)
                 }
 
                 if (sampleOffset > 0) {
