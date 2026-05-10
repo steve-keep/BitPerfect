@@ -15,10 +15,11 @@ class AccurateRipVerifier {
         val tracksInfo = mutableMapOf<Int, MutableList<AccurateRipTrackMetadata>>()
         val buffer = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
 
-        while (buffer.remaining() >= 9) {
+        while (buffer.remaining() >= 13) {
             val trackCount = buffer.get().toInt() and 0xFF
             val discId1 = buffer.getInt().toLong() and 0xFFFFFFFFL
             val discId2 = buffer.getInt().toLong() and 0xFFFFFFFFL
+            buffer.getInt() // consume CDDB / discId3 — required by dBAR format but not used
 
             AppLogger.d("AccurateRipVerifier", "Parsed disc entry header: discId1=${String.format("%08x", discId1)}, discId2=${String.format("%08x", discId2)}")
 
