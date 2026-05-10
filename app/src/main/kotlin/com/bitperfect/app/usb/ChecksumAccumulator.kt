@@ -21,7 +21,7 @@ internal class ChecksumAccumulator(
             isFirstTrack,
             isLastTrack
         )
-        ripChecksum += result.partialChecksum
+        ripChecksum = (ripChecksum + result.partialChecksum) and 0xFFFFFFFFL
         samplePosition = result.nextSamplePosition
     }
 
