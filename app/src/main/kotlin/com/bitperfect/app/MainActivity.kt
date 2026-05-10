@@ -221,16 +221,7 @@ class MainActivity : ComponentActivity() {
                                         currentTrackTitle = currentTrackTitle,
                                         currentTrackArtist = currentTrackArtist,
                                         currentAlbumArtUri = currentAlbumArtUri,
-                                        onPlayPause = { appViewModel.togglePlayPause() },
-                                        onClick = {
-                                            coroutineScope.launch {
-                                                if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.PartiallyExpanded) {
-                                                    bottomSheetScaffoldState.bottomSheetState.expand()
-                                                } else {
-                                                    bottomSheetScaffoldState.bottomSheetState.partialExpand()
-                                                }
-                                            }
-                                        }
+                                        onPlayPause = { appViewModel.togglePlayPause() }
                                     )
                                 }
                             }
