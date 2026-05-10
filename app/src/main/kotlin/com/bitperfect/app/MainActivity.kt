@@ -205,41 +205,45 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .graphicsLayer { alpha = 1f - progress }
-                            ) {
-                                NowPlayingBar(
-                                    isPlaying = isPlaying,
-                                    currentTrackTitle = currentTrackTitle,
-                                    currentTrackArtist = currentTrackArtist,
-                                    currentAlbumArtUri = currentAlbumArtUri,
-                                    onPlayPause = { appViewModel.togglePlayPause() },
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.PartiallyExpanded) {
-                                                bottomSheetScaffoldState.bottomSheetState.expand()
-                                            } else {
+                            if (progress < 0.99f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer { alpha = 1f - progress }
+                                ) {
+                                    NowPlayingBar(
+                                        isPlaying = isPlaying,
+                                        currentTrackTitle = currentTrackTitle,
+                                        currentTrackArtist = currentTrackArtist,
+                                        currentAlbumArtUri = currentAlbumArtUri,
+                                        onPlayPause = { appViewModel.togglePlayPause() },
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.PartiallyExpanded) {
+                                                    bottomSheetScaffoldState.bottomSheetState.expand()
+                                                } else {
+                                                    bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            if (progress > 0.01f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer { alpha = progress }
+                                ) {
+                                    NowPlayingScreen(
+                                        viewModel = appViewModel,
+                                        onCollapse = {
+                                            coroutineScope.launch {
                                                 bottomSheetScaffoldState.bottomSheetState.partialExpand()
                                             }
                                         }
-                                    }
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .graphicsLayer { alpha = progress }
-                            ) {
-                                NowPlayingScreen(
-                                    viewModel = appViewModel,
-                                    onCollapse = {
-                                        coroutineScope.launch {
-                                            bottomSheetScaffoldState.bottomSheetState.partialExpand()
-                                        }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     },
