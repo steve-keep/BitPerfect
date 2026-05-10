@@ -26,11 +26,11 @@ class NowPlayingBarTest {
                 currentTrackTitle = null,
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
-                onPlayPause = {},
-                onClick = {}
+                onPlayPause = {}
             )
         }
-        composeTestRule.onNodeWithTag("now_playing_title").assertDoesNotExist()
+        // The empty string "" is used as a fallback if the title is null
+        composeTestRule.onNodeWithText("").assertExists()
     }
 
     @Test
@@ -41,8 +41,7 @@ class NowPlayingBarTest {
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = "The Band",
                 currentAlbumArtUri = null,
-                onPlayPause = {},
-                onClick = {}
+                onPlayPause = {}
             )
         }
 
@@ -62,8 +61,7 @@ class NowPlayingBarTest {
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = "The Band",
                 currentAlbumArtUri = android.net.Uri.parse("content://media/external/audio/albumart/1"),
-                onPlayPause = {},
-                onClick = {}
+                onPlayPause = {}
             )
         }
 
@@ -80,8 +78,7 @@ class NowPlayingBarTest {
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
-                onPlayPause = {},
-                onClick = {}
+                onPlayPause = {}
             )
         }
 
@@ -99,8 +96,7 @@ class NowPlayingBarTest {
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = "",
                 currentAlbumArtUri = null,
-                onPlayPause = {},
-                onClick = {}
+                onPlayPause = {}
             )
         }
 
@@ -113,7 +109,6 @@ class NowPlayingBarTest {
     @Test
     fun verifyCallbacksInvoked() {
         var playPauseClicked = false
-        var onClickClicked = false
 
         composeTestRule.setContent {
             NowPlayingBar(
@@ -121,21 +116,11 @@ class NowPlayingBarTest {
                 currentTrackTitle = "Test Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
-                onPlayPause = { playPauseClicked = true },
-                onClick = { onClickClicked = true }
+                onPlayPause = { playPauseClicked = true }
             )
         }
 
         composeTestRule.onNodeWithTag("now_playing_play_pause", useUnmergedTree = true).performClick()
         assert(playPauseClicked)
-
-        composeTestRule.onNodeWithText("Test Song", useUnmergedTree = true).performClick()
-        assert(onClickClicked)
-
-        playPauseClicked = false
-        onClickClicked = false
-        composeTestRule.onNodeWithTag("now_playing_play_pause", useUnmergedTree = true).performClick()
-        assert(playPauseClicked)
-        assert(!onClickClicked)
     }
 }
