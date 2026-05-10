@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.documentfile.provider.DocumentFile
+import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.services.AccurateRipService
@@ -559,7 +560,7 @@ class RipManager(
         val dir = albumDir ?: return
         try {
             val sb = java.lang.StringBuilder()
-            sb.append("BitPerfect Rip Log\n")
+            sb.append("BitPerfect Rip Log v").append(BuildConfig.VERSION_NAME).append("\n")
             sb.append("Generated: ").append(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.now())).append("\n\n")
 
             sb.append("Album:  ").append(metadata.albumTitle).append("\n")
