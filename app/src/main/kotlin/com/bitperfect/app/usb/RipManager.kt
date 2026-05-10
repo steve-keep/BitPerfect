@@ -205,13 +205,14 @@ class RipManager(
                 val chunkSize = 8 // read ~8 sectors at a time
                 val lbaStart = entry.lba + tocOffset
 
+                var isFirstSector = true
+
                 if (overreadBuffer != null) {
                     encoder.encode(overreadBuffer!!)
                     checksumAccumulator.accumulate(overreadBuffer!!)
                     sectorsRead = 1
+                    isFirstSector = false
                 }
-
-                var isFirstSector = true
 
                 while (sectorsRead < totalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, totalSectors - sectorsRead)
@@ -283,6 +284,7 @@ class RipManager(
                 if (isLastTrack && tocOffset > 0) {
                     val silence = ByteArray(tocOffset * 2352)
                     encoder.encode(silence)
+                    checksumAccumulator.accumulate(silence)
                 }
 
                 encoder.stop()

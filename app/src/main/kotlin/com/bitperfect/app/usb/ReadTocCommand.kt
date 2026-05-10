@@ -12,7 +12,7 @@ class ReadTocCommand(
     private val outEndpoint: UsbEndpoint,
     private val inEndpoint: UsbEndpoint
 ) {
-    fun execute(tag: Int = 3): Pair<DiscToc, ByteArray>? {
+    fun execute(tag: Int = transport.nextTag()): Pair<DiscToc, ByteArray>? {
         // CBW: 31 bytes
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(ByteOrder.LITTLE_ENDIAN)
@@ -68,9 +68,15 @@ class ReadTocCommand(
         }
 
         // Validate CSW
-        val cswSignature = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN).getInt(0)
+        val cswBuffer = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN)
+        val cswSignature = cswBuffer.getInt(0)
         if (cswSignature != CSW_SIGNATURE) {
             AppLogger.e(TAG, "Invalid CSW signature")
+            return null
+        }
+        val cswTag = cswBuffer.getInt(4)
+        if (cswTag != tag) {
+            AppLogger.e(TAG, "CSW tag mismatch: expected $tag, got $cswTag")
             return null
         }
         if (csw[12] != 0.toByte()) {
