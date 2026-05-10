@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlin.random.Random
 
 class OffsetCalibrationViewModel(
@@ -94,12 +95,115 @@ class OffsetCalibrationViewModel(
         updateStepState(stepIndex, CalibrationStepState.Scanning)
 
         viewModelScope.launch {
-            // Randomly succeed with a mock offset for now.
-            // A real implementation would call AccurateRipVerifier here.
-            val mockOffset = 667
-            candidateOffsets.add(mockOffset)
+            try {
+                val driveStatus = DeviceStateManager.driveStatus.value as? DriveStatus.DiscReady
+                    ?: throw IllegalStateException("Drive not ready")
+                val toc = driveStatus.toc ?: throw IllegalStateException("TOC not available")
 
-            updateStepState(stepIndex, CalibrationStepState.Success)
+                var expectedChecksums: List<com.bitperfect.core.services.AccurateRipTrackMetadata>? = null
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    expectedChecksums = accurateRipService.getExpectedChecksums(toc)[1]
+                }
+
+                if (expectedChecksums == null) {
+                    throw IllegalStateException("No AccurateRip checksums found for Track 1")
+                }
+
+                val transport = DeviceStateManager.getTransport()
+                val inEndpoint = DeviceStateManager.getInEndpoint()
+                val outEndpoint = DeviceStateManager.getOutEndpoint()
+
+                if (transport == null || inEndpoint == null || outEndpoint == null) {
+                    throw IllegalStateException("USB endpoints not available")
+                }
+
+                val readCmd = com.bitperfect.app.usb.ReadCdCommand(transport, outEndpoint, inEndpoint)
+
+                val track = toc.tracks.first()
+                val nextLba = if (toc.tracks.size > 1) toc.tracks[1].lba else toc.leadOutLba
+                val totalSectors = nextLba - track.lba
+                val totalSamples = totalSectors.toLong() * 588L
+
+                // Read Track 1 plus 6 sectors of overshoot to allow positive offset shifting
+                val firstLba = track.lba - toc.pregapOffset
+                val overshootSectors = 6
+                val sectorsToRead = totalSectors + overshootSectors
+
+                val rawBuffer = java.io.ByteArrayOutputStream()
+                var sectorsRead = 0
+                val chunkSize = 8
+
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    while (sectorsRead < sectorsToRead) {
+                        val chunk = minOf(chunkSize, sectorsToRead - sectorsRead)
+                        var pcmData: ByteArray? = null
+                        for (attempt in 1..3) {
+                            pcmData = readCmd.execute(firstLba + sectorsRead, chunk)
+                            if (pcmData != null) break
+                            if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) break
+                        }
+                        if (pcmData == null) {
+                            throw java.io.IOException("Failed to read audio data")
+                        }
+                        rawBuffer.write(pcmData)
+                        sectorsRead += (pcmData.size / 2352)
+                    }
+                }
+
+                val fullPcm = rawBuffer.toByteArray()
+                var foundOffset: Int? = null
+                val verifier = com.bitperfect.core.services.AccurateRipVerifier()
+
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    val trackBuffer = ByteArray(totalSectors * 2352)
+
+                    for (offset in -3000..3000) {
+                        if (!isActive) break
+
+                        if (offset < 0) {
+                            // Negative offset: drive reads too late.
+                            // To simulate correcting this, we need data from before the read start.
+                            // We pad the beginning with silence.
+                            val silenceSamples = -offset
+                            val silenceBytes = silenceSamples * 4
+                            val dataToCopy = trackBuffer.size - silenceBytes
+                            trackBuffer.fill(0.toByte(), 0, silenceBytes)
+                            System.arraycopy(fullPcm, 0, trackBuffer, silenceBytes, dataToCopy)
+                        } else {
+                            // Positive offset: drive reads too early.
+                            // We shift forward into the read buffer.
+                            val shiftBytes = offset * 4
+                            System.arraycopy(fullPcm, shiftBytes, trackBuffer, 0, trackBuffer.size)
+                        }
+
+                        val result = verifier.computeChecksumChunk(
+                            pcmData = trackBuffer,
+                            samplePosition = 1L,
+                            totalSamples = totalSamples,
+                            isFirstTrack = true,
+                            isLastTrack = toc.tracks.size == 1
+                        )
+
+                        val checksum = verifier.finaliseChecksum(result.partialChecksum)
+
+                        if (expectedChecksums!!.any { it.checksum == checksum }) {
+                            foundOffset = offset
+                            break
+                        }
+                    }
+                }
+
+                if (foundOffset != null) {
+                    candidateOffsets.add(foundOffset!!)
+                    updateStepState(stepIndex, CalibrationStepState.Success)
+                } else {
+                    updateStepState(stepIndex, CalibrationStepState.Error("No matching offset found (-3000 to +3000)", null))
+                }
+
+            } catch (e: Exception) {
+                com.bitperfect.core.utils.AppLogger.e("OffsetCalibration", "Calibration error", e)
+                updateStepState(stepIndex, CalibrationStepState.Error(e.message ?: "Unknown error", null))
+            }
 
             checkCalibrationComplete()
         }
