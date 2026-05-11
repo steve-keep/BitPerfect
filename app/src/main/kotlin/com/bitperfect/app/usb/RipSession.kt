@@ -49,7 +49,6 @@ class RipSession(private val context: Context) {
         )
         ripManager = manager
         _isRipping.value = true
-        DeviceStateManager.pausePolling()
 
         // Synchronously copy the initial states from RipManager so that it is instantly available
         _ripStates.value = manager.trackStates.value
@@ -65,10 +64,15 @@ class RipSession(private val context: Context) {
 
         scope.launch {
             try {
-                manager.startRipping()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    UsbReadSession.open().use { session ->
+                        manager.startRipping(session)
+                    }
+                }
+            } catch (e: Exception) {
+                com.bitperfect.core.utils.AppLogger.e("RipSession", "Failed to open USB session", e)
             } finally {
                 _isRipping.value = false
-                DeviceStateManager.resumePolling()
             }
         }
     }
@@ -81,7 +85,6 @@ class RipSession(private val context: Context) {
         }
         _isRipping.value = false
         _ripStates.value = emptyMap()
-        DeviceStateManager.resumePolling()
     }
 
     fun clearResults() {

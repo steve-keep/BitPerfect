@@ -109,16 +109,6 @@ class OffsetCalibrationViewModel(
                     throw IllegalStateException("No AccurateRip checksums found for Track 1")
                 }
 
-                val transport = DeviceStateManager.getTransport()
-                val inEndpoint = DeviceStateManager.getInEndpoint()
-                val outEndpoint = DeviceStateManager.getOutEndpoint()
-
-                if (transport == null || inEndpoint == null || outEndpoint == null) {
-                    throw IllegalStateException("USB endpoints not available")
-                }
-
-                val readCmd = com.bitperfect.app.usb.ReadCdCommand(transport, outEndpoint, inEndpoint)
-
                 val track = toc.tracks.first()
                 val nextLba = if (toc.tracks.size > 1) toc.tracks[1].lba else toc.leadOutLba
                 val totalSectors = nextLba - track.lba
@@ -135,19 +125,16 @@ class OffsetCalibrationViewModel(
                 val chunkSize = 8
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    while (sectorsRead < sectorsToRead) {
-                        val chunk = minOf(chunkSize, sectorsToRead - sectorsRead)
-                        var pcmData: ByteArray? = null
-                        for (attempt in 1..3) {
-                            pcmData = readCmd.execute(firstLba + sectorsRead, chunk)
-                            if (pcmData != null) break
-                            if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) break
+                    com.bitperfect.app.usb.UsbReadSession.open().use { session ->
+                        while (sectorsRead < sectorsToRead) {
+                            val chunk = minOf(chunkSize, sectorsToRead - sectorsRead)
+                            val pcmData = session.readSectors(firstLba + sectorsRead, chunk)
+                            if (pcmData == null) {
+                                throw java.io.IOException("Failed to read audio data")
+                            }
+                            rawBuffer.write(pcmData)
+                            sectorsRead += (pcmData.size / 2352)
                         }
-                        if (pcmData == null) {
-                            throw java.io.IOException("Failed to read audio data")
-                        }
-                        rawBuffer.write(pcmData)
-                        sectorsRead += (pcmData.size / 2352)
                     }
                 }
 

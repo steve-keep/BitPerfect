@@ -56,10 +56,6 @@ class RipManager(
     private val driveVendor: String,
     private val driveProduct: String
 ) {
-    companion object {
-        private const val MAX_READ_RETRIES = 3
-    }
-
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
     )
@@ -70,7 +66,7 @@ class RipManager(
 
     private var albumDir: DocumentFile? = null
 
-    suspend fun startRipping() = withContext(Dispatchers.IO) {
+    suspend fun startRipping(session: UsbReadSession) = withContext(Dispatchers.IO) {
         val driveOffset: Int = try {
             DriveOffsetRepository(context).findOffset(driveVendor, driveProduct)?.offset ?: 0
         } catch (e: Exception) {
@@ -78,17 +74,6 @@ class RipManager(
             0
         }
         AppLogger.d("RipManager", "Drive offset: $driveOffset samples")
-
-        val transport = DeviceStateManager.getTransport()
-        val inEndpoint = DeviceStateManager.getInEndpoint()
-        val outEndpoint = DeviceStateManager.getOutEndpoint()
-
-        if (transport == null || inEndpoint == null || outEndpoint == null) {
-            AppLogger.e("RipManager", "USB Endpoints not available")
-            return@withContext
-        }
-
-        val readCmd = ReadCdCommand(transport, outEndpoint, inEndpoint)
 
         val baseUri = Uri.parse(outputFolderUriString)
         val parentDir = DocumentFile.fromTreeUri(context, baseUri)
@@ -227,17 +212,7 @@ class RipManager(
 
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
-                    var pcmData: ByteArray? = null
-
-                    for (attempt in 1..MAX_READ_RETRIES) {
-                        pcmData = readCmd.execute(firstLba + sectorsRead, sectorsToRead)
-                        if (pcmData != null) {
-                            break
-                        }
-                        if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
-                            break
-                        }
-                    }
+                    val pcmData = session.readSectors(firstLba + sectorsRead, sectorsToRead)
 
                     if (pcmData != null) {
                         val sectorsActuallyRead = pcmData.size / 2352
@@ -257,7 +232,7 @@ class RipManager(
                             isCancelled = true
                             throw java.io.IOException("Disc removed or drive not ready during rip")
                         }
-                        throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after $MAX_READ_RETRIES attempts")
+                        throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after 3 attempts") // see UsbReadSession.MAX_RETRIES
                     }
 
                     updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors)
@@ -265,18 +240,13 @@ class RipManager(
 
                 if (sampleOffset > 0) {
                     if (!isLastTrack) {
-                        var overreadPcm: ByteArray? = null
-                        for (attempt in 1..MAX_READ_RETRIES) {
-                            overreadPcm = readCmd.execute(lbaStart + totalSectors - toc.pregapOffset, 1)
-                            if (overreadPcm != null) break
-                            if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) break
-                        }
+                        val overreadPcm = session.readSectors(lbaStart + totalSectors - toc.pregapOffset, 1)
                         if (overreadPcm == null) {
                             if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                                 isCancelled = true
                                 throw java.io.IOException("Disc removed or drive not ready during rip")
                             }
-                            throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors} after $MAX_READ_RETRIES attempts")
+                            throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors} after 3 attempts") // see UsbReadSession.MAX_RETRIES
                         }
                         val toFeed = overreadPcm.copyOfRange(0, skipBytes)
                         encoder.encode(toFeed)
