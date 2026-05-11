@@ -121,6 +121,13 @@ class OffsetCalibrationViewModel(
                 )
 
                 val rawBuffer = java.io.ByteArrayOutputStream()
+
+                // calibrationLbaRange skips LBA 0 since it is typically unreadable.
+                // We inject one sector of silence (2352 bytes) into the buffer so the
+                // subsequent sectors read (starting at LBA 1) remain perfectly aligned
+                // for the AccurateRip checksum sliding window.
+                rawBuffer.write(ByteArray(2352))
+
                 var sectorsRead = 0
                 val chunkSize = 8
 
