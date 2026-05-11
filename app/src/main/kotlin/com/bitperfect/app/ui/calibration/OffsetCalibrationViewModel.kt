@@ -92,7 +92,7 @@ class OffsetCalibrationViewModel(
             return
         }
 
-        updateStepState(stepIndex, CalibrationStepState.Scanning)
+        updateStepState(stepIndex, CalibrationStepState.Scanning(0f, "Preparing..."))
 
         viewModelScope.launch {
             try {
@@ -141,6 +141,7 @@ class OffsetCalibrationViewModel(
                             }
                             rawBuffer.write(pcmData)
                             sectorsRead += (pcmData.size / 2352)
+                            updateStepState(stepIndex, CalibrationStepState.Scanning(sectorsRead.toFloat() / sectorsToRead, "Reading audio data..."))
                         }
                     }
                 }
@@ -151,9 +152,16 @@ class OffsetCalibrationViewModel(
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                     val trackBuffer = ByteArray(totalSectors * 2352)
+                    var lastUpdate = System.currentTimeMillis()
 
                     for (offset in -3000..3000) {
                         if (!isActive) break
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdate > 100) {
+                            updateStepState(stepIndex, CalibrationStepState.Scanning((offset + 3000) / 6000f, "Verifying offset $offset..."))
+                            lastUpdate = now
+                        }
 
                         if (offset < 0) {
                             // Negative offset: drive reads too late.

@@ -29,7 +29,7 @@ sealed class CalibrationStepState {
     data object CheckingDisc : CalibrationStepState()
     data class NotAKeyDisc(val discTitle: String?, val attemptedUrl: String? = null) : CalibrationStepState()
     data class KeyDiscConfirmed(val discTitle: String?) : CalibrationStepState()
-    data object Scanning : CalibrationStepState()
+    data class Scanning(val progress: Float, val phase: String) : CalibrationStepState()
     data object Success : CalibrationStepState()
     data class Error(val message: String, val attemptedUrl: String? = null) : CalibrationStepState()
 }
@@ -42,7 +42,7 @@ val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>,
                 is CalibrationStepState.CheckingDisc -> "CheckingDisc"
                 is CalibrationStepState.NotAKeyDisc -> "NotAKeyDisc:${state.discTitle ?: ""}|||${state.attemptedUrl ?: ""}"
                 is CalibrationStepState.KeyDiscConfirmed -> "KeyDiscConfirmed:${state.discTitle ?: ""}"
-                is CalibrationStepState.Scanning -> "Scanning"
+                is CalibrationStepState.Scanning -> "Scanning:${state.progress}|||${state.phase}"
                 is CalibrationStepState.Success -> "Success"
                 is CalibrationStepState.Error -> "Error:${state.message}|||${state.attemptedUrl ?: ""}"
             }
@@ -63,7 +63,14 @@ val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>,
                         )
                     }
                     savedString.startsWith("KeyDiscConfirmed:") -> CalibrationStepState.KeyDiscConfirmed(savedString.substringAfter("KeyDiscConfirmed:").takeIf { it.isNotEmpty() })
-                    savedString == "Scanning" -> CalibrationStepState.Scanning
+                    savedString.startsWith("Scanning:") -> {
+                        val parts = savedString.substringAfter("Scanning:").split("|||", limit = 2)
+                        CalibrationStepState.Scanning(
+                            progress = parts.getOrNull(0)?.toFloatOrNull() ?: 0f,
+                            phase = parts.getOrElse(1) { "" }
+                        )
+                    }
+                    savedString == "Scanning" -> CalibrationStepState.Scanning(0f, "Scanning disc...")
                     savedString == "Success" -> CalibrationStepState.Success
                     savedString.startsWith("Error:") -> {
                         val parts = savedString.substringAfter("Error:").split("|||", limit = 2)
@@ -179,9 +186,19 @@ fun CalibrationStepContent(
                 }
             }
             is CalibrationStepState.Scanning -> {
-                CircularProgressIndicator(modifier = Modifier.padding(bottom = 24.dp))
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(bottom = 24.dp)) {
+                    CircularProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.size(80.dp),
+                        strokeWidth = 6.dp
+                    )
+                    Text(
+                        text = "${(state.progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Text(
-                    text = "Scanning disc…",
+                    text = state.phase,
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
