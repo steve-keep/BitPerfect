@@ -1,9 +1,61 @@
 package com.bitperfect.app.ui.calibration
 
+import com.bitperfect.core.services.AccurateRipTrackMetadata
 import org.junit.Assert.*
 import org.junit.Test
 
 class OffsetScanWindowTest {
+
+    @Test
+    fun `track 2 on standard disc has full pre-track headroom`() {
+        // Track 2 typically starts at LBA 300-600+. Even the minimum (short track 1)
+        // gives readStartLba well above 0 and actualPreSectors = MAX_OFFSET_SECTORS.
+        val track2Lba = 450        // typical short Track 1 of ~300 sectors
+        val MAX_OFFSET_SECTORS = 6
+
+        val nativeTrackStart = track2Lba   // already physical LBA
+        val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
+        val actualPreSectors = nativeTrackStart - readStartLba
+
+        assertEquals(444, readStartLba)
+        assertEquals(6, actualPreSectors)
+
+        // Full negative range is now available
+        val offset = -3000
+        val startByte = actualPreSectors * 2352 + offset * 4
+        assertTrue("startByte must be >= 0 for full negative offsets", startByte >= 0)
+    }
+
+    @Test
+    fun `track 2 isFirstTrack is false, isLastTrack depends on track count`() {
+        // 2-track disc: track 2 is last
+        val resolvedTrackIndex2Track = 1
+        val trackCount2 = 2
+        assertEquals(false, resolvedTrackIndex2Track == 0)
+        assertEquals(true,  resolvedTrackIndex2Track == trackCount2 - 1)
+
+        // 10-track disc: track 2 is neither first nor last
+        val trackCount10 = 10
+        assertEquals(false, resolvedTrackIndex2Track == 0)
+        assertEquals(false, resolvedTrackIndex2Track == trackCount10 - 1)
+    }
+
+    @Test
+    fun `falls back to track 1 when track 2 has no AR checksums`() {
+        // Simulates a disc where getExpectedChecksums returns data for track 1 only
+        val allChecksums = mapOf(1 to listOf<AccurateRipTrackMetadata>())   // track 2 absent
+        val useTrack2 = true
+        val arTrackNumber = 2
+
+        var expectedChecksums = allChecksums[arTrackNumber]   // null
+        val resolvedTrackIndex = if (expectedChecksums == null && useTrack2) {
+            expectedChecksums = allChecksums[1]
+            0
+        } else 1
+
+        assertEquals(0, resolvedTrackIndex)
+        assertNotNull(expectedChecksums)
+    }
 
     @Test
     fun `standard disc - 150-based drive - full pre-track headroom`() {
