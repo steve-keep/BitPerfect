@@ -290,6 +290,8 @@ fun CalibrationStepContent(
                                     DebugRow("AccurateRip URL", info.discId)
                                 }
                                 DebugSection("Read Geometry") {
+                                    DebugRow("Track scanned",    "${info.trackUsed}")
+                                    DebugRow("AR track number",  "${info.arTrackNumber}")
                                     DebugRow("nativeTrackStart", "${info.nativeTrackStart}")
                                     DebugRow("readStartLba",     "${info.readStartLba}")
                                     DebugRow("actualPreSectors", "${info.actualPreSectors}")

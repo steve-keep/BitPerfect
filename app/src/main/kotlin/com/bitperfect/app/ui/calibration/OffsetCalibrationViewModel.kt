@@ -100,19 +100,42 @@ class OffsetCalibrationViewModel(
                     ?: throw IllegalStateException("Drive not ready")
                 val toc = driveStatus.toc ?: throw IllegalStateException("TOC not available")
 
+                // Prefer Track 2: it has no isFirstTrack exclusion window and its native LBA
+                // is well above 0, giving full ±MAX_OFFSET_SAMPLES headroom in both directions.
+                // Fall back to Track 1 only if the disc has fewer than 2 tracks.
+                val useTrack2 = toc.tracks.size >= 2
+                val trackIndex = if (useTrack2) 1 else 0   // 0-based index into toc.tracks
+                val track = toc.tracks[trackIndex]
+                val nextLba = if (trackIndex + 1 < toc.tracks.size) toc.tracks[trackIndex + 1].lba else toc.leadOutLba
+
+                val arTrackNumber = trackIndex + 1   // AccurateRip track numbers are 1-based
                 var expectedChecksums: List<com.bitperfect.core.services.AccurateRipTrackMetadata>? = null
+                var allChecksums: Map<Int, List<com.bitperfect.core.services.AccurateRipTrackMetadata>> = emptyMap()
+
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    expectedChecksums = accurateRipService.getExpectedChecksums(toc)[1]
+                    allChecksums = accurateRipService.getExpectedChecksums(toc)
+                    expectedChecksums = allChecksums[arTrackNumber]
+                }
+
+                // If Track 2 has no AR entry for this pressing, fall back to Track 1.
+                // This can happen on discs where only the first track was submitted.
+                val (resolvedTrackIndex, resolvedArTrackNumber) = if (expectedChecksums == null && useTrack2) {
+                    expectedChecksums = allChecksums[1]
+                    Pair(0, 1)
+                } else {
+                    Pair(trackIndex, arTrackNumber)
                 }
 
                 if (expectedChecksums == null) {
-                    throw IllegalStateException("No AccurateRip checksums found for Track 1")
+                    throw IllegalStateException("No AccurateRip checksums found for track ${resolvedArTrackNumber}")
                 }
 
-                val track = toc.tracks.first()
-                val nextLba = if (toc.tracks.size > 1) toc.tracks[1].lba else toc.leadOutLba
-                val totalSectors = nextLba - track.lba
+                val resolvedTrack = toc.tracks[resolvedTrackIndex]
+                val resolvedNextLba = if (resolvedTrackIndex + 1 < toc.tracks.size)
+                    toc.tracks[resolvedTrackIndex + 1].lba else toc.leadOutLba
+                val totalSectors = resolvedNextLba - resolvedTrack.lba
                 val totalSamples = totalSectors.toLong() * 588L
+                val nativeTrackStart = resolvedTrack.lba   // already physical LBA — do NOT subtract pregapOffset
 
                 val MAX_OFFSET_SAMPLES  = 3000
                 val MAX_OFFSET_SECTORS  = (MAX_OFFSET_SAMPLES + 587) / 588   // = 6, ceiling division
@@ -121,7 +144,6 @@ class OffsetCalibrationViewModel(
                 // Native (disc-absolute) LBA of the first sector to read.
                 // ReadTocCommand already normalises track.lba to 150-based.
                 // Subtracting MAX_OFFSET_SECTORS gives pre-track headroom for negative offsets.
-                val nativeTrackStart = track.lba
                 val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
 
                 // If the disc starts too close to LBA 0 to read the full pre-track window,
@@ -185,8 +207,8 @@ class OffsetCalibrationViewModel(
                             pcmData       = trackBuffer,
                             samplePosition = 1L,
                             totalSamples   = totalSamples,
-                            isFirstTrack   = true, // TODO: Scanning track 1 with actualPreSectors = 0 means negative offsets are skipped. Switch to track 2 for full negative offset detection.
-                            isLastTrack    = toc.tracks.size == 1
+                            isFirstTrack   = (resolvedTrackIndex == 0),
+                            isLastTrack    = (resolvedTrackIndex == toc.tracks.size - 1)
                         )
                         val checksum = verifier.finaliseChecksum(result.partialChecksum)
 
@@ -215,6 +237,8 @@ class OffsetCalibrationViewModel(
 
                     val debugInfo = CalibrationDebugInfo(
                         discId = discIdUrl,
+                        trackUsed = resolvedTrackIndex + 1,
+                        arTrackNumber = resolvedArTrackNumber,
                         nativeTrackStart = nativeTrackStart,
                         readStartLba = readStartLba,
                         actualPreSectors = actualPreSectors,

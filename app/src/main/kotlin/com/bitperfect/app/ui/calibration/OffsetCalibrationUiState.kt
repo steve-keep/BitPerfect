@@ -2,6 +2,8 @@ package com.bitperfect.app.ui.calibration
 
 data class CalibrationDebugInfo(
     val discId: String,
+    val trackUsed: Int,
+    val arTrackNumber: Int,
     val nativeTrackStart: Int,
     val readStartLba: Int,
     val actualPreSectors: Int,
