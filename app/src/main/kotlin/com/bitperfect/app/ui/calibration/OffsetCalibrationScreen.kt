@@ -18,6 +18,12 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -31,7 +37,11 @@ sealed class CalibrationStepState {
     data class KeyDiscConfirmed(val discTitle: String?) : CalibrationStepState()
     data class Scanning(val progress: Float, val phase: String) : CalibrationStepState()
     data object Success : CalibrationStepState()
-    data class Error(val message: String, val attemptedUrl: String? = null) : CalibrationStepState()
+    data class Error(
+        val message: String,
+        val attemptedUrl: String? = null,
+        val debugInfo: CalibrationDebugInfo? = null
+    ) : CalibrationStepState()
 }
 
 val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>, String>(
@@ -76,7 +86,8 @@ val CalibrationStepStateListSaver = listSaver<MutableList<CalibrationStepState>,
                         val parts = savedString.substringAfter("Error:").split("|||", limit = 2)
                         CalibrationStepState.Error(
                             message = parts.getOrElse(0) { "" },
-                            attemptedUrl = parts.getOrNull(1)?.takeIf { it.isNotEmpty() }
+                            attemptedUrl = parts.getOrNull(1)?.takeIf { it.isNotEmpty() },
+                            debugInfo = null
                         )
                     }
                     else -> CalibrationStepState.WaitingForDisc
@@ -253,6 +264,48 @@ fun CalibrationStepContent(
                 }
                 Button(onClick = { onStateChanged(CalibrationStepState.WaitingForDisc) }) {
                     Text("Retry")
+                }
+
+                if (state.debugInfo != null) {
+                    var showDebugSheet by remember { mutableStateOf(false) }
+
+                    TextButton(onClick = { showDebugSheet = true }) {
+                        Text("Debug")
+                    }
+
+                    if (showDebugSheet) {
+                        val info = state.debugInfo
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        ModalBottomSheet(onDismissRequest = { showDebugSheet = false }) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text("Calibration Diagnostics", style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(bottom = 16.dp))
+
+                                DebugSection("Disc") {
+                                    DebugRow("AccurateRip URL", info.discId)
+                                }
+                                DebugSection("Read Geometry") {
+                                    DebugRow("nativeTrackStart", "${info.nativeTrackStart}")
+                                    DebugRow("readStartLba",     "${info.readStartLba}")
+                                    DebugRow("actualPreSectors", "${info.actualPreSectors}")
+                                    DebugRow("sectorsToRead",    "${info.sectorsToRead}")
+                                    DebugRow("totalSectors",     "${info.totalSectors}")
+                                }
+                                DebugSection("Expected AR Checksums (${info.expectedChecksums.size})") {
+                                    info.expectedChecksums.forEach { DebugRow("", it) }
+                                }
+                                DebugSection("Computed Checksums (sampled every 100 offsets)") {
+                                    info.sampledComputedChecksums.forEach { DebugRow("", it) }
+                                }
+                                Spacer(modifier = Modifier.height(32.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -444,6 +497,32 @@ fun OffsetCalibrationScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DebugSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Text(title, style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+    Column(content = content)
+    HorizontalDivider()
+}
+
+@Composable
+private fun DebugRow(label: String, value: String) {
+    if (label.isEmpty()) {
+        Text(value, style = MaterialTheme.typography.bodySmall,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            modifier = Modifier.padding(vertical = 2.dp))
+    } else {
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.bodySmall,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
         }
     }
 }

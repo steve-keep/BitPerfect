@@ -119,9 +119,9 @@ class OffsetCalibrationViewModel(
                 val sectorsToRead       = MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS
 
                 // Native (disc-absolute) LBA of the first sector to read.
-                // (track.lba - toc.pregapOffset) converts from pregap-normalised to native.
+                // ReadTocCommand already normalises track.lba to 150-based.
                 // Subtracting MAX_OFFSET_SECTORS gives pre-track headroom for negative offsets.
-                val nativeTrackStart = track.lba - toc.pregapOffset
+                val nativeTrackStart = track.lba
                 val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
 
                 // If the disc starts too close to LBA 0 to read the full pre-track window,
@@ -150,6 +150,8 @@ class OffsetCalibrationViewModel(
                 val fullPcm = rawBuffer.toByteArray()
                 var foundOffset: Int? = null
                 val verifier = com.bitperfect.core.services.AccurateRipVerifier()
+
+                val sampledChecksums = mutableListOf<String>()
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                     val trackBuffer = ByteArray(totalSectors * 2352)
@@ -188,6 +190,12 @@ class OffsetCalibrationViewModel(
                         )
                         val checksum = verifier.finaliseChecksum(result.partialChecksum)
 
+                        // Sample every 100 offsets for the debug log
+                        if (offset % 100 == 0) {
+                            val sign = if (offset >= 0) "+" else ""
+                            sampledChecksums.add("offset $sign$offset → 0x${checksum.toString(16).uppercase().padStart(8, '0')}")
+                        }
+
                         if (expectedChecksums!!.any { it.checksum == checksum }) {
                             foundOffset = offset
                             break
@@ -199,7 +207,23 @@ class OffsetCalibrationViewModel(
                     candidateOffsets.add(foundOffset!!)
                     updateStepState(stepIndex, CalibrationStepState.Success)
                 } else {
-                    updateStepState(stepIndex, CalibrationStepState.Error("No matching offset found (-3000 to +3000)", null))
+                    val discIdUrl = try {
+                        accurateRipService.getAccurateRipUrl(toc)
+                    } catch (e: Exception) {
+                        "Unknown URL"
+                    }
+
+                    val debugInfo = CalibrationDebugInfo(
+                        discId = discIdUrl,
+                        nativeTrackStart = nativeTrackStart,
+                        readStartLba = readStartLba,
+                        actualPreSectors = actualPreSectors,
+                        sectorsToRead = sectorsToRead,
+                        totalSectors = totalSectors,
+                        expectedChecksums = expectedChecksums!!.map { "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})" },
+                        sampledComputedChecksums = sampledChecksums
+                    )
+                    updateStepState(stepIndex, CalibrationStepState.Error("No matching offset found (-3000 to +3000)", discIdUrl, debugInfo))
                 }
 
             } catch (e: Exception) {
