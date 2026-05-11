@@ -4,6 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -283,8 +286,28 @@ fun CalibrationStepContent(
                                     .padding(horizontal = 16.dp)
                                     .verticalScroll(rememberScrollState())
                             ) {
-                                Text("Calibration Diagnostics", style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.padding(bottom = 16.dp))
+                                val context = LocalContext.current
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Calibration Diagnostics", style = MaterialTheme.typography.titleMedium)
+                                    IconButton(onClick = {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, info.toShareableText())
+                                            type = "text/plain"
+                                        }
+                                        val shareIntent = Intent.createChooser(sendIntent, null)
+                                        context.startActivity(shareIntent)
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share Diagnostics"
+                                        )
+                                    }
+                                }
 
                                 DebugSection("Disc") {
                                     DebugRow("AccurateRip URL", info.discId)

@@ -11,7 +11,31 @@ data class CalibrationDebugInfo(
     val totalSectors: Int,
     val expectedChecksums: List<String>,
     val sampledComputedChecksums: List<String>
-)
+) {
+    fun toShareableText(): String {
+        return """
+            Calibration Diagnostics
+
+            Disc
+            AccurateRip URL: $discId
+
+            Read Geometry
+            Track scanned: $trackUsed
+            AR track number: $arTrackNumber
+            nativeTrackStart: $nativeTrackStart
+            readStartLba: $readStartLba
+            actualPreSectors: $actualPreSectors
+            sectorsToRead: $sectorsToRead
+            totalSectors: $totalSectors
+
+            Expected AR Checksums (${expectedChecksums.size})
+${expectedChecksums.joinToString("\n") { "            $it" }}
+
+            Computed Checksums (sampled every 100 offsets)
+${sampledComputedChecksums.joinToString("\n") { "            $it" }}
+        """.trimIndent()
+    }
+}
 
 sealed class SaveState {
     data object Idle : SaveState()
