@@ -60,6 +60,20 @@ class OffsetScanWindowTest {
     }
 
     @Test
+    fun `positive offset falls within buffer for disc with pre-track headroom`() {
+        val totalSectors = 1000
+        val MAX_OFFSET_SECTORS = 6
+        val actualPreSectors = 6 // Disc with pre-track headroom
+        val fullPcmSize = (MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS) * 2352 // 12 + 1000 = 1012 sectors
+        val offset = 3000
+
+        val startByte = actualPreSectors * 2352 + offset * 4
+
+        assertEquals(26112, startByte)
+        assertTrue(startByte + totalSectors * 2352 <= fullPcmSize)
+    }
+
+    @Test
     fun `disc starting at native LBA 0 skips too negative offsets`() {
         val pregapOffset = 0
         val trackLba = 0

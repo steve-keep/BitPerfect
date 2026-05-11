@@ -183,7 +183,7 @@ class OffsetCalibrationViewModel(
                             pcmData       = trackBuffer,
                             samplePosition = 1L,
                             totalSamples   = totalSamples,
-                            isFirstTrack   = true,
+                            isFirstTrack   = true, // TODO: Scanning track 1 with actualPreSectors = 0 means negative offsets are skipped. Switch to track 2 for full negative offset detection.
                             isLastTrack    = toc.tracks.size == 1
                         )
                         val checksum = verifier.finaliseChecksum(result.partialChecksum)
