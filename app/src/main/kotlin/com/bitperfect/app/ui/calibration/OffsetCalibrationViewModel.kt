@@ -124,10 +124,11 @@ class OffsetCalibrationViewModel(
                 val totalSectors = nextLba - track.lba
                 val totalSamples = totalSectors.toLong() * 588L
 
-                // Read Track 1 plus 6 sectors of overshoot to allow positive offset shifting
-                val firstLba = track.lba - toc.pregapOffset
-                val overshootSectors = 6
-                val sectorsToRead = totalSectors + overshootSectors
+                val (firstLba, sectorsToRead) = calibrationLbaRange(
+                    trackLba       = track.lba,
+                    pregapOffset   = toc.pregapOffset,
+                    totalSectors   = totalSectors
+                )
 
                 val rawBuffer = java.io.ByteArrayOutputStream()
                 var sectorsRead = 0
