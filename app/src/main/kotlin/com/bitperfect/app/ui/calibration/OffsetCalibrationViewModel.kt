@@ -105,9 +105,6 @@ class OffsetCalibrationViewModel(
                 // Fall back to Track 1 only if the disc has fewer than 2 tracks.
                 val useTrack2 = toc.tracks.size >= 2
                 val trackIndex = if (useTrack2) 1 else 0   // 0-based index into toc.tracks
-                val track = toc.tracks[trackIndex]
-                val nextLba = if (trackIndex + 1 < toc.tracks.size) toc.tracks[trackIndex + 1].lba else toc.leadOutLba
-
                 val arTrackNumber = trackIndex + 1   // AccurateRip track numbers are 1-based
                 var expectedChecksums: List<com.bitperfect.core.services.AccurateRipTrackMetadata>? = null
                 var allChecksums: Map<Int, List<com.bitperfect.core.services.AccurateRipTrackMetadata>> = emptyMap()
