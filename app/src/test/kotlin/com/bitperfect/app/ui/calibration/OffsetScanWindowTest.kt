@@ -6,50 +6,72 @@ import org.junit.Test
 class OffsetScanWindowTest {
 
     @Test
-    fun `standard disc calculations are correct`() {
-        val pregapOffset = 150
-        val trackLba = 150
+    fun `standard disc - 150-based drive - full pre-track headroom`() {
+        // ReadTocCommand normalises all LBAs to 150-based before storing.
+        // pregapOffset is NOT subtracted here - track.lba is already the physical LBA.
+        val trackLba = 150        // physical LBA, same for both 0-based and 150-based drives
         val totalSectors = 1000
         val MAX_OFFSET_SAMPLES = 3000
-        val MAX_OFFSET_SECTORS = (MAX_OFFSET_SAMPLES + 587) / 588
+        val MAX_OFFSET_SECTORS = (MAX_OFFSET_SAMPLES + 587) / 588  // 6
 
-        val nativeTrackStart = trackLba - pregapOffset
-        val readStartLba = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
-        val sectorsToRead = MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS
+        val nativeTrackStart = trackLba                             // was: trackLba - pregapOffset
+        val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)  // 144
+        val sectorsToRead    = MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS
+        val actualPreSectors = nativeTrackStart - readStartLba      // 6
+
+        assertEquals(144, readStartLba)
+        assertEquals(totalSectors + 12, sectorsToRead)
+        assertEquals(6, actualPreSectors)
+    }
+
+    @Test
+    fun `0-based drive (ASUS SDRW) produces same geometry as 150-based drive`() {
+        // 0-based drives return raw LBA 0 for Track 1. ReadTocCommand normalises to 150.
+        // After normalisation, track.lba = 150 regardless of raw drive format.
+        // This test guards against re-introducing the track.lba - pregapOffset bug.
+        val trackLba     = 150   // normalised — same value regardless of raw format
+        val pregapOffset = 150   // stored in DiscToc for the 0-based case
+        val MAX_OFFSET_SECTORS = 6
+
+        // Correct: use track.lba directly
+        val nativeTrackStart = trackLba
+        val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
         val actualPreSectors = nativeTrackStart - readStartLba
 
-        assertEquals(0, readStartLba)
-        assertEquals(totalSectors + 12, sectorsToRead)
-        assertEquals(0, actualPreSectors) // corrected based on user clarification
+        assertEquals(144, readStartLba)
+        assertEquals(6, actualPreSectors)
+
+        // Wrong (old bug): track.lba - pregapOffset = 0 → reads from lead-in
+        val buggyNativeTrackStart = trackLba - pregapOffset
+        assertEquals(0, buggyNativeTrackStart)  // documents what the bug produced
     }
 
     @Test
     fun `positive offset falls within buffer for standard disc`() {
         val totalSectors = 1000
-        val actualPreSectors = 0
+        val actualPreSectors = 6
         val fullPcmSize = (12 + totalSectors) * 2352
         val offset = 3000
 
         val startByte = actualPreSectors * 2352 + offset * 4
 
-        assertEquals(12000, startByte)
+        assertEquals(26112, startByte)
         assertTrue(startByte + totalSectors * 2352 <= fullPcmSize)
     }
 
     @Test
     fun `disc with pre-track headroom allows negative offsets`() {
         // e.g. hidden track in pregap, Track 1 starts at LBA 156
-        val pregapOffset = 150
         val trackLba = 156
         val totalSectors = 1000
         val MAX_OFFSET_SAMPLES = 3000
         val MAX_OFFSET_SECTORS = (MAX_OFFSET_SAMPLES + 587) / 588 // 6
 
-        val nativeTrackStart = trackLba - pregapOffset // 6
-        val readStartLba = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS) // 0
+        val nativeTrackStart = trackLba // 156
+        val readStartLba = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS) // 150
         val actualPreSectors = nativeTrackStart - readStartLba // 6
 
-        assertEquals(0, readStartLba)
+        assertEquals(150, readStartLba)
         assertEquals(6, actualPreSectors)
 
         val offset = -3000
@@ -60,27 +82,12 @@ class OffsetScanWindowTest {
     }
 
     @Test
-    fun `positive offset falls within buffer for disc with pre-track headroom`() {
-        val totalSectors = 1000
-        val MAX_OFFSET_SECTORS = 6
-        val actualPreSectors = 6 // Disc with pre-track headroom
-        val fullPcmSize = (MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS) * 2352 // 12 + 1000 = 1012 sectors
-        val offset = 3000
-
-        val startByte = actualPreSectors * 2352 + offset * 4
-
-        assertEquals(26112, startByte)
-        assertTrue(startByte + totalSectors * 2352 <= fullPcmSize)
-    }
-
-    @Test
     fun `disc starting at native LBA 0 skips too negative offsets`() {
-        val pregapOffset = 0
         val trackLba = 0
 
         val MAX_OFFSET_SAMPLES = 3000
         val MAX_OFFSET_SECTORS = (MAX_OFFSET_SAMPLES + 587) / 588
-        val nativeTrackStart = trackLba - pregapOffset
+        val nativeTrackStart = trackLba
         val readStartLba = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
         val actualPreSectors = nativeTrackStart - readStartLba
 

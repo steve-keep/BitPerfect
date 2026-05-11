@@ -1,5 +1,16 @@
 package com.bitperfect.app.ui.calibration
 
+data class CalibrationDebugInfo(
+    val discId: String,
+    val nativeTrackStart: Int,
+    val readStartLba: Int,
+    val actualPreSectors: Int,
+    val sectorsToRead: Int,
+    val totalSectors: Int,
+    val expectedChecksums: List<String>,
+    val sampledComputedChecksums: List<String>
+)
+
 sealed class SaveState {
     data object Idle : SaveState()
     data object Saving : SaveState()
