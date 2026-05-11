@@ -114,34 +114,35 @@ class OffsetCalibrationViewModel(
                 val totalSectors = nextLba - track.lba
                 val totalSamples = totalSectors.toLong() * 588L
 
-                val (firstLba, sectorsToRead) = calibrationLbaRange(
-                    trackLba       = track.lba,
-                    pregapOffset   = toc.pregapOffset,
-                    totalSectors   = totalSectors
-                )
+                val MAX_OFFSET_SAMPLES  = 3000
+                val MAX_OFFSET_SECTORS  = (MAX_OFFSET_SAMPLES + 587) / 588   // = 6, ceiling division
+                val sectorsToRead       = MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS
 
-                val rawBuffer = java.io.ByteArrayOutputStream()
+                // Native (disc-absolute) LBA of the first sector to read.
+                // (track.lba - toc.pregapOffset) converts from pregap-normalised to native.
+                // Subtracting MAX_OFFSET_SECTORS gives pre-track headroom for negative offsets.
+                val nativeTrackStart = track.lba - toc.pregapOffset
+                val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
 
-                // calibrationLbaRange skips LBA 0 since it is typically unreadable.
-                // We inject one sector of silence (2352 bytes) into the buffer so the
-                // subsequent sectors read (starting at LBA 1) remain perfectly aligned
-                // for the AccurateRip checksum sliding window.
-                rawBuffer.write(ByteArray(2352))
+                // If the disc starts too close to LBA 0 to read the full pre-track window,
+                // the actual headroom available is less than MAX_OFFSET_SECTORS. Track this
+                // so the scan loop can skip offsets we have no data for.
+                val actualPreSectors = nativeTrackStart - readStartLba   // 0..MAX_OFFSET_SECTORS
 
+                val rawBuffer = java.io.ByteArrayOutputStream(sectorsToRead * 2352)
                 var sectorsRead = 0
                 val chunkSize = 8
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     com.bitperfect.app.usb.UsbReadSession.open().use { session ->
                         while (sectorsRead < sectorsToRead) {
-                            val chunk = minOf(chunkSize, sectorsToRead - sectorsRead)
-                            val pcmData = session.readSectors(firstLba + sectorsRead, chunk)
-                            if (pcmData == null) {
-                                throw java.io.IOException("Failed to read audio data")
-                            }
+                            val chunk   = minOf(chunkSize, sectorsToRead - sectorsRead)
+                            val pcmData = session.readSectors(readStartLba + sectorsRead, chunk)
+                                ?: throw java.io.IOException("Failed to read audio data")
                             rawBuffer.write(pcmData)
                             sectorsRead += (pcmData.size / 2352)
-                            updateStepState(stepIndex, CalibrationStepState.Scanning(sectorsRead.toFloat() / sectorsToRead, "Reading audio data..."))
+                            updateStepState(stepIndex, CalibrationStepState.Scanning(
+                                sectorsRead.toFloat() / sectorsToRead, "Reading audio data..."))
                         }
                     }
                 }
@@ -154,39 +155,37 @@ class OffsetCalibrationViewModel(
                     val trackBuffer = ByteArray(totalSectors * 2352)
                     var lastUpdate = System.currentTimeMillis()
 
-                    for (offset in -3000..3000) {
+                    for (offset in -MAX_OFFSET_SAMPLES..MAX_OFFSET_SAMPLES) {
                         if (!isActive) break
+
+                        // Guard: we may not have enough pre-track data for very negative offsets
+                        // if the track started too close to the disc start.
+                        val requiredPreSectors = (-offset + 587) / 588  // sectors needed before track
+                        if (offset < 0 && requiredPreSectors > actualPreSectors) continue
 
                         val now = System.currentTimeMillis()
                         if (now - lastUpdate > 100) {
-                            updateStepState(stepIndex, CalibrationStepState.Scanning((offset + 3000) / 6000f, "Verifying offset $offset..."))
+                            updateStepState(stepIndex, CalibrationStepState.Scanning(
+                                (offset + MAX_OFFSET_SAMPLES) / (2f * MAX_OFFSET_SAMPLES),
+                                "Verifying offset $offset..."))
                             lastUpdate = now
                         }
 
-                        if (offset < 0) {
-                            // Negative offset: drive reads too late.
-                            // To simulate correcting this, we need data from before the read start.
-                            // We pad the beginning with silence.
-                            val silenceSamples = -offset
-                            val silenceBytes = silenceSamples * 4
-                            val dataToCopy = trackBuffer.size - silenceBytes
-                            trackBuffer.fill(0.toByte(), 0, silenceBytes)
-                            System.arraycopy(fullPcm, 0, trackBuffer, silenceBytes, dataToCopy)
-                        } else {
-                            // Positive offset: drive reads too early.
-                            // We shift forward into the read buffer.
-                            val shiftBytes = offset * 4
-                            System.arraycopy(fullPcm, shiftBytes, trackBuffer, 0, trackBuffer.size)
-                        }
+                        // Centre of the window is at actualPreSectors * 2352 samples into fullPcm.
+                        // Shifting by `offset` samples moves the window left (negative) or right (positive).
+                        val startByte = actualPreSectors * 2352 + offset * 4
+
+                        if (startByte < 0 || startByte + trackBuffer.size > fullPcm.size) continue
+
+                        System.arraycopy(fullPcm, startByte, trackBuffer, 0, trackBuffer.size)
 
                         val result = verifier.computeChecksumChunk(
-                            pcmData = trackBuffer,
+                            pcmData       = trackBuffer,
                             samplePosition = 1L,
-                            totalSamples = totalSamples,
-                            isFirstTrack = true,
-                            isLastTrack = toc.tracks.size == 1
+                            totalSamples   = totalSamples,
+                            isFirstTrack   = true,
+                            isLastTrack    = toc.tracks.size == 1
                         )
-
                         val checksum = verifier.finaliseChecksum(result.partialChecksum)
 
                         if (expectedChecksums!!.any { it.checksum == checksum }) {
