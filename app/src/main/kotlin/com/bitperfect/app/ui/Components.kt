@@ -83,6 +83,7 @@ fun AlbumHeader(
     trackCount: Int,
     isCdMode: Boolean = false,
     isRipping: Boolean = false,
+    overallProgress: Float = 0f,
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {},
     onAddToQueueClick: (() -> Unit)? = null,
@@ -150,60 +151,82 @@ fun AlbumHeader(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = if (isCdMode) {
-                        if (isRipping) onStopRipClick else onSaveClick
-                    } else onPlayClick,
-                    enabled = true,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.Black,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                    ),
-                    modifier = Modifier.fillMaxWidth(0.5f).height(56.dp),
-                    shape = RoundedCornerShape(12.dp)
+            if (isRipping) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    if (isCdMode) {
-                        val text = if (isRipping) "Stop Rip" else "Save Disc"
-                        val icon = if (isRipping) Icons.Default.Clear else Icons.Default.Download
-                        Icon(icon, contentDescription = text)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Play")
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    LinearProgressIndicator(
+                        progress = { overallProgress },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    IconButton(onClick = onStopRipClick) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Stop Rip",
+                            tint = Color.White
+                        )
                     }
                 }
-
-                if (!isCdMode && onAddToQueueClick != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    var showMenu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More options",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = if (isCdMode) onSaveClick else onPlayClick,
+                        enabled = true,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.Black,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        ),
+                        modifier = Modifier.fillMaxWidth(0.5f).height(56.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isCdMode) {
+                            Icon(Icons.Default.Download, contentDescription = "Save Disc")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Save Disc", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Add to Queue") },
-                                onClick = {
-                                    onAddToQueueClick()
-                                    showMenu = false
-                                }
-                            )
+                    }
+
+                    if (!isCdMode && onAddToQueueClick != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        var showMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More options",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Add to Queue") },
+                                    onClick = {
+                                        onAddToQueueClick()
+                                        showMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }

@@ -45,12 +45,13 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.TRACK,
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, "Artist 1", "Album 1"))
-        cursor.addRow(arrayOf(2L, "Track 2", 2, 2000L, "Artist 1", "Album 1"))
+        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, "Artist 1", "Album 1", null))
+        cursor.addRow(arrayOf(2L, "Track 2", 2, 2000L, "Artist 1", "Album 1", null))
 
         `when`(
             mockContentResolver.query(
@@ -89,12 +90,13 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.TRACK,
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 1001, 1000L, "Artist 1", "Album 1"))
-        cursor.addRow(arrayOf(2L, "Track 2", 2012, 2000L, "Artist 1", "Album 1"))
+        cursor.addRow(arrayOf(1L, "Track 1", 1001, 1000L, "Artist 1", "Album 1", null))
+        cursor.addRow(arrayOf(2L, "Track 2", 2012, 2000L, "Artist 1", "Album 1", null))
 
         `when`(
             mockContentResolver.query(
@@ -133,11 +135,12 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.TRACK,
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA
             )
         )
 
-        cursor.addRow(arrayOf(1L, null, 1, 1000L, null, null))
+        cursor.addRow(arrayOf(1L, null, 1, 1000L, null, null, null))
 
         `when`(
             mockContentResolver.query(
@@ -185,11 +188,12 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.ALBUM_ID,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, 123L, "Artist 1", "Album 1"))
+        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, 123L, "Artist 1", "Album 1", null))
 
         `when`(
             mockContentResolver.query(
@@ -222,11 +226,12 @@ class LibraryRepositoryTest {
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.ALBUM_ID,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA
             )
         )
 
-        cursor.addRow(arrayOf(1L, "Track 1", 2012, 1000L, 123L, "Artist 1", "Album 1"))
+        cursor.addRow(arrayOf(1L, "Track 1", 2012, 1000L, 123L, "Artist 1", "Album 1", null))
 
         `when`(
             mockContentResolver.query(

@@ -407,6 +407,26 @@ open class AppViewModel(
         ripSession.cancel(deleteFiles)
     }
 
+    fun rescanTrack(trackNumber: Int) {
+        val currentDriveStatus = driveStatus.value
+        if (currentDriveStatus is DriveStatus.DiscReady && currentDriveStatus.toc != null) {
+            val toc = currentDriveStatus.toc
+            val meta = discMetadata.value ?: return
+
+            viewModelScope.launch(Dispatchers.IO) {
+                val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
+                ripSession.startRip(
+                    outputFolderUriString = settingsManager.outputFolderUri ?: "",
+                    toc = toc,
+                    metadata = meta,
+                    expectedChecksums = expectedChecksums,
+                    artworkBytes = _artworkBytes.value,
+                    tracksToRip = listOf(trackNumber)
+                )
+            }
+        }
+    }
+
     fun startRip() {
         val outputUri = settingsManager.outputFolderUri
         if (outputUri.isNullOrBlank()) return
