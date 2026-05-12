@@ -215,21 +215,16 @@ class PlaybackServiceTest {
         val result = future?.get()
         val items = result?.value
 
-        assertEquals(3, items?.size)
+        assertEquals(2, items?.size)
 
-        // Sorting should be: Artist A (Banana), Artist B (Apple), Artist B (Zebra)
-        assertEquals("album_3", items?.get(0)?.mediaId)
-        assertEquals("Banana", items?.get(0)?.mediaMetadata?.title)
-        assertEquals("Artist A", items?.get(0)?.mediaMetadata?.subtitle)
-        assertEquals(false, items?.get(0)?.mediaMetadata?.isBrowsable)
-        assertEquals(true, items?.get(0)?.mediaMetadata?.isPlayable)
+        assertEquals("recent_albums", items?.get(0)?.mediaId)
+        assertEquals("Recently Played", items?.get(0)?.mediaMetadata?.title)
+        assertEquals(true, items?.get(0)?.mediaMetadata?.isBrowsable)
+        assertEquals(false, items?.get(0)?.mediaMetadata?.isPlayable)
 
-        assertEquals("album_2", items?.get(1)?.mediaId)
-        assertEquals("Apple", items?.get(1)?.mediaMetadata?.title)
-        assertEquals("Artist B", items?.get(1)?.mediaMetadata?.subtitle)
-
-        assertEquals("album_1", items?.get(2)?.mediaId)
-        assertEquals("Zebra", items?.get(2)?.mediaMetadata?.title)
-        assertEquals("Artist B", items?.get(2)?.mediaMetadata?.subtitle)
+        assertEquals("all_albums", items?.get(1)?.mediaId)
+        assertEquals("All Albums", items?.get(1)?.mediaMetadata?.title)
+        assertEquals(true, items?.get(1)?.mediaMetadata?.isBrowsable)
+        assertEquals(false, items?.get(1)?.mediaMetadata?.isPlayable)
     }
 }

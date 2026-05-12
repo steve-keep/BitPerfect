@@ -50,6 +50,16 @@ class PlaybackService : MediaLibraryService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        exoPlayer.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                mediaItem?.mediaMetadata?.extras?.getLong("albumId", -1L)?.let { albumId ->
+                    if (albumId != -1L) {
+                        settingsManager.addRecentlyPlayedAlbum(albumId)
+                    }
+                }
+            }
+        })
+
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, BrowseCallback())
             .setSessionActivity(sessionActivityPendingIntent)
             .build()
@@ -94,8 +104,66 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
             val outputFolderUri = settingsManager.outputFolderUri
 
-            val items = when {
-                parentId == "root" -> {
+            val items = when (parentId) {
+                "root" -> {
+                    val recentItem = MediaItem.Builder()
+                        .setMediaId("recent_albums")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle("Recently Played")
+                                .setIsBrowsable(true)
+                                .setIsPlayable(false)
+                                .build()
+                        )
+                        .build()
+
+                    val allAlbumsItem = MediaItem.Builder()
+                        .setMediaId("all_albums")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle("All Albums")
+                                .setIsBrowsable(true)
+                                .setIsPlayable(false)
+                                .build()
+                        )
+                        .build()
+
+                    listOf(recentItem, allAlbumsItem)
+                }
+                "recent_albums" -> {
+                    val recentIds = settingsManager.recentlyPlayedAlbumIds
+                    val artists = libraryRepository.getLibrary(outputFolderUri)
+                    val allAlbums = artists.flatMap { artist ->
+                        artist.albums.map { album ->
+                            artist to album
+                        }
+                    }
+                    val recentAlbums = allAlbums.filter { it.second.id in recentIds }
+
+                    val sortedAlbums = recentAlbums.sortedBy { (_, album) -> recentIds.indexOf(album.id) }
+
+                    sortedAlbums.map { (artist, album) ->
+                        val albumExtras = Bundle().apply {
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                        }
+                        MediaItem.Builder()
+                            .setMediaId("album_${album.id}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(album.title)
+                                    .setSubtitle(artist.name)
+                                    .setArtist(artist.name)
+                                    .setArtworkUri(album.artUri)
+                                    .setIsBrowsable(false)
+                                    .setIsPlayable(true)
+                                    .setExtras(albumExtras)
+                                    .build()
+                            )
+                            .build()
+                    }
+                }
+                "all_albums" -> {
                     val artists = libraryRepository.getLibrary(outputFolderUri)
                     val allAlbums = artists.flatMap { artist ->
                         artist.albums.map { album ->
@@ -132,7 +200,7 @@ class PlaybackService : MediaLibraryService() {
                 else -> emptyList()
             }
 
-            val resultParams = if (parentId == "root") {
+            val resultParams = if (parentId == "root" || parentId == "all_albums" || parentId == "recent_albums") {
                 val gridExtras = Bundle().apply {
                     putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
                     putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
@@ -163,6 +231,9 @@ class PlaybackService : MediaLibraryService() {
                         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
                         val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
 
+                        val extras = Bundle().apply {
+                            putLong("albumId", track.albumId)
+                        }
                         val resolvedItem = MediaItem.Builder()
                             .setMediaId("${track.id}")
                             .setUri(uri)
@@ -173,6 +244,7 @@ class PlaybackService : MediaLibraryService() {
                                     .setAlbumTitle(track.albumTitle)
                                     .setTrackNumber(track.trackNumber)
                                     .setArtworkUri(albumArtUri)
+                                    .setExtras(extras)
                                     .build()
                             )
                             .build()
@@ -185,6 +257,9 @@ class PlaybackService : MediaLibraryService() {
                     if (foundTrack != null) {
                         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
                         val albumArtUri = if (foundTrack.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId) else null
+                        val extras = Bundle().apply {
+                            putLong("albumId", foundTrack.albumId)
+                        }
                         val resolvedItem = MediaItem.Builder()
                             .setMediaId(mediaItem.mediaId)
                             .setUri(uri)
@@ -195,6 +270,7 @@ class PlaybackService : MediaLibraryService() {
                                     .setAlbumTitle(foundTrack.albumTitle)
                                     .setTrackNumber(foundTrack.trackNumber)
                                     .setArtworkUri(albumArtUri)
+                                    .setExtras(extras)
                                     .build()
                             )
                             .build()

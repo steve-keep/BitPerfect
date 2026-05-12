@@ -157,6 +157,9 @@ open class PlayerRepository(
         val mediaItems = tracks.map { track ->
             val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
             val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
+            val extras = android.os.Bundle().apply {
+                putLong("albumId", track.albumId)
+            }
             MediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(track.id.toString())
@@ -167,6 +170,7 @@ open class PlayerRepository(
                         .setAlbumTitle(track.albumTitle)
                         .setTrackNumber(track.trackNumber)
                         .setArtworkUri(albumArtUri)
+                        .setExtras(extras)
                         .build()
                 )
                 .build()
@@ -183,6 +187,9 @@ open class PlayerRepository(
     private fun trackToMediaItem(track: TrackInfo): MediaItem {
         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
         val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
+        val extras = android.os.Bundle().apply {
+            putLong("albumId", track.albumId)
+        }
         return MediaItem.Builder()
             .setUri(uri)
             .setMediaId(track.id.toString())
@@ -193,6 +200,7 @@ open class PlayerRepository(
                     .setAlbumTitle(track.albumTitle)
                     .setTrackNumber(track.trackNumber)
                     .setArtworkUri(albumArtUri)
+                    .setExtras(extras)
                     .build()
             )
             .build()
