@@ -132,21 +132,21 @@ class OffsetCalibrationViewModel(
                     toc.tracks[resolvedTrackIndex + 1].lba else toc.leadOutLba
                 val totalSectors = resolvedNextLba - resolvedTrack.lba
                 val totalSamples = totalSectors.toLong() * 588L
-                val nativeTrackStart = resolvedTrack.lba   // already physical LBA — do NOT subtract pregapOffset
+                val nativeTrackStart = resolvedTrack.lba   // normalised LBA (pregap-adjusted, 150-based)
 
                 val MAX_OFFSET_SAMPLES  = 3000
                 val MAX_OFFSET_SECTORS  = (MAX_OFFSET_SAMPLES + 587) / 588   // = 6, ceiling division
                 val sectorsToRead       = MAX_OFFSET_SECTORS + totalSectors + MAX_OFFSET_SECTORS
 
-                // Native (disc-absolute) LBA of the first sector to read.
-                // ReadTocCommand already normalises track.lba to 150-based.
-                // Subtracting MAX_OFFSET_SECTORS gives pre-track headroom for negative offsets.
-                val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
+                // Compute headroom in normalised space — this is purely about how many pre-track
+                // sectors exist on the disc, independent of how the drive numbers its LBAs.
+                val normalisedReadStart = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
+                val actualPreSectors    = nativeTrackStart - normalisedReadStart   // 0..MAX_OFFSET_SECTORS
 
-                // If the disc starts too close to LBA 0 to read the full pre-track window,
-                // the actual headroom available is less than MAX_OFFSET_SECTORS. Track this
-                // so the scan loop can skip offsets we have no data for.
-                val actualPreSectors = nativeTrackStart - readStartLba   // 0..MAX_OFFSET_SECTORS
+                // Convert to the physical LBA the drive expects, the same way RipManager does.
+                // pregapOffset is subtracted to undo the normalisation stored in DiscToc.
+                // On a 150-based drive pregapOffset=0 (no-op). On a 0-based drive pregapOffset=150.
+                val readStartLba = normalisedReadStart - toc.pregapOffset
 
                 val rawBuffer = java.io.ByteArrayOutputStream(sectorsToRead * 2352)
                 var sectorsRead = 0
@@ -237,7 +237,8 @@ class OffsetCalibrationViewModel(
                         trackUsed = resolvedTrackIndex + 1,
                         arTrackNumber = resolvedArTrackNumber,
                         nativeTrackStart = nativeTrackStart,
-                        readStartLba = readStartLba,
+                        normalisedReadStart = normalisedReadStart,
+                        physicalReadStartLba = readStartLba,
                         actualPreSectors = actualPreSectors,
                         sectorsToRead = sectorsToRead,
                         totalSectors = totalSectors,

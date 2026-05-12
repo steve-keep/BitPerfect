@@ -77,25 +77,36 @@ class OffsetScanWindowTest {
     }
 
     @Test
-    fun `0-based drive (ASUS SDRW) produces same geometry as 150-based drive`() {
-        // 0-based drives return raw LBA 0 for Track 1. ReadTocCommand normalises to 150.
-        // After normalisation, track.lba = 150 regardless of raw drive format.
-        // This test guards against re-introducing the track.lba - pregapOffset bug.
-        val trackLba     = 150   // normalised — same value regardless of raw format
-        val pregapOffset = 150   // stored in DiscToc for the 0-based case
+    fun `readStartLba subtracts pregapOffset for physical drive addressing`() {
+        // Simulates a 0-based drive where pregapOffset = 150.
+        // nativeTrackStart is the normalised LBA stored in DiscToc (always 150-based after normalisation).
+        val nativeTrackStart = 22794   // Track 2 of Nevermind, normalised
+        val pregapOffset     = 150     // 0-based drive
         val MAX_OFFSET_SECTORS = 6
 
-        // Correct: use track.lba directly
-        val nativeTrackStart = trackLba
-        val readStartLba     = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
-        val actualPreSectors = nativeTrackStart - readStartLba
+        val normalisedReadStart = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)  // 22788
+        val actualPreSectors    = nativeTrackStart - normalisedReadStart            // 6
+        val readStartLba        = normalisedReadStart - pregapOffset                // 22638
 
-        assertEquals(144, readStartLba)
-        assertEquals(6, actualPreSectors)
+        assertEquals(22788, normalisedReadStart)
+        assertEquals(6,     actualPreSectors)
+        assertEquals(22638, readStartLba)   // physical LBA sent to drive
 
-        // Wrong (old bug): track.lba - pregapOffset = 0 → reads from lead-in
-        val buggyNativeTrackStart = trackLba - pregapOffset
-        assertEquals(0, buggyNativeTrackStart)  // documents what the bug produced
+        // Regression: the pre-PR bug sent normalisedReadStart directly (22788 instead of 22638)
+        assertNotEquals(normalisedReadStart, readStartLba)
+    }
+
+    @Test
+    fun `readStartLba is unchanged for 150-based drives with pregapOffset zero`() {
+        val nativeTrackStart = 22794
+        val pregapOffset     = 0       // 150-based drive — no conversion needed
+        val MAX_OFFSET_SECTORS = 6
+
+        val normalisedReadStart = maxOf(0, nativeTrackStart - MAX_OFFSET_SECTORS)
+        val readStartLba        = normalisedReadStart - pregapOffset
+
+        // For pregapOffset=0 the physical LBA equals the normalised LBA
+        assertEquals(normalisedReadStart, readStartLba)
     }
 
     @Test

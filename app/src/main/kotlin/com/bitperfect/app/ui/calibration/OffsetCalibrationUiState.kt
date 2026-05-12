@@ -5,7 +5,8 @@ data class CalibrationDebugInfo(
     val trackUsed: Int,
     val arTrackNumber: Int,
     val nativeTrackStart: Int,
-    val readStartLba: Int,
+    val normalisedReadStart: Int,
+    val physicalReadStartLba: Int,
     val actualPreSectors: Int,
     val sectorsToRead: Int,
     val totalSectors: Int,
@@ -23,7 +24,8 @@ data class CalibrationDebugInfo(
             Track scanned: $trackUsed
             AR track number: $arTrackNumber
             nativeTrackStart: $nativeTrackStart
-            readStartLba: $readStartLba
+            normalisedReadStart: $normalisedReadStart
+            physicalReadStartLba: $physicalReadStartLba
             actualPreSectors: $actualPreSectors
             sectorsToRead: $sectorsToRead
             totalSectors: $totalSectors
