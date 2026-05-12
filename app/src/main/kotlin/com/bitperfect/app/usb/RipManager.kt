@@ -24,6 +24,9 @@ import com.bitperfect.core.utils.computeAccurateRipDiscId
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import org.json.JSONObject
+import java.io.InputStreamReader
+import java.io.BufferedReader
 
 enum class RipStatus {
     IDLE, RIPPING, VERIFYING, SUCCESS, UNVERIFIED, WARNING, ERROR, CANCELLED
@@ -346,10 +349,71 @@ class RipManager(
                 }
             }
 
+            val currentState = _trackStates.value[trackNumber]
+            if (currentState != null) {
+                writeAccurateRipJsonl(albumDir, currentState)
+            }
         }
 
         if (!isCancelled) {
             writeRipLog(albumDir, driveOffset, _trackStates.value)
+        }
+    }
+
+    private fun writeAccurateRipJsonl(albumDir: DocumentFile?, state: TrackRipState) {
+        val dir = albumDir ?: return
+        try {
+            var file = dir.findFile("BitPerfect.jsonl")
+            val existingLines = mutableListOf<JSONObject>()
+
+            if (file != null) {
+                context.contentResolver.openInputStream(file.uri)?.use { inputStream ->
+                    BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                        reader.forEachLine { line ->
+                            if (line.isNotBlank()) {
+                                try {
+                                    existingLines.add(JSONObject(line))
+                                } catch (e: Exception) {
+                                    // Ignore malformed lines
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                file = dir.createFile("application/jsonl", "BitPerfect.jsonl")
+            }
+
+            if (file == null) return
+
+            val isVerified = state.status == RipStatus.SUCCESS
+
+            // Remove existing entry for the same disc and track
+            existingLines.removeAll {
+                it.optInt("disc", -1) == 1 && it.optInt("track", -1) == state.trackNumber
+            }
+
+            val newEntry = JSONObject()
+            newEntry.put("disc", 1)
+            newEntry.put("track", state.trackNumber)
+
+            val accurateRipObj = JSONObject()
+            accurateRipObj.put("isVerified", isVerified)
+            if (state.computedChecksum != null) {
+                val computedStr = String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
+                accurateRipObj.put("checksum", computedStr)
+            }
+            newEntry.put("accurateRip", accurateRipObj)
+
+            existingLines.add(newEntry)
+
+            context.contentResolver.openOutputStream(file.uri, "wt")?.use { outputStream ->
+                existingLines.forEach { obj ->
+                    outputStream.write((obj.toString() + "\n").toByteArray(Charsets.UTF_8))
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e("RipManager", "Failed to write BitPerfect.jsonl", e)
         }
     }
 

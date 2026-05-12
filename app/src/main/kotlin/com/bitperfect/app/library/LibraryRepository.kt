@@ -5,6 +5,8 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import java.net.URLDecoder
+import java.io.File
+import org.json.JSONObject
 
 open class LibraryRepository(private val context: Context) {
 
@@ -95,7 +97,8 @@ open class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.DATA
         )
 
         val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
@@ -117,6 +120,10 @@ open class LibraryRepository(private val context: Context) {
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+
+            // Cache verification status per folder to avoid reading the jsonl file multiple times for the same album
+            val folderVerificationCache = mutableMapOf<String, Map<String, Boolean>>()
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
@@ -125,15 +132,58 @@ open class LibraryRepository(private val context: Context) {
                 val durationMs = cursor.getLong(durationCol)
                 val artist = cursor.getString(artistCol) ?: "Unknown Artist"
                 val albumTitle = cursor.getString(albumCol) ?: "Unknown Album"
+                val dataPath = cursor.getString(dataCol)
 
                 val baseTrackNumber = if (rawTrackNumber >= 1000) rawTrackNumber % 1000 else rawTrackNumber
                 val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
 
-                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist))
+                var isVerified = false
+                if (dataPath != null) {
+                    val file = File(dataPath)
+                    val parentFolder = file.parent
+                    if (parentFolder != null) {
+                        val verificationMap = folderVerificationCache.getOrPut(parentFolder) {
+                            readVerificationMapForFolder(parentFolder)
+                        }
+                        val key = "$discNumber-$baseTrackNumber"
+                        isVerified = verificationMap[key] ?: false
+                    }
+                }
+
+                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified))
             }
         }
 
         return tracks
+    }
+
+    private fun readVerificationMapForFolder(folderPath: String): Map<String, Boolean> {
+        val verificationMap = mutableMapOf<String, Boolean>()
+        try {
+            val jsonlFile = File(folderPath, "BitPerfect.jsonl")
+            if (jsonlFile.exists() && jsonlFile.isFile) {
+                jsonlFile.forEachLine { line ->
+                    if (line.isNotBlank()) {
+                        try {
+                            val obj = JSONObject(line)
+                            val disc = obj.optInt("disc", -1)
+                            val track = obj.optInt("track", -1)
+                            val accurateRip = obj.optJSONObject("accurateRip")
+                            val isVerified = accurateRip?.optBoolean("isVerified", false) ?: false
+
+                            if (disc != -1 && track != -1) {
+                                verificationMap["$disc-$track"] = isVerified
+                            }
+                        } catch (e: Exception) {
+                            // ignore parsing errors for individual lines
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // ignore file read errors
+        }
+        return verificationMap
     }
 
     open fun getTrack(trackId: Long): TrackInfo? {
@@ -144,7 +194,8 @@ open class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.DATA
         )
 
         val selection = "${MediaStore.Audio.Media._ID} = ?"
@@ -165,6 +216,7 @@ open class LibraryRepository(private val context: Context) {
                 val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                 val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
                 val id = cursor.getLong(idCol)
                 val title = cursor.getString(titleCol) ?: "Unknown Track"
@@ -173,11 +225,23 @@ open class LibraryRepository(private val context: Context) {
                 val albumId = cursor.getLong(albumIdCol)
                 val artist = cursor.getString(artistCol) ?: "Unknown Artist"
                 val albumTitle = cursor.getString(albumCol) ?: "Unknown Album"
+                val dataPath = cursor.getString(dataCol)
 
                 val baseTrackNumber = if (rawTrackNumber >= 1000) rawTrackNumber % 1000 else rawTrackNumber
                 val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
 
-                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist)
+                var isVerified = false
+                if (dataPath != null) {
+                    val file = File(dataPath)
+                    val parentFolder = file.parent
+                    if (parentFolder != null) {
+                        val verificationMap = readVerificationMapForFolder(parentFolder)
+                        val key = "$discNumber-$baseTrackNumber"
+                        isVerified = verificationMap[key] ?: false
+                    }
+                }
+
+                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified)
             }
         }
 
