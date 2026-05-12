@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.RemoveCircle
@@ -92,6 +93,20 @@ fun TrackListScreen(
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
                 item {
+                    val overallProgress = remember(ripStates) {
+                        if (ripStates.isEmpty()) 0f
+                        else {
+                            val states = ripStates.values
+                            val completed = states.count {
+                                it.status == RipStatus.SUCCESS ||
+                                it.status == RipStatus.UNVERIFIED ||
+                                it.status == RipStatus.WARNING
+                            }
+                            if (completed == states.size) 1f
+                            else states.map { it.progress }.average().toFloat()
+                        }
+                    }
+
                     AlbumHeader(
                         title = state.title,
                         artistName = state.artistName,
@@ -99,6 +114,7 @@ fun TrackListScreen(
                         trackCount = state.tracks.size,
                         isCdMode = state.isCdMode,
                         isRipping = isRipping,
+                        overallProgress = overallProgress,
                         onSaveClick = { viewModel.startRip() },
                         onPlayClick = { viewModel.playAlbum(state.tracks) },
                         onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
@@ -153,14 +169,10 @@ fun TrackListScreen(
                                             Box(contentAlignment = Alignment.Center) {
                                                 CircularProgressIndicator(
                                                     progress = { ripState.progress },
-                                                    modifier = Modifier.size(32.dp),
+                                                    modifier = Modifier.size(24.dp),
                                                     color = MaterialTheme.colorScheme.primary,
-                                                    trackColor = Color.DarkGray
-                                                )
-                                                Text(
-                                                    text = "${(ripState.progress * 100).toInt()}%",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White
+                                                    trackColor = Color.DarkGray,
+                                                    strokeWidth = 2.dp
                                                 )
                                             }
                                         }
@@ -317,6 +329,21 @@ fun TrackListScreen(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.End
                                             ) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        viewModel.rescanTrack(track.trackNumber)
+                                                        showRipDetailSheet = false
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayArrow,
+                                                        contentDescription = "Rescan",
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("Rescan")
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
                                                 OutlinedButton(
                                                     onClick = {
                                                         onShareRipInfo(track.trackNumber)

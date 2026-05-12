@@ -29,9 +29,18 @@ class RipSession(private val context: Context) {
         toc: DiscToc,
         metadata: DiscMetadata,
         expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
-        artworkBytes: ByteArray?
+        artworkBytes: ByteArray?,
+        tracksToRip: List<Int>? = null
     ) {
-        if (_isRipping.value) return  // prevent double-start
+        if (_isRipping.value) {
+            val manager = ripManager
+            if (manager != null && tracksToRip != null) {
+                for (track in tracksToRip) {
+                    manager.queueTrack(track)
+                }
+            }
+            return
+        }
 
         val info = DeviceStateManager.driveStatus.value.info
         val driveVendor = info?.vendorId ?: ""
@@ -45,7 +54,8 @@ class RipSession(private val context: Context) {
             expectedChecksums = expectedChecksums,
             artworkBytes = artworkBytes,
             driveVendor = driveVendor,
-            driveProduct = driveProduct
+            driveProduct = driveProduct,
+            initialTracks = tracksToRip ?: toc.tracks.map { it.trackNumber }
         )
         ripManager = manager
         _isRipping.value = true
