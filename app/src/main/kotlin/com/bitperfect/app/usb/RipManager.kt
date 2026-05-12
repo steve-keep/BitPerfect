@@ -54,7 +54,8 @@ class RipManager(
     private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
     private val artworkBytes: ByteArray?,
     private val driveVendor: String,
-    private val driveProduct: String
+    private val driveProduct: String,
+    initialTracks: List<Int>
 ) {
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
@@ -65,6 +66,15 @@ class RipManager(
     private val verifier = AccurateRipVerifier()
 
     private var albumDir: DocumentFile? = null
+
+    private val trackQueue = java.util.concurrent.ConcurrentLinkedQueue(initialTracks)
+
+    fun queueTrack(trackNumber: Int) {
+        if (!trackQueue.contains(trackNumber)) {
+            trackQueue.offer(trackNumber)
+            updateTrackState(trackNumber, RipStatus.IDLE, 0f)
+        }
+    }
 
     suspend fun startRipping(session: UsbReadSession) = withContext(Dispatchers.IO) {
         val driveOffset: Int = try {
@@ -114,11 +124,15 @@ class RipManager(
         val skipBytes = sampleOffset * 4
         var overreadBuffer: ByteArray? = null
 
-        for (i in 0 until toc.tracks.size) {
+        while (trackQueue.isNotEmpty()) {
             if (isCancelled) break
 
+            val trackNumber = trackQueue.poll() ?: break
+
+            val i = trackNumber - 1
+            if (i < 0 || i >= toc.tracks.size) continue
+
             val entry = toc.tracks[i]
-            val trackNumber = entry.trackNumber
             val trackTitle = metadata.trackTitles.getOrNull(i) ?: "Track $trackNumber"
             val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
             val totalSectors = nextLba - entry.lba
