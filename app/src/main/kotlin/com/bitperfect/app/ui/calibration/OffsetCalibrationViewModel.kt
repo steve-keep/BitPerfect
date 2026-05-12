@@ -320,6 +320,11 @@ class OffsetCalibrationViewModel(
     }
 
     fun resetStep(index: Int) {
+        _uiState.update { current ->
+            val newSets = current.candidateSets.toMutableList()
+            if (index < newSets.size) newSets.removeAt(index)
+            current.copy(candidateSets = newSets)
+        }
         updateStepState(index, CalibrationStepState.WaitingForDisc)
     }
 
