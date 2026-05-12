@@ -4,9 +4,62 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.documentfile.provider.DocumentFile
 import java.net.URLDecoder
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import org.json.JSONObject
 
 open class LibraryRepository(private val context: Context) {
+
+    open fun getRecentlyPlayedAlbums(outputFolderUriString: String?, limit: Int = 10): List<Pair<ArtistInfo, AlbumInfo>> {
+        if (outputFolderUriString.isNullOrBlank()) {
+            return emptyList()
+        }
+
+        val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+        if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) {
+            return emptyList()
+        }
+
+        val recentFile = parentDir.findFile("recently-played.jsonl") ?: return emptyList()
+
+        // Keep track of albums using a LinkedHashMap to preserve insertion order (updating existing entries to move them to the end)
+        val recentAlbumsMap = LinkedHashMap<Long, Pair<ArtistInfo, AlbumInfo>>()
+
+        try {
+            context.contentResolver.openInputStream(recentFile.uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        if (line!!.isBlank()) continue
+                        try {
+                            val json = JSONObject(line!!)
+                            val albumId = json.getLong("albumId")
+                            val albumTitle = json.getString("albumTitle")
+                            val artistName = json.getString("artist")
+
+                            val albumArtBaseUri = Uri.parse("content://media/external/audio/albumart")
+                            val artUri = ContentUris.withAppendedId(albumArtBaseUri, albumId)
+
+                            val albumInfo = AlbumInfo(albumId, albumTitle, artUri)
+                            val artistInfo = ArtistInfo(albumId, artistName, listOf(albumInfo))
+
+                            // Remove it if it exists so we can re-add it at the end (most recent)
+                            recentAlbumsMap.remove(albumId)
+                            recentAlbumsMap[albumId] = Pair(artistInfo, albumInfo)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return recentAlbumsMap.values.toList().takeLast(limit).reversed()
+    }
 
     open fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
         if (outputFolderUriString.isNullOrBlank()) {

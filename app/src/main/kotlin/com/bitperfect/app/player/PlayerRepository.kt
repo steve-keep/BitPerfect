@@ -10,6 +10,13 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.app.library.LibraryRepository
+import com.bitperfect.core.utils.SettingsManager
+import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 import android.net.Uri
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +40,10 @@ open class PlayerRepository(
     }
 
     private var controller: MediaController? = null
+
+    private val libraryRepository by lazy { LibraryRepository(context) }
+    private val settingsManager by lazy { SettingsManager(context) }
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val _isPlaying = MutableStateFlow(false)
     open val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -73,6 +84,43 @@ open class PlayerRepository(
             _currentAlbumTitle.value = controller?.currentMediaItem?.mediaMetadata?.albumTitle?.toString()
             _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
             _currentIndex.value = controller?.currentMediaItemIndex ?: 0
+
+            mediaItem?.let { item -> recordRecentlyPlayed(item) }
+        }
+
+        private fun recordRecentlyPlayed(mediaItem: MediaItem) {
+            val trackId = mediaItem.mediaId.toLongOrNull() ?: return
+
+            scope.launch {
+                val track = libraryRepository.getTrack(trackId) ?: return@launch
+                val albumId = track.albumId
+                if (albumId == -1L) return@launch
+
+                val outputUriStr = settingsManager.outputFolderUri ?: return@launch
+                val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputUriStr))
+                if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) return@launch
+
+                val recentFile = parentDir.findFile("recently-played.jsonl") ?: parentDir.createFile("application/x-ndjson", "recently-played.jsonl")
+                if (recentFile == null) return@launch
+
+                try {
+                    val json = JSONObject().apply {
+                        put("timestamp", System.currentTimeMillis())
+                        put("albumId", albumId)
+                        put("albumTitle", track.albumTitle)
+                        put("artist", track.artist)
+                        put("trackId", track.id)
+                        put("trackTitle", track.title)
+                        put("trackNumber", track.trackNumber)
+                    }
+
+                    context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->
+                        out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
 
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
