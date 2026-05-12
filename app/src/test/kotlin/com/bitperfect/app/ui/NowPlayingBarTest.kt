@@ -5,6 +5,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.down
+import androidx.compose.ui.test.moveBy
+import androidx.compose.ui.test.up
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -122,5 +128,68 @@ class NowPlayingBarTest {
 
         composeTestRule.onNodeWithTag("now_playing_play_pause", useUnmergedTree = true).performClick()
         assert(playPauseClicked)
+    }
+
+    @Test
+    fun playPauseButtonDoesNotFireOnVerticalDrag() {
+        var clicked = false
+        composeTestRule.setContent {
+            NowPlayingBar(
+                isPlaying = false,
+                currentTrackTitle = "Song",
+                currentTrackArtist = null,
+                currentAlbumArtUri = null,
+                onPlayPause = { clicked = true }
+            )
+        }
+
+        // Simulate a downward drag starting on the play/pause button
+        composeTestRule
+            .onNodeWithTag("now_playing_play_pause", useUnmergedTree = true)
+            .performTouchInput {
+                down(center)
+                moveBy(Offset(0f, 200f))   // large vertical drag
+                up()
+            }
+
+        assert(!clicked) { "onPlayPause should NOT fire on a vertical drag" }
+    }
+
+    @Test
+    fun playPauseIconReflectsStatePause() {
+        // Pause icon shown when playing
+        composeTestRule.setContent {
+            NowPlayingBar(
+                isPlaying = true,
+                currentTrackTitle = "Song",
+                currentTrackArtist = null,
+                currentAlbumArtUri = null,
+                onPlayPause = {}
+            )
+        }
+        composeTestRule
+            .onNode(
+                androidx.compose.ui.test.hasContentDescription("Pause")
+            )
+            .assertExists()
+    }
+
+    @Test
+    fun playPauseIconReflectsStatePlay() {
+        // Play icon shown when paused
+        composeTestRule.setContent {
+            NowPlayingBar(
+                isPlaying = false,
+                currentTrackTitle = "Song",
+                currentTrackArtist = null,
+                currentAlbumArtUri = null,
+                onPlayPause = {}
+            )
+        }
+        composeTestRule
+            .onNode(
+                androidx.compose.ui.test.hasContentDescription("Play")
+            )
+            .assertExists()
     }
 }

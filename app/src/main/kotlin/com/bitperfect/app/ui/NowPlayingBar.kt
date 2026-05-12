@@ -20,8 +20,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.indication
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -127,16 +134,40 @@ fun NowPlayingBar(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    IconButton(
-                        onClick = onPlayPause,
+                    val interactionSource = remember { MutableInteractionSource() }
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .padding(end = 16.dp)
+                            .size(48.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
                             .testTag("now_playing_play_pause")
+                            .semantics { role = Role.Button }
+                            .indication(interactionSource, androidx.compose.foundation.LocalIndication.current)
+                            .pointerInput(onPlayPause) {
+                                val slopPx = 8.dp.toPx()
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    down.consume()
+                                    val press = androidx.compose.foundation.interaction.PressInteraction.Press(down.position)
+                                    interactionSource.tryEmit(press)
+
+                                    val up = waitForUpOrCancellation()
+                                    if (up != null && kotlin.math.abs(up.position.y - down.position.y) < slopPx) {
+                                        up.consume()
+                                        interactionSource.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Release(press))
+                                        onPlayPause()
+                                    } else {
+                                        interactionSource.tryEmit(androidx.compose.foundation.interaction.PressInteraction.Cancel(press))
+                                    }
+                                }
+                            }
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
