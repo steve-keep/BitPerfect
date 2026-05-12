@@ -174,6 +174,46 @@ class OffsetScanWindowTest {
     }
 
     @Test
+    fun `intersection of candidate sets finds consensus offset`() {
+        val set1 = setOf(6, -279, 42)   // disc 1: real match +6, two false positives
+        val set2 = setOf(6, 100)        // disc 2: real match +6, one false positive
+        val set3 = setOf(6, -50)        // disc 3: real match +6, one false positive
+
+        val intersection = set1.intersect(set2).intersect(set3)
+
+        assertEquals(setOf(6), intersection)
+    }
+
+    @Test
+    fun `empty intersection when no consensus`() {
+        val set1 = setOf(-279)
+        val set2 = setOf(42)
+        val set3 = setOf(-673)
+
+        val intersection = set1.intersect(set2).intersect(set3)
+
+        assertTrue(intersection.isEmpty())
+    }
+
+    @Test
+    fun `empty set from failed step makes intersection empty`() {
+        val set1 = setOf(6)
+        val set2 = emptySet<Int>()   // step errored
+        val set3 = setOf(6)
+
+        val intersection = set1.intersect(set2).intersect(set3)
+
+        assertTrue(intersection.isEmpty())
+    }
+
+    @Test
+    fun `single element intersection passes with correct offset`() {
+        val intersection = setOf(6)
+        assertEquals(1, intersection.size)
+        assertEquals(6, intersection.first())
+    }
+
+    @Test
     fun `disc starting at native LBA 0 skips too negative offsets`() {
         val trackLba = 0
 
