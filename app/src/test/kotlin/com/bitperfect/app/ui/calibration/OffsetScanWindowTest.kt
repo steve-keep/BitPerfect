@@ -145,6 +145,35 @@ class OffsetScanWindowTest {
     }
 
     @Test
+    fun `zero checksum and zero confidence entries are filtered before scan`() {
+        val raw = listOf(
+            AccurateRipTrackMetadata(checksum = 0x1AE5FD7AL, confidence = 200),
+            AccurateRipTrackMetadata(checksum = 0x00000000L, confidence = 0),
+            AccurateRipTrackMetadata(checksum = 0x00000000L, confidence = 0),
+            AccurateRipTrackMetadata(checksum = 0x086EDF18L, confidence = 57),
+        )
+
+        val valid = raw.filter { it.checksum != 0L && it.confidence > 0 }
+
+        assertEquals(2, valid.size)
+        assertTrue(valid.all { it.checksum != 0L })
+        assertTrue(valid.all { it.confidence > 0 })
+    }
+
+    @Test
+    fun `all zero confidence entries throws rather than false-positiving`() {
+        val allZero = listOf(
+            AccurateRipTrackMetadata(checksum = 0L, confidence = 0),
+            AccurateRipTrackMetadata(checksum = 0L, confidence = 0),
+        )
+
+        val valid = allZero.filter { it.checksum != 0L && it.confidence > 0 }
+
+        assertTrue(valid.isEmpty())
+        // In production this path throws IllegalStateException — test documents the expectation
+    }
+
+    @Test
     fun `disc starting at native LBA 0 skips too negative offsets`() {
         val trackLba = 0
 

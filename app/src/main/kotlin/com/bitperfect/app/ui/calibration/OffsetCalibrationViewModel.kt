@@ -127,6 +127,17 @@ class OffsetCalibrationViewModel(
                     throw IllegalStateException("No AccurateRip checksums found for track ${resolvedArTrackNumber}")
                 }
 
+                // Strip placeholder entries (checksum=0, confidence=0) that AccurateRip inserts for
+                // unverified submissions. Matching against these produces false positives because the
+                // inter-track gap before the scan window is silence, which also checksums to 0x00000000.
+                val validChecksums = expectedChecksums!!.filter { it.checksum != 0L && it.confidence > 0 }
+                if (validChecksums.isEmpty()) {
+                    throw IllegalStateException(
+                        "No valid AccurateRip checksums for track $resolvedArTrackNumber " +
+                        "(all ${expectedChecksums!!.size} entries are zero-confidence placeholders)"
+                    )
+                }
+
                 val resolvedTrack = toc.tracks[resolvedTrackIndex]
                 val resolvedNextLba = if (resolvedTrackIndex + 1 < toc.tracks.size)
                     toc.tracks[resolvedTrackIndex + 1].lba else toc.leadOutLba
@@ -215,7 +226,7 @@ class OffsetCalibrationViewModel(
                             sampledChecksums.add("offset $sign$offset → 0x${checksum.toString(16).uppercase().padStart(8, '0')}")
                         }
 
-                        if (expectedChecksums!!.any { it.checksum == checksum }) {
+                        if (validChecksums.any { it.checksum == checksum }) {
                             foundOffset = offset
                             break
                         }
@@ -242,7 +253,15 @@ class OffsetCalibrationViewModel(
                         actualPreSectors = actualPreSectors,
                         sectorsToRead = sectorsToRead,
                         totalSectors = totalSectors,
-                        expectedChecksums = expectedChecksums!!.map { "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})" },
+                        expectedChecksums = buildList {
+                            addAll(validChecksums.map {
+                                "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
+                            })
+                            val filteredCount = expectedChecksums!!.size - validChecksums.size
+                            if (filteredCount > 0) {
+                                add("[$filteredCount zero-confidence placeholder(s) filtered]")
+                            }
+                        },
                         sampledComputedChecksums = sampledChecksums
                     )
                     updateStepState(stepIndex, CalibrationStepState.Error("No matching offset found (-3000 to +3000)", discIdUrl, debugInfo))
