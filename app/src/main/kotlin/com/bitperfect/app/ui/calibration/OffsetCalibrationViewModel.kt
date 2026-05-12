@@ -86,6 +86,12 @@ class OffsetCalibrationViewModel(
         }
     }
 
+    private fun appendStepReport(report: CalibrationStepReport) {
+        _uiState.update { current ->
+            current.copy(sessionReport = current.sessionReport + report)
+        }
+    }
+
     fun startScan(stepIndex: Int) {
         val state = _uiState.value
         if (state.steps.getOrNull(stepIndex) !is CalibrationStepState.KeyDiscConfirmed) {
@@ -233,16 +239,40 @@ class OffsetCalibrationViewModel(
                     }
                 }
 
+                val discIdUrl = try { accurateRipService.getAccurateRipUrl(toc) } catch (e: Exception) { "Unknown" }
+
                 if (foundOffset != null) {
                     candidateOffsets.add(foundOffset!!)
+
+                    val successDebugInfo = CalibrationDebugInfo(
+                        discId               = discIdUrl,
+                        trackUsed            = resolvedTrackIndex + 1,
+                        arTrackNumber        = resolvedArTrackNumber,
+                        nativeTrackStart     = nativeTrackStart,
+                        normalisedReadStart  = normalisedReadStart,
+                        physicalReadStartLba = readStartLba,
+                        actualPreSectors     = actualPreSectors,
+                        sectorsToRead        = sectorsToRead,
+                        totalSectors         = totalSectors,
+                        expectedChecksums    = buildList {
+                            addAll(validChecksums.map {
+                                "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
+                            })
+                            val filteredCount = expectedChecksums!!.size - validChecksums.size
+                            if (filteredCount > 0) add("[$filteredCount zero-confidence placeholder(s) filtered]")
+                        },
+                        sampledComputedChecksums = sampledChecksums
+                    )
+
+                    appendStepReport(CalibrationStepReport(
+                        stepNumber  = stepIndex + 1,
+                        discId      = discIdUrl,
+                        foundOffset = foundOffset,
+                        debugInfo   = successDebugInfo
+                    ))
+
                     updateStepState(stepIndex, CalibrationStepState.Success)
                 } else {
-                    val discIdUrl = try {
-                        accurateRipService.getAccurateRipUrl(toc)
-                    } catch (e: Exception) {
-                        "Unknown URL"
-                    }
-
                     val debugInfo = CalibrationDebugInfo(
                         discId = discIdUrl,
                         trackUsed = resolvedTrackIndex + 1,
@@ -264,11 +294,34 @@ class OffsetCalibrationViewModel(
                         },
                         sampledComputedChecksums = sampledChecksums
                     )
+
+                    appendStepReport(CalibrationStepReport(
+                        stepNumber  = stepIndex + 1,
+                        discId      = discIdUrl,
+                        foundOffset = null,
+                        debugInfo   = debugInfo
+                    ))
+
                     updateStepState(stepIndex, CalibrationStepState.Error("No matching offset found (-3000 to +3000)", discIdUrl, debugInfo))
                 }
 
             } catch (e: Exception) {
                 com.bitperfect.core.utils.AppLogger.e("OffsetCalibration", "Calibration error", e)
+
+                val catchToc = (DeviceStateManager.driveStatus.value as? DriveStatus.DiscReady)?.toc
+                val discIdUrl = if (catchToc != null) {
+                    try { accurateRipService.getAccurateRipUrl(catchToc) } catch (eInner: Exception) { "Unknown" }
+                } else {
+                    "Unknown"
+                }
+
+                appendStepReport(CalibrationStepReport(
+                    stepNumber  = stepIndex + 1,
+                    discId      = discIdUrl,
+                    foundOffset = null,
+                    debugInfo   = null
+                ))
+
                 updateStepState(stepIndex, CalibrationStepState.Error(e.message ?: "Unknown error", null))
             }
 

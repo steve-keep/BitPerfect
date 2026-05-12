@@ -39,6 +39,33 @@ ${sampledComputedChecksums.joinToString("\n") { "            $it" }}
     }
 }
 
+data class CalibrationStepReport(
+    val stepNumber: Int,
+    val discId: String,
+    val foundOffset: Int?,
+    val debugInfo: CalibrationDebugInfo?
+) {
+    fun toShareableText(): String = buildString {
+        appendLine("Step $stepNumber")
+        appendLine("  Disc:         $discId")
+        appendLine("  Found offset: ${foundOffset?.let { "${if (it >= 0) "+" else ""}$it samples" } ?: "no match"}")
+        if (debugInfo != null) {
+            appendLine("  Track scanned:        ${debugInfo.trackUsed}")
+            appendLine("  AR track number:      ${debugInfo.arTrackNumber}")
+            appendLine("  nativeTrackStart:     ${debugInfo.nativeTrackStart}")
+            appendLine("  normalisedReadStart:  ${debugInfo.normalisedReadStart}")
+            appendLine("  physicalReadStartLba: ${debugInfo.physicalReadStartLba}")
+            appendLine("  actualPreSectors:     ${debugInfo.actualPreSectors}")
+            appendLine("  sectorsToRead:        ${debugInfo.sectorsToRead}")
+            appendLine("  totalSectors:         ${debugInfo.totalSectors}")
+            appendLine("  Expected AR Checksums (${debugInfo.expectedChecksums.size}):")
+            debugInfo.expectedChecksums.forEach { appendLine("    $it") }
+            appendLine("  Computed Checksums (sampled every 100 offsets):")
+            debugInfo.sampledComputedChecksums.forEach { appendLine("    $it") }
+        }
+    }
+}
+
 sealed class SaveState {
     data object Idle : SaveState()
     data object Saving : SaveState()
@@ -54,5 +81,6 @@ data class OffsetCalibrationUiState(
     ),
     val activeStepIndex: Int = 0,
     val calibrationResult: CalibrationResult? = null,
-    val saveState: SaveState = SaveState.Idle
+    val saveState: SaveState = SaveState.Idle,
+    val sessionReport: List<CalibrationStepReport> = emptyList()
 )
