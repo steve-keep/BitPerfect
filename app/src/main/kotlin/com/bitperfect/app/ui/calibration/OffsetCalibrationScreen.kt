@@ -6,7 +6,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
 import android.content.Intent
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -340,6 +342,123 @@ fun CalibrationStepContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun SessionDebugSheet(
+    report: List<CalibrationStepReport>,
+    finalOffset: Int,
+    passed: Boolean,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val shareText = remember(report) {
+        buildString {
+            appendLine("BitPerfect Calibration Session Report")
+            appendLine("======================================")
+            appendLine("Result: ${if (passed) "PASS" else "FAIL (low confidence)"}")
+            val sign = if (finalOffset >= 0) "+" else ""
+            appendLine("Final offset: $sign$finalOffset samples")
+            appendLine()
+            report.forEach { step ->
+                appendLine(step.toShareableText())
+                appendLine()
+            }
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Header row with title and share button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Session Report",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                IconButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(
+                        android.content.ClipData.newPlainText("Calibration Report", shareText)
+                    )
+                }) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = "Copy to clipboard"
+                    )
+                }
+            }
+
+            // Summary section
+            DebugSection("Summary") {
+                DebugRow("Result", if (passed) "PASS" else "FAIL")
+                val sign = if (finalOffset >= 0) "+" else ""
+                DebugRow("Final offset", "$sign$finalOffset samples")
+                DebugRow("Steps completed", "${report.size} of 3")
+            }
+
+            // Per-step sections
+            report.forEach { step ->
+                DebugSection("Step ${step.stepNumber}") {
+                    DebugRow("Disc", step.discId)
+                    DebugRow(
+                        "Found offset",
+                        step.foundOffset?.let {
+                            val s = if (it >= 0) "+" else ""
+                            "$s$it samples"
+                        } ?: "no match"
+                    )
+                    val info = step.debugInfo
+                    if (info != null) {
+                        DebugRow("Track scanned",        "${info.trackUsed}")
+                        DebugRow("AR track number",      "${info.arTrackNumber}")
+                        DebugRow("nativeTrackStart",     "${info.nativeTrackStart}")
+                        DebugRow("normalisedReadStart",  "${info.normalisedReadStart}")
+                        DebugRow("physicalReadStartLba", "${info.physicalReadStartLba}")
+                        DebugRow("actualPreSectors",     "${info.actualPreSectors}")
+                        DebugRow("sectorsToRead",        "${info.sectorsToRead}")
+                        DebugRow("totalSectors",         "${info.totalSectors}")
+
+                        if (info.expectedChecksums.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Expected AR Checksums (${info.expectedChecksums.size})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            info.expectedChecksums.forEach { DebugRow("", it) }
+                        }
+
+                        if (info.sampledComputedChecksums.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Computed Checksums (sampled every 100 offsets)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            info.sampledComputedChecksums.forEach { DebugRow("", it) }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun OffsetCalibrationScreen(
     driveOffsetRepository: DriveOffsetRepository,
     onNavigateBack: () -> Unit,
@@ -486,6 +605,25 @@ fun OffsetCalibrationScreen(
                         text = "Offset: ${if (calibrationResult.offset > 0) "+" else ""}${calibrationResult.offset} samples",
                         style = MaterialTheme.typography.headlineMedium
                     )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (uiState.sessionReport.isNotEmpty()) {
+                        var showSessionDebug by remember { mutableStateOf(false) }
+
+                        TextButton(onClick = { showSessionDebug = true }) {
+                            Text("Debug")
+                        }
+
+                        if (showSessionDebug) {
+                            SessionDebugSheet(
+                                report      = uiState.sessionReport,
+                                finalOffset = calibrationResult.offset,
+                                passed      = calibrationResult.passed,
+                                onDismiss   = { showSessionDebug = false }
+                            )
+                        }
+                    }
                 }
             } else {
                 // Step indicator
