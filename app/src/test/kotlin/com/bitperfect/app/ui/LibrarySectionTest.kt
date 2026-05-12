@@ -61,6 +61,8 @@ class LibrarySectionTest {
         val flow = artistsFlowField.get(mockViewModel) as MutableStateFlow<List<ArtistInfo>>
         flow.value = artists
 
+        mockViewModel.searchQuery.value = ""
+
         // Setup output folder so it displays library
         val _isOutputFolderConfiguredField = AppViewModel::class.java.getDeclaredField("_isOutputFolderConfigured")
         _isOutputFolderConfiguredField.isAccessible = true
