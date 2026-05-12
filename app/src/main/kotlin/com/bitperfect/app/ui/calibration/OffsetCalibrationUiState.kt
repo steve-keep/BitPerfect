@@ -42,13 +42,16 @@ ${sampledComputedChecksums.joinToString("\n") { "            $it" }}
 data class CalibrationStepReport(
     val stepNumber: Int,
     val discId: String,
-    val foundOffset: Int?,
+    val matchingOffsets: Set<Int>,
     val debugInfo: CalibrationDebugInfo?
 ) {
     fun toShareableText(): String = buildString {
         appendLine("Step $stepNumber")
         appendLine("  Disc:         $discId")
-        appendLine("  Found offset: ${foundOffset?.let { "${if (it >= 0) "+" else ""}$it samples" } ?: "no match"}")
+        appendLine("  Matching offsets (${matchingOffsets.size}): ${
+            if (matchingOffsets.isEmpty()) "none"
+            else matchingOffsets.sorted().joinToString(", ") { "${if (it >= 0) "+" else ""}$it" }
+        }")
         if (debugInfo != null) {
             appendLine("  Track scanned:        ${debugInfo.trackUsed}")
             appendLine("  AR track number:      ${debugInfo.arTrackNumber}")
@@ -82,5 +85,6 @@ data class OffsetCalibrationUiState(
     val activeStepIndex: Int = 0,
     val calibrationResult: CalibrationResult? = null,
     val saveState: SaveState = SaveState.Idle,
-    val sessionReport: List<CalibrationStepReport> = emptyList()
+    val sessionReport: List<CalibrationStepReport> = emptyList(),
+    val candidateSets: List<Set<Int>> = emptyList()
 )

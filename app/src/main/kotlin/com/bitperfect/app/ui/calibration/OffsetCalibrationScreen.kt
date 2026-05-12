@@ -403,6 +403,17 @@ private fun SessionDebugSheet(
                 val sign = if (finalOffset >= 0) "+" else ""
                 DebugRow("Final offset", "$sign$finalOffset samples")
                 DebugRow("Steps completed", "${report.size} of 3")
+
+                val allSets = report.map { it.matchingOffsets }
+                if (allSets.size == 3) {
+                    val intersection = allSets[0].intersect(allSets[1]).intersect(allSets[2])
+                    DebugRow(
+                        "Intersection",
+                        if (intersection.isEmpty()) "empty (no consensus)"
+                        else intersection.sorted()
+                            .joinToString(", ") { "${if (it >= 0) "+" else ""}$it" }
+                    )
+                }
             }
 
             // Per-step sections
@@ -410,11 +421,10 @@ private fun SessionDebugSheet(
                 DebugSection("Step ${step.stepNumber}") {
                     DebugRow("Disc", step.discId)
                     DebugRow(
-                        "Found offset",
-                        step.foundOffset?.let {
-                            val s = if (it >= 0) "+" else ""
-                            "$s$it samples"
-                        } ?: "no match"
+                        "Matching offsets",
+                        if (step.matchingOffsets.isEmpty()) "none"
+                        else step.matchingOffsets.sorted()
+                            .joinToString(", ") { "${if (it >= 0) "+" else ""}$it" }
                     )
                     val info = step.debugInfo
                     if (info != null) {

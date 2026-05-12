@@ -24,8 +24,6 @@ class OffsetCalibrationViewModel(
     private val _uiState = MutableStateFlow(OffsetCalibrationUiState())
     val uiState: StateFlow<OffsetCalibrationUiState> = _uiState.asStateFlow()
 
-    private val candidateOffsets = mutableListOf<Int>()
-
     init {
         viewModelScope.launch {
             DeviceStateManager.driveStatus.collect { driveStatus ->
@@ -184,10 +182,10 @@ class OffsetCalibrationViewModel(
                 }
 
                 val fullPcm = rawBuffer.toByteArray()
-                var foundOffset: Int? = null
                 val verifier = com.bitperfect.core.services.AccurateRipVerifier()
 
                 val sampledChecksums = mutableListOf<String>()
+                val matchingOffsets = mutableSetOf<Int>()
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                     val trackBuffer = ByteArray(totalSectors * 2352)
@@ -196,9 +194,7 @@ class OffsetCalibrationViewModel(
                     for (offset in -MAX_OFFSET_SAMPLES..MAX_OFFSET_SAMPLES) {
                         if (!isActive) break
 
-                        // Guard: we may not have enough pre-track data for very negative offsets
-                        // if the track started too close to the disc start.
-                        val requiredPreSectors = (-offset + 587) / 588  // sectors needed before track
+                        val requiredPreSectors = (-offset + 587) / 588
                         if (offset < 0 && requiredPreSectors > actualPreSectors) continue
 
                         val now = System.currentTimeMillis()
@@ -209,16 +205,13 @@ class OffsetCalibrationViewModel(
                             lastUpdate = now
                         }
 
-                        // Centre of the window is at actualPreSectors * 2352 samples into fullPcm.
-                        // Shifting by `offset` samples moves the window left (negative) or right (positive).
                         val startByte = actualPreSectors * 2352 + offset * 4
-
                         if (startByte < 0 || startByte + trackBuffer.size > fullPcm.size) continue
 
                         System.arraycopy(fullPcm, startByte, trackBuffer, 0, trackBuffer.size)
 
                         val result = verifier.computeChecksumChunk(
-                            pcmData       = trackBuffer,
+                            pcmData        = trackBuffer,
                             samplePosition = 1L,
                             totalSamples   = totalSamples,
                             isFirstTrack   = (resolvedTrackIndex == 0),
@@ -226,102 +219,70 @@ class OffsetCalibrationViewModel(
                         )
                         val checksum = verifier.finaliseChecksum(result.partialChecksum)
 
-                        // Sample every 100 offsets for the debug log
+                        // Sample every 100 offsets for debug
                         if (offset % 100 == 0) {
                             val sign = if (offset >= 0) "+" else ""
                             sampledChecksums.add("offset $sign$offset → 0x${checksum.toString(16).uppercase().padStart(8, '0')}")
                         }
 
+                        // Collect ALL offsets that match ANY valid AR entry — do NOT break early
                         if (validChecksums.any { it.checksum == checksum }) {
-                            foundOffset = offset
-                            break
+                            matchingOffsets.add(offset)
                         }
                     }
                 }
 
                 val discIdUrl = try { accurateRipService.getAccurateRipUrl(toc) } catch (e: Exception) { "Unknown" }
 
-                if (foundOffset != null) {
-                    candidateOffsets.add(foundOffset!!)
+                val stepDebugInfo = CalibrationDebugInfo(
+                    discId               = discIdUrl,
+                    trackUsed            = resolvedTrackIndex + 1,
+                    arTrackNumber        = resolvedArTrackNumber,
+                    nativeTrackStart     = nativeTrackStart,
+                    normalisedReadStart  = normalisedReadStart,
+                    physicalReadStartLba = readStartLba,
+                    actualPreSectors     = actualPreSectors,
+                    sectorsToRead        = sectorsToRead,
+                    totalSectors         = totalSectors,
+                    expectedChecksums    = buildList {
+                        addAll(validChecksums.map {
+                            "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
+                        })
+                        val filteredCount = expectedChecksums!!.size - validChecksums.size
+                        if (filteredCount > 0) add("[$filteredCount zero-confidence placeholder(s) filtered]")
+                    },
+                    sampledComputedChecksums = sampledChecksums
+                )
 
-                    val successDebugInfo = CalibrationDebugInfo(
-                        discId               = discIdUrl,
-                        trackUsed            = resolvedTrackIndex + 1,
-                        arTrackNumber        = resolvedArTrackNumber,
-                        nativeTrackStart     = nativeTrackStart,
-                        normalisedReadStart  = normalisedReadStart,
-                        physicalReadStartLba = readStartLba,
-                        actualPreSectors     = actualPreSectors,
-                        sectorsToRead        = sectorsToRead,
-                        totalSectors         = totalSectors,
-                        expectedChecksums    = buildList {
-                            addAll(validChecksums.map {
-                                "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
-                            })
-                            val filteredCount = expectedChecksums!!.size - validChecksums.size
-                            if (filteredCount > 0) add("[$filteredCount zero-confidence placeholder(s) filtered]")
-                        },
-                        sampledComputedChecksums = sampledChecksums
-                    )
+                appendStepReport(CalibrationStepReport(
+                    stepNumber      = stepIndex + 1,
+                    discId          = discIdUrl,
+                    matchingOffsets = matchingOffsets,
+                    debugInfo       = stepDebugInfo
+                ))
 
-                    appendStepReport(CalibrationStepReport(
-                        stepNumber  = stepIndex + 1,
-                        discId      = discIdUrl,
-                        foundOffset = foundOffset,
-                        debugInfo   = successDebugInfo
-                    ))
-
-                    updateStepState(stepIndex, CalibrationStepState.Success)
-                } else {
-                    val debugInfo = CalibrationDebugInfo(
-                        discId = discIdUrl,
-                        trackUsed = resolvedTrackIndex + 1,
-                        arTrackNumber = resolvedArTrackNumber,
-                        nativeTrackStart = nativeTrackStart,
-                        normalisedReadStart = normalisedReadStart,
-                        physicalReadStartLba = readStartLba,
-                        actualPreSectors = actualPreSectors,
-                        sectorsToRead = sectorsToRead,
-                        totalSectors = totalSectors,
-                        expectedChecksums = buildList {
-                            addAll(validChecksums.map {
-                                "0x${it.checksum.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
-                            })
-                            val filteredCount = expectedChecksums!!.size - validChecksums.size
-                            if (filteredCount > 0) {
-                                add("[$filteredCount zero-confidence placeholder(s) filtered]")
-                            }
-                        },
-                        sampledComputedChecksums = sampledChecksums
-                    )
-
-                    appendStepReport(CalibrationStepReport(
-                        stepNumber  = stepIndex + 1,
-                        discId      = discIdUrl,
-                        foundOffset = null,
-                        debugInfo   = debugInfo
-                    ))
-
-                    updateStepState(stepIndex, CalibrationStepState.Error("No matching offset found (-3000 to +3000)", discIdUrl, debugInfo))
+                // Record this step's candidate set and transition to Success regardless of
+                // whether matchingOffsets is empty — the intersection decides the final result.
+                _uiState.update { current ->
+                    current.copy(candidateSets = current.candidateSets + listOf(matchingOffsets))
                 }
+                updateStepState(stepIndex, CalibrationStepState.Success)
 
             } catch (e: Exception) {
                 com.bitperfect.core.utils.AppLogger.e("OffsetCalibration", "Calibration error", e)
 
-                val catchToc = (DeviceStateManager.driveStatus.value as? DriveStatus.DiscReady)?.toc
-                val discIdUrl = if (catchToc != null) {
-                    try { accurateRipService.getAccurateRipUrl(catchToc) } catch (eInner: Exception) { "Unknown" }
-                } else {
-                    "Unknown"
-                }
-
+                val discIdUrl = try {
+                    accurateRipService.getAccurateRipUrl(
+                        (DeviceStateManager.driveStatus.value as? DriveStatus.DiscReady)?.toc
+                            ?: throw IllegalStateException("TOC unavailable")
+                    )
+                } catch (ex: Exception) { "Unknown" }
                 appendStepReport(CalibrationStepReport(
-                    stepNumber  = stepIndex + 1,
-                    discId      = discIdUrl,
-                    foundOffset = null,
-                    debugInfo   = null
+                    stepNumber      = stepIndex + 1,
+                    discId          = discIdUrl,
+                    matchingOffsets = emptySet(),
+                    debugInfo       = null
                 ))
-
                 updateStepState(stepIndex, CalibrationStepState.Error(e.message ?: "Unknown error", null))
             }
 
@@ -359,44 +320,56 @@ class OffsetCalibrationViewModel(
     }
 
     fun resetStep(index: Int) {
+        _uiState.update { current ->
+            val newSets = current.candidateSets.toMutableList()
+            if (index < newSets.size) newSets.removeAt(index)
+            current.copy(candidateSets = newSets)
+        }
         updateStepState(index, CalibrationStepState.WaitingForDisc)
     }
 
     private fun checkCalibrationComplete() {
         val state = _uiState.value
-        if (state.steps.all { it is CalibrationStepState.Success }) {
-            // Compute final offset based on Step C rules
-            val pass: Boolean
-            val finalOffset: Int
 
-            if (candidateOffsets.size == 3) {
-                val o1 = candidateOffsets[0]
-                val o2 = candidateOffsets[1]
-                val o3 = candidateOffsets[2]
+        // Wait until all 3 steps are in a terminal state (Success or Error).
+        // A step in Error contributes an empty set which will make the intersection empty.
+        val allTerminal = state.steps.all {
+            it is CalibrationStepState.Success || it is CalibrationStepState.Error
+        }
+        if (!allTerminal) return
 
-                if (o1 == o2) {
-                    finalOffset = o1
-                    pass = true
-                } else if (o2 == o3) {
-                    finalOffset = o2
-                    pass = true
-                } else if (o1 == o3) {
-                    finalOffset = o1
-                    pass = true
-                } else {
-                    finalOffset = 0
-                    pass = false
-                }
-            } else {
+        // Only compute result once all 3 candidate sets are recorded.
+        // candidateSets may have fewer than 3 entries if some steps errored before
+        // appending their set — treat missing sets as empty.
+        val sets = List(3) { i -> state.candidateSets.getOrElse(i) { emptySet() } }
+
+        val intersection = sets[0]
+            .intersect(sets[1])
+            .intersect(sets[2])
+
+        val finalOffset: Int
+        val passed: Boolean
+
+        when {
+            intersection.size == 1 -> {
+                finalOffset = intersection.first()
+                passed = true
+            }
+            intersection.size > 1 -> {
+                // Multiple offsets agreed across all 3 discs — extremely unlikely.
+                // Pick the one closest to 0 as a tiebreak; flag as low confidence.
+                finalOffset = intersection.minByOrNull { kotlin.math.abs(it) } ?: 0
+                passed = false
+            }
+            else -> {
+                // Empty intersection — discs don't agree on any single offset.
                 finalOffset = 0
-                pass = false
+                passed = false
             }
+        }
 
-            _uiState.update {
-                it.copy(
-                    calibrationResult = CalibrationResult(offset = finalOffset, passed = pass)
-                )
-            }
+        _uiState.update {
+            it.copy(calibrationResult = CalibrationResult(offset = finalOffset, passed = passed))
         }
     }
 }
