@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 import java.io.InputStreamReader
 import java.io.BufferedReader
+import com.bitperfect.core.models.LyricsResult
 
 enum class RipStatus {
     IDLE, RIPPING, VERIFYING, SUCCESS, UNVERIFIED, WARNING, ERROR, CANCELLED
@@ -56,6 +57,7 @@ class RipManager(
     private val metadata: DiscMetadata,
     private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
     private val artworkBytes: ByteArray?,
+    private val lyricsMap: Map<Int, LyricsResult> = emptyMap(),
     private val driveVendor: String,
     private val driveProduct: String,
     initialTracks: List<Int>
@@ -145,6 +147,8 @@ class RipManager(
 
             if (isCancelled) break
 
+            val lyricsResult = lyricsMap[trackNumber]
+
             val safeTitle = trackTitle.replace("/", "_")
 
             val totalDiscs = metadata.totalDiscs
@@ -196,6 +200,8 @@ class RipManager(
                     mbReleaseId = metadata.mbReleaseId,
                     accurateRipUrl = accurateRipUrl,
                     artworkBytes = artworkBytes,
+                    plainLyrics = lyricsResult?.plainLyrics,
+                    syncedLyrics = lyricsResult?.syncedLyrics,
                     discNumber = metadata.discNumber,
                     totalDiscs = metadata.totalDiscs
                 )
@@ -492,6 +498,8 @@ class RipManager(
         mbReleaseId: String?,
         accurateRipUrl: String?,
         artworkBytes: ByteArray?,
+        plainLyrics: String?,
+        syncedLyrics: String?,
         discNumber: Int?,
         totalDiscs: Int?
     ): ByteArray {
@@ -557,6 +565,8 @@ class RipManager(
                 comments.add("ACCURATERIPDISCID=${match.groupValues[1]}")
             }
         }
+        if (plainLyrics != null) comments.add("LYRICS=$plainLyrics")
+        if (syncedLyrics != null) comments.add("SYNCEDLYRICS=$syncedLyrics")
         comments.add("BITDEPTH=16")
         comments.add("SAMPLERATE=44100")
         comments.add("COMMENT=Ripped with BitPerfect")
