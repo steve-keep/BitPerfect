@@ -9,10 +9,14 @@ import kotlinx.serialization.Serializable
     val id: String,
     val title: String,
     val date: String? = null,
+    val barcode: String? = null,
     val genres: List<MbGenre> = emptyList(),
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
-    val media: List<MbMedia> = emptyList()
+    val media: List<MbMedia> = emptyList(),
+    @SerialName("cover-art-archive") val coverArtArchive: MbCoverArtArchive? = null
 )
+
+@Serializable data class MbCoverArtArchive(val front: Boolean = false)
 
 @Serializable data class MbArtistCredit(
     val name: String? = null,
@@ -34,7 +38,11 @@ import kotlinx.serialization.Serializable
 @Serializable data class MbMedia(
     val position: Int? = null,
     val tracks: List<MbTrack> = emptyList(),
-    val discs: List<MbDisc> = emptyList()
+    val discs: List<MbDisc> = emptyList(),
+    @SerialName("track-count") val trackCount: Int = 0
 )
 
-@Serializable data class MbTrack(val title: String)
+@Serializable data class MbTrack(
+    val title: String,
+    val number: String? = null
+)
