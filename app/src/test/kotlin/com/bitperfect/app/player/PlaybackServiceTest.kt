@@ -215,21 +215,47 @@ class PlaybackServiceTest {
         val result = future?.get()
         val items = result?.value
 
-        assertEquals(3, items?.size)
+        assertEquals(2, items?.size)
+
+        assertEquals("recent_albums", items?.get(0)?.mediaId)
+        assertEquals("Recently Played", items?.get(0)?.mediaMetadata?.title)
+        assertEquals(true, items?.get(0)?.mediaMetadata?.isBrowsable)
+        assertEquals(false, items?.get(0)?.mediaMetadata?.isPlayable)
+
+        assertEquals("all_albums", items?.get(1)?.mediaId)
+        assertEquals("All Albums", items?.get(1)?.mediaMetadata?.title)
+        assertEquals(true, items?.get(1)?.mediaMetadata?.isBrowsable)
+        assertEquals(false, items?.get(1)?.mediaMetadata?.isPlayable)
+
+        @Suppress("UNCHECKED_CAST")
+        val futureAllAlbums = onGetChildrenMethod.invoke(
+            callback,
+            dummySession,
+            dummyController,
+            "all_albums",
+            0,
+            0,
+            null
+        ) as ListenableFuture<androidx.media3.session.LibraryResult<ImmutableList<MediaItem>>>?
+
+        val resultAllAlbums = futureAllAlbums?.get()
+        val itemsAllAlbums = resultAllAlbums?.value
+
+        assertEquals(3, itemsAllAlbums?.size)
 
         // Sorting should be: Artist A (Banana), Artist B (Apple), Artist B (Zebra)
-        assertEquals("album_3", items?.get(0)?.mediaId)
-        assertEquals("Banana", items?.get(0)?.mediaMetadata?.title)
-        assertEquals("Artist A", items?.get(0)?.mediaMetadata?.subtitle)
-        assertEquals(false, items?.get(0)?.mediaMetadata?.isBrowsable)
-        assertEquals(true, items?.get(0)?.mediaMetadata?.isPlayable)
+        assertEquals("album_3", itemsAllAlbums?.get(0)?.mediaId)
+        assertEquals("Banana", itemsAllAlbums?.get(0)?.mediaMetadata?.title)
+        assertEquals("Artist A", itemsAllAlbums?.get(0)?.mediaMetadata?.subtitle)
+        assertEquals(false, itemsAllAlbums?.get(0)?.mediaMetadata?.isBrowsable)
+        assertEquals(true, itemsAllAlbums?.get(0)?.mediaMetadata?.isPlayable)
 
-        assertEquals("album_2", items?.get(1)?.mediaId)
-        assertEquals("Apple", items?.get(1)?.mediaMetadata?.title)
-        assertEquals("Artist B", items?.get(1)?.mediaMetadata?.subtitle)
+        assertEquals("album_2", itemsAllAlbums?.get(1)?.mediaId)
+        assertEquals("Apple", itemsAllAlbums?.get(1)?.mediaMetadata?.title)
+        assertEquals("Artist B", itemsAllAlbums?.get(1)?.mediaMetadata?.subtitle)
 
-        assertEquals("album_1", items?.get(2)?.mediaId)
-        assertEquals("Zebra", items?.get(2)?.mediaMetadata?.title)
-        assertEquals("Artist B", items?.get(2)?.mediaMetadata?.subtitle)
+        assertEquals("album_1", itemsAllAlbums?.get(2)?.mediaId)
+        assertEquals("Zebra", itemsAllAlbums?.get(2)?.mediaMetadata?.title)
+        assertEquals("Artist B", itemsAllAlbums?.get(2)?.mediaMetadata?.subtitle)
     }
 }

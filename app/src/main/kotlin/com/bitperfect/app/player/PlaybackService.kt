@@ -94,8 +94,63 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
             val outputFolderUri = settingsManager.outputFolderUri
 
-            val items = when {
-                parentId == "root" -> {
+            val items = when (parentId) {
+                "root" -> {
+                    val folderExtras = Bundle().apply {
+                        putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
+                        putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
+                    }
+
+                    val recentAlbumsItem = MediaItem.Builder()
+                        .setMediaId("recent_albums")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle("Recently Played")
+                                .setIsBrowsable(true)
+                                .setIsPlayable(false)
+                                .setExtras(folderExtras)
+                                .build()
+                        )
+                        .build()
+
+                    val allAlbumsItem = MediaItem.Builder()
+                        .setMediaId("all_albums")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle("All Albums")
+                                .setIsBrowsable(true)
+                                .setIsPlayable(false)
+                                .setExtras(folderExtras)
+                                .build()
+                        )
+                        .build()
+
+                    listOf(recentAlbumsItem, allAlbumsItem)
+                }
+                "recent_albums" -> {
+                    val recentAlbums = libraryRepository.getRecentlyPlayedAlbums(outputFolderUri)
+                    recentAlbums.map { (artist, album) ->
+                        val albumExtras = Bundle().apply {
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                        }
+                        MediaItem.Builder()
+                            .setMediaId("album_${album.id}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(album.title)
+                                    .setSubtitle(artist.name)
+                                    .setArtist(artist.name)
+                                    .setArtworkUri(album.artUri)
+                                    .setIsBrowsable(false)
+                                    .setIsPlayable(true)
+                                    .setExtras(albumExtras)
+                                    .build()
+                            )
+                            .build()
+                    }
+                }
+                "all_albums" -> {
                     val artists = libraryRepository.getLibrary(outputFolderUri)
                     val allAlbums = artists.flatMap { artist ->
                         artist.albums.map { album ->
@@ -132,12 +187,17 @@ class PlaybackService : MediaLibraryService() {
                 else -> emptyList()
             }
 
-            val resultParams = if (parentId == "root") {
-                val gridExtras = Bundle().apply {
-                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
-                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+            val resultParams = if (parentId == "root" || parentId == "recent_albums" || parentId == "all_albums") {
+                val styleExtras = Bundle().apply {
+                    if (parentId == "root") {
+                        putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
+                        putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
+                    } else {
+                        putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                        putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                    }
                 }
-                LibraryParams.Builder().setExtras(gridExtras).build()
+                LibraryParams.Builder().setExtras(styleExtras).build()
             } else {
                 params
             }
