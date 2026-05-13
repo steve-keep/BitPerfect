@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -104,6 +105,8 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
             skipHiddenState = false
         )
     )
+
+    val density = LocalDensity.current
 
     BottomSheetScaffold(
         scaffoldState = bottomSheetScaffoldState,
@@ -156,7 +159,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                         false
                                     }
                                 },
-                                positionalThreshold = { it * 0.75f }
+                                positionalThreshold = { with(density) { 100.dp.toPx() } }
                             )
 
                             ReorderableItem(reorderState, key = item.mediaId) { isDragging ->
