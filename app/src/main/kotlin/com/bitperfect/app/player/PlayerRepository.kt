@@ -69,6 +69,9 @@ open class PlayerRepository(
     private val _positionMs = MutableStateFlow(0L)
     open val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
+    private val _syncedLyrics = MutableStateFlow<String?>(null)
+    open val syncedLyrics: StateFlow<String?> = _syncedLyrics.asStateFlow()
+
     private val _currentTimeline = MutableStateFlow<List<MediaItem>>(emptyList())
     open val currentTimeline: StateFlow<List<MediaItem>> = _currentTimeline.asStateFlow()
 
@@ -88,7 +91,61 @@ open class PlayerRepository(
             _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
             _currentIndex.value = controller?.currentMediaItemIndex ?: 0
 
-            mediaItem?.let { item -> recordRecentlyPlayed(item) }
+            mediaItem?.let { item ->
+                recordRecentlyPlayed(item)
+                updateSyncedLyrics(item)
+            }
+        }
+
+        private fun updateSyncedLyrics(mediaItem: MediaItem) {
+            val trackId = mediaItem.mediaId.toLongOrNull()
+            if (trackId == null) {
+                _syncedLyrics.value = null
+                return
+            }
+
+            scope.launch(Dispatchers.IO) {
+                try {
+                    // Extract dataPath manually as it's not present in TrackInfo model
+                    var dataPath: String? = null
+                    val projection = arrayOf(android.provider.MediaStore.Audio.Media.DATA)
+                    val selection = "${android.provider.MediaStore.Audio.Media._ID} = ?"
+                    val selectionArgs = arrayOf(trackId.toString())
+                    context.contentResolver.query(
+                        android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        projection,
+                        selection,
+                        selectionArgs,
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val dataCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DATA)
+                            dataPath = cursor.getString(dataCol)
+                        }
+                    }
+
+                    if (dataPath != null) {
+                        val file = java.io.File(dataPath!!)
+                        if (file.exists()) {
+                            val audioFile = org.jaudiotagger.audio.AudioFileIO.read(file)
+                            val tag = audioFile.tag
+                            val vorbisTag = when (tag) {
+                                is org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag -> tag
+                                is org.jaudiotagger.tag.flac.FlacTag -> tag.vorbisCommentTag
+                                else -> null
+                            }
+                            if (vorbisTag != null) {
+                                val lyrics = vorbisTag.getFirst("SYNCEDLYRICS")
+                                _syncedLyrics.value = if (lyrics.isNotBlank()) lyrics else null
+                                return@launch
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                _syncedLyrics.value = null
+            }
         }
 
         private fun recordRecentlyPlayed(mediaItem: MediaItem) {

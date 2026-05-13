@@ -41,17 +41,25 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -81,6 +89,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val positionMs by viewModel.positionMs.collectAsState()
+    val lrcLines by viewModel.lrcLines.collectAsState()
     val upNextQueue by viewModel.upNextQueue.collectAsState()
     val currentQueueIndex by viewModel.currentQueueIndex.collectAsState()
     val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
@@ -88,8 +97,15 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
     val currentAlbumTitle by viewModel.currentAlbumTitle.collectAsState()
     val currentAlbumArtUri by viewModel.currentAlbumArtUri.collectAsState()
 
+    val currentMediaId by viewModel.currentMediaId.collectAsState()
     val currentTrackState = viewModel.currentTrack.collectAsState()
     val currentTrack = currentTrackState.value
+
+    var showLyrics by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(currentTrackTitle, currentMediaId) {
+        showLyrics = false
+    }
 
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
@@ -308,41 +324,74 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
-            // Empty box to keep "Now Playing" centered
-            Box(modifier = Modifier.size(48.dp))
+            if (lrcLines.isNotEmpty()) {
+                IconButton(onClick = { showLyrics = !showLyrics }) {
+                    Icon(
+                        imageVector = if (showLyrics) Icons.Default.Image else Icons.Default.MusicNote,
+                        contentDescription = if (showLyrics) "Show Artwork" else "Show Lyrics",
+                        tint = Color.White
+                    )
+                }
+            } else {
+                // Empty box to keep "Now Playing" centered
+                Box(modifier = Modifier.size(48.dp))
+            }
         }
+
+            val rotation by animateFloatAsState(
+                targetValue = if (showLyrics) 180f else 0f,
+                animationSpec = tween(500, easing = FastOutSlowInEasing),
+                label = "card_flip"
+            )
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f),
+                    .aspectRatio(1f)
+                    .graphicsLayer {
+                        rotationY = rotation
+                        cameraDistance = 12f * density
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                if (currentAlbumArtUri != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(currentAlbumArtUri)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Album Art",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(12.dp))
-                    )
+                if (rotation <= 90f) {
+                    if (currentAlbumArtUri != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(currentAlbumArtUri)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Album Art",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF141414)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Album,
+                                contentDescription = "No Album Art",
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF141414)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Album,
-                            contentDescription = "No Album Art",
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(12.dp))
+                        .graphicsLayer { rotationY = 180f }) {
+                        LyricsCard(
+                            lrcLines = lrcLines,
+                            positionMs = positionMs,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
