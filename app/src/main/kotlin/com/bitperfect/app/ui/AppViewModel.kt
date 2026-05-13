@@ -9,6 +9,7 @@ import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -58,6 +59,8 @@ data class RipBannerState(
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
+    private val libraryRepository: LibraryRepository = LibraryRepository(application),
+    private val ioDispatcher: CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
     private val fetchItunesArtwork: suspend (String, String) -> ItunesArtwork? = { artist, album ->
         ItunesArtworkRepository(application).fetchItunesArtwork(artist, album)
@@ -66,11 +69,13 @@ open class AppViewModel(
 
     constructor(application: Application) : this(
         application,
-        PlayerRepository(application)
+        PlayerRepository(application),
+        LibraryRepository(application),
+        kotlinx.coroutines.Dispatchers.IO
     )
 
     private val settingsManager = SettingsManager(application)
-    private val libraryRepository = LibraryRepository(application)
+
     private val accurateRipService = AccurateRipService()
 
     private val _artists = MutableStateFlow<List<ArtistInfo>>(emptyList())
@@ -220,7 +225,7 @@ open class AppViewModel(
                         loadLibrary()
 
                         // Find the newly ripped album in the library
-                        viewModelScope.launch(Dispatchers.IO) {
+                        viewModelScope.launch(ioDispatcher) {
                             kotlinx.coroutines.delay(1000) // Wait for MediaStore
                             val meta = discMetadata.value ?: return@launch
                             val outputUri = settingsManager.outputFolderUri
@@ -258,12 +263,12 @@ open class AppViewModel(
         viewModelScope.launch {
             driveStatus.collectLatest { status ->
                 if (status is DriveStatus.DiscReady && status.toc != null) {
-                    viewModelScope.launch(Dispatchers.IO) {
+                    viewModelScope.launch(ioDispatcher) {
                         _isKeyDisc.value = accurateRipService.checkIsKeyDisc(status.toc)
                     }
 
                     try {
-                        val metadata = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        val metadata = kotlinx.coroutines.withContext(ioDispatcher) {
                             lookupMusicBrainz(status.toc)
                         }
                         if (metadata != null) {
@@ -298,13 +303,13 @@ open class AppViewModel(
                     _artworkBytes.value = null
                     if (artwork != null) {
                         try {
-                            _artworkBytes.value = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            _artworkBytes.value = kotlinx.coroutines.withContext(ioDispatcher) {
                                 URL(artwork.highResUrl).readBytes()
                             }
                         } catch (e: Exception) {
                             com.bitperfect.core.utils.AppLogger.w("AppViewModel", "High-res art download failed, trying preview: ${e.message}")
                             try {
-                                _artworkBytes.value = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                _artworkBytes.value = kotlinx.coroutines.withContext(ioDispatcher) {
                                     URL(artwork.previewUrl).readBytes()
                                 }
                             } catch (e2: Exception) {
@@ -324,9 +329,16 @@ open class AppViewModel(
         val uriString = settingsManager.outputFolderUri
         _isOutputFolderConfigured.value = !uriString.isNullOrBlank()
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val loadedArtists = libraryRepository.getLibrary(uriString)
             _artists.value = loadedArtists
+
+            // Rehydrate the track list if an album was selected but data was lost
+            // (e.g. after returning from background or process recreation).
+            val albumId = _selectedAlbumId.value
+            if (albumId != null && _trackListViewState.value == null) {
+                reloadTracksInternal(albumId, loadedArtists)
+            }
         }
     }
 
@@ -336,31 +348,35 @@ open class AppViewModel(
         loadTracks(albumId)
     }
 
-    private fun loadTracks(albumId: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val albumTracks = libraryRepository.getTracksForAlbum(albumId)
+    private suspend fun reloadTracksInternal(albumId: Long, artists: List<ArtistInfo>) {
+        val albumTracks = libraryRepository.getTracksForAlbum(albumId)
 
-            var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
-            var foundArtistName = ""
-            for (artist in _artists.value) {
-                val album = artist.albums.find { it.id == albumId }
-                if (album != null) {
-                    foundAlbum = album
-                    foundArtistName = artist.name
-                    break
-                }
+        var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
+        var foundArtistName = ""
+        for (artist in artists) {
+            val album = artist.albums.find { it.id == albumId }
+            if (album != null) {
+                foundAlbum = album
+                foundArtistName = artist.name
+                break
             }
+        }
 
-            val title = foundAlbum?.title ?: _selectedAlbumTitle.value ?: "Unknown Album"
-            val coverArtUrl = foundAlbum?.artUri?.toString()
+        val title = foundAlbum?.title ?: _selectedAlbumTitle.value ?: "Unknown Album"
+        val coverArtUrl = foundAlbum?.artUri?.toString()
 
-            _trackListViewState.value = TrackListViewState(
-                title = title,
-                artistName = foundArtistName,
-                coverArtUrl = coverArtUrl,
-                tracks = albumTracks,
-                isCdMode = false
-            )
+        _trackListViewState.value = TrackListViewState(
+            title = title,
+            artistName = foundArtistName,
+            coverArtUrl = coverArtUrl,
+            tracks = albumTracks,
+            isCdMode = false
+        )
+    }
+
+    private fun loadTracks(albumId: Long) {
+        viewModelScope.launch(ioDispatcher) {
+            reloadTracksInternal(albumId, _artists.value)
         }
     }
 
@@ -413,7 +429,7 @@ open class AppViewModel(
             val toc = currentDriveStatus.toc
             val meta = discMetadata.value ?: return
 
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher) {
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
                 ripSession.startRip(
                     outputFolderUriString = settingsManager.outputFolderUri ?: "",
@@ -438,7 +454,7 @@ open class AppViewModel(
 
             hasHandledRipCompletion = false
 
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher) {
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
                 ripSession.startRip(
                     outputFolderUriString = outputUri,

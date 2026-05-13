@@ -85,7 +85,7 @@ class AppViewModelTest {
         detectorField.set(DeviceStateManager, null)
 
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
-        viewModel = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
+        viewModel = AppViewModel(application, mockRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -237,7 +237,7 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentAlbumArtUri).thenReturn(mutableCurrentAlbumArtUri)
 
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val vm = AppViewModel(application, mockRepository, { mockLookupMusicBrainz(it) })
+        val vm = AppViewModel(application, mockRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         // Start collecting the currentTrackTitle stateflow so that it activates and stays alive
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
