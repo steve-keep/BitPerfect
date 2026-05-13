@@ -4,6 +4,7 @@ import android.content.Context
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.utils.AppLogger
+import com.bitperfect.core.utils.computeMusicBrainzTocString
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -67,7 +68,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artists+artist-credits+recordings+discids+genres"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+discids+media"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -95,10 +96,8 @@ class MusicBrainzRepository(private val context: Context) {
 
     private suspend fun lookupByToc(toc: DiscToc, discId: String, cacheFile: File): DiscMetadata? {
         // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
-        val leadOut = toc.leadOutLba + 150
-        val offsets = toc.tracks.joinToString("+") { (it.lba + 150).toString() }
-        val tocStr = "1+${toc.tracks.size}+$leadOut+$offsets"
-        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artists+artist-credits+recordings+discids+genres"
+        val tocStr = computeMusicBrainzTocString(toc)
+        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+discids+media&cdstubs=no"
 
         AppLogger.d(TAG, "TOC fuzzy lookup: $url")
         val httpResponse = client.get(url)
