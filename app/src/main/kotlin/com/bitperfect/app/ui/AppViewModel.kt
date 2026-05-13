@@ -168,6 +168,10 @@ open class AppViewModel(
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
     val positionMs: StateFlow<Long> = playerRepository.positionMs
 
+    val lrcLines: StateFlow<List<com.bitperfect.app.player.LrcLine>> = playerRepository.syncedLyrics
+        .map { raw -> if (raw != null) com.bitperfect.app.player.parseLrc(raw) else emptyList() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val upNextQueue: StateFlow<List<androidx.media3.common.MediaItem>> = playerRepository.currentTimeline
     val currentQueueIndex: StateFlow<Int> = playerRepository.currentIndex
 
