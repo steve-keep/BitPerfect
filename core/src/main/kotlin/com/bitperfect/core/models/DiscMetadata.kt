@@ -7,5 +7,7 @@ data class DiscMetadata(
     val mbReleaseId: String,
     val year: String? = null,
     val genre: String? = null,
-    val albumArtist: String? = null
+    val albumArtist: String? = null,
+    val discNumber: Int? = null,
+    val totalDiscs: Int? = null
 )
