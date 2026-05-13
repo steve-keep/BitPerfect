@@ -298,4 +298,43 @@ class MusicBrainzRepositoryTest {
 
         cacheFile.delete() // clean up the directory
     }
+
+    @Test
+    fun `literal unicode escapes are properly decoded`() = runBlocking {
+        val responseJson = """
+            {
+                "releases": [
+                    {
+                        "id": "release-id",
+                        "title": "Caf\\u00e9",
+                        "artist-credit": [
+                            {
+                                "artist": {
+                                    "name": "S\\u00e9bastien",
+                                    "genres": [{"name": "Pop"}]
+                                }
+                            }
+                        ],
+                        "media": [
+                            {
+                                "tracks": [{"title": "Track \\u00e9"}]
+                            }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val mockEngine = MockEngine { _ ->
+            respond(responseJson, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(getSyntheticToc())
+
+        assertNotNull(metadata)
+        assertEquals("Café", metadata!!.albumTitle)
+        assertEquals("Sébastien", metadata.artistName)
+        assertEquals("Sébastien", metadata.albumArtist)
+        assertEquals("Track é", metadata.trackTitles.firstOrNull())
+    }
 }

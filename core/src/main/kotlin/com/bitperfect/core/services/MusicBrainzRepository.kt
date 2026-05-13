@@ -5,6 +5,7 @@ import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
+import com.bitperfect.core.utils.decodeUnicodeEscapes
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
@@ -95,19 +96,19 @@ class MusicBrainzRepository(private val context: Context) {
 
     private fun mapToMetadata(response: MbDiscIdResponse): DiscMetadata? {
         val release = response.releases.firstOrNull() ?: return null
-        val albumTitle = release.title
-        val artistName = release.artistCredit.firstOrNull()?.artist?.name ?: "Unknown Artist"
-        val trackTitles = release.media.firstOrNull()?.tracks?.map { it.title } ?: emptyList()
+        val albumTitle = release.title.decodeUnicodeEscapes()
+        val artistName = (release.artistCredit.firstOrNull()?.artist?.name ?: "Unknown Artist").decodeUnicodeEscapes()
+        val trackTitles = release.media.firstOrNull()?.tracks?.map { it.title.decodeUnicodeEscapes() } ?: emptyList()
         val mbReleaseId = release.id
 
         val year = release.date?.takeIf { it.length >= 4 }?.substring(0, 4)
 
         val albumArtist = release.artistCredit.joinToString("") {
             (it.name ?: it.artist.name) + (it.joinphrase ?: "")
-        }.takeIf { it.isNotBlank() }
+        }.takeIf { it.isNotBlank() }?.decodeUnicodeEscapes()
 
-        val genre = release.genres.firstOrNull()?.name
-            ?: release.artistCredit.firstOrNull()?.artist?.genres?.firstOrNull()?.name
+        val genre = (release.genres.firstOrNull()?.name
+            ?: release.artistCredit.firstOrNull()?.artist?.genres?.firstOrNull()?.name)?.decodeUnicodeEscapes()
 
         return DiscMetadata(
             albumTitle = albumTitle,
