@@ -484,6 +484,8 @@ fun LibrarySection(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredArtists by viewModel.filteredArtists.collectAsState()
     val focusManager = LocalFocusManager.current
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
 
     Column(
         modifier = modifier
@@ -502,52 +504,56 @@ fun LibrarySection(
                 )
             }
         } else {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.searchQuery.value = it },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                placeholder = { Text("Search artists or albums") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.searchQuery.value = it },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        placeholder = { Text("Search artists or albums") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.DarkGray
+                        )
+                    )
+                }
+
+                if (filteredArtists.isEmpty()) {
+                    item {
+                        Box(Modifier.fillParentMaxSize()) {
+                            Column(
+                                modifier = Modifier.align(Alignment.Center),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "No albums found",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
                         }
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray
-                )
-            )
-
-            if (filteredArtists.isEmpty()) {
-                Box(Modifier.fillMaxSize()) {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicNote,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No albums found",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
+                } else {
                     filteredArtists.forEach { artist ->
                         stickyHeader(key = artist.id) {
                             Box(
@@ -563,44 +569,41 @@ fun LibrarySection(
                                 )
                             }
                         }
-                        items(artist.albums.chunked(3)) { rowAlbums ->
-                            Row(
+                        item {
+                            val itemWidth = (screenWidth - 72.dp) / 3.5f
+
+                            androidx.compose.foundation.lazy.LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                for (i in 0 until 3) {
-                                    if (i < rowAlbums.size) {
-                                        val album = rowAlbums[i]
-                                        Column(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clickable { onAlbumClick(album) },
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            AsyncImage(
-                                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                                    .data(album.artUri)
-                                                    .crossfade(true)
-                                                    .diskCachePolicy(CachePolicy.ENABLED)
-                                                    .build(),
-                                                contentDescription = album.title,
-                                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
-                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                placeholder = ColorPainter(Color(0xFF141414)),
-                                                error = ColorPainter(Color(0xFF141414))
-                                            )
-                                            Text(
-                                                text = album.title,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(top = 4.dp)
-                                            )
-                                        }
-                                    } else {
-                                        Spacer(modifier = Modifier.weight(1f))
+                                items(artist.albums) { album ->
+                                    Column(
+                                        modifier = Modifier
+                                            .width(itemWidth)
+                                            .clickable { onAlbumClick(album) },
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        AsyncImage(
+                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                .data(album.artUri)
+                                                .crossfade(true)
+                                                .diskCachePolicy(CachePolicy.ENABLED)
+                                                .build(),
+                                            contentDescription = album.title,
+                                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            placeholder = ColorPainter(Color(0xFF141414)),
+                                            error = ColorPainter(Color(0xFF141414))
+                                        )
+                                        Text(
+                                            text = album.title,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
                                     }
                                 }
                             }
