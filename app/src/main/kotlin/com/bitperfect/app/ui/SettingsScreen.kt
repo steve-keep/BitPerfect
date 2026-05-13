@@ -457,12 +457,11 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         sb.appendLine()
 
         val mbId = com.bitperfect.core.utils.computeMusicBrainzDiscId(toc)
+        val tocStr = com.bitperfect.core.utils.computeMusicBrainzTocString(toc)
         sb.appendLine("### MusicBrainz")
         sb.appendLine("ID: `$mbId`")
-        sb.appendLine("Lookup URL: `https://musicbrainz.org/ws/2/discid/$mbId?fmt=json&inc=artist-credits+recordings+discids+media`")
-
-        val tocStr = com.bitperfect.core.utils.computeMusicBrainzTocString(toc)
-        sb.appendLine("TOC Fallback URL: `https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+discids+media&cdstubs=no`")
+        sb.appendLine("Lookup URL: `https://musicbrainz.org/ws/2/discid/$mbId?fmt=json&inc=artist-credits+recordings`")
+        sb.appendLine("TOC Fallback URL: `https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings&cdstubs=no`")
         sb.appendLine()
 
         if (coverArtUrl != null) {
