@@ -113,7 +113,9 @@ class RipSessionTest {
             artworkBytes = null
         )
 
-        // Force isRipping to true
+        // Robolectric doesn't have a valid USB transport, so UsbReadSession.open() throws an IllegalStateException.
+        // This exception is caught in the coroutine, which triggers the finally block that sets _isRipping.value = false.
+        // To properly test the clear function, we must reset _isRipping.value to true.
         val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
         isRippingField.isAccessible = true
         val stateFlow = isRippingField.get(ripSession) as kotlinx.coroutines.flow.MutableStateFlow<Boolean>
