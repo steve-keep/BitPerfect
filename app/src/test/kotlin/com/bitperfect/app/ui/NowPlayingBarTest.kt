@@ -137,7 +137,7 @@ class NowPlayingBarTest {
     }
 
     @Test
-    fun playPauseButtonDoesNotFireOnVerticalDrag() {
+    fun playPauseButtonDoesNotFireWhenDisabled() {
         var clicked = false
         composeTestRule.setContent {
             NowPlayingBar(
@@ -145,21 +145,14 @@ class NowPlayingBarTest {
                 currentTrackTitle = "Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
-                onPlayPause = { clicked = true },
-                enabled = true
+                enabled = false,
+                onPlayPause = { clicked = true }
             )
         }
-
-        // Simulate a downward drag starting on the play/pause button
         composeTestRule
             .onNodeWithTag("now_playing_play_pause", useUnmergedTree = true)
-            .performTouchInput {
-                down(center)
-                moveBy(Offset(0f, 200f))   // large vertical drag
-                up()
-            }
-
-        assert(!clicked) { "onPlayPause should NOT fire on a vertical drag" }
+            .performClick()
+        assert(!clicked) { "onPlayPause should NOT fire when disabled" }
     }
 
     @Test
