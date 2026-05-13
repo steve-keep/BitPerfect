@@ -20,11 +20,17 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
 import java.io.File
 
 class MusicBrainzRepository(private val context: Context) {
+    companion object {
+        const val CACHE_EXPIRY_MS = 60L * 60 * 1000 // 1 hour
+    }
+
     private val TAG = "MusicBrainzRepository"
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -36,6 +42,12 @@ class MusicBrainzRepository(private val context: Context) {
         }
         defaultRequest {
             header("User-Agent", "BitPerfect/1.0 (https://github.com/steve-keep/BitPerfect)")
+        }
+    }
+
+    init {
+        CoroutineScope(Dispatchers.IO).launch {
+            cleanupExpiredCache()
         }
     }
 
@@ -51,12 +63,36 @@ class MusicBrainzRepository(private val context: Context) {
         }
     }
 
+    private fun cleanupExpiredCache() {
+        try {
+            val cacheDir = context.cacheDir
+            if (cacheDir.exists() && cacheDir.isDirectory) {
+                val files = cacheDir.listFiles { _, name -> name.startsWith("mb_") && name.endsWith(".json") }
+                if (files != null) {
+                    val now = System.currentTimeMillis()
+                    for (file in files) {
+                        if (now - file.lastModified() >= CACHE_EXPIRY_MS) {
+                            val deleted = file.delete()
+                            if (deleted) {
+                                AppLogger.d(TAG, "Deleted expired cache file: ${file.name}")
+                            } else {
+                                AppLogger.e(TAG, "Failed to delete expired cache file: ${file.name}")
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Error cleaning up expired cache: ${e.message}")
+        }
+    }
+
     suspend fun lookup(toc: DiscToc): DiscMetadata? = withContext(Dispatchers.IO) {
         val discId = computeMusicBrainzDiscId(toc)
         val cacheFile = File(context.cacheDir, "mb_$discId.json")
 
         try {
-            if (cacheFile.exists() && System.currentTimeMillis() - cacheFile.lastModified() < 30L * 86400 * 1000) {
+            if (cacheFile.exists() && System.currentTimeMillis() - cacheFile.lastModified() < CACHE_EXPIRY_MS) {
                 val jsonString = cacheFile.readText()
                 val response: MbDiscIdResponse = json.decodeFromString(jsonString)
                 AppLogger.d(TAG, "Loaded metadata from cache for discId: $discId")

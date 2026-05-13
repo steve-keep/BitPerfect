@@ -242,7 +242,8 @@ class MusicBrainzRepositoryTest {
         val discId = computeMusicBrainzDiscId(toc)
         val cacheFile = File(context.cacheDir, "mb_$discId.json")
         cacheFile.writeText("""{"releases": []}""")
-        cacheFile.setLastModified(System.currentTimeMillis() - 31L * 86400 * 1000)
+        // Expired by being older than 1 hour
+        cacheFile.setLastModified(System.currentTimeMillis() - (60L * 60 * 1000 + 1000))
 
         val mockJson = """
             {
