@@ -29,12 +29,6 @@ import kotlinx.serialization.Serializable
     val name: String
 )
 
-@Serializable data class MbDisc(val id: String)
-
-@Serializable data class MbMedia(
-    val position: Int? = null,
-    val tracks: List<MbTrack> = emptyList(),
-    val discs: List<MbDisc> = emptyList()
-)
+@Serializable data class MbMedia(val tracks: List<MbTrack> = emptyList())
 
 @Serializable data class MbTrack(val title: String)

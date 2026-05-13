@@ -35,9 +35,6 @@ data class ItunesArtwork(
     val highResUrl: String    // 3000x3000bb
 )
 
-private fun normalise(s: String): String =
-    s.lowercase().replace(Regex("[^a-z0-9 ]"), "").replace(Regex(" +"), " ").trim()
-
 class ItunesArtworkRepository(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -77,13 +74,10 @@ class ItunesArtworkRepository(private val context: Context) {
 
             if (response.results.isEmpty()) return@withContext null
 
-            val normalisedArtist = normalise(artist)
-            val normalisedAlbum = normalise(album)
-
             val match = response.results.firstOrNull {
                 it.artworkUrl100 != null &&
-                it.artistName?.let { name -> normalise(name).contains(normalisedArtist) } == true &&
-                it.collectionName?.let { name -> normalise(name).contains(normalisedAlbum) } == true
+                it.artistName?.contains(artist, ignoreCase = true) == true &&
+                it.collectionName?.contains(album, ignoreCase = true) == true
             }
 
             if (match?.artworkUrl100 != null) {

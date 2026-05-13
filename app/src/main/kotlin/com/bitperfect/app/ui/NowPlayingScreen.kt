@@ -144,7 +144,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        itemsIndexed(upcomingItems, key = { _, item -> item.mediaId }) { index, item ->
+                        itemsIndexed(upcomingItems, key = { _, item -> item.mediaId + "_" + System.identityHashCode(item) }) { index, item ->
                             val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { dismissValue ->
@@ -159,7 +159,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                 positionalThreshold = { it * 0.75f }
                             )
 
-                            ReorderableItem(reorderState, key = item.mediaId) { isDragging ->
+                            ReorderableItem(reorderState, key = item.mediaId + "_" + System.identityHashCode(item)) { isDragging ->
                                 SwipeToDismissBox(
                                     state = dismissState,
                                     enableDismissFromStartToEnd = false,
