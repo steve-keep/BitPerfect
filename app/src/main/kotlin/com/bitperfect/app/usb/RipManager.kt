@@ -146,7 +146,14 @@ class RipManager(
             if (isCancelled) break
 
             val safeTitle = trackTitle.replace("/", "_")
-            val filename = String.format("%02d - %s.flac", trackNumber, safeTitle)
+
+            val totalDiscs = metadata.totalDiscs
+            val discNumber = metadata.discNumber
+            val filename = if (totalDiscs != null && totalDiscs > 1 && discNumber != null) {
+                String.format("%d-%02d %s.flac", discNumber, trackNumber, safeTitle)
+            } else {
+                String.format("%02d - %s.flac", trackNumber, safeTitle)
+            }
 
             albumDir?.findFile(filename)?.delete()
             val destFile = albumDir?.createFile("audio/flac", filename)
@@ -188,7 +195,9 @@ class RipManager(
                     albumArtist = metadata.albumArtist,
                     mbReleaseId = metadata.mbReleaseId,
                     accurateRipUrl = accurateRipUrl,
-                    artworkBytes = artworkBytes
+                    artworkBytes = artworkBytes,
+                    discNumber = metadata.discNumber,
+                    totalDiscs = metadata.totalDiscs
                 )
                 outputStream.write(metadataBytes)
 
@@ -476,7 +485,9 @@ class RipManager(
         albumArtist: String?,
         mbReleaseId: String?,
         accurateRipUrl: String?,
-        artworkBytes: ByteArray?
+        artworkBytes: ByteArray?,
+        discNumber: Int?,
+        totalDiscs: Int?
     ): ByteArray {
         val out = ByteArrayOutputStream()
         // fLaC
@@ -525,6 +536,8 @@ class RipManager(
         if (album != null) comments.add("ALBUM=$album")
         if (title != null) comments.add("TITLE=$title")
         comments.add("TRACKNUMBER=$track")
+        if (discNumber != null) comments.add("DISCNUMBER=$discNumber")
+        if (totalDiscs != null) comments.add("DISCTOTAL=$totalDiscs")
         if (year != null) comments.add("DATE=$year")
         if (genre != null) comments.add("GENRE=$genre")
         if (albumArtist != null) comments.add("ALBUMARTIST=$albumArtist")

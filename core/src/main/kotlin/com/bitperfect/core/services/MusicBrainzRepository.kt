@@ -60,7 +60,7 @@ class MusicBrainzRepository(private val context: Context) {
                 val jsonString = cacheFile.readText()
                 val response: MbDiscIdResponse = json.decodeFromString(jsonString)
                 AppLogger.d(TAG, "Loaded metadata from cache for discId: $discId")
-                return@withContext mapToMetadata(response)
+                return@withContext mapToMetadata(response, discId)
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error reading from cache for discId $discId: ${e.message}")
@@ -68,7 +68,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=recordings+artists+genres+artist-credits"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=recordings+artists+genres+artist-credits+discids"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -87,18 +87,25 @@ class MusicBrainzRepository(private val context: Context) {
                 AppLogger.e(TAG, "Error writing to cache for discId $discId: ${e.message}")
             }
 
-            return@withContext mapToMetadata(response)
+            return@withContext mapToMetadata(response, discId)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error fetching from MusicBrainz for discId $discId: ${e.message}")
             throw e
         }
     }
 
-    private fun mapToMetadata(response: MbDiscIdResponse): DiscMetadata? {
+    private fun mapToMetadata(response: MbDiscIdResponse, queryDiscId: String): DiscMetadata? {
         val release = response.releases.firstOrNull() ?: return null
         val albumTitle = release.title.decodeUnicodeEscapes()
         val artistName = (release.artistCredit.firstOrNull()?.artist?.name ?: "Unknown Artist").decodeUnicodeEscapes()
         val trackTitles = release.media.firstOrNull()?.tracks?.map { it.title.decodeUnicodeEscapes() } ?: emptyList()
+        
+        // Find the specific media object corresponding to the queried discId
+        val targetMedia = release.media.find { media ->
+            media.discs.any { disc -> disc.id == queryDiscId }
+        } ?: release.media.firstOrNull()
+        val discNumber = targetMedia?.position
+        val totalDiscs = release.media.size.takeIf { it > 0 }
         val mbReleaseId = release.id
 
         val year = release.date?.takeIf { it.length >= 4 }?.substring(0, 4)
@@ -117,7 +124,9 @@ class MusicBrainzRepository(private val context: Context) {
             mbReleaseId = mbReleaseId,
             year = year,
             genre = genre,
-            albumArtist = albumArtist
+            albumArtist = albumArtist,
+            discNumber = discNumber,
+            totalDiscs = totalDiscs
         )
     }
 }

@@ -43,6 +43,8 @@ class MusicBrainzRepositoryTest {
 
     @Test
     fun `successful lookup returns correct DiscMetadata`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
         val mockJson = """
             {
                 "releases": [
@@ -58,6 +60,15 @@ class MusicBrainzRepositoryTest {
                         ],
                         "media": [
                             {
+                                "position": 1,
+                                "discs": [{"id": "wrong-disc-id"}],
+                                "tracks": [
+                                    { "title": "Wrong Track 1" }
+                                ]
+                            },
+                            {
+                                "position": 2,
+                                "discs": [{"id": "$discId"}],
                                 "tracks": [
                                     { "title": "Track 1" },
                                     { "title": "Track 2" }
@@ -78,13 +89,15 @@ class MusicBrainzRepositoryTest {
         }
 
         val repository = MusicBrainzRepository(context, mockEngine)
-        val metadata = repository.lookup(getSyntheticToc())
+        val metadata = repository.lookup(toc)
 
         assertNotNull(metadata)
         assertEquals("Test Album", metadata!!.albumTitle)
         assertEquals("Test Artist", metadata.artistName)
         assertEquals("release-id-123", metadata.mbReleaseId)
         assertEquals(listOf("Track 1", "Track 2"), metadata.trackTitles)
+        assertEquals(2, metadata.discNumber)
+        assertEquals(2, metadata.totalDiscs)
     }
 
     @Test
