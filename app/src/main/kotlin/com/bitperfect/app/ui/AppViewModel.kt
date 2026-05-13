@@ -246,6 +246,12 @@ open class AppViewModel(
                             val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
 
                             if (foundAlbum != null) {
+                                libraryRepository.appendNewRelease(
+                                    outputFolderUriString = outputUri,
+                                    albumId = foundAlbum.id,
+                                    albumTitle = foundAlbum.title,
+                                    artist = foundArtist?.name ?: safeArtist
+                                )
                                 withContext(Dispatchers.Main) {
                                     selectAlbum(foundAlbum.id, foundAlbum.title)
                                 }
