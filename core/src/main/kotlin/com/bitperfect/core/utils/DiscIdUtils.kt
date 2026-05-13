@@ -89,3 +89,10 @@ fun computeMusicBrainzDiscId(toc: DiscToc): String {
         .replace('/', '_')
         .replace('=', '-')
 }
+
+fun computeMusicBrainzTocString(toc: DiscToc): String {
+    // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
+    val leadOut = toc.leadOutLba + 150
+    val offsets = toc.tracks.joinToString("+") { (it.lba + 150).toString() }
+    return "1+${toc.tracks.size}+$leadOut+$offsets"
+}
