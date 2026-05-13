@@ -9,4 +9,8 @@ class SettingsManager(context: Context) {
     var outputFolderUri: String?
         get() = prefs.getString("outputFolderUri", null)
         set(value) = prefs.edit().putString("outputFolderUri", value).apply()
+
+    var embedLyrics: Boolean
+        get() = prefs.getBoolean("embedLyrics", true)
+        set(value) = prefs.edit().putBoolean("embedLyrics", value).apply()
 }

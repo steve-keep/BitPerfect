@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.bitperfect.core.models.LyricsResult
 
 class RipSession(private val context: Context) {
 
@@ -30,6 +31,7 @@ class RipSession(private val context: Context) {
         metadata: DiscMetadata,
         expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
         artworkBytes: ByteArray?,
+        lyricsMap: Map<Int, LyricsResult> = emptyMap(),
         tracksToRip: List<Int>? = null
     ) {
         if (_isRipping.value) {
@@ -53,6 +55,7 @@ class RipSession(private val context: Context) {
             metadata = metadata,
             expectedChecksums = expectedChecksums,
             artworkBytes = artworkBytes,
+            lyricsMap = lyricsMap,
             driveVendor = driveVendor,
             driveProduct = driveProduct,
             initialTracks = tracksToRip ?: toc.tracks.map { it.trackNumber }

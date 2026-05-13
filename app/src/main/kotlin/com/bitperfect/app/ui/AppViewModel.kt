@@ -36,7 +36,12 @@ import com.bitperfect.core.services.MusicBrainzRepository
 import com.bitperfect.core.services.AccurateRipService
 import com.bitperfect.core.services.ItunesArtwork
 import com.bitperfect.core.services.ItunesArtworkRepository
+import com.bitperfect.core.services.LyricsRepository
+import com.bitperfect.core.models.LyricsResult
 import java.net.URL
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 data class TrackListViewState(
     val title: String,
@@ -101,6 +106,9 @@ open class AppViewModel(
 
     private val _artwork = MutableStateFlow<ItunesArtwork?>(null)
     private val _artworkBytes = MutableStateFlow<ByteArray?>(null)
+
+    private val _lyricsMap = MutableStateFlow<Map<Int, LyricsResult>>(emptyMap())
+    val lyricsMap: StateFlow<Map<Int, LyricsResult>> = _lyricsMap.asStateFlow()
 
     open val coverArtUrl: StateFlow<String?> = _artwork
         .map { it?.previewUrl }
@@ -323,6 +331,56 @@ open class AppViewModel(
                 }
             }
         }
+
+        viewModelScope.launch {
+            discMetadata.collectLatest { metadata ->
+                if (metadata == null) {
+                    _lyricsMap.value = emptyMap()
+                    return@collectLatest
+                }
+
+                if (!settingsManager.embedLyrics) {
+                    _lyricsMap.value = emptyMap()
+                    return@collectLatest
+                }
+
+                val status = driveStatus.value
+                val toc = (status as? DriveStatus.DiscReady)?.toc
+                if (toc == null) {
+                    _lyricsMap.value = emptyMap()
+                    return@collectLatest
+                }
+
+                try {
+                    val fetchedLyricsMap = coroutineScope {
+                        toc.tracks.mapIndexed { i, entry ->
+                            async {
+                                val trackTitle = metadata.trackTitles.getOrNull(i) ?: return@async null
+                                val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
+                                val durationSeconds = (nextLba - entry.lba).toLong() * 588.0 / 44100.0
+                                val result = LyricsRepository(application).fetch(
+                                    artistName = metadata.artistName,
+                                    albumTitle = metadata.albumTitle,
+                                    trackTitle = trackTitle,
+                                    trackNumber = entry.trackNumber,
+                                    mbReleaseId = metadata.mbReleaseId,
+                                    durationSeconds = durationSeconds
+                                )
+                                if (result != null) {
+                                    Pair(entry.trackNumber, result)
+                                } else {
+                                    null
+                                }
+                            }
+                        }.awaitAll().filterNotNull().toMap()
+                    }
+                    _lyricsMap.value = fetchedLyricsMap
+                } catch (e: Exception) {
+                    com.bitperfect.core.utils.AppLogger.e("AppViewModel", "Failed to fetch lyrics concurrently: ${e.message}")
+                    // Leave map unchanged or empty? Left unchanged on error as per requirements.
+                }
+            }
+        }
     }
 
     fun loadLibrary() {
@@ -431,12 +489,16 @@ open class AppViewModel(
 
             viewModelScope.launch(ioDispatcher) {
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
+                val lyrics = _lyricsMap.value[trackNumber]
+                val trackLyricsMap = if (lyrics != null) mapOf(trackNumber to lyrics) else emptyMap()
+
                 ripSession.startRip(
                     outputFolderUriString = settingsManager.outputFolderUri ?: "",
                     toc = toc,
                     metadata = meta,
                     expectedChecksums = expectedChecksums,
                     artworkBytes = _artworkBytes.value,
+                    lyricsMap = trackLyricsMap,
                     tracksToRip = listOf(trackNumber)
                 )
             }
@@ -461,7 +523,8 @@ open class AppViewModel(
                     toc = toc,
                     metadata = meta,
                     expectedChecksums = expectedChecksums,
-                    artworkBytes = _artworkBytes.value
+                    artworkBytes = _artworkBytes.value,
+                    lyricsMap = _lyricsMap.value
                 )
             }
         }
