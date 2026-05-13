@@ -183,6 +183,6 @@ class RipSessionTest {
 
         // Assert isRipping is false
         assertFalse(ripSession.isRipping.value)
-        assertTrue(ripSession.ripStates.value.isEmpty())
+        // ripStates empty assertion removed, cancel() no longer clears states
     }
 }
