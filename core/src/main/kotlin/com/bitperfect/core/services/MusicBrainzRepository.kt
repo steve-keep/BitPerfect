@@ -67,12 +67,12 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=recordings+artists+genres+artist-credits+discids"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artists+artist-credits+recordings+discids+genres"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
-                AppLogger.d(TAG, "MusicBrainz returned 404 Not Found for discId: $discId")
-                return@withContext null
+                AppLogger.d(TAG, "Disc ID not found, attempting TOC fuzzy lookup")
+                return@withContext lookupByToc(toc, discId, cacheFile)
             }
 
             val responseBody = httpResponse.bodyAsText()
@@ -93,8 +93,42 @@ class MusicBrainzRepository(private val context: Context) {
         }
     }
 
+    private suspend fun lookupByToc(toc: DiscToc, discId: String, cacheFile: File): DiscMetadata? {
+        // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
+        val leadOut = toc.leadOutLba + 150
+        val offsets = toc.tracks.joinToString("+") { (it.lba + 150).toString() }
+        val tocStr = "1+${toc.tracks.size}+$leadOut+$offsets"
+        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artists+artist-credits+recordings+discids+genres"
+
+        AppLogger.d(TAG, "TOC fuzzy lookup: $url")
+        val httpResponse = client.get(url)
+        if (httpResponse.status != HttpStatusCode.OK) {
+            AppLogger.d(TAG, "TOC fuzzy lookup returned ${httpResponse.status}")
+            return null
+        }
+
+        val responseBody = httpResponse.bodyAsText()
+        val response: MbDiscIdResponse = json.decodeFromString(responseBody)
+        try { cacheFile.writeText(responseBody) } catch (e: Exception) { /* best effort */ }
+        return mapToMetadata(response, discId)
+    }
+
     private fun mapToMetadata(response: MbDiscIdResponse, queryDiscId: String): DiscMetadata? {
-        val release = response.releases.firstOrNull() ?: return null
+        if (response.releases.isEmpty()) return null
+
+        val release = response.releases.maxByOrNull { release ->
+            var score = 0
+            // Exact disc ID match is the strongest signal
+            if (release.media.any { m -> m.discs.any { d -> d.id == queryDiscId } }) score += 100
+            // Prefer releases with cover art
+            if (release.coverArtArchive?.front == true) score += 10
+            // Prefer releases with a date
+            if (!release.date.isNullOrBlank()) score += 5
+            // Prefer releases with a barcode
+            if (!release.barcode.isNullOrBlank()) score += 2
+            score
+        } ?: return null
+
         val albumTitle = release.title
         val artistName = release.artistCredit.firstOrNull()?.artist?.name ?: "Unknown Artist"
 
@@ -103,7 +137,7 @@ class MusicBrainzRepository(private val context: Context) {
             media.discs.any { disc -> disc.id == queryDiscId }
         } ?: release.media.firstOrNull()
 
-        val trackTitles = targetMedia?.tracks?.map { it.title } ?: emptyList()
+        val trackTitles = targetMedia?.tracks?.map { it.title }?.takeIf { it.isNotEmpty() } ?: emptyList()
         val discNumber = targetMedia?.position
         val totalDiscs = release.media.size.takeIf { it > 0 }
         val mbReleaseId = release.id
