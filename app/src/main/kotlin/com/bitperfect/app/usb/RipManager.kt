@@ -186,13 +186,13 @@ class RipManager(
 
                 val metadataBytes = buildFlacMetadata(
                     totalSamples = totalSamples,
-                    artist = metadata.artistName,
-                    album = metadata.albumTitle,
-                    title = trackTitle,
+                    artist = normalizeMeta(metadata.artistName),
+                    album = normalizeMeta(metadata.albumTitle),
+                    title = normalizeMeta(trackTitle),
                     track = trackNumber,
                     year = metadata.year,
-                    genre = metadata.genre,
-                    albumArtist = metadata.albumArtist,
+                    genre = metadata.genre?.let { normalizeMeta(it) },
+                    albumArtist = metadata.albumArtist?.let { normalizeMeta(it) },
                     mbReleaseId = metadata.mbReleaseId,
                     accurateRipUrl = accurateRipUrl,
                     artworkBytes = artworkBytes,
@@ -368,6 +368,12 @@ class RipManager(
             writeRipLog(albumDir, driveOffset, _trackStates.value)
         }
     }
+
+    private fun normalizeMeta(input: String): String =
+        input
+            .replace('\u2018', '\'').replace('\u2019', '\'').replace('\u0060', '\'')
+            .replace('\u201C', '"').replace('\u201D', '"')
+            .trim()
 
     private fun writeAccurateRipJsonl(albumDir: DocumentFile?, state: TrackRipState) {
         val dir = albumDir ?: return
