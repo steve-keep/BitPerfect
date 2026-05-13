@@ -62,6 +62,31 @@ open class LibraryRepository(private val context: Context) {
         return recentAlbumsMap.values.toList().takeLast(limit).reversed()
     }
 
+    open fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String) {
+        if (outputFolderUriString.isNullOrBlank()) return
+
+        val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+        if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) return
+
+        val recentFile = parentDir.findFile("new-releases.jsonl") ?: parentDir.createFile("application/x-ndjson", "new-releases.jsonl")
+        if (recentFile == null) return
+
+        try {
+            val json = JSONObject().apply {
+                put("timestamp", System.currentTimeMillis())
+                put("albumId", albumId)
+                put("albumTitle", albumTitle)
+                put("artist", artist)
+            }
+
+            context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->
+                out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     open fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
         if (outputFolderUriString.isNullOrBlank()) {
             return emptyList()
