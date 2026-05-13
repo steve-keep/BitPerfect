@@ -107,6 +107,10 @@ fun TrackListScreen(
                         }
                     }
 
+                    val isFullyVerified = remember(state.tracks) {
+                        state.tracks.isNotEmpty() && state.tracks.all { it.isAccurateRipVerified }
+                    }
+
                     AlbumHeader(
                         title = state.title,
                         artistName = state.artistName,
@@ -115,6 +119,7 @@ fun TrackListScreen(
                         isCdMode = state.isCdMode,
                         isRipping = isRipping,
                         overallProgress = overallProgress,
+                        isFullyVerified = isFullyVerified,
                         onSaveClick = { viewModel.startRip() },
                         onPlayClick = { viewModel.playAlbum(state.tracks) },
                         onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
