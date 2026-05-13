@@ -45,6 +45,9 @@ open class PlayerRepository(
     private val settingsManager by lazy { SettingsManager(context) }
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    private val _isControllerReady = MutableStateFlow(false)
+    open val isControllerReady: StateFlow<Boolean> = _isControllerReady.asStateFlow()
+
     private val _isPlaying = MutableStateFlow(false)
     open val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
@@ -148,6 +151,8 @@ open class PlayerRepository(
         }
     }
 
+    private var pendingPlayPause = false
+
     open suspend fun connect() {
         try {
             // Check context package name first to prevent NPE inside Media3 ComponentName when mocked context is used in tests
@@ -158,7 +163,7 @@ open class PlayerRepository(
                 // SessionToken constructor DOES NOT take context. Wait...
                 // SessionToken constructor takes (Context context, ComponentName componentName)
                 val sessionToken = SessionToken(context, componentName)
-                controller = factory.build(context, sessionToken).await().apply {
+                val newController = factory.build(context, sessionToken).await().apply {
                     addListener(listener)
                     // Initialize state
                     _isPlaying.value = isPlaying
@@ -183,6 +188,17 @@ open class PlayerRepository(
                     _currentTimeline.value = items
                     _currentIndex.value = currentMediaItemIndex
                 }
+
+                controller = newController
+                _isControllerReady.value = true
+
+                if (pendingPlayPause) {
+                    pendingPlayPause = false
+                    val c = controller
+                    if (c != null) {
+                        if (c.isPlaying) c.pause() else c.play()
+                    }
+                }
             }
         } catch (e: Throwable) {
             // Ignore in tests
@@ -190,6 +206,7 @@ open class PlayerRepository(
     }
 
     open fun disconnect() {
+        _isControllerReady.value = false
         controller?.apply {
             removeListener(listener)
             release()
@@ -281,12 +298,11 @@ open class PlayerRepository(
     }
 
     open fun togglePlayPause() {
-        controller?.let {
-            if (it.isPlaying) {
-                it.pause()
-            } else {
-                it.play()
-            }
+        val c = controller
+        if (c != null) {
+            if (c.isPlaying) c.pause() else c.play()
+        } else {
+            pendingPlayPause = true
         }
     }
 

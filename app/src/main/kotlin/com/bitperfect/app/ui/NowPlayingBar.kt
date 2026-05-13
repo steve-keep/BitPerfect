@@ -55,6 +55,7 @@ fun NowPlayingBar(
     currentTrackArtist: String?,
     currentAlbumArtUri: Uri?,
     onPlayPause: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -144,7 +145,8 @@ fun NowPlayingBar(
                             .testTag("now_playing_play_pause")
                             .semantics { role = Role.Button }
                             .indication(interactionSource, androidx.compose.foundation.LocalIndication.current)
-                            .pointerInput(onPlayPause) {
+                            .pointerInput(onPlayPause, enabled) {
+                                if (!enabled) return@pointerInput
                                 val slopPx = 8.dp.toPx()
                                 awaitEachGesture {
                                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -166,7 +168,7 @@ fun NowPlayingBar(
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
-                            tint = Color.White,
+                            tint = Color.White.copy(alpha = if (enabled) 1f else 0.4f),
                             modifier = Modifier.size(24.dp)
                         )
                     }

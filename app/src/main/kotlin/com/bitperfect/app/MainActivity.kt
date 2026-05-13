@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity() {
             val selectedAlbumTitle by appViewModel.selectedAlbumTitle.collectAsState()
             val trackListViewState by appViewModel.trackListViewState.collectAsState()
 
+            val isControllerReady by appViewModel.isControllerReady.collectAsState()
             val isPlaying by appViewModel.isPlaying.collectAsState()
             val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
             val currentTrackArtist by appViewModel.currentTrackArtist.collectAsState()
@@ -221,7 +222,8 @@ class MainActivity : ComponentActivity() {
                                         currentTrackTitle = currentTrackTitle,
                                         currentTrackArtist = currentTrackArtist,
                                         currentAlbumArtUri = currentAlbumArtUri,
-                                        onPlayPause = { appViewModel.togglePlayPause() }
+                                        onPlayPause = { appViewModel.togglePlayPause() },
+                                        enabled = isControllerReady
                                     )
                                 }
                             }
