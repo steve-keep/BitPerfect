@@ -24,9 +24,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import com.bitperfect.app.usb.DriveStatus
@@ -74,6 +76,36 @@ fun throbbingBackgroundModifier(): Modifier {
         label = "throbbing color"
     )
     return Modifier.background(color)
+}
+
+@Composable
+private fun AccurateRipStamp() {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = Color(0xFF4CAF50).copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, Color(0xFF4CAF50))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Verified,
+                contentDescription = null,
+                tint = Color(0xFF4CAF50),
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = "ACCURATERIP VERIFIED",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = Color(0xFF4CAF50)
+            )
+        }
+    }
 }
 
 @Composable
@@ -143,15 +175,6 @@ fun AlbumHeader(
                     overflow = TextOverflow.Ellipsis,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                if (isFullyVerified) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "AccurateRip Verified",
-                        tint = Color(0xFF4CAF50),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -167,7 +190,13 @@ fun AlbumHeader(
                 color = Color(0x99FFFFFF),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            if (isFullyVerified && !isCdMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AccurateRipStamp()
+                Spacer(modifier = Modifier.height(20.dp))
+            } else {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
             if (isRipping) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
