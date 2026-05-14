@@ -258,7 +258,6 @@ class AccurateRipVerifierTest {
         // Split into 3 chunks
         val chunk1SizeSamples = 3000
         val chunk2SizeSamples = 4000
-        val chunk3SizeSamples = totalSamples.toInt() - chunk1SizeSamples - chunk2SizeSamples
 
         val chunk1 = pcmData.copyOfRange(0, chunk1SizeSamples * 4)
         val chunk2 = pcmData.copyOfRange(chunk1SizeSamples * 4, (chunk1SizeSamples + chunk2SizeSamples) * 4)
