@@ -33,7 +33,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
         // The empty string "" is used as a fallback if the title is null
@@ -49,7 +50,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = "The Band",
                 currentAlbumArtUri = null,
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
 
@@ -70,7 +72,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = "The Band",
                 currentAlbumArtUri = android.net.Uri.parse("content://media/external/audio/albumart/1"),
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
 
@@ -88,7 +91,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
 
@@ -107,7 +111,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = "",
                 currentAlbumArtUri = null,
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
 
@@ -128,7 +133,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = { playPauseClicked = true },
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
 
@@ -146,6 +152,7 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 enabled = false,
+                onExpand = {},
                 onPlayPause = { clicked = true }
             )
         }
@@ -165,7 +172,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
         composeTestRule
@@ -185,7 +193,8 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 onPlayPause = {},
-                enabled = true
+                enabled = true,
+                onExpand = {}
             )
         }
         composeTestRule

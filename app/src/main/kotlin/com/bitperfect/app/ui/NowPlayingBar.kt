@@ -53,6 +53,7 @@ fun NowPlayingBar(
     currentAlbumArtUri: Uri?,
     onPlayPause: () -> Unit,
     enabled: Boolean,
+    onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -74,6 +75,7 @@ fun NowPlayingBar(
                     Row(
                         modifier = Modifier
                             .weight(1f)
+                            .clickable(onClick = onExpand)
                             .padding(
                                 top = 8.dp,
                                 start = 16.dp,

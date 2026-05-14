@@ -152,7 +152,14 @@ class MainActivity : ComponentActivity() {
                     } else {
                         0.dp
                     },
-                    sheetDragHandle = null,
+                    sheetDragHandle = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(0.dp)
+                                .padding(end = 80.dp) // Leave play/pause button area non-draggable
+                        )
+                    },
                     sheetContent = {
                         val density = androidx.compose.ui.platform.LocalDensity.current
                         val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
@@ -223,7 +230,12 @@ class MainActivity : ComponentActivity() {
                                         currentTrackArtist = currentTrackArtist,
                                         currentAlbumArtUri = currentAlbumArtUri,
                                         onPlayPause = { appViewModel.togglePlayPause() },
-                                        enabled = isControllerReady
+                                        enabled = isControllerReady,
+                                        onExpand = {
+                                            coroutineScope.launch {
+                                                bottomSheetScaffoldState.bottomSheetState.expand()
+                                            }
+                                        }
                                     )
                                 }
                             }
