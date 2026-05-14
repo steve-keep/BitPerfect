@@ -588,7 +588,7 @@ fun LibrarySection(
                 } else {
                     if (searchQuery.isBlank() && latestRippedAlbums.isNotEmpty()) {
                         item {
-                            val itemWidth = (screenWidth - 48.dp) // Leave some margin to hint at scrolling
+                            val itemWidth = (screenWidth - 72.dp) // Leave some margin to hint at scrolling
 
                             androidx.compose.foundation.lazy.LazyRow(
                                 modifier = Modifier
@@ -600,7 +600,7 @@ fun LibrarySection(
                                     Box(
                                         modifier = Modifier
                                             .width(itemWidth)
-                                            .aspectRatio(16f / 9f)
+                                            .aspectRatio(2.2f)
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable { onAlbumClick(album) }
                                     ) {
@@ -624,7 +624,11 @@ fun LibrarySection(
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .background(Color.Black.copy(alpha = 0.4f))
+                                                .background(
+                                                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                                                    )
+                                                )
                                         )
 
                                         // Foreground content
@@ -632,7 +636,7 @@ fun LibrarySection(
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .padding(16.dp),
-                                            verticalAlignment = Alignment.Bottom
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             AsyncImage(
                                                 model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
@@ -642,7 +646,7 @@ fun LibrarySection(
                                                     .build(),
                                                 contentDescription = album.title,
                                                 modifier = Modifier
-                                                    .fillMaxHeight(0.7f)
+                                                    .fillMaxHeight()
                                                     .aspectRatio(1f)
                                                     .clip(RoundedCornerShape(8.dp)),
                                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
@@ -654,7 +658,7 @@ fun LibrarySection(
 
                                             Column(
                                                 modifier = Modifier.weight(1f),
-                                                verticalArrangement = Arrangement.Bottom
+                                                verticalArrangement = Arrangement.Center
                                             ) {
                                                 Text(
                                                     text = album.title,
