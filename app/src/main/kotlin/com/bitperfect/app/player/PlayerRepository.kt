@@ -354,6 +354,14 @@ open class PlayerRepository(
         }
     }
 
+    open fun play() {
+        controller?.play()
+    }
+
+    open fun pause() {
+        controller?.pause()
+    }
+
     open fun togglePlayPause() {
         val c = controller
         if (c != null) {
@@ -361,6 +369,23 @@ open class PlayerRepository(
         } else {
             pendingPlayPause = true
         }
+    }
+
+    open suspend fun setQueueAndPlay(mediaIds: List<String>, startIndex: Int, startPositionMs: Long) {
+        val c = controller ?: return
+
+        val mediaItems = mediaIds.map { id ->
+            val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toLong())
+            MediaItem.Builder()
+                .setUri(uri)
+                .setMediaId(id)
+                .build()
+        }
+
+        c.setMediaItems(mediaItems)
+        c.seekTo(startIndex, startPositionMs)
+        c.prepare()
+        c.play()
     }
 
     open fun seekTo(ms: Long) {
