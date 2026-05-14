@@ -35,6 +35,7 @@ enum class RipStatus {
 
 data class TrackRipState(
     val trackNumber: Int,
+    val discNumber: Int = 1,
     val progress: Float = 0f,
     val status: RipStatus = RipStatus.IDLE,
     val accurateRipUrl: String? = null,
@@ -407,19 +408,23 @@ class RipManager(
 
             if (file == null) return
 
-            val isVerified = state.status == RipStatus.SUCCESS
+            val isVerified = state.status == RipStatus.SUCCESS || state.status == RipStatus.UNVERIFIED
+            val checksumMatched = state.status == RipStatus.SUCCESS
+            val inDatabase = state.expectedChecksums.isNotEmpty() || state.status == RipStatus.SUCCESS
 
             // Remove existing entry for the same disc and track
             existingLines.removeAll {
-                it.optInt("disc", -1) == 1 && it.optInt("track", -1) == state.trackNumber
+                it.optInt("disc", -1) == state.discNumber && it.optInt("track", -1) == state.trackNumber
             }
 
             val newEntry = JSONObject()
-            newEntry.put("disc", 1)
+            newEntry.put("disc", state.discNumber)
             newEntry.put("track", state.trackNumber)
 
             val accurateRipObj = JSONObject()
             accurateRipObj.put("isVerified", isVerified)
+            accurateRipObj.put("checksumMatched", checksumMatched)
+            accurateRipObj.put("inDatabase", inDatabase)
             if (state.computedChecksum != null) {
                 val computedStr = String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
                 accurateRipObj.put("checksum", computedStr)
