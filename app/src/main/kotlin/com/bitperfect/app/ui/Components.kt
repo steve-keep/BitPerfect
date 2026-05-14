@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.blur
 import coil.compose.SubcomposeAsyncImage
 
 @Composable
@@ -484,6 +485,7 @@ fun LibrarySection(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredArtists by viewModel.filteredArtists.collectAsState()
     val recentlyPlayedAlbums by viewModel.recentlyPlayedAlbums.collectAsState()
+    val latestRippedAlbums by viewModel.latestRippedAlbums.collectAsState()
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
@@ -555,6 +557,99 @@ fun LibrarySection(
                         }
                     }
                 } else {
+                    if (searchQuery.isBlank() && latestRippedAlbums.isNotEmpty()) {
+                        item {
+                            val itemWidth = (screenWidth - 48.dp) // Leave some margin to hint at scrolling
+
+                            androidx.compose.foundation.lazy.LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(latestRippedAlbums) { (artist, album) ->
+                                    Box(
+                                        modifier = Modifier
+                                            .width(itemWidth)
+                                            .aspectRatio(16f / 9f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onAlbumClick(album) }
+                                    ) {
+                                        // Blurred background
+                                        AsyncImage(
+                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                .data(album.artUri)
+                                                .crossfade(true)
+                                                .diskCachePolicy(CachePolicy.ENABLED)
+                                                .build(),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .blur(20.dp),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            placeholder = ColorPainter(Color(0xFF141414)),
+                                            error = ColorPainter(Color(0xFF141414))
+                                        )
+
+                                        // Dark overlay to ensure text readability
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.4f))
+                                        )
+
+                                        // Foreground content
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(16.dp),
+                                            verticalAlignment = Alignment.Bottom
+                                        ) {
+                                            AsyncImage(
+                                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                    .data(album.artUri)
+                                                    .crossfade(true)
+                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                    .build(),
+                                                contentDescription = album.title,
+                                                modifier = Modifier
+                                                    .fillMaxHeight(0.7f)
+                                                    .aspectRatio(1f)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                placeholder = ColorPainter(Color(0xFF141414)),
+                                                error = ColorPainter(Color(0xFF141414))
+                                            )
+
+                                            Spacer(modifier = Modifier.width(16.dp))
+
+                                            Column(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.Bottom
+                                            ) {
+                                                Text(
+                                                    text = album.title,
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = artist.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (searchQuery.isBlank() && recentlyPlayedAlbums.isNotEmpty()) {
                         stickyHeader(key = "recently_played_header") {
                             Box(
