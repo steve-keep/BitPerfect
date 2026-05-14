@@ -263,17 +263,18 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-                                    Text(
-                                        text = when (currentRoute) {
-                                            AppRoutes.Settings -> "Settings"
-                                            AppRoutes.About -> "About"
-                                            AppRoutes.TrackList -> trackListViewState?.title ?: selectedAlbumTitle ?: "Album"
-                                            else -> "BitPerfect"
-                                        },
-                                        modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
+                                    if (currentRoute != AppRoutes.TrackList) {
+                                        Text(
+                                            text = when (currentRoute) {
+                                                AppRoutes.Settings -> "Settings"
+                                                AppRoutes.About -> "About"
+                                                else -> "BitPerfect"
+                                            },
+                                            modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             },
                             navigationIcon = {
