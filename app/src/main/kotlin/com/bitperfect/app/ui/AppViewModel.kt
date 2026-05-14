@@ -89,6 +89,9 @@ open class AppViewModel(
     private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.AlbumInfo>>(emptyList())
     val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.AlbumInfo>> = _recentlyPlayedAlbums
 
+    private val _latestRippedAlbums = MutableStateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>>(emptyList())
+    val latestRippedAlbums: StateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>> = _latestRippedAlbums
+
     val searchQuery = MutableStateFlow("")
 
     private val _isOutputFolderConfigured = MutableStateFlow(false)
@@ -259,6 +262,7 @@ open class AppViewModel(
                                     albumTitle = foundAlbum.title,
                                     artist = foundArtist?.name ?: safeArtist
                                 )
+                                loadLibrary() // Reload after appending to reflect latest rips
                                 withContext(Dispatchers.Main) {
                                     selectAlbum(foundAlbum.id, foundAlbum.title)
                                 }
@@ -407,6 +411,9 @@ open class AppViewModel(
 
             val recent = libraryRepository.getRecentlyPlayedAlbums(uriString)
             _recentlyPlayedAlbums.value = recent.map { it.second }
+
+            val latest = libraryRepository.getLatestRippedAlbums(uriString)
+            _latestRippedAlbums.value = latest
 
             // Rehydrate the track list if an album was selected but data was lost
             // (e.g. after returning from background or process recreation).
