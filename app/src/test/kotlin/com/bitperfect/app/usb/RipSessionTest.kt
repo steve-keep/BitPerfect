@@ -57,7 +57,7 @@ class RipSessionTest {
         // It catches the error and finishes, which resets isRipping to false.
         // We need to inject a mock or just test the state synchronously before it finishes.
 
-        val initialStates = ripSession.ripStates.value
+        val initialStatesSize = ripSession.ripStates.value.size
 
         // Since RipManager finishes immediately when transport is null, we can force isRipping
         // via reflection to test the guard condition.
@@ -100,6 +100,7 @@ class RipSessionTest {
         )
 
         assertTrue(ripSession.isRipping.value)
+        assertEquals(initialStatesSize, ripSession.ripStates.value.size)
     }
 
     @Test
