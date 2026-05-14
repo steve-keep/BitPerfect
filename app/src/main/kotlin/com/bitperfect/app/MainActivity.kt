@@ -144,7 +144,10 @@ class MainActivity : ComponentActivity() {
 
             val coroutineScope = rememberCoroutineScope()
 
-            BackHandler(enabled = bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) {
+            BackHandler(
+                enabled = bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Expanded ||
+                          bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded
+            ) {
                 coroutineScope.launch {
                     bottomSheetScaffoldState.bottomSheetState.partialExpand()
                 }
