@@ -384,6 +384,10 @@ open class PlayerRepository(
 
         c.setMediaItems(mediaItems)
         c.seekTo(startIndex, startPositionMs)
+
+        // Note: prepare() is async and triggers buffering. Calling play() immediately is generally
+        // safe with Media3 as it handles the state transition, though playback won't begin
+        // until buffering completes.
         c.prepare()
         c.play()
     }

@@ -10,6 +10,7 @@ class BluetoothOutputController(
     val device: OutputDevice.Bluetooth
 ) : OutputController {
 
+    // TODO: use for explicit routing in phase 2
     private val audioManager =
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 

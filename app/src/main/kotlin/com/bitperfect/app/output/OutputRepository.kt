@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 open class OutputRepository(
     private val context: Context,
@@ -27,17 +29,22 @@ open class OutputRepository(
     private val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
-    private var activeController: OutputController = LocalOutputController(playerRepository)
+    private val switchMutex = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var activeController: OutputController = LocalOutputController(playerRepository)
 
     // --- Playback delegation ---
     // AppViewModel calls these instead of PlayerRepository directly.
 
-    fun play() { scope.launch { activeController.play() } }
-    fun pause() { scope.launch { activeController.pause() } }
+    fun play() { scope.launch { switchMutex.withLock { activeController.play() } } }
+    fun pause() { scope.launch { switchMutex.withLock { activeController.pause() } } }
     fun togglePlayPause(isPlaying: Boolean) {
-        if (isPlaying) pause() else play()
+        scope.launch {
+            switchMutex.withLock {
+                if (isPlaying) activeController.pause() else activeController.play()
+            }
+        }
     }
-    fun seekTo(positionMs: Long) { scope.launch { activeController.seekTo(positionMs) } }
+    fun seekTo(positionMs: Long) { scope.launch { switchMutex.withLock { activeController.seekTo(positionMs) } } }
 
     // --- Device switching ---
 
@@ -50,21 +57,23 @@ open class OutputRepository(
      */
     fun switchTo(target: OutputDevice, currentMediaIds: List<String>, currentIndex: Int) {
         scope.launch {
-            val positionMs = activeController.getPositionMs()
-            activeController.release()
+            switchMutex.withLock {
+                val positionMs = activeController.getPositionMs()
+                activeController.release()
 
-            val newController: OutputController = when (target) {
-                is OutputDevice.ThisPhone ->
-                    LocalOutputController(playerRepository)
-                is OutputDevice.Bluetooth ->
-                    BluetoothOutputController(context, playerRepository, target)
-                is OutputDevice.Upnp ->
-                    throw UnsupportedOperationException("UPnP controller not yet implemented")
+                val newController: OutputController = when (target) {
+                    is OutputDevice.ThisPhone ->
+                        LocalOutputController(playerRepository)
+                    is OutputDevice.Bluetooth ->
+                        BluetoothOutputController(context, playerRepository, target)
+                    is OutputDevice.Upnp ->
+                        throw UnsupportedOperationException("UPnP controller not yet implemented")
+                }
+
+                newController.takeOver(currentMediaIds, currentIndex, positionMs)
+                activeController = newController
+                _activeDevice.value = target
             }
-
-            newController.takeOver(currentMediaIds, currentIndex, positionMs)
-            activeController = newController
-            _activeDevice.value = target
         }
     }
 
