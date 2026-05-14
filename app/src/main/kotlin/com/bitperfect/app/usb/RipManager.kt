@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.BufferedOutputStream
 
+import java.net.URLEncoder
 import com.bitperfect.core.utils.computeAccurateRipDiscId
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
 import java.time.LocalDateTime
@@ -708,6 +709,31 @@ class RipManager(
                         }
                     }
                 }
+
+                sb.append("      Lyrics:\n")
+
+                val artistStr = metadata.artistName.ifBlank { "unknown" }
+                val trackStr = metadata.trackTitles.getOrNull(state.trackNumber - 1)?.ifBlank { "unknown" } ?: "unknown"
+                val albumStr = metadata.albumTitle.ifBlank { "unknown" }
+                val durationSeconds = state.durationSeconds.toLong()
+
+                val encodedArtist = URLEncoder.encode(artistStr, "UTF-8")
+                val encodedTrack = URLEncoder.encode(trackStr, "UTF-8")
+                val encodedAlbum = URLEncoder.encode(albumStr, "UTF-8")
+                val url = "https://lrclib.net/api/get?artist_name=$encodedArtist&track_name=$encodedTrack&album_name=$encodedAlbum&duration=$durationSeconds"
+
+                val mbGuard = if (metadata.mbReleaseId.isNullOrBlank()) "SKIPPED (mbReleaseId blank)" else "PASSED"
+                val lyricsResult = lyricsMap[state.trackNumber]
+                val resultStr = if (lyricsResult == null) "NULL" else {
+                    if (lyricsResult.plainLyrics != null && lyricsResult.syncedLyrics != null) "FOUND (plain + synced)"
+                    else if (lyricsResult.plainLyrics != null) "FOUND (plain only)"
+                    else if (lyricsResult.syncedLyrics != null) "FOUND (synced only)"
+                    else "NOT FETCHED"
+                }
+
+                sb.append("        URL:       ").append(url).append("\n")
+                sb.append("        mbRelease: ").append(mbGuard).append("\n")
+                sb.append("        Result:    ").append(resultStr).append("\n")
             }
             if (states.isNotEmpty()) {
                 sb.append("  ---------------------------------------------------------------\n")
