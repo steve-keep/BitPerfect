@@ -144,15 +144,6 @@ class MainActivity : ComponentActivity() {
 
             val coroutineScope = rememberCoroutineScope()
 
-            BackHandler(
-                enabled = bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Expanded ||
-                          bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded
-            ) {
-                coroutineScope.launch {
-                    bottomSheetScaffoldState.bottomSheetState.partialExpand()
-                }
-            }
-
             BitPerfectTheme {
                 BottomSheetScaffold(
                     scaffoldState = bottomSheetScaffoldState,
@@ -164,6 +155,17 @@ class MainActivity : ComponentActivity() {
                     },
                     sheetDragHandle = null,
                     sheetContent = {
+                        if (currentTrackTitle != null) {
+                            BackHandler(
+                                enabled = bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Expanded ||
+                                          bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded
+                            ) {
+                                coroutineScope.launch {
+                                    bottomSheetScaffoldState.bottomSheetState.partialExpand()
+                                }
+                            }
+                        }
+
                         val density = androidx.compose.ui.platform.LocalDensity.current
                         val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
                         val screenHeightPx = with(density) { screenHeight.toPx() }
