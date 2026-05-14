@@ -18,12 +18,19 @@ open class LibraryRepository(private val context: Context) {
             return emptyList()
         }
 
-        val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+        val parentDir = try {
+            DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+        } catch (e: Exception) {
+            null
+        }
+
         if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) {
             return emptyList()
         }
 
-        val recentFile = parentDir.findFile("recently-played.jsonl") ?: return emptyList()
+        val recentFile = try {
+             parentDir.findFile("recently-played.jsonl")
+        } catch (e: Exception) { null } ?: return emptyList()
 
         // Keep track of albums using a LinkedHashMap to preserve insertion order (updating existing entries to move them to the end)
         val recentAlbumsMap = LinkedHashMap<Long, Pair<ArtistInfo, AlbumInfo>>()

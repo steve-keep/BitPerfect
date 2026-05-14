@@ -86,6 +86,9 @@ open class AppViewModel(
     private val _artists = MutableStateFlow<List<ArtistInfo>>(emptyList())
     val artists: StateFlow<List<ArtistInfo>> = _artists
 
+    private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.AlbumInfo>>(emptyList())
+    val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.AlbumInfo>> = _recentlyPlayedAlbums
+
     val searchQuery = MutableStateFlow("")
 
     private val _isOutputFolderConfigured = MutableStateFlow(false)
@@ -401,6 +404,9 @@ open class AppViewModel(
         viewModelScope.launch(ioDispatcher) {
             val loadedArtists = libraryRepository.getLibrary(uriString)
             _artists.value = loadedArtists
+
+            val recent = libraryRepository.getRecentlyPlayedAlbums(uriString)
+            _recentlyPlayedAlbums.value = recent.map { it.second }
 
             // Rehydrate the track list if an album was selected but data was lost
             // (e.g. after returning from background or process recreation).

@@ -483,6 +483,7 @@ fun LibrarySection(
     val isConfigured by viewModel.isOutputFolderConfigured.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredArtists by viewModel.filteredArtists.collectAsState()
+    val recentlyPlayedAlbums by viewModel.recentlyPlayedAlbums.collectAsState()
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
@@ -554,6 +555,62 @@ fun LibrarySection(
                         }
                     }
                 } else {
+                    if (searchQuery.isBlank() && recentlyPlayedAlbums.isNotEmpty()) {
+                        stickyHeader(key = "recently_played_header") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Recently Played",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                            }
+                        }
+                        item {
+                            val itemWidth = (screenWidth - 72.dp) / 3.5f
+
+                            androidx.compose.foundation.lazy.LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(recentlyPlayedAlbums) { album ->
+                                    Column(
+                                        modifier = Modifier
+                                            .width(itemWidth)
+                                            .clickable { onAlbumClick(album) },
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        AsyncImage(
+                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                .data(album.artUri)
+                                                .crossfade(true)
+                                                .diskCachePolicy(CachePolicy.ENABLED)
+                                                .build(),
+                                            contentDescription = album.title,
+                                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            placeholder = ColorPainter(Color(0xFF141414)),
+                                            error = ColorPainter(Color(0xFF141414))
+                                        )
+                                        Text(
+                                            text = album.title,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     filteredArtists.forEach { artist ->
                         stickyHeader(key = artist.id) {
                             Box(
