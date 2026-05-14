@@ -187,7 +187,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        val showBar by remember { derivedStateOf { progressProvider() < 0.99f } }
                         val showScreen by remember { derivedStateOf { progressProvider() > 0.01f } }
 
                         Box(modifier = Modifier.fillMaxWidth()) {
@@ -218,22 +217,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            if (showBar) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .graphicsLayer { alpha = 1f - progressProvider() }
-                                ) {
-                                    NowPlayingBar(
-                                        isPlaying = isPlaying,
-                                        currentTrackTitle = currentTrackTitle,
-                                        currentTrackArtist = currentTrackArtist,
-                                        currentAlbumArtUri = currentAlbumArtUri,
-                                        onPlayPause = { appViewModel.togglePlayPause() },
-                                        enabled = isControllerReady
-                                    )
-                                }
-                            }
                             if (showScreen) {
                                 Box(
                                     modifier = Modifier
@@ -394,6 +377,60 @@ class MainActivity : ComponentActivity() {
                                 onShareRipInfo = { trackNumber -> appViewModel.shareRipInfo(trackNumber) },
                                 onNavigateBack = { navController.popBackStack() }
                             )
+                        }
+                    }
+                }
+
+                if (currentTrackTitle != null) {
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+                    val screenHeightPx = with(density) { screenHeight.toPx() }
+                    val peekHeightPx = with(density) {
+                        (64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).toPx()
+                    }
+                    val progressProvider: () -> Float = {
+                        try {
+                            val offset = bottomSheetScaffoldState.bottomSheetState.requireOffset()
+                            val maxOffset = screenHeightPx - peekHeightPx
+                            if (maxOffset <= 0) 0f else {
+                                val fraction = 1f - (offset / maxOffset)
+                                fraction.coerceIn(0f, 1f)
+                            }
+                        } catch (e: IllegalStateException) {
+                            if (bottomSheetScaffoldState.bottomSheetState.targetValue == SheetValue.Expanded) 1f else 0f
+                        }
+                    }
+
+                    val showBar by remember { derivedStateOf { progressProvider() < 0.99f } }
+
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        AnimatedVisibility(
+                            visible = showBar,
+                            enter = slideInVertically { it },
+                            exit = slideOutVertically { it }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer { alpha = 1f - progressProvider() }
+                            ) {
+                            NowPlayingBar(
+                                isPlaying = isPlaying,
+                                currentTrackTitle = currentTrackTitle,
+                                currentTrackArtist = currentTrackArtist,
+                                currentAlbumArtUri = currentAlbumArtUri,
+                                onPlayPause = { appViewModel.togglePlayPause() },
+                                enabled = isControllerReady,
+                                onExpand = {
+                                    coroutineScope.launch {
+                                        bottomSheetScaffoldState.bottomSheetState.expand()
+                                    }
+                                }
+                            )
+                            }
                         }
                     }
                 }
