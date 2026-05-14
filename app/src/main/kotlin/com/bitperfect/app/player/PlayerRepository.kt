@@ -152,7 +152,7 @@ open class PlayerRepository(
             val trackId = mediaItem.mediaId.toLongOrNull() ?: return
 
             scope.launch {
-                val track = libraryRepository.getTrack(trackId) ?: return@launch
+                val track = libraryRepository.getTrack(trackId, settingsManager.outputFolderUri) ?: return@launch
                 val albumId = track.albumId
                 if (albumId == -1L) return@launch
 

@@ -19,6 +19,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.eq
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -67,7 +69,7 @@ class PlaybackServiceTest {
             albumId = albumId
         )
 
-        `when`(mockLibraryRepository.getTrack(trackId)).thenReturn(trackInfo)
+        `when`(mockLibraryRepository.getTrack(eq(trackId), any())).thenReturn(trackInfo)
 
         val innerClass = Class.forName("com.bitperfect.app.player.PlaybackService\$BrowseCallback")
         val constructor = innerClass.getDeclaredConstructors()[0]
@@ -128,7 +130,7 @@ class PlaybackServiceTest {
             albumId = albumId
         )
 
-        `when`(mockLibraryRepository.getTracksForAlbum(albumId)).thenReturn(listOf(track1, track2))
+        `when`(mockLibraryRepository.getTracksForAlbum(eq(albumId), any())).thenReturn(listOf(track1, track2))
 
         val innerClass = Class.forName("com.bitperfect.app.player.PlaybackService\$BrowseCallback")
         val constructor = innerClass.getDeclaredConstructors()[0]

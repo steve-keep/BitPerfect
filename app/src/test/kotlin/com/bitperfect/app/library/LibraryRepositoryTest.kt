@@ -63,7 +63,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(cursor)
 
-        val tracks = libraryRepository.getTracksForAlbum(albumId)
+        val tracks = libraryRepository.getTracksForAlbum(albumId, null)
 
         assertEquals(2, tracks.size)
 
@@ -108,7 +108,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(cursor)
 
-        val tracks = libraryRepository.getTracksForAlbum(albumId)
+        val tracks = libraryRepository.getTracksForAlbum(albumId, null)
 
         assertEquals(2, tracks.size)
 
@@ -152,7 +152,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(cursor)
 
-        val tracks = libraryRepository.getTracksForAlbum(albumId)
+        val tracks = libraryRepository.getTracksForAlbum(albumId, null)
 
         assertEquals(1, tracks.size)
         assertEquals("Unknown Track", tracks[0].title)
@@ -172,7 +172,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(null)
 
-        val tracks = libraryRepository.getTracksForAlbum(albumId)
+        val tracks = libraryRepository.getTracksForAlbum(albumId, null)
 
         assertEquals(0, tracks.size)
     }
@@ -205,7 +205,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(cursor)
 
-        val track = libraryRepository.getTrack(trackId)
+        val track = libraryRepository.getTrack(trackId, null)
 
         assertEquals(1L, track?.id)
         assertEquals("Track 1", track?.title)
@@ -243,7 +243,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(cursor)
 
-        val track = libraryRepository.getTrack(trackId)
+        val track = libraryRepository.getTrack(trackId, null)
 
         assertEquals(1L, track?.id)
         assertEquals("Track 1", track?.title)
@@ -267,7 +267,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(null)
 
-        val track = libraryRepository.getTrack(trackId)
+        val track = libraryRepository.getTrack(trackId, null)
 
         assertEquals(null, track)
 
@@ -291,7 +291,7 @@ class LibraryRepositoryTest {
             )
         ).thenReturn(emptyCursor)
 
-        val trackFromEmpty = libraryRepository.getTrack(trackId)
+        val trackFromEmpty = libraryRepository.getTrack(trackId, null)
 
         assertEquals(null, trackFromEmpty)
     }

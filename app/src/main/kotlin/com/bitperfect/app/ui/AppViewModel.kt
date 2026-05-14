@@ -431,7 +431,7 @@ open class AppViewModel(
     }
 
     private suspend fun reloadTracksInternal(albumId: Long, artists: List<ArtistInfo>) {
-        val albumTracks = libraryRepository.getTracksForAlbum(albumId)
+        val albumTracks = libraryRepository.getTracksForAlbum(albumId, settingsManager.outputFolderUri)
 
         var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
         var foundArtistName = ""
