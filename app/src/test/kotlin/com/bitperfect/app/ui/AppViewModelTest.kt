@@ -348,9 +348,9 @@ class AppViewModelTest {
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to UsbTrackRipState(1, 1f, UsbRipStatus.SUCCESS),
-            2 to UsbTrackRipState(2, 0.5f, UsbRipStatus.RIPPING),
-            3 to UsbTrackRipState(3, 0f, UsbRipStatus.IDLE)
+            1 to UsbTrackRipState(trackNumber = 1, progress = 1f, status = UsbRipStatus.SUCCESS),
+            2 to UsbTrackRipState(trackNumber = 2, progress = 0.5f, status = UsbRipStatus.RIPPING),
+            3 to UsbTrackRipState(trackNumber = 3, progress = 0f, status = UsbRipStatus.IDLE)
         )
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
@@ -382,8 +382,8 @@ class AppViewModelTest {
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to UsbTrackRipState(1, 1.0f, UsbRipStatus.SUCCESS),
-            2 to UsbTrackRipState(2, 0.5f, UsbRipStatus.RIPPING)
+            1 to UsbTrackRipState(trackNumber = 1, progress = 1.0f, status = UsbRipStatus.SUCCESS),
+            2 to UsbTrackRipState(trackNumber = 2, progress = 0.5f, status = UsbRipStatus.RIPPING)
         )
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
@@ -463,7 +463,7 @@ class AppViewModelTest {
         // Ripping finished, isRipping is false, but ripStates is not empty
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
         val states = mapOf(
-            1 to UsbTrackRipState(1, 1.0f, UsbRipStatus.SUCCESS)
+            1 to UsbTrackRipState(trackNumber = 1, progress = 1.0f, status = UsbRipStatus.SUCCESS)
         )
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
