@@ -69,6 +69,60 @@ open class LibraryRepository(private val context: Context) {
         return recentAlbumsMap.values.toList().takeLast(limit).reversed()
     }
 
+    open fun getLatestRippedAlbums(outputFolderUriString: String?, limit: Int = 10): List<Pair<ArtistInfo, AlbumInfo>> {
+        if (outputFolderUriString.isNullOrBlank()) {
+            return emptyList()
+        }
+
+        val parentDir = try {
+            DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+        } catch (e: Exception) {
+            null
+        }
+
+        if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) {
+            return emptyList()
+        }
+
+        val recentFile = try {
+             parentDir.findFile("new-releases.jsonl")
+        } catch (e: Exception) { null } ?: return emptyList()
+
+        val recentAlbumsMap = LinkedHashMap<Long, Pair<ArtistInfo, AlbumInfo>>()
+
+        try {
+            context.contentResolver.openInputStream(recentFile.uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        if (line!!.isBlank()) continue
+                        try {
+                            val json = JSONObject(line!!)
+                            val albumId = json.getLong("albumId")
+                            val albumTitle = json.getString("albumTitle")
+                            val artistName = json.getString("artist")
+
+                            val albumArtBaseUri = Uri.parse("content://media/external/audio/albumart")
+                            val artUri = ContentUris.withAppendedId(albumArtBaseUri, albumId)
+
+                            val albumInfo = AlbumInfo(albumId, albumTitle, artUri)
+                            val artistInfo = ArtistInfo(albumId, artistName, listOf(albumInfo))
+
+                            recentAlbumsMap.remove(albumId)
+                            recentAlbumsMap[albumId] = Pair(artistInfo, albumInfo)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return recentAlbumsMap.values.toList().takeLast(limit).reversed()
+    }
+
     open fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String) {
         if (outputFolderUriString.isNullOrBlank()) return
 
