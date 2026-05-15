@@ -624,7 +624,8 @@ fun LibrarySection(
                 } else {
                     if (searchQuery.isBlank() && latestRippedAlbums.isNotEmpty()) {
                         item {
-                            val itemWidth = (screenWidth - 72.dp) // Leave some margin to hint at scrolling
+                            val albumWidth = (screenWidth - 72.dp) / 3.5f
+                            val itemWidth = (albumWidth * 3) + 32.dp // Width of 3 albums + 2 gaps (16.dp each)
 
                             Sliderow(
                                 items = latestRippedAlbums,
