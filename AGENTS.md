@@ -15,10 +15,13 @@ Reusable components are defined in `app/src/main/kotlin/com/bitperfect/app/ui/Co
 - Jetpack Compose for UI.
 - Multi-module architecture: `:app` (UI), `:core` (Logic), `:driver` (NDK).
 
+## Testing Requirements for Agents
+
+**CRITICAL INSTRUCTION**: You must *always* write unit tests for any new code or logic modifications you make. The project has a goal of maintaining at least 70% unit test coverage. Even though this coverage requirement is not currently strictly enforced by CI to fail builds, it is a strict requirement for *you* (the agent). Whenever you create a new feature or fix a bug, your plan and execution must include creating or updating tests to cover the changes.
+
 ## Pre-PR Checklist
 
 Before opening or pushing to a pull request, you **must** run the full test suite locally and confirm it passes.
-In addition, **any new or updated files must have at least 70% unit test coverage**, as enforced by the PR GitHub Action.
 
 ### Run all tests (no device required)
 
