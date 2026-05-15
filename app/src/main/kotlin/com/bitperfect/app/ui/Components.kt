@@ -2,10 +2,15 @@ package com.bitperfect.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MusicNote
@@ -62,6 +67,34 @@ import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.blur
 import coil.compose.SubcomposeAsyncImage
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun <T> Sliderow(
+    items: List<T>,
+    modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(0.dp),
+    itemContent: @Composable (T) -> Unit
+) {
+    val snappingLayout = remember(state) {
+        SnapLayoutInfoProvider(state, SnapPosition.Start)
+    }
+    val flingBehavior = rememberSnapFlingBehavior(snappingLayout)
+
+    LazyRow(
+        modifier = modifier,
+        state = state,
+        contentPadding = contentPadding,
+        horizontalArrangement = horizontalArrangement,
+        flingBehavior = flingBehavior
+    ) {
+        items(items) { item ->
+            itemContent(item)
+        }
+    }
+}
 
 @Composable
 fun throbbingBackgroundModifier(): Modifier {
@@ -593,93 +626,92 @@ fun LibrarySection(
                         item {
                             val itemWidth = (screenWidth - 72.dp) // Leave some margin to hint at scrolling
 
-                            androidx.compose.foundation.lazy.LazyRow(
+                            Sliderow(
+                                items = latestRippedAlbums,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 16.dp),
+                                    .padding(top = 16.dp, bottom = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(horizontal = 16.dp)
-                            ) {
-                                items(latestRippedAlbums) { (artist, album) ->
+                            ) { (artist, album) ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(itemWidth)
+                                        .aspectRatio(2.2f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onAlbumClick(album) }
+                                ) {
+                                    // Blurred background
+                                    AsyncImage(
+                                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                            .data(album.artUri)
+                                            .crossfade(true)
+                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                            .build(),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .blur(20.dp),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        placeholder = ColorPainter(Color(0xFF141414)),
+                                        error = ColorPainter(Color(0xFF141414))
+                                    )
+
+                                    // Dark overlay to ensure text readability
                                     Box(
                                         modifier = Modifier
-                                            .width(itemWidth)
-                                            .aspectRatio(2.2f)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { onAlbumClick(album) }
+                                            .fillMaxSize()
+                                            .background(
+                                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                                                )
+                                            )
+                                    )
+
+                                    // Foreground content
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Blurred background
                                         AsyncImage(
                                             model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                                                 .data(album.artUri)
                                                 .crossfade(true)
                                                 .diskCachePolicy(CachePolicy.ENABLED)
                                                 .build(),
-                                            contentDescription = null,
+                                            contentDescription = album.title,
                                             modifier = Modifier
-                                                .fillMaxSize()
-                                                .blur(20.dp),
+                                                .fillMaxHeight()
+                                                .aspectRatio(1f)
+                                                .clip(RoundedCornerShape(8.dp)),
                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                             placeholder = ColorPainter(Color(0xFF141414)),
                                             error = ColorPainter(Color(0xFF141414))
                                         )
 
-                                        // Dark overlay to ensure text readability
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(
-                                                    androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                                                    )
-                                                )
-                                        )
+                                        Spacer(modifier = Modifier.width(16.dp))
 
-                                        // Foreground content
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(16.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.Center
                                         ) {
-                                            AsyncImage(
-                                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                                    .data(album.artUri)
-                                                    .crossfade(true)
-                                                    .diskCachePolicy(CachePolicy.ENABLED)
-                                                    .build(),
-                                                contentDescription = album.title,
-                                                modifier = Modifier
-                                                    .fillMaxHeight()
-                                                    .aspectRatio(1f)
-                                                    .clip(RoundedCornerShape(8.dp)),
-                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                placeholder = ColorPainter(Color(0xFF141414)),
-                                                error = ColorPainter(Color(0xFF141414))
+                                            Text(
+                                                text = album.title,
+                                                style = MaterialTheme.typography.titleLarge,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-
-                                            Spacer(modifier = Modifier.width(16.dp))
-
-                                            Column(
-                                                modifier = Modifier.weight(1f),
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Text(
-                                                    text = album.title,
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Text(
-                                                    text = artist.name,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color.White.copy(alpha = 0.8f),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
+                                            Text(
+                                                text = artist.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
                                     }
                                 }
