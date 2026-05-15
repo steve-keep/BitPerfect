@@ -275,30 +275,23 @@ open class LibraryRepository(private val context: Context) {
                 val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
 
                 var isVerified = false
-                if (dataPath != null) {
-                    val lastSlash = dataPath.lastIndexOf('/')
-                    val folderName = if (lastSlash != -1) {
-                        val withoutFile = dataPath.substring(0, lastSlash)
-                        val folderSlash = withoutFile.lastIndexOf('/')
-                        if (folderSlash != -1) withoutFile.substring(folderSlash + 1) else withoutFile
-                    } else null
+                if (dataPath != null && !outputFolderUriString.isNullOrBlank()) {
+                    val parts = dataPath.trimEnd('/').split('/')
+                    val albumFolderName = if (parts.size >= 2) parts[parts.size - 2] else null
+                    val artistFolderName = if (parts.size >= 3) parts[parts.size - 3] else null
 
-                    if (folderName != null) {
-                        val verificationMap = folderVerificationCache.getOrPut(folderName) {
-                            var map = emptyMap<String, Boolean>()
-                            if (!outputFolderUriString.isNullOrBlank()) {
-                                try {
-                                    val treeUri = Uri.parse(outputFolderUriString)
-                                    val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
-                                    val albumDoc = rootDoc?.findFile(folderName)
-                                    if (albumDoc != null) {
-                                        map = readVerificationMapForFolder(albumDoc)
-                                    }
-                                } catch (e: Exception) {
-                                    // ignore uri parsing errors
-                                }
+                    if (albumFolderName != null && artistFolderName != null) {
+                        val cacheKey = "$artistFolderName/$albumFolderName"
+                        val verificationMap = folderVerificationCache.getOrPut(cacheKey) {
+                            try {
+                                val treeUri = Uri.parse(outputFolderUriString)
+                                val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
+                                val artistDoc = rootDoc?.findFile(artistFolderName)
+                                val albumDoc = artistDoc?.findFile(albumFolderName)
+                                if (albumDoc != null) readVerificationMapForFolder(albumDoc) else emptyMap()
+                            } catch (e: Exception) {
+                                emptyMap()
                             }
-                            map
                         }
                         val key = "$discNumber-$baseTrackNumber"
                         isVerified = verificationMap[key] ?: false
@@ -383,27 +376,20 @@ open class LibraryRepository(private val context: Context) {
                 val discNumber = if (rawTrackNumber >= 1000) rawTrackNumber / 1000 else 1
 
                 var isVerified = false
-                if (dataPath != null) {
-                    val lastSlash = dataPath.lastIndexOf('/')
-                    val folderName = if (lastSlash != -1) {
-                        val withoutFile = dataPath.substring(0, lastSlash)
-                        val folderSlash = withoutFile.lastIndexOf('/')
-                        if (folderSlash != -1) withoutFile.substring(folderSlash + 1) else withoutFile
-                    } else null
+                if (dataPath != null && !outputFolderUriString.isNullOrBlank()) {
+                    val parts = dataPath.trimEnd('/').split('/')
+                    val albumFolderName = if (parts.size >= 2) parts[parts.size - 2] else null
+                    val artistFolderName = if (parts.size >= 3) parts[parts.size - 3] else null
 
-                    if (folderName != null) {
-                        var verificationMap = emptyMap<String, Boolean>()
-                        if (!outputFolderUriString.isNullOrBlank()) {
-                            try {
-                                val treeUri = Uri.parse(outputFolderUriString)
-                                val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
-                                val albumDoc = rootDoc?.findFile(folderName)
-                                if (albumDoc != null) {
-                                    verificationMap = readVerificationMapForFolder(albumDoc)
-                                }
-                            } catch (e: Exception) {
-                                // ignore uri parsing errors
-                            }
+                    if (albumFolderName != null && artistFolderName != null) {
+                        val verificationMap = try {
+                            val treeUri = Uri.parse(outputFolderUriString)
+                            val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
+                            val artistDoc = rootDoc?.findFile(artistFolderName)
+                            val albumDoc = artistDoc?.findFile(albumFolderName)
+                            if (albumDoc != null) readVerificationMapForFolder(albumDoc) else emptyMap()
+                        } catch (e: Exception) {
+                            emptyMap()
                         }
                         val key = "$discNumber-$baseTrackNumber"
                         isVerified = verificationMap[key] ?: false
