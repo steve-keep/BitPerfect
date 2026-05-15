@@ -186,30 +186,29 @@ class RipManager(
             var sectorsRead = 0
 
             try {
-                val rawStream = context.contentResolver.openOutputStream(destFile.uri)
-                    ?: throw java.io.IOException("Cannot open SAF output stream")
-                outputStream = BufferedOutputStream(rawStream, 1024 * 1024)
+                // We must buffer the encoded audio data because we need to compute AudioAnalysis
+                // which is required for the metadata block at the beginning of the file.
+                // However, holding the whole encoded FLAC in memory might be too much for long tracks.
+                // Or we can write metadata at the end? FLAC requires it at the start.
+                // If we can't buffer the whole track in memory, we must write to a temp file and copy it,
+                // or just write the audio data to a temp file, then write metadata to the final file,
+                // then copy the temp audio data to the final file.
+                // Wait, the prompt says: "In the Vorbis comment block construction, after the existing COMMENT... add:"
+                // and "Pass the AudioAnalysis result into buildFlacMetadata(...) as a new nullable parameter audioAnalysis: AudioAnalysis?".
+                // But it also says "After encoder.stop() and before the existing checksum/verification logic, call val analysis = analyser.analyse(). Pass the AudioAnalysis result into buildFlacMetadata(...)".
+                // If we are writing metadata to the stream *before* starting the encoder, we can't pass the result from `analyser.analyse()` which happens *after* `encoder.stop()`.
+                // Actually, if we look at the prompt: "After `encoder.stop()` and before the existing checksum/verification logic, call `val analysis = analyser.analyse()`. Pass the `AudioAnalysis` result into `buildFlacMetadata(...)` as a new nullable parameter `audioAnalysis: AudioAnalysis?`."
+                // Does this mean `buildFlacMetadata` is moved to AFTER `encoder.stop()`?
+                // Wait, if we use a temporary file or buffer for the encoder output, we can do that.
+                // Let's use a temporary ByteArrayOutputStream or temp file?
+                // A typical 3 minute FLAC is around 20-30 MB. We could buffer it in a `ByteArrayOutputStream`, but the prompt says: "No heap allocation of the full track PCM", which means we shouldn't hold raw PCM. But buffering the *encoded* FLAC in memory might be acceptable, or perhaps writing to a temp file is safer.
+                // Wait! Let's check if the FLAC metadata can be written after? No, FLAC structure is fLaC -> METADATA -> AUDIO.
+                // Let's write the audio to a temp file first, then construct final file: metadata + temp file audio.
 
-                val metadataBytes = buildFlacMetadata(
-                    totalSamples = totalSamples,
-                    artist = normalizeMeta(metadata.artistName),
-                    album = normalizeMeta(metadata.albumTitle),
-                    title = normalizeMeta(trackTitle),
-                    track = trackNumber,
-                    year = metadata.year,
-                    genre = metadata.genre?.let { normalizeMeta(it) },
-                    albumArtist = metadata.albumArtist?.let { normalizeMeta(it) },
-                    mbReleaseId = metadata.mbReleaseId,
-                    accurateRipUrl = accurateRipUrl,
-                    artworkBytes = artworkBytes,
-                    plainLyrics = lyricsResult?.plainLyrics,
-                    syncedLyrics = lyricsResult?.syncedLyrics,
-                    discNumber = metadata.discNumber,
-                    totalDiscs = metadata.totalDiscs
-                )
-                outputStream.write(metadataBytes)
+                val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
+                val tempOutputStream = BufferedOutputStream(java.io.FileOutputStream(tempFile), 1024 * 1024)
 
-                encoder = FlacEncoder(outputStream, writeHeader = false)
+                encoder = FlacEncoder(tempOutputStream, writeHeader = false)
                 encoder.start()
 
                 val isFirstTrack = (i == 0)
@@ -221,6 +220,8 @@ class RipManager(
                     isFirstTrack  = isFirstTrack,
                     isLastTrack   = isLastTrack
                 )
+
+                val analyser = AudioAnalyser()
 
                 val chunkSize = 8 // read ~8 sectors at a time
                 val lbaStart = entry.lba + tocOffset
@@ -238,6 +239,7 @@ class RipManager(
                 if (overreadBuffer != null) {
                     encoder.encode(overreadBuffer!!)
                     checksumAccumulator.accumulate(overreadBuffer!!)
+                    analyser.feed(overreadBuffer!!)
                     sectorsRead = 1
                     isFirstSector = false
                 }
@@ -258,6 +260,7 @@ class RipManager(
                         val trimmed = if (isFirstSector && skipBytes > 0) pcmData.copyOfRange(skipBytes, pcmData.size) else pcmData
                         encoder.encode(trimmed)
                         checksumAccumulator.accumulate(trimmed)
+                        analyser.feed(trimmed)
                         isFirstSector = false
 
                         sectorsRead += sectorsActuallyRead
@@ -285,11 +288,13 @@ class RipManager(
                         val toFeed = overreadPcm.copyOfRange(0, skipBytes)
                         encoder.encode(toFeed)
                         checksumAccumulator.accumulate(toFeed)
+                        analyser.feed(toFeed)
                         overreadBuffer = overreadPcm.copyOfRange(skipBytes, overreadPcm.size)
                     } else {
                         val silence = ByteArray(skipBytes)
                         encoder.encode(silence)
                         checksumAccumulator.accumulate(silence)
+                        analyser.feed(silence)
                         overreadBuffer = null
                     }
                 } else {
@@ -300,9 +305,50 @@ class RipManager(
                     val silence = ByteArray(tocOffset * 2352)
                     encoder.encode(silence)
                     checksumAccumulator.accumulate(silence)
+                    analyser.feed(silence)
                 }
 
                 encoder.stop()
+
+                var audioAnalysis: AudioAnalysis? = null
+                try {
+                    audioAnalysis = analyser.analyse()
+                } catch (e: Exception) {
+                    AppLogger.w("RipManager", "Audio analysis failed for track $trackNumber: ${e.message}")
+                }
+
+                // Now build metadata with analysis
+                val metadataBytes = buildFlacMetadata(
+                    totalSamples = totalSamples,
+                    artist = normalizeMeta(metadata.artistName),
+                    album = normalizeMeta(metadata.albumTitle),
+                    title = normalizeMeta(trackTitle),
+                    track = trackNumber,
+                    year = metadata.year,
+                    genre = metadata.genre?.let { normalizeMeta(it) },
+                    albumArtist = metadata.albumArtist?.let { normalizeMeta(it) },
+                    mbReleaseId = metadata.mbReleaseId,
+                    accurateRipUrl = accurateRipUrl,
+                    artworkBytes = artworkBytes,
+                    plainLyrics = lyricsResult?.plainLyrics,
+                    syncedLyrics = lyricsResult?.syncedLyrics,
+                    discNumber = metadata.discNumber,
+                    totalDiscs = metadata.totalDiscs,
+                    audioAnalysis = audioAnalysis
+                )
+
+                val rawStream = context.contentResolver.openOutputStream(destFile.uri)
+                    ?: throw java.io.IOException("Cannot open SAF output stream")
+                outputStream = BufferedOutputStream(rawStream, 1024 * 1024)
+
+                outputStream.write(metadataBytes)
+
+                // Copy temp file audio to final stream
+                java.io.FileInputStream(tempFile).use { fis ->
+                    fis.copyTo(outputStream)
+                }
+
+                tempFile.delete()
 
                 updateTrackState(
                     trackNumber = trackNumber,
@@ -507,7 +553,8 @@ class RipManager(
         plainLyrics: String?,
         syncedLyrics: String?,
         discNumber: Int?,
-        totalDiscs: Int?
+        totalDiscs: Int?,
+        audioAnalysis: AudioAnalysis? = null
     ): ByteArray {
         val out = ByteArrayOutputStream()
         // fLaC
@@ -576,6 +623,14 @@ class RipManager(
         comments.add("BITDEPTH=16")
         comments.add("SAMPLERATE=44100")
         comments.add("COMMENT=Ripped with BitPerfect")
+
+        audioAnalysis?.let { a ->
+            if (a.bpm > 0f) comments.add("BPM=${String.format("%.1f", a.bpm)}")
+            comments.add("INITIALKEY=${a.initialKey}")
+            comments.add("REPLAYGAIN_TRACK_GAIN=${String.format("%.2f dB", a.replayGainDb)}")
+            comments.add("REPLAYGAIN_TRACK_PEAK=${String.format("%.4f", a.replayGainPeak)}")
+            comments.add("ENERGY=${String.format("%.3f", a.energy)}")
+        }
 
         vcPayload.writeLittleEndianInt(comments.size)
         for (comment in comments) {
