@@ -62,3 +62,5 @@ val SurfaceContainerHighDark = Color(0xFF33363A)
 val SurfaceContainerHighestDark = Color(0xFF3E4145)
 val SurfaceContainerLowDark = Color(0xFF24272B)
 val SurfaceContainerLowestDark = Color(0xFF14171B)
+
+val TextSecondary = Color(0xFFA0A0A0)

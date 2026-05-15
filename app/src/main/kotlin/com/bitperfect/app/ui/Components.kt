@@ -42,6 +42,7 @@ import com.bitperfect.app.library.AlbumInfo
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.DiscMetadata
 import androidx.compose.ui.graphics.Color
+import com.bitperfect.app.ui.theme.TextSecondary
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -709,7 +710,7 @@ fun LibrarySection(
                                             Text(
                                                 text = artist.name,
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White.copy(alpha = 0.8f),
+                                                color = TextSecondary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -767,6 +768,7 @@ fun LibrarySection(
                                         Text(
                                             text = album.title,
                                             style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(top = 4.dp)
@@ -824,6 +826,7 @@ fun LibrarySection(
                                         Text(
                                             text = album.title,
                                             style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(top = 4.dp)
