@@ -26,7 +26,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.RipStatus
-import androidx.compose.ui.text.font.FontWeight
 
 private fun numberToWord(n: Int): String {
     val words = arrayOf("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
@@ -53,7 +52,6 @@ fun TrackListScreen(
 
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val ripStates by viewModel.ripStates.collectAsState()
-    val tagsViewState by viewModel.tagsViewState.collectAsState()
 
     val isRipping = remember(ripStates) {
         ripStates.isNotEmpty() && !ripStates.values.all {
@@ -430,13 +428,6 @@ fun TrackListScreen(
                                                 showMenu = false
                                             }
                                         )
-                                        DropdownMenuItem(
-                                            text = { Text("View Tags") },
-                                            onClick = {
-                                                viewModel.loadTagsForTrack(track)
-                                                showMenu = false
-                                            }
-                                        )
                                     }
                                 }
                             }
@@ -472,40 +463,5 @@ fun TrackListScreen(
                 }
             }
         )
-    }
-
-    if (tagsViewState != null) {
-        val tagsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = { viewModel.clearTags() },
-            sheetState = tagsSheetState,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "Track Tags",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                val tagsList = tagsViewState ?: emptyList()
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(tagsList.size) { index ->
-                        val (key, value) = tagsList[index]
-                        Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                            Text(text = key, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = value, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                    item {
-                        Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
-                    }
-                }
-            }
-        }
     }
 }

@@ -117,6 +117,11 @@ class MainActivity : ComponentActivity() {
             val currentTrackArtist by appViewModel.currentTrackArtist.collectAsState()
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
 
+            val activeDevice by appViewModel.activeDevice.collectAsState()
+            val availableDevices by appViewModel.availableDevices.collectAsState()
+            val showOutputSheet by appViewModel.showOutputSheet.collectAsState()
+            val isExternalOutput = activeDevice !is com.bitperfect.app.output.OutputDevice.ThisPhone
+
             val snackbarHostState = remember { SnackbarHostState() }
             val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
                 bottomSheetState = rememberStandardBottomSheetState(
@@ -427,8 +432,10 @@ class MainActivity : ComponentActivity() {
                                 currentTrackTitle = currentTrackTitle,
                                 currentTrackArtist = currentTrackArtist,
                                 currentAlbumArtUri = currentAlbumArtUri,
-                                onPlayPause = { appViewModel.togglePlayPause() },
                                 enabled = isControllerReady,
+                                isExternalOutput = isExternalOutput,
+                                onPlayPause = { appViewModel.togglePlayPause() },
+                                onOutputDeviceClick = { appViewModel.openOutputDeviceSheet() },
                                 onExpand = {
                                     coroutineScope.launch {
                                         bottomSheetScaffoldState.bottomSheetState.expand()
@@ -439,6 +446,22 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                if (showOutputSheet) {
+                    ModalBottomSheet(
+                        onDismissRequest = { appViewModel.closeOutputDeviceSheet() },
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        containerColor = Color(0xFF121212),
+                        dragHandle = null
+                    ) {
+                        OutputDeviceSheet(
+                            devices = availableDevices,
+                            activeDevice = activeDevice,
+                            onDeviceSelected = { appViewModel.selectOutputDevice(it) }
+                        )
+                    }
+                }
+
             }
         }
     }

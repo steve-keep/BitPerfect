@@ -152,7 +152,7 @@ open class PlayerRepository(
             val trackId = mediaItem.mediaId.toLongOrNull() ?: return
 
             scope.launch {
-                val track = libraryRepository.getTrack(trackId, settingsManager.outputFolderUri) ?: return@launch
+                val track = libraryRepository.getTrack(trackId) ?: return@launch
                 val albumId = track.albumId
                 if (albumId == -1L) return@launch
 
@@ -298,7 +298,6 @@ open class PlayerRepository(
             setMediaItems(mediaItems)
             seekToDefaultPosition(index)
             prepare()
-            play()
         }
     }
 
@@ -327,7 +326,6 @@ open class PlayerRepository(
             it.addMediaItem(insertIndex, item)
             if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
                 it.prepare()
-                it.play()
             }
         }
     }
@@ -338,7 +336,6 @@ open class PlayerRepository(
             it.addMediaItem(item)
             if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
                 it.prepare()
-                it.play()
             }
         }
     }
@@ -349,7 +346,6 @@ open class PlayerRepository(
             it.addMediaItems(mediaItems)
             if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
                 it.prepare()
-                it.play()
             }
         }
     }
@@ -389,7 +385,7 @@ open class PlayerRepository(
         // safe with Media3 as it handles the state transition, though playback won't begin
         // until buffering completes.
         c.prepare()
-        c.play()
+        // play() is now handled by the OutputController/Repository
     }
 
     open fun seekTo(ms: Long) {

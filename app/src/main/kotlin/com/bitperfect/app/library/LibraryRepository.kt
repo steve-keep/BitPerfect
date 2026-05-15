@@ -8,6 +8,7 @@ import androidx.documentfile.provider.DocumentFile
 import java.net.URLDecoder
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.File
 import org.json.JSONObject
 
 open class LibraryRepository(private val context: Context) {
@@ -227,7 +228,7 @@ open class LibraryRepository(private val context: Context) {
         }
     }
 
-    open fun getTracksForAlbum(albumId: Long, outputFolderUriString: String?): List<TrackInfo> {
+    open fun getTracksForAlbum(albumId: Long): List<TrackInfo> {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -276,69 +277,54 @@ open class LibraryRepository(private val context: Context) {
 
                 var isVerified = false
                 if (dataPath != null) {
-                    val lastSlash = dataPath.lastIndexOf('/')
-                    val folderName = if (lastSlash != -1) {
-                        val withoutFile = dataPath.substring(0, lastSlash)
-                        val folderSlash = withoutFile.lastIndexOf('/')
-                        if (folderSlash != -1) withoutFile.substring(folderSlash + 1) else withoutFile
-                    } else null
-
-                    if (folderName != null) {
-                        val verificationMap = folderVerificationCache.getOrPut(folderName) {
-                            var map = emptyMap<String, Boolean>()
-                            if (!outputFolderUriString.isNullOrBlank()) {
-                                try {
-                                    val treeUri = Uri.parse(outputFolderUriString)
-                                    val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
-                                    val albumDoc = rootDoc?.findFile(folderName)
-                                    if (albumDoc != null) {
-                                        map = readVerificationMapForFolder(albumDoc)
-                                    }
-                                } catch (e: Exception) {
-                                    // ignore uri parsing errors
-                                }
-                            }
-                            map
+                    val file = File(dataPath)
+                    val parentFolder = file.parent
+                    if (parentFolder != null) {
+                        val verificationMap = folderVerificationCache.getOrPut(parentFolder) {
+                            readVerificationMapForFolder(parentFolder)
                         }
                         val key = "$discNumber-$baseTrackNumber"
                         isVerified = verificationMap[key] ?: false
                     }
                 }
 
-                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath))
+                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified))
             }
         }
 
         return tracks
     }
 
-    private fun readVerificationMapForFolder(albumDir: DocumentFile): Map<String, Boolean> {
+    private fun readVerificationMapForFolder(folderPath: String): Map<String, Boolean> {
         val verificationMap = mutableMapOf<String, Boolean>()
         try {
-            val jsonlFile = albumDir.findFile("BitPerfect.jsonl") ?: return verificationMap
-            context.contentResolver.openInputStream(jsonlFile.uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                    reader.forEachLine { line ->
-                        if (line.isNotBlank()) {
-                            try {
-                                val obj = JSONObject(line)
-                                val disc = obj.optInt("disc", -1)
-                                val track = obj.optInt("track", -1)
-                                val accurateRip = obj.optJSONObject("accurateRip")
-                                val isVerified = accurateRip?.optBoolean("isVerified", false) ?: false
-                                if (disc != -1 && track != -1) {
-                                    verificationMap["$disc-$track"] = isVerified
-                                }
-                            } catch (e: Exception) { /* ignore malformed lines */ }
+            val jsonlFile = File(folderPath, "BitPerfect.jsonl")
+            if (jsonlFile.exists() && jsonlFile.isFile) {
+                jsonlFile.forEachLine { line ->
+                    if (line.isNotBlank()) {
+                        try {
+                            val obj = JSONObject(line)
+                            val disc = obj.optInt("disc", -1)
+                            val track = obj.optInt("track", -1)
+                            val accurateRip = obj.optJSONObject("accurateRip")
+                            val isVerified = accurateRip?.optBoolean("isVerified", false) ?: false
+
+                            if (disc != -1 && track != -1) {
+                                verificationMap["$disc-$track"] = isVerified
+                            }
+                        } catch (e: Exception) {
+                            // ignore parsing errors for individual lines
                         }
                     }
                 }
             }
-        } catch (e: Exception) { /* ignore */ }
+        } catch (e: Exception) {
+            // ignore file read errors
+        }
         return verificationMap
     }
 
-    open fun getTrack(trackId: Long, outputFolderUriString: String?): TrackInfo? {
+    open fun getTrack(trackId: Long): TrackInfo? {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -384,27 +370,10 @@ open class LibraryRepository(private val context: Context) {
 
                 var isVerified = false
                 if (dataPath != null) {
-                    val lastSlash = dataPath.lastIndexOf('/')
-                    val folderName = if (lastSlash != -1) {
-                        val withoutFile = dataPath.substring(0, lastSlash)
-                        val folderSlash = withoutFile.lastIndexOf('/')
-                        if (folderSlash != -1) withoutFile.substring(folderSlash + 1) else withoutFile
-                    } else null
-
-                    if (folderName != null) {
-                        var verificationMap = emptyMap<String, Boolean>()
-                        if (!outputFolderUriString.isNullOrBlank()) {
-                            try {
-                                val treeUri = Uri.parse(outputFolderUriString)
-                                val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
-                                val albumDoc = rootDoc?.findFile(folderName)
-                                if (albumDoc != null) {
-                                    verificationMap = readVerificationMapForFolder(albumDoc)
-                                }
-                            } catch (e: Exception) {
-                                // ignore uri parsing errors
-                            }
-                        }
+                    val file = File(dataPath)
+                    val parentFolder = file.parent
+                    if (parentFolder != null) {
+                        val verificationMap = readVerificationMapForFolder(parentFolder)
                         val key = "$discNumber-$baseTrackNumber"
                         isVerified = verificationMap[key] ?: false
                     }

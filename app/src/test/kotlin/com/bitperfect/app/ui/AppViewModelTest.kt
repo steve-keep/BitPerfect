@@ -39,6 +39,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
+import io.mockk.mockk
+import io.mockk.verify as mockkVerify
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowLooper
 import org.robolectric.annotation.Config
@@ -49,6 +51,7 @@ class AppViewModelTest {
 
     private lateinit var viewModel: AppViewModel
     private lateinit var mockRepository: PlayerRepository
+    private lateinit var mockOutputRepository: com.bitperfect.app.output.OutputRepository
     private lateinit var mockLookupMusicBrainz: suspend (DiscToc) -> DiscMetadata?
     private lateinit var mockDriveStatusFlow: MutableStateFlow<DriveStatus>
     private var originalDriveStatusFlow: StateFlow<DriveStatus>? = null
@@ -59,6 +62,7 @@ class AppViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher())
         val application = ApplicationProvider.getApplicationContext<Application>()
         mockRepository = mock(PlayerRepository::class.java)
+        mockOutputRepository = mockk(relaxed = true)
 
         org.mockito.Mockito.`when`(mockRepository.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockRepository.currentMediaId).thenReturn(MutableStateFlow(null))
@@ -85,7 +89,7 @@ class AppViewModelTest {
         detectorField.set(DeviceStateManager, null)
 
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
-        viewModel = AppViewModel(application, mockRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
+        viewModel = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -237,7 +241,8 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentAlbumArtUri).thenReturn(mutableCurrentAlbumArtUri)
 
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val vm = AppViewModel(application, mockRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
+        val testMockOutputRepository = mockk<com.bitperfect.app.output.OutputRepository>(relaxed = true)
+        val vm = AppViewModel(application, mockRepository, testMockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         // Start collecting the currentTrackTitle stateflow so that it activates and stays alive
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -300,7 +305,7 @@ class AppViewModelTest {
     @Test
     fun testRipBannerState_HiddenByDefault() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val vm = AppViewModel(application)
+        val vm = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         val bannerState = vm.ripBannerState.value
         assertEquals(false, bannerState.isVisible)
@@ -318,7 +323,7 @@ class AppViewModelTest {
         isRippingField.isAccessible = true
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
-        val vm = AppViewModel(application)
+        val vm = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
         // to call ripSession.cancel(), which immediately sets _isRipping back to false.
@@ -354,7 +359,7 @@ class AppViewModelTest {
         )
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
-        val vm = AppViewModel(application)
+        val vm = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
@@ -387,7 +392,7 @@ class AppViewModelTest {
         )
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
-        val vm = AppViewModel(application)
+        val vm = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
@@ -413,7 +418,7 @@ class AppViewModelTest {
         isRippingField.isAccessible = true
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
-        val vm = AppViewModel(application)
+        val vm = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         val discMetadataField = AppViewModel::class.java.getDeclaredField("_discMetadata")
         discMetadataField.isAccessible = true
@@ -467,7 +472,7 @@ class AppViewModelTest {
         )
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
-        val vm = AppViewModel(application)
+        val vm = AppViewModel(application, mockRepository, mockOutputRepository, org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
@@ -494,12 +499,13 @@ class AppViewModelTest {
 
         viewModel.playTrack(tracks, 0)
         verify(mockRepository).playTrack(tracks, 0)
+        mockkVerify(exactly = 2) { mockOutputRepository.play() }
 
         viewModel.togglePlayPause()
-        verify(mockRepository).togglePlayPause()
+        mockkVerify { mockOutputRepository.togglePlayPause(false) }
 
         viewModel.seekTo(500L)
-        verify(mockRepository).seekTo(500L)
+        mockkVerify { mockOutputRepository.seekTo(500L) }
 
         viewModel.skipNext()
         verify(mockRepository).skipNext()

@@ -2,15 +2,10 @@ package com.bitperfect.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
-import androidx.compose.foundation.gestures.snapping.SnapPosition
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MusicNote
@@ -67,34 +62,6 @@ import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.blur
 import coil.compose.SubcomposeAsyncImage
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun <T> Sliderow(
-    items: List<T>,
-    modifier: Modifier = Modifier,
-    state: LazyListState = rememberLazyListState(),
-    contentPadding: PaddingValues = PaddingValues(0.dp),
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(0.dp),
-    itemContent: @Composable (T) -> Unit
-) {
-    val snappingLayout = remember(state) {
-        SnapLayoutInfoProvider(state, SnapPosition.Start)
-    }
-    val flingBehavior = rememberSnapFlingBehavior(snappingLayout)
-
-    LazyRow(
-        modifier = modifier,
-        state = state,
-        contentPadding = contentPadding,
-        horizontalArrangement = horizontalArrangement,
-        flingBehavior = flingBehavior
-    ) {
-        items(items) { item ->
-            itemContent(item)
-        }
-    }
-}
 
 @Composable
 fun throbbingBackgroundModifier(): Modifier {
@@ -555,6 +522,7 @@ fun LibrarySection(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .padding(horizontal = 16.dp)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { focusManager.clearFocus() })
             }
@@ -576,9 +544,7 @@ fun LibrarySection(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.searchQuery.value = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         placeholder = { Text("Search artists or albums") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                         trailingIcon = {
@@ -601,9 +567,7 @@ fun LibrarySection(
                     item {
                         Box(Modifier.fillParentMaxSize()) {
                             Column(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .padding(horizontal = 16.dp),
+                                modifier = Modifier.align(Alignment.Center),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Icon(
@@ -624,94 +588,90 @@ fun LibrarySection(
                 } else {
                     if (searchQuery.isBlank() && latestRippedAlbums.isNotEmpty()) {
                         item {
-                            val itemWidth = (screenWidth - 72.dp) // Leave some margin to hint at scrolling
+                            val itemWidth = (screenWidth - 48.dp) // Leave some margin to hint at scrolling
 
-                            Sliderow(
-                                items = latestRippedAlbums,
+                            androidx.compose.foundation.lazy.LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 16.dp, bottom = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp)
-                            ) { (artist, album) ->
-                                Box(
-                                    modifier = Modifier
-                                        .width(itemWidth)
-                                        .aspectRatio(2.2f)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { onAlbumClick(album) }
-                                ) {
-                                    // Blurred background
-                                    AsyncImage(
-                                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                            .data(album.artUri)
-                                            .crossfade(true)
-                                            .diskCachePolicy(CachePolicy.ENABLED)
-                                            .build(),
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .blur(20.dp),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                        placeholder = ColorPainter(Color(0xFF141414)),
-                                        error = ColorPainter(Color(0xFF141414))
-                                    )
-
-                                    // Dark overlay to ensure text readability
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(latestRippedAlbums) { (artist, album) ->
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(
-                                                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                                                )
-                                            )
-                                    )
-
-                                    // Foreground content
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .width(itemWidth)
+                                            .aspectRatio(16f / 9f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onAlbumClick(album) }
                                     ) {
+                                        // Blurred background
                                         AsyncImage(
                                             model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                                                 .data(album.artUri)
                                                 .crossfade(true)
                                                 .diskCachePolicy(CachePolicy.ENABLED)
                                                 .build(),
-                                            contentDescription = album.title,
+                                            contentDescription = null,
                                             modifier = Modifier
-                                                .fillMaxHeight()
-                                                .aspectRatio(1f)
-                                                .clip(RoundedCornerShape(8.dp)),
+                                                .fillMaxSize()
+                                                .blur(20.dp),
                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                             placeholder = ColorPainter(Color(0xFF141414)),
                                             error = ColorPainter(Color(0xFF141414))
                                         )
 
-                                        Spacer(modifier = Modifier.width(16.dp))
+                                        // Dark overlay to ensure text readability
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.4f))
+                                        )
 
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.Center
+                                        // Foreground content
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(16.dp),
+                                            verticalAlignment = Alignment.Bottom
                                         ) {
-                                            Text(
-                                                text = album.title,
-                                                style = MaterialTheme.typography.titleLarge,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                            AsyncImage(
+                                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                    .data(album.artUri)
+                                                    .crossfade(true)
+                                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                                    .build(),
+                                                contentDescription = album.title,
+                                                modifier = Modifier
+                                                    .fillMaxHeight(0.7f)
+                                                    .aspectRatio(1f)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                placeholder = ColorPainter(Color(0xFF141414)),
+                                                error = ColorPainter(Color(0xFF141414))
                                             )
-                                            Text(
-                                                text = artist.name,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White.copy(alpha = 0.8f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+
+                                            Spacer(modifier = Modifier.width(16.dp))
+
+                                            Column(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.Bottom
+                                            ) {
+                                                Text(
+                                                    text = album.title,
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = artist.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -725,7 +685,7 @@ fun LibrarySection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(MaterialTheme.colorScheme.background)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .padding(vertical = 8.dp)
                             ) {
                                 Text(
                                     text = "Recently Played",
@@ -741,8 +701,7 @@ fun LibrarySection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp)
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 items(recentlyPlayedAlbums) { album ->
                                     Column(
@@ -782,7 +741,7 @@ fun LibrarySection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(MaterialTheme.colorScheme.background)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .padding(vertical = 8.dp)
                             ) {
                                 Text(
                                     text = artist.name,
@@ -798,8 +757,7 @@ fun LibrarySection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp)
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 items(artist.albums) { album ->
                                     Column(
