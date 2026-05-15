@@ -164,6 +164,8 @@ open class PlayerRepository(
                 if (recentFile == null) return@launch
 
                 try {
+                    val tags = libraryRepository.getTrackFlacTags(trackId)
+
                     val json = JSONObject().apply {
                         put("timestamp", System.currentTimeMillis())
                         put("albumId", albumId)
@@ -172,6 +174,21 @@ open class PlayerRepository(
                         put("trackId", track.id)
                         put("trackTitle", track.title)
                         put("trackNumber", track.trackNumber)
+
+                        tags["BPM"]?.toFloatOrNull()?.let { put("bpm", it) }
+                        tags["INITIALKEY"]?.let { put("initialKey", it) }
+                        tags["ENERGY"]?.toFloatOrNull()?.let { put("energy", it) }
+                        tags["REPLAYGAIN_TRACK_GAIN"]?.removeSuffix(" dB")?.toFloatOrNull()?.let { put("replayGainDb", it) }
+                        tags["REPLAYGAIN_TRACK_PEAK"]?.toFloatOrNull()?.let { put("replayGainPeak", it) }
+
+                        put("accurateRipVerified", track.isAccurateRipVerified)
+                        tags["GENRE"]?.let { put("genre", it) }
+                        tags["DATE"]?.let { put("year", it) }
+                        tags["ALBUMARTIST"]?.let { put("albumArtist", it) }
+                        put("discNumber", track.discNumber)
+                        put("durationMs", track.durationMs)
+                        tags["MUSICBRAINZ_ALBUMID"]?.let { put("mbAlbumId", it) }
+                        tags["MUSICBRAINZ_TRACKID"]?.let { put("mbTrackId", it) }
                     }
 
                     context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->

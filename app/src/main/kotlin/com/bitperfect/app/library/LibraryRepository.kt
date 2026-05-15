@@ -9,6 +9,10 @@ import java.net.URLDecoder
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import org.json.JSONObject
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.flac.FlacTag
+import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
+import java.io.File
 
 open class LibraryRepository(private val context: Context) {
 
@@ -122,7 +126,42 @@ open class LibraryRepository(private val context: Context) {
         return recentAlbumsMap.values.toList().takeLast(limit).reversed()
     }
 
-    open fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String) {
+    private fun readFlacTags(filePath: String): Map<String, String> {
+        val file = File(filePath)
+        if (!file.exists()) return emptyMap()
+
+        return try {
+            val f = AudioFileIO.read(file)
+            val tag = f.tag
+            val tagMap = mutableMapOf<String, String>()
+
+            if (tag is FlacTag && tag.vorbisCommentTag != null) {
+                val vorbis = tag.vorbisCommentTag
+                val it = vorbis.fields
+                while (it.hasNext()) {
+                    val field = it.next()
+                    tagMap[field.id.uppercase()] = field.toString()
+                }
+            } else if (tag is VorbisCommentTag) {
+                val it = tag.fields
+                while (it.hasNext()) {
+                    val field = it.next()
+                    tagMap[field.id.uppercase()] = field.toString()
+                }
+            }
+            tagMap
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    open fun getTrackFlacTags(trackId: Long): Map<String, String> {
+        val track = getTrack(trackId, null) ?: return emptyMap()
+        val dataPath = track.dataPath ?: return emptyMap()
+        return readFlacTags(dataPath)
+    }
+
+    open fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String, trackId: Long? = null) {
         if (outputFolderUriString.isNullOrBlank()) return
 
         val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
@@ -137,6 +176,14 @@ open class LibraryRepository(private val context: Context) {
                 put("albumId", albumId)
                 put("albumTitle", albumTitle)
                 put("artist", artist)
+
+                if (trackId != null) {
+                    val tags = getTrackFlacTags(trackId)
+                    tags["GENRE"]?.let { put("genre", it) }
+                    tags["DATE"]?.let { put("year", it) }
+                    tags["ALBUMARTIST"]?.let { put("albumArtist", it) }
+                    tags["MUSICBRAINZ_ALBUMID"]?.let { put("mbAlbumId", it) }
+                }
             }
 
             context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->
@@ -298,7 +345,7 @@ open class LibraryRepository(private val context: Context) {
                     }
                 }
 
-                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath))
+                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath, dataPath))
             }
         }
 
@@ -396,7 +443,7 @@ open class LibraryRepository(private val context: Context) {
                     }
                 }
 
-                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified)
+                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath, dataPath)
             }
         }
 
