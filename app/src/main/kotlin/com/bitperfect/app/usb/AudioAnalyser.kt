@@ -263,7 +263,7 @@ class AudioAnalyser {
     fun analyse(): AudioAnalysis {
         // --- 1. BPM ---
         var bpm = 0f
-        if (onsetEnvelope.size >= 8) {
+        if (onsetEnvelope.size >= 8 && onsetEnvelope.sum() > 0.001f) {
             // Autocorrelation over range 60-200 BPM
             // hopSize = 256 samples @ 44100 = 5.8ms per envelope point
             // 60 BPM = 1 beat per sec = 44100 / 256 = 172.26 points
