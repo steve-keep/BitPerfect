@@ -155,20 +155,25 @@ fun AlbumHeader(
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {},
     onAddToQueueClick: (() -> Unit)? = null,
-    onStopRipClick: () -> Unit = {}
+    onStopRipClick: () -> Unit = {},
+    dominantColor: Color = Color(0xFF141414),
+    onColorExtracted: (Color) -> Unit = {}
 ) {
-    var backgroundColor by remember { mutableStateOf(Color(0xFF141414)) }
-
     Box(
         modifier = modifier
             .fillMaxWidth()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(backgroundColor.copy(alpha = 0.5f), Color.Transparent),
+                    colors = listOf(dominantColor.copy(alpha = 0.5f), Color.Transparent),
                     radius = 800f
                 )
             )
-            .padding(16.dp),
+            .padding(
+                top = 16.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                bottom = 16.dp,
+                start = 16.dp,
+                end = 16.dp
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -189,7 +194,7 @@ fun AlbumHeader(
                     val bitmap = success.result.drawable.toBitmap()
                     Palette.from(bitmap).generate { palette ->
                         palette?.dominantSwatch?.rgb?.let { colorValue ->
-                            backgroundColor = Color(colorValue)
+                            onColorExtracted(Color(colorValue))
                         }
                     }
                 }

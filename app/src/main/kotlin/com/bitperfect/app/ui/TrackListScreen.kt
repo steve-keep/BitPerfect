@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,6 +84,20 @@ fun TrackListScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+
+            TopAppBar(
+                title = { Text(text = "BitPerfect") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         } else {
             val groupedTracks = remember(state.tracks) { state.tracks.groupBy { it.discNumber } }
             val isMultiDisc = groupedTracks.size > 1
@@ -90,10 +106,15 @@ fun TrackListScreen(
                 state.tracks.mapIndexed { index, track -> track.id to index }.toMap()
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
+            var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
+            val listState = rememberLazyListState()
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
                 item {
                     val overallProgress = remember(ripStates) {
                         if (ripStates.isEmpty()) 0f
@@ -127,7 +148,9 @@ fun TrackListScreen(
                         onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
                         onStopRipClick = {
                             showStopDialog = true
-                        }
+                        },
+                        dominantColor = dominantColor,
+                        onColorExtracted = { extractedColor -> dominantColor = extractedColor }
                     )
                 }
 
@@ -444,9 +467,41 @@ fun TrackListScreen(
                         HorizontalDivider(color = Color(0x14FFFFFF))
                     }
                 }
+            } // Close LazyColumn here
+
+            val topBarAlpha by remember {
+                derivedStateOf {
+                    if (listState.firstVisibleItemIndex > 0) 1f
+                    else {
+                        val offset = listState.firstVisibleItemScrollOffset
+                        (offset / 300f).coerceIn(0f, 1f)
+                    }
+                }
             }
-        }
-    }
+
+            TopAppBar(
+                title = {
+                    Text(
+                        text = state.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = topBarAlpha)
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = dominantColor.copy(alpha = topBarAlpha),
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        } // Close Box here
+    } // Close if statement here
+    } // Close Box modifier fillMaxSize here
 
     if (showStopDialog) {
         AlertDialog(
