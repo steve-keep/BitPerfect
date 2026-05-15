@@ -43,6 +43,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
+import java.io.File
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.flac.FlacTag
+import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
 data class TrackListViewState(
     val title: String,
     val artistName: String,
@@ -105,6 +109,8 @@ open class AppViewModel(
 
     open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
+    private val _tagsViewState = MutableStateFlow<List<Pair<String, String>>?>(null)
+    val tagsViewState: StateFlow<List<Pair<String, String>>?> = _tagsViewState.asStateFlow()
     private val _trackListViewState = MutableStateFlow<TrackListViewState?>(null)
     val trackListViewState: StateFlow<TrackListViewState?> = _trackListViewState
 
@@ -670,5 +676,39 @@ open class AppViewModel(
         viewModelScope.launch {
             _shareIntent.emit(intent)
         }
+    }
+
+    fun loadTagsForTrack(track: TrackInfo) {
+        viewModelScope.launch(ioDispatcher) {
+            val path = track.dataPath ?: return@launch
+            val file = File(path)
+            if (!file.exists()) return@launch
+            try {
+                val f = AudioFileIO.read(file)
+                val tag = f.tag
+                val tagList = mutableListOf<Pair<String, String>>()
+                if (tag is FlacTag && tag.vorbisCommentTag != null) {
+                    val vorbis = tag.vorbisCommentTag
+                    val it = vorbis.fields
+                    while (it.hasNext()) {
+                        val field = it.next()
+                        tagList.add(field.id to field.toString())
+                    }
+                } else if (tag is VorbisCommentTag) {
+                    val it = tag.fields
+                    while (it.hasNext()) {
+                        val field = it.next()
+                        tagList.add(field.id to field.toString())
+                    }
+                }
+                _tagsViewState.value = tagList
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun clearTags() {
+        _tagsViewState.value = null
     }
 }

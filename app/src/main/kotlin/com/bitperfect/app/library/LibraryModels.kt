@@ -13,5 +13,6 @@ data class TrackInfo(
     val albumId: Long = -1L,
     val albumTitle: String = "Unknown Album",
     val artist: String = "Unknown Artist",
-    val isAccurateRipVerified: Boolean = false
+    val isAccurateRipVerified: Boolean = false,
+    val dataPath: String? = null
 )
