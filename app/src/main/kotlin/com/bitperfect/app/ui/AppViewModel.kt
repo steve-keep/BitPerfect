@@ -262,11 +262,14 @@ open class AppViewModel(
                             val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
 
                             if (foundAlbum != null) {
+                                val firstTrack = libraryRepository.getTracksForAlbum(foundAlbum.id, outputUri).firstOrNull()
+
                                 libraryRepository.appendNewRelease(
                                     outputFolderUriString = outputUri,
                                     albumId = foundAlbum.id,
                                     albumTitle = foundAlbum.title,
-                                    artist = foundArtist?.name ?: safeArtist
+                                    artist = foundArtist?.name ?: safeArtist,
+                                    trackId = firstTrack?.id
                                 )
                                 loadLibrary() // Reload after appending to reflect latest rips
                                 withContext(Dispatchers.Main) {
