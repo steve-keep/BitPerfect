@@ -766,6 +766,7 @@ fun LibrarySection(
                                         Text(
                                             text = album.title,
                                             style = MaterialTheme.typography.labelSmall,
+                                            minLines = 2,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(top = 4.dp)
@@ -823,6 +824,7 @@ fun LibrarySection(
                                         Text(
                                             text = album.title,
                                             style = MaterialTheme.typography.labelSmall,
+                                            minLines = 2,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(top = 4.dp)
