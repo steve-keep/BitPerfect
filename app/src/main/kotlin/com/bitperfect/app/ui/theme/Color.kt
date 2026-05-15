@@ -2,6 +2,9 @@ package com.bitperfect.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+// BitPerfect Verification Green
+val VerificationGreen = Color(0xFF1ED760)
+
 // Stitch "BitPerfect App" Palette
 val Primary = Color(0xFF1DB954)
 

@@ -64,6 +64,7 @@ data class RipBannerState(
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
+    private val outputRepository: com.bitperfect.app.output.OutputRepository,
     private val libraryRepository: LibraryRepository = LibraryRepository(application),
     private val ioDispatcher: CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
@@ -72,9 +73,10 @@ open class AppViewModel(
     }
 ) : AndroidViewModel(application) {
 
-    constructor(application: Application) : this(
+    constructor(application: Application, playerRepo: PlayerRepository = PlayerRepository(application)) : this(
         application,
-        PlayerRepository(application),
+        playerRepo,
+        com.bitperfect.app.output.OutputRepository(application, playerRepo, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())),
         LibraryRepository(application),
         kotlinx.coroutines.Dispatchers.IO
     )
@@ -102,6 +104,12 @@ open class AppViewModel(
 
     private val _selectedAlbumTitle = MutableStateFlow<String?>(null)
     val selectedAlbumTitle: StateFlow<String?> = _selectedAlbumTitle
+
+    val activeDevice: StateFlow<com.bitperfect.app.output.OutputDevice> = outputRepository.activeDevice
+    val availableDevices: StateFlow<List<com.bitperfect.app.output.OutputDevice>> = outputRepository.availableDevices
+
+    private val _showOutputSheet = MutableStateFlow(false)
+    val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
 
     open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
@@ -562,15 +570,18 @@ open class AppViewModel(
     fun playAlbum(tracks: List<TrackInfo>) {
         _playingTracks.value = tracks
         playerRepository.playAlbum(tracks)
+        outputRepository.play()
     }
 
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
         _playingTracks.value = tracks
         playerRepository.playTrack(tracks, index)
+        outputRepository.play()
     }
 
     fun playNext(track: TrackInfo) {
         playerRepository.playNext(track)
+        outputRepository.play()
         viewModelScope.launch {
             _uiEvent.emit("Added to play next")
         }
@@ -578,6 +589,7 @@ open class AppViewModel(
 
     fun addToQueue(track: TrackInfo) {
         playerRepository.addToQueue(track)
+        outputRepository.play()
         viewModelScope.launch {
             _uiEvent.emit("Added to queue")
         }
@@ -585,6 +597,7 @@ open class AppViewModel(
 
     fun addAlbumToQueue(tracks: List<TrackInfo>) {
         playerRepository.addAlbumToQueue(tracks)
+        outputRepository.play()
     }
 
     fun clearQueue() {
@@ -599,12 +612,27 @@ open class AppViewModel(
         playerRepository.moveMediaItem(currentIndex, newIndex)
     }
 
+    fun openOutputDeviceSheet() {
+        outputRepository.refreshDevices()
+        _showOutputSheet.value = true
+    }
+
+    fun closeOutputDeviceSheet() {
+        _showOutputSheet.value = false
+    }
+
+    fun selectOutputDevice(device: com.bitperfect.app.output.OutputDevice) {
+        val currentQueue = playerRepository.currentTimeline.value.map { it.mediaId }
+        val currentIndex = playerRepository.currentIndex.value
+        outputRepository.switchTo(device, currentQueue, currentIndex)
+    }
+
     fun togglePlayPause() {
-        playerRepository.togglePlayPause()
+        outputRepository.togglePlayPause(playerRepository.isPlaying.value)
     }
 
     fun seekTo(ms: Long) {
-        playerRepository.seekTo(ms)
+        outputRepository.seekTo(ms)
     }
 
     fun skipNext() {
