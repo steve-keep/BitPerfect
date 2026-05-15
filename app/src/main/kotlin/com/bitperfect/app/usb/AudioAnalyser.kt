@@ -47,14 +47,14 @@ class AudioAnalyser {
 
     // ReplayGain 1.0 Filter State (for 44100 Hz)
     // Filter 1: Yule-Walker
-    private val a1 = doubleArrayOf(1.0, -2.413590715853303, 2.864081014383182, -2.000331006575775, 0.941913735593883, -0.279619586119159, 0.052044810756770, -0.003923589839600)
-    private val b1 = doubleArrayOf(1.096753177695328, -3.208882062334812, 3.497554959146194, -1.977457497148560, 0.741005232971253, -0.197992776856514, 0.043818320499623, -0.003517032731513)
+    private val a1 = doubleArrayOf(1.0, -3.846646171180674, 7.820698287537330, -11.33642596489436, 13.06173003049179, -12.21323321528641, 9.255476344243616, -5.513567439537243, 2.378943033503254, -0.6698188166946022)
+    private val b1 = doubleArrayOf(1.111812497678129, -4.568430737475149, 9.537549040842513, -13.56064041796537, 14.62955437877997, -12.63750036616091, 8.847551061919864, -4.847525368305711, 1.884570086202422, -0.4704381282914101)
     // Filter 2: Butterworth High Pass
     private val a2 = doubleArrayOf(1.0, -1.986820541740925, 0.986877894371497)
     private val b2 = doubleArrayOf(0.993444007823528, -1.986888015647055, 0.993444007823528)
 
-    private val x1 = DoubleArray(8)
-    private val y1 = DoubleArray(8)
+    private val x1 = DoubleArray(10)
+    private val y1 = DoubleArray(10)
     private val x2 = DoubleArray(3)
     private val y2 = DoubleArray(3)
     private var filterIdx1 = 0
@@ -129,12 +129,12 @@ class AudioAnalyser {
         // Filter 1: Yule-Walker
         x1[filterIdx1] = sample
         var y1_val = b1[0] * x1[filterIdx1]
-        for (i in 1..7) {
-            val idx = (filterIdx1 - i + 8) % 8
+        for (i in 1..9) {
+            val idx = (filterIdx1 - i + 10) % 10
             y1_val += b1[i] * x1[idx] - a1[i] * y1[idx]
         }
         y1[filterIdx1] = y1_val
-        filterIdx1 = (filterIdx1 + 1) % 8
+        filterIdx1 = (filterIdx1 + 1) % 10
 
         // Filter 2: Butterworth
         x2[filterIdx2] = y1_val
@@ -203,6 +203,8 @@ class AudioAnalyser {
                 // MIDI note number (A4 = 69 = 440Hz)
                 val note = 69 + 12 * (log10(freq / 440.0f) / log10(2.0f))
                 val bin = (kotlin.math.round(note) % 12).toInt()
+                // Note: low-frequency content below MIDI 0 (note < 0) will yield a negative bin.
+                // This is irrelevant for chroma and is deliberately excluded here.
                 if (bin in 0..11) {
                     chromaBins[bin] += mag
                 }
@@ -277,6 +279,7 @@ class AudioAnalyser {
                 for (i in 0 until onsetEnvelope.size - lag) {
                     sum += onsetEnvelope[i] * onsetEnvelope[i + lag]
                 }
+                sum /= (onsetEnvelope.size - lag)
                 if (sum > bestAutocorr) {
                     bestAutocorr = sum
                     bestLag = lag
@@ -301,26 +304,30 @@ class AudioAnalyser {
             }
         }
 
-        for (i in 0..11) {
-            // Major
-            var scoreMajor = 0f
-            for (j in 0..11) {
-                scoreMajor += chromaBins[(i + j) % 12] * majorProfile[j]
-            }
-            if (scoreMajor > bestScore) {
-                bestScore = scoreMajor
-                bestKey = camelotMajor[i]
-            }
+        if (maxChroma > 0f && chromaBins.sum() > 0.001f) {
+            for (i in 0..11) {
+                // Major
+                var scoreMajor = 0f
+                for (j in 0..11) {
+                    scoreMajor += chromaBins[(i + j) % 12] * majorProfile[j]
+                }
+                if (scoreMajor > bestScore) {
+                    bestScore = scoreMajor
+                    bestKey = camelotMajor[i]
+                }
 
-            // Minor
-            var scoreMinor = 0f
-            for (j in 0..11) {
-                scoreMinor += chromaBins[(i + j) % 12] * minorProfile[j]
+                // Minor
+                var scoreMinor = 0f
+                for (j in 0..11) {
+                    scoreMinor += chromaBins[(i + j) % 12] * minorProfile[j]
+                }
+                if (scoreMinor > bestScore) {
+                    bestScore = scoreMinor
+                    bestKey = camelotMinor[i]
+                }
             }
-            if (scoreMinor > bestScore) {
-                bestScore = scoreMinor
-                bestKey = camelotMinor[i]
-            }
+        } else {
+            bestKey = ""
         }
 
         // --- 3. ReplayGain ---
@@ -328,10 +335,9 @@ class AudioAnalyser {
         if (rgRmsBlocks.isNotEmpty()) {
             rgRmsBlocks.sort()
             val percentile95Idx = (rgRmsBlocks.size * 0.95).toInt()
-            val avgLoudness = rgRmsBlocks[kotlin.math.min(percentile95Idx, rgRmsBlocks.size - 1)]
-            val avgRms = avgLoudness // as it was already computed as RMS
+            val loudnessRms95 = rgRmsBlocks[kotlin.math.min(percentile95Idx, rgRmsBlocks.size - 1)]
             // ReplayGain spec: 89 - 20*log10(RMS_16bit) where RMS_16bit is scaled to 32768
-            val rms16bit = avgRms * 32768.0
+            val rms16bit = loudnessRms95 * 32768.0
             if (rms16bit > 0) {
                 replayGainDb = (89.0 - 20.0 * log10(rms16bit)).toFloat()
             }
@@ -341,6 +347,7 @@ class AudioAnalyser {
         var energy = 0f
         if (totalSamples > 0) {
             val rms = sqrt(totalSquareSum / totalSamples).toFloat()
+            // 0.15 ≈ typical RMS of a moderately loud signal; maps ~0.05→0.32, ~0.15→0.76, ~0.30→0.97
             energy = tanh(rms / 0.15f)
         }
 

@@ -185,27 +185,8 @@ class RipManager(
             var finalChecksum = 0L
             var sectorsRead = 0
 
+            val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
             try {
-                // We must buffer the encoded audio data because we need to compute AudioAnalysis
-                // which is required for the metadata block at the beginning of the file.
-                // However, holding the whole encoded FLAC in memory might be too much for long tracks.
-                // Or we can write metadata at the end? FLAC requires it at the start.
-                // If we can't buffer the whole track in memory, we must write to a temp file and copy it,
-                // or just write the audio data to a temp file, then write metadata to the final file,
-                // then copy the temp audio data to the final file.
-                // Wait, the prompt says: "In the Vorbis comment block construction, after the existing COMMENT... add:"
-                // and "Pass the AudioAnalysis result into buildFlacMetadata(...) as a new nullable parameter audioAnalysis: AudioAnalysis?".
-                // But it also says "After encoder.stop() and before the existing checksum/verification logic, call val analysis = analyser.analyse(). Pass the AudioAnalysis result into buildFlacMetadata(...)".
-                // If we are writing metadata to the stream *before* starting the encoder, we can't pass the result from `analyser.analyse()` which happens *after* `encoder.stop()`.
-                // Actually, if we look at the prompt: "After `encoder.stop()` and before the existing checksum/verification logic, call `val analysis = analyser.analyse()`. Pass the `AudioAnalysis` result into `buildFlacMetadata(...)` as a new nullable parameter `audioAnalysis: AudioAnalysis?`."
-                // Does this mean `buildFlacMetadata` is moved to AFTER `encoder.stop()`?
-                // Wait, if we use a temporary file or buffer for the encoder output, we can do that.
-                // Let's use a temporary ByteArrayOutputStream or temp file?
-                // A typical 3 minute FLAC is around 20-30 MB. We could buffer it in a `ByteArrayOutputStream`, but the prompt says: "No heap allocation of the full track PCM", which means we shouldn't hold raw PCM. But buffering the *encoded* FLAC in memory might be acceptable, or perhaps writing to a temp file is safer.
-                // Wait! Let's check if the FLAC metadata can be written after? No, FLAC structure is fLaC -> METADATA -> AUDIO.
-                // Let's write the audio to a temp file first, then construct final file: metadata + temp file audio.
-
-                val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
                 val tempOutputStream = BufferedOutputStream(java.io.FileOutputStream(tempFile), 1024 * 1024)
 
                 encoder = FlacEncoder(tempOutputStream, writeHeader = false)
@@ -348,8 +329,6 @@ class RipManager(
                     fis.copyTo(outputStream)
                 }
 
-                tempFile.delete()
-
                 updateTrackState(
                     trackNumber = trackNumber,
                     status = RipStatus.RIPPING,
@@ -384,6 +363,7 @@ class RipManager(
                 } catch (e: Exception) {
                     // Ignore
                 }
+                tempFile.delete()
             }
 
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
