@@ -305,7 +305,7 @@ open class LibraryRepository(private val context: Context) {
                     }
                 }
 
-                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified))
+                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath))
             }
         }
 
