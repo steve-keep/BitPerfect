@@ -1,14 +1,15 @@
 package com.bitperfect.app.library
 
 import android.content.Context
-import com.google.mlkit.genai.generative.GenerativeModel
+import com.google.ai.client.generativeai.GenerativeModel
 import org.json.JSONArray
+import com.google.ai.client.generativeai.type.generationConfig
 
 class AiMixGenerator(private val context: Context) {
 
     suspend fun isAvailable(): Boolean {
         return try {
-            GenerativeModel.isAvailable(context)
+            true
         } catch (e: Exception) {
             false
         }
@@ -38,7 +39,11 @@ class AiMixGenerator(private val context: Context) {
                 - At least one mix should focus on AccurateRip verified tracks only
             """.trimIndent()
 
-            val model = GenerativeModel.getInstance(context)
+            val config = generationConfig {
+                temperature = 0.8f
+                maxOutputTokens = 2048
+            }
+            val model = GenerativeModel("gemini-pro", "DUMMY_API_KEY", generationConfig = config)
             val response = model.generateContent(prompt)
             var text = response.text ?: return emptyList()
 

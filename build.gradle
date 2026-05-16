@@ -1,6 +1,5 @@
 buildscript {
     repositories {
-        maven { url "file://${rootProject.projectDir}/local_repo" }
 
         google()
         mavenCentral()
@@ -14,7 +13,6 @@ buildscript {
 
 allprojects {
     repositories {
-        maven { url "file://${rootProject.projectDir}/local_repo" }
 
         google()
         mavenCentral()
