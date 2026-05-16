@@ -88,7 +88,7 @@ fun TrackListScreen(
             }
 
             TopAppBar(
-                title = { Text(text = "BitPerfect") },
+                title = { Text(text = "") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
