@@ -3,7 +3,6 @@
 -dontwarn javax.imageio.ImageIO
 -dontwarn javax.imageio.stream.ImageInputStream
 -keep class org.jaudiotagger.** { *; }
--keep class io.opentelemetry.** { *; }
 # Please add these rules to your existing keep rules in order to suppress warnings.
 # This is generated automatically by the Android Gradle plugin.
 -dontwarn io.grpc.CallOptions
