@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.BluetoothAudio
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.CircleShape
@@ -44,6 +45,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.bitperfect.app.ui.theme.VerificationGreen
+import androidx.compose.material3.IconButton
 
 @Composable
 fun NowPlayingBar(
@@ -51,8 +54,10 @@ fun NowPlayingBar(
     currentTrackTitle: String?,
     currentTrackArtist: String?,
     currentAlbumArtUri: Uri?,
-    onPlayPause: () -> Unit,
     enabled: Boolean,
+    isExternalOutput: Boolean,
+    onPlayPause: () -> Unit,
+    onOutputDeviceClick: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -129,6 +134,20 @@ fun NowPlayingBar(
                                     modifier = Modifier.testTag("now_playing_artist")
                                 )
                             }
+                        }
+                    }
+
+                    if (enabled) {
+                        IconButton(
+                            onClick = onOutputDeviceClick,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.BluetoothAudio,
+                                contentDescription = "Output Device",
+                                tint = if (isExternalOutput) VerificationGreen else Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
 

@@ -24,6 +24,8 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
+import com.bitperfect.app.output.OutputDevice
+import com.bitperfect.app.ui.OutputDeviceSheet
 import androidx.compose.foundation.layout.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
@@ -57,7 +59,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var driveOffsetRepository: DriveOffsetRepository
     private lateinit var settingsManager: SettingsManager
 
-    private val appViewModel: AppViewModel by viewModels()
+    private val appViewModel: AppViewModel by viewModels { AppViewModel.factory(application) }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -127,6 +129,11 @@ class MainActivity : ComponentActivity() {
             )
 
             val driveStatus by appViewModel.driveStatus.collectAsState()
+
+            val activeDevice by appViewModel.activeDevice.collectAsState()
+            val availableDevices by appViewModel.availableDevices.collectAsState()
+            val showOutputSheet by appViewModel.showOutputSheet.collectAsState()
+            val isExternalOutput = activeDevice !is OutputDevice.ThisPhone
 
             LaunchedEffect(driveStatus) {
                 if (driveStatus !is DriveStatus.NoDrive && driveStatus !is DriveStatus.NotOptical) {
@@ -427,8 +434,10 @@ class MainActivity : ComponentActivity() {
                                 currentTrackTitle = currentTrackTitle,
                                 currentTrackArtist = currentTrackArtist,
                                 currentAlbumArtUri = currentAlbumArtUri,
-                                onPlayPause = { appViewModel.togglePlayPause() },
                                 enabled = isControllerReady,
+                                isExternalOutput = isExternalOutput,
+                                onPlayPause = { appViewModel.togglePlayPause() },
+                                onOutputDeviceClick = { appViewModel.openOutputDeviceSheet() },
                                 onExpand = {
                                     coroutineScope.launch {
                                         bottomSheetScaffoldState.bottomSheetState.expand()
@@ -438,6 +447,21 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
+            }
+
+            if (showOutputSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { appViewModel.closeOutputDeviceSheet() },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = androidx.compose.ui.graphics.Color(0xFF121212),
+                    dragHandle = null
+                ) {
+                    OutputDeviceSheet(
+                        devices = availableDevices,
+                        activeDevice = activeDevice,
+                        onDeviceSelected = { appViewModel.selectOutputDevice(it) }
+                    )
                 }
             }
         }
