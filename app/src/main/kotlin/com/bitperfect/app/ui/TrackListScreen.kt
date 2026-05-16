@@ -406,15 +406,6 @@ fun TrackListScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f, fill = false)
                                     )
-                                    if (track.isAccurateRipVerified) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "AccurateRip Verified",
-                                            tint = Color(0xFF4CAF50),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
                                 }
                                 val durationSeconds = track.durationMs / 1000
                                 val minutes = durationSeconds / 60

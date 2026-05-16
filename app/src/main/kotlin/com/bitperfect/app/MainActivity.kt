@@ -263,7 +263,7 @@ class MainActivity : ComponentActivity() {
                                             text = when (currentRoute) {
                                                 AppRoutes.Settings -> "Settings"
                                                 AppRoutes.About -> "About"
-                                                else -> "BitPerfect"
+                                                else -> ""
                                             },
                                             modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
                                             maxLines = 1,
