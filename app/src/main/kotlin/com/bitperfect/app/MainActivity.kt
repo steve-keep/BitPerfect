@@ -320,6 +320,10 @@ class MainActivity : ComponentActivity() {
                                         onAlbumClick = { album ->
                                             appViewModel.selectAlbum(album.id, album.title)
                                             navController.navigate(AppRoutes.TrackList)
+                                        },
+                                        onMixClick = { mix ->
+                                            appViewModel.playMix(mix)
+                                            navController.navigate(AppRoutes.TrackList)
                                         }
                                     )
                                 }
