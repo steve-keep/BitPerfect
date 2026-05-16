@@ -1,5 +1,7 @@
 package com.bitperfect.app.ui
 
+
+
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
@@ -21,7 +23,8 @@ class TrackListScreenTest {
     fun verifyTrackListScreenLoadingState() {
         val application = RuntimeEnvironment.getApplication()
         val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
-        val mockViewModel = AppViewModel(application, com.bitperfect.app.player.PlayerRepository(application, fakeFactory))
+        val playerRepo = com.bitperfect.app.player.PlayerRepository(application, fakeFactory)
+        val mockViewModel = AppViewModel(application, playerRepo, fakeOutputRepository(application, playerRepo))
 
         mockViewModel.selectAlbum(1L, "Test Album")
 
@@ -38,7 +41,8 @@ class TrackListScreenTest {
     fun verifyTrackListScreenLoadedState() {
         val application = RuntimeEnvironment.getApplication()
         val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
-        val mockViewModel = AppViewModel(application, com.bitperfect.app.player.PlayerRepository(application, fakeFactory))
+        val playerRepo = com.bitperfect.app.player.PlayerRepository(application, fakeFactory)
+        val mockViewModel = AppViewModel(application, playerRepo, fakeOutputRepository(application, playerRepo))
 
         // Force a mock artists list to cover AlbumHeader extraction
         val artistsField = AppViewModel::class.java.getDeclaredField("_artists")

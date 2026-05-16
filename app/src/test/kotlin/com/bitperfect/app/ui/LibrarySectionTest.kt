@@ -1,5 +1,7 @@
 package com.bitperfect.app.ui
 
+
+
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
@@ -25,7 +27,8 @@ class LibrarySectionTest {
     fun verifyEmptyStateDisplaysMusicNoteAndText() {
         val application = org.robolectric.RuntimeEnvironment.getApplication()
         val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
-        val mockViewModel = AppViewModel(application, com.bitperfect.app.player.PlayerRepository(application, fakeFactory))
+        val playerRepo = com.bitperfect.app.player.PlayerRepository(application, fakeFactory)
+        val mockViewModel = AppViewModel(application, playerRepo, fakeOutputRepository(application, playerRepo))
 
         val settingsManager = com.bitperfect.core.utils.SettingsManager(application)
         settingsManager.outputFolderUri = "content://dummy"
@@ -47,7 +50,8 @@ class LibrarySectionTest {
         settingsManager.outputFolderUri = null
 
         val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
-        val mockViewModel = AppViewModel(application, com.bitperfect.app.player.PlayerRepository(application, fakeFactory))
+        val playerRepo = com.bitperfect.app.player.PlayerRepository(application, fakeFactory)
+        val mockViewModel = AppViewModel(application, playerRepo, fakeOutputRepository(application, playerRepo))
 
         val albums = listOf(
             AlbumInfo(id = 1L, title = "Test Album", artUri = null)

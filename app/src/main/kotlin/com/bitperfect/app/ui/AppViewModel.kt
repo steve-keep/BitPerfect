@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,6 +43,8 @@ import com.bitperfect.core.services.LyricsRepository
 import com.bitperfect.core.models.LyricsResult
 import java.net.URL
 import kotlinx.coroutines.async
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
@@ -47,6 +52,8 @@ import java.io.File
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
+import com.bitperfect.app.output.OutputRepository
+import com.bitperfect.app.output.OutputDevice
 data class TrackListViewState(
     val title: String,
     val artistName: String,
@@ -68,6 +75,7 @@ data class RipBannerState(
 open class AppViewModel(
     application: Application,
     private val playerRepository: PlayerRepository,
+    private val outputRepository: OutputRepository,
     private val libraryRepository: LibraryRepository = LibraryRepository(application),
     private val ioDispatcher: CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
@@ -75,13 +83,6 @@ open class AppViewModel(
         ItunesArtworkRepository(application).fetchItunesArtwork(artist, album)
     }
 ) : AndroidViewModel(application) {
-
-    constructor(application: Application) : this(
-        application,
-        PlayerRepository(application),
-        LibraryRepository(application),
-        kotlinx.coroutines.Dispatchers.IO
-    )
 
     private val settingsManager = SettingsManager(application)
 
@@ -106,6 +107,29 @@ open class AppViewModel(
 
     private val _selectedAlbumTitle = MutableStateFlow<String?>(null)
     val selectedAlbumTitle: StateFlow<String?> = _selectedAlbumTitle
+
+    val activeDevice: StateFlow<OutputDevice> = outputRepository.activeDevice
+    val availableDevices: StateFlow<List<OutputDevice>> = outputRepository.availableDevices
+
+    private val _showOutputSheet = MutableStateFlow(false)
+    val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
+
+    fun openOutputDeviceSheet() {
+        outputRepository.refreshDevices()
+        _showOutputSheet.value = true
+    }
+
+    fun closeOutputDeviceSheet() {
+        _showOutputSheet.value = false
+    }
+
+    fun selectOutputDevice(device: OutputDevice) {
+        val mediaIds = upNextQueue.value.map { it.mediaId }
+        val index = currentQueueIndex.value
+        outputRepository.switchTo(device, mediaIds, index)
+        _showOutputSheet.value = false
+    }
+
 
     open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
@@ -571,11 +595,13 @@ open class AppViewModel(
     fun playAlbum(tracks: List<TrackInfo>) {
         _playingTracks.value = tracks
         playerRepository.playAlbum(tracks)
+        outputRepository.play()
     }
 
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
         _playingTracks.value = tracks
         playerRepository.playTrack(tracks, index)
+        outputRepository.play()
     }
 
     fun playNext(track: TrackInfo) {
@@ -609,11 +635,11 @@ open class AppViewModel(
     }
 
     fun togglePlayPause() {
-        playerRepository.togglePlayPause()
+        outputRepository.togglePlayPause(isPlaying.value)
     }
 
     fun seekTo(ms: Long) {
-        playerRepository.seekTo(ms)
+        outputRepository.seekTo(ms)
     }
 
     fun skipNext() {
@@ -712,6 +738,22 @@ open class AppViewModel(
     }
 
     fun clearTags() {
+
         _tagsViewState.value = null
+    }
+
+    companion object {
+        fun factory(application: Application): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    val playerRepository = PlayerRepository(application)
+                    val outputRepository = OutputRepository(
+                        application,
+                        playerRepository,
+                        CoroutineScope(SupervisorJob() + Dispatchers.IO)
+                    )
+                    AppViewModel(application, playerRepository, outputRepository)
+                }
+            }
     }
 }
