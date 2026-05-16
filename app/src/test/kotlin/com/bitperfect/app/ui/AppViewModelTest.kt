@@ -292,10 +292,29 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testSelectAlbumAndLoadTracks() {
+    fun testSelectAlbumAndLoadTracks() = runTest {
+        // Set an initial track list state
+        viewModel._trackListViewState.value = TrackListViewState(
+            title = "Old Album",
+            artistName = "Old Artist",
+            coverArtUrl = null,
+            tracks = emptyList(),
+            isCdMode = false
+        )
+
+        // Call selectAlbum which should clear the tracks immediately before loading new ones
+        // We pause the dispatcher to prevent loadTracks from immediately populating it again
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.StandardTestDispatcher(testScheduler))
+
         viewModel.selectAlbum(123L, "Test Album")
+
         assertEquals(123L, viewModel.selectedAlbumId.value)
         assertEquals("Test Album", viewModel.selectedAlbumTitle.value)
+
+        // Verify that the track state was cleared synchronously by selectAlbum
+        assertEquals(null, viewModel.trackListViewState.value)
+
+        kotlinx.coroutines.Dispatchers.resetMain()
     }
 
     @Test
