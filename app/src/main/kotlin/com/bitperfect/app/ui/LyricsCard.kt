@@ -68,7 +68,8 @@ fun LyricsCard(
                 val viewportHeight = listState.layoutInfo.viewportSize.height
                 val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
                 val itemHeight = visibleItem?.size ?: 100 // Estimate if not visible
-                val centerOffset = -(viewportHeight / 2) + (itemHeight / 2)
+                val beforeContentPadding = listState.layoutInfo.beforeContentPadding
+                val centerOffset = -(viewportHeight / 2) + (itemHeight / 2) + beforeContentPadding
                 listState.animateScrollToItem(index = activeIndex, scrollOffset = centerOffset)
             }
         }
@@ -80,7 +81,8 @@ fun LyricsCard(
             val viewportHeight = listState.layoutInfo.viewportSize.height
             val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
             val itemHeight = visibleItem?.size ?: 100 // Estimate if not visible
-            val centerOffset = -(viewportHeight / 2) + (itemHeight / 2)
+            val beforeContentPadding = listState.layoutInfo.beforeContentPadding
+            val centerOffset = -(viewportHeight / 2) + (itemHeight / 2) + beforeContentPadding
             listState.animateScrollToItem(index = activeIndex, scrollOffset = centerOffset)
         }
     }
