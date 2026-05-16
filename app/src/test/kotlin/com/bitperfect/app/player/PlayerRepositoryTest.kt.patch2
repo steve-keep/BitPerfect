@@ -1,0 +1,10 @@
+--- app/src/test/kotlin/com/bitperfect/app/player/PlayerRepositoryTest.kt
++++ app/src/test/kotlin/com/bitperfect/app/player/PlayerRepositoryTest.kt
+@@ -128,7 +128,7 @@
+     }
+
+     @Test
+-    fun `test playback controls coverage`() = runTest {
++    fun `test playback controls coverage`() = runTest(kotlinx.coroutines.test.UnconfinedTestDispatcher()) {
+         val mockContext = mock(Context::class.java)
+         `when`(mockContext.packageName).thenReturn("com.bitperfect.app")

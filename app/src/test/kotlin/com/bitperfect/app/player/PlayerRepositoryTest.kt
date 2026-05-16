@@ -26,9 +26,26 @@ import android.os.Looper
 import java.lang.reflect.Method
 import java.util.concurrent.Executor
 
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
+
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class PlayerRepositoryTest {
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(StandardTestDispatcher())
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `test initial state`() = runTest {
@@ -127,7 +144,7 @@ class PlayerRepositoryTest {
     }
 
     @Test
-    fun `test playback controls coverage`() = runBlocking {
+    fun `test playback controls coverage`() = runTest(kotlinx.coroutines.test.UnconfinedTestDispatcher()) {
         val mockContext = mock(Context::class.java)
         `when`(mockContext.packageName).thenReturn("com.bitperfect.app")
 
