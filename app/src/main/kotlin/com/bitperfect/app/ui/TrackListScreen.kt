@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.RipStatus
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.graphicsLayer
 
 private fun numberToWord(n: Int): String {
     val words = arrayOf("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
@@ -110,6 +111,25 @@ fun TrackListScreen(
             var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
             val listState = rememberLazyListState()
 
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val fadeStartPx = remember(density) { with(density) { 240.dp.toPx() } }
+            val fadeEndPx = remember(density) { with(density) { 340.dp.toPx() } }
+
+            val topBarAlpha by remember {
+                derivedStateOf {
+                    if (listState.firstVisibleItemIndex > 0) 1f
+                    else {
+                        val offset = listState.firstVisibleItemScrollOffset.toFloat()
+                        if (offset < fadeStartPx) 0f
+                        else ((offset - fadeStartPx) / (fadeEndPx - fadeStartPx)).coerceIn(0f, 1f)
+                    }
+                }
+            }
+
+            val albumHeaderAlpha by remember {
+                derivedStateOf { 1f - topBarAlpha }
+            }
+
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
@@ -135,24 +155,26 @@ fun TrackListScreen(
                         state.tracks.isNotEmpty() && state.tracks.all { it.isAccurateRipVerified }
                     }
 
-                    AlbumHeader(
-                        title = state.title,
-                        artistName = state.artistName,
-                        coverArtUrl = state.coverArtUrl,
-                        trackCount = state.tracks.size,
-                        isCdMode = state.isCdMode,
-                        isRipping = isRipping,
-                        overallProgress = overallProgress,
-                        isFullyVerified = isFullyVerified,
-                        onSaveClick = { viewModel.startRip() },
-                        onPlayClick = { viewModel.playAlbum(state.tracks) },
-                        onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
-                        onStopRipClick = {
-                            showStopDialog = true
-                        },
-                        dominantColor = dominantColor,
-                        onColorExtracted = { extractedColor -> dominantColor = extractedColor }
-                    )
+                    Box(modifier = Modifier.graphicsLayer { this.alpha = albumHeaderAlpha }) {
+                        AlbumHeader(
+                            title = state.title,
+                            artistName = state.artistName,
+                            coverArtUrl = state.coverArtUrl,
+                            trackCount = state.tracks.size,
+                            isCdMode = state.isCdMode,
+                            isRipping = isRipping,
+                            overallProgress = overallProgress,
+                            isFullyVerified = isFullyVerified,
+                            onSaveClick = { viewModel.startRip() },
+                            onPlayClick = { viewModel.playAlbum(state.tracks) },
+                            onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
+                            onStopRipClick = {
+                                showStopDialog = true
+                            },
+                            dominantColor = dominantColor,
+                            onColorExtracted = { extractedColor -> dominantColor = extractedColor }
+                        )
+                    }
                 }
 
                 groupedTracks.forEach { (discNumber, discTracks) ->
@@ -469,16 +491,6 @@ fun TrackListScreen(
                     }
                 }
             } // Close LazyColumn here
-
-            val topBarAlpha by remember {
-                derivedStateOf {
-                    if (listState.firstVisibleItemIndex > 0) 1f
-                    else {
-                        val offset = listState.firstVisibleItemScrollOffset
-                        (offset / 300f).coerceIn(0f, 1f)
-                    }
-                }
-            }
 
             Box(
                 modifier = Modifier
