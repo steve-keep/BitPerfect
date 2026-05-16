@@ -7,6 +7,12 @@ import com.bitperfect.app.library.ArtistInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.library.LibraryRepository
+
+import com.bitperfect.app.library.AiMix
+import com.bitperfect.app.library.AiMixTrack
+import com.bitperfect.app.library.AiMixRepository
+import com.bitperfect.app.library.AiMixGenerator
+import androidx.media3.common.MediaItem
 import com.bitperfect.core.utils.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineDispatcher
@@ -81,10 +87,18 @@ open class AppViewModel(
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
     private val fetchItunesArtwork: suspend (String, String) -> ItunesArtwork? = { artist, album ->
         ItunesArtworkRepository(application).fetchItunesArtwork(artist, album)
-    }
+    },
+    private val aiMixRepository: AiMixRepository = AiMixRepository(),
+    private val aiMixGenerator: AiMixGenerator = AiMixGenerator(application)
 ) : AndroidViewModel(application) {
 
     private val settingsManager = SettingsManager(application)
+
+    private val _aiMixes = MutableStateFlow<List<AiMix>>(emptyList())
+    val aiMixes: StateFlow<List<AiMix>> = _aiMixes.asStateFlow()
+
+    private val _aiMixesLoading = MutableStateFlow(false)
+    val aiMixesLoading: StateFlow<Boolean> = _aiMixesLoading.asStateFlow()
 
     private val accurateRipService = AccurateRipService()
 
@@ -434,6 +448,81 @@ open class AppViewModel(
         }
     }
 
+
+
+    private fun loadAiMixes() {
+        viewModelScope.launch(ioDispatcher) {
+            val outputUri = settingsManager.outputFolderUri
+            val mixes = aiMixRepository.getLatestMixes(getApplication(), outputUri)
+            _aiMixes.value = mixes
+            checkAndRegenerateMixes(outputUri)
+        }
+    }
+
+    private suspend fun checkAndRegenerateMixes(outputUri: String?) {
+        try {
+            val lastGeneratedAt = aiMixRepository.getLastGeneratedAt(getApplication(), outputUri)
+            val now = System.currentTimeMillis()
+
+            if (lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
+                if (!aiMixGenerator.isAvailable()) return
+
+                _aiMixesLoading.value = true
+
+                val summary = aiMixRepository.buildLibrarySummary(getApplication(), outputUri)
+                if (summary.isBlank()) {
+                    _aiMixesLoading.value = false
+                    return
+                }
+
+                // Get available tracks to resolve tracks later
+                val availableTracks = mutableListOf<AiMixTrack>()
+                val artistsList = _artists.value
+                for (artist in artistsList) {
+                    for (album in artist.albums) {
+                        val tracks = libraryRepository.getTracksForAlbum(album.id, outputUri)
+                        for (track in tracks) {
+                            availableTracks.add(
+                                AiMixTrack(
+                                    trackId = track.id,
+                                    artist = track.artist,
+                                    title = track.title,
+                                    albumTitle = track.albumTitle,
+                                    albumId = album.id
+                                )
+                            )
+                        }
+                    }
+                }
+
+                val result = aiMixGenerator.generateMixes(summary, availableTracks)
+                if (result.isNotEmpty()) {
+                    aiMixRepository.appendMixes(getApplication(), outputUri, result)
+                    _aiMixes.value = aiMixRepository.getLatestMixes(getApplication(), outputUri)
+                }
+
+                _aiMixesLoading.value = false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _aiMixesLoading.value = false
+        }
+    }
+
+    fun playMix(mix: AiMix) {
+        val outputUri = settingsManager.outputFolderUri
+        viewModelScope.launch(ioDispatcher) {
+            val resolvedTracks = mix.tracks.mapNotNull {
+                libraryRepository.getTrack(it.trackId, outputUri)
+            }
+            if (resolvedTracks.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    playAlbum(resolvedTracks)
+                }
+            }
+        }
+    }
+
     fun loadLibrary() {
         val uriString = settingsManager.outputFolderUri
         _isOutputFolderConfigured.value = !uriString.isNullOrBlank()
@@ -447,6 +536,8 @@ open class AppViewModel(
 
             val latest = libraryRepository.getLatestRippedAlbums(uriString)
             _latestRippedAlbums.value = latest
+
+            loadAiMixes()
 
             // Rehydrate the track list if an album was selected but data was lost
             // (e.g. after returning from background or process recreation).
