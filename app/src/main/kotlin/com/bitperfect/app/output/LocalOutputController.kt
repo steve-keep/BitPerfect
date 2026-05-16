@@ -9,14 +9,17 @@ class LocalOutputController(
     override suspend fun getPositionMs(): Long =
         playerRepository.positionMs.value
 
-    override suspend fun play() =
+    override suspend fun play() {
         playerRepository.play()
+    }
 
-    override suspend fun pause() =
+    override suspend fun pause() {
         playerRepository.pause()
+    }
 
-    override suspend fun seekTo(positionMs: Long) =
+    override suspend fun seekTo(positionMs: Long) {
         playerRepository.seekTo(positionMs)
+    }
 
     override suspend fun takeOver(mediaIds: List<String>, startIndex: Int, startPositionMs: Long) {
         playerRepository.setQueueAndPlay(mediaIds, startIndex, startPositionMs)
