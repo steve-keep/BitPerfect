@@ -135,7 +135,7 @@ open class AppViewModel(
 
     private val _tagsViewState = MutableStateFlow<List<Pair<String, String>>?>(null)
     val tagsViewState: StateFlow<List<Pair<String, String>>?> = _tagsViewState.asStateFlow()
-    private val _trackListViewState = MutableStateFlow<TrackListViewState?>(null)
+    internal val _trackListViewState = MutableStateFlow<TrackListViewState?>(null)
     val trackListViewState: StateFlow<TrackListViewState?> = _trackListViewState
 
     private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
@@ -458,6 +458,7 @@ open class AppViewModel(
     }
 
     fun selectAlbum(albumId: Long, albumTitle: String) {
+        clearTracks()
         _selectedAlbumId.value = albumId
         _selectedAlbumTitle.value = albumTitle
         loadTracks(albumId)
