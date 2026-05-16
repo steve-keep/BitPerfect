@@ -120,14 +120,20 @@ fun TrackListScreen(
                     if (listState.firstVisibleItemIndex > 0) 1f
                     else {
                         val offset = listState.firstVisibleItemScrollOffset.toFloat()
-                        if (offset < fadeStartPx) 0f
-                        else ((offset - fadeStartPx) / (fadeEndPx - fadeStartPx)).coerceIn(0f, 1f)
+                        (offset / fadeEndPx).coerceIn(0f, 1f)
                     }
                 }
             }
 
             val albumHeaderAlpha by remember {
-                derivedStateOf { 1f - topBarAlpha }
+                derivedStateOf {
+                    if (listState.firstVisibleItemIndex > 0) 0f
+                    else {
+                        val offset = listState.firstVisibleItemScrollOffset.toFloat()
+                        if (offset < fadeStartPx) 1f
+                        else (1f - ((offset - fadeStartPx) / (fadeEndPx - fadeStartPx))).coerceIn(0f, 1f)
+                    }
+                }
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -489,7 +495,7 @@ fun TrackListScreen(
                         Brush.verticalGradient(
                             colors = listOf(
                                 dominantColor.copy(alpha = topBarAlpha),
-                                Color.Transparent
+                                MaterialTheme.colorScheme.background.copy(alpha = topBarAlpha)
                             )
                         )
                     )
