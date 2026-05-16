@@ -42,6 +42,7 @@ import com.bitperfect.app.library.AlbumInfo
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.DiscMetadata
 import androidx.compose.ui.graphics.Color
+import com.bitperfect.app.ui.theme.TextSecondary
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -155,20 +156,25 @@ fun AlbumHeader(
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {},
     onAddToQueueClick: (() -> Unit)? = null,
-    onStopRipClick: () -> Unit = {}
+    onStopRipClick: () -> Unit = {},
+    dominantColor: Color = Color(0xFF141414),
+    onColorExtracted: (Color) -> Unit = {}
 ) {
-    var backgroundColor by remember { mutableStateOf(Color(0xFF141414)) }
-
     Box(
         modifier = modifier
             .fillMaxWidth()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(backgroundColor.copy(alpha = 0.5f), Color.Transparent),
+                    colors = listOf(dominantColor.copy(alpha = 0.5f), Color.Transparent),
                     radius = 800f
                 )
             )
-            .padding(16.dp),
+            .padding(
+                top = 16.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                bottom = 16.dp,
+                start = 16.dp,
+                end = 16.dp
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -189,7 +195,7 @@ fun AlbumHeader(
                     val bitmap = success.result.drawable.toBitmap()
                     Palette.from(bitmap).generate { palette ->
                         palette?.dominantSwatch?.rgb?.let { colorValue ->
-                            backgroundColor = Color(colorValue)
+                            onColorExtracted(Color(colorValue))
                         }
                     }
                 }
@@ -709,7 +715,7 @@ fun LibrarySection(
                                             Text(
                                                 text = artist.name,
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White.copy(alpha = 0.8f),
+                                                color = TextSecondary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -767,6 +773,8 @@ fun LibrarySection(
                                         Text(
                                             text = album.title,
                                             style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
+                                            minLines = 2,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(top = 4.dp)
@@ -824,6 +832,8 @@ fun LibrarySection(
                                         Text(
                                             text = album.title,
                                             style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
+                                            minLines = 2,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(top = 4.dp)

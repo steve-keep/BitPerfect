@@ -249,75 +249,76 @@ class MainActivity : ComponentActivity() {
                     },
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
-                        TopAppBar(
-                            title = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (currentRoute == AppRoutes.DeviceList) {
-                                        Surface(
-                                            color = Color(0xFF191C20),
-                                            shape = MaterialTheme.shapes.small,
-                                            modifier = Modifier.padding(end = 12.dp).size(32.dp)
-                                        ) {
-                                            Image(
-                                                painter = painterResource(id = R.drawable.app_logo),
-                                                contentDescription = null,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
+                        if (currentRoute != AppRoutes.TrackList) {
+                            TopAppBar(
+                                title = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (currentRoute == AppRoutes.DeviceList) {
+                                            Surface(
+                                                color = Color(0xFF191C20),
+                                                shape = MaterialTheme.shapes.small,
+                                                modifier = Modifier.padding(end = 12.dp).size(32.dp)
+                                            ) {
+                                                Image(
+                                                    painter = painterResource(id = R.drawable.app_logo),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
                                         }
-                                    }
-                                    if (currentRoute != AppRoutes.TrackList) {
                                         Text(
                                             text = when (currentRoute) {
                                                 AppRoutes.Settings -> "Settings"
                                                 AppRoutes.About -> "About"
-                                                else -> "BitPerfect"
+                                                else -> ""
                                             },
                                             modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
                                     }
-                                }
-                            },
-                            navigationIcon = {
-                                if (currentRoute != AppRoutes.DeviceList) {
-                                    IconButton(onClick = {
-                                        if (currentRoute == AppRoutes.TrackList || currentRoute == AppRoutes.Settings) {
-                                            appViewModel.loadLibrary()
+                                },
+                                navigationIcon = {
+                                    if (currentRoute != AppRoutes.DeviceList) {
+                                        IconButton(onClick = {
+                                            if (currentRoute == AppRoutes.Settings) {
+                                                appViewModel.loadLibrary()
+                                            }
+                                            navController.popBackStack()
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                contentDescription = "Back"
+                                            )
                                         }
-                                        navController.popBackStack()
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Back"
-                                        )
                                     }
-                                }
-                            },
-                            actions = {
-                                if (currentRoute == AppRoutes.DeviceList) {
-                                    IconButton(onClick = { navController.navigate(AppRoutes.Settings) }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = "Settings"
-                                        )
+                                },
+                                actions = {
+                                    if (currentRoute == AppRoutes.DeviceList) {
+                                        IconButton(onClick = { navController.navigate(AppRoutes.Settings) }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Settings,
+                                                contentDescription = "Settings"
+                                            )
+                                        }
                                     }
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                titleContentColor = MaterialTheme.colorScheme.onSurface,
-                                navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                                },
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                                )
                             )
-                        )
+                        }
                     }
                 ) { innerPadding ->
                     val bottomPadding = if (currentTrackTitle != null) 64.dp else 0.dp
+                    val topPadding = if (currentRoute == AppRoutes.TrackList) 0.dp else innerPadding.calculateTopPadding()
                     NavHost(
                         navController = navController,
                         startDestination = AppRoutes.DeviceList,
                         modifier = Modifier.padding(
-                            top = innerPadding.calculateTopPadding(),
+                            top = topPadding,
                             start = innerPadding.calculateStartPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
                             end = innerPadding.calculateEndPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
                             bottom = bottomPadding + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
@@ -14,11 +15,13 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.RipStatus
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.graphicsLayer
 
 private fun numberToWord(n: Int): String {
     val words = arrayOf("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
@@ -82,6 +86,20 @@ fun TrackListScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+
+            TopAppBar(
+                title = { Text(text = "BitPerfect") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         } else {
             val groupedTracks = remember(state.tracks) { state.tracks.groupBy { it.discNumber } }
             val isMultiDisc = groupedTracks.size > 1
@@ -90,10 +108,34 @@ fun TrackListScreen(
                 state.tracks.mapIndexed { index, track -> track.id to index }.toMap()
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
+            var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
+            val listState = rememberLazyListState()
+
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val fadeStartPx = remember(density) { with(density) { 240.dp.toPx() } }
+            val fadeEndPx = remember(density) { with(density) { 340.dp.toPx() } }
+
+            val topBarAlpha by remember {
+                derivedStateOf {
+                    if (listState.firstVisibleItemIndex > 0) 1f
+                    else {
+                        val offset = listState.firstVisibleItemScrollOffset.toFloat()
+                        if (offset < fadeStartPx) 0f
+                        else ((offset - fadeStartPx) / (fadeEndPx - fadeStartPx)).coerceIn(0f, 1f)
+                    }
+                }
+            }
+
+            val albumHeaderAlpha by remember {
+                derivedStateOf { 1f - topBarAlpha }
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
                 item {
                     val overallProgress = remember(ripStates) {
                         if (ripStates.isEmpty()) 0f
@@ -113,22 +155,26 @@ fun TrackListScreen(
                         state.tracks.isNotEmpty() && state.tracks.all { it.isAccurateRipVerified }
                     }
 
-                    AlbumHeader(
-                        title = state.title,
-                        artistName = state.artistName,
-                        coverArtUrl = state.coverArtUrl,
-                        trackCount = state.tracks.size,
-                        isCdMode = state.isCdMode,
-                        isRipping = isRipping,
-                        overallProgress = overallProgress,
-                        isFullyVerified = isFullyVerified,
-                        onSaveClick = { viewModel.startRip() },
-                        onPlayClick = { viewModel.playAlbum(state.tracks) },
-                        onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
-                        onStopRipClick = {
-                            showStopDialog = true
-                        }
-                    )
+                    Box(modifier = Modifier.graphicsLayer { this.alpha = albumHeaderAlpha }) {
+                        AlbumHeader(
+                            title = state.title,
+                            artistName = state.artistName,
+                            coverArtUrl = state.coverArtUrl,
+                            trackCount = state.tracks.size,
+                            isCdMode = state.isCdMode,
+                            isRipping = isRipping,
+                            overallProgress = overallProgress,
+                            isFullyVerified = isFullyVerified,
+                            onSaveClick = { viewModel.startRip() },
+                            onPlayClick = { viewModel.playAlbum(state.tracks) },
+                            onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
+                            onStopRipClick = {
+                                showStopDialog = true
+                            },
+                            dominantColor = dominantColor,
+                            onColorExtracted = { extractedColor -> dominantColor = extractedColor }
+                        )
+                    }
                 }
 
                 groupedTracks.forEach { (discNumber, discTracks) ->
@@ -382,15 +428,6 @@ fun TrackListScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f, fill = false)
                                     )
-                                    if (track.isAccurateRipVerified) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "AccurateRip Verified",
-                                            tint = Color(0xFF4CAF50),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
                                 }
                                 val durationSeconds = track.durationMs / 1000
                                 val minutes = durationSeconds / 60
@@ -444,9 +481,43 @@ fun TrackListScreen(
                         HorizontalDivider(color = Color(0x14FFFFFF))
                     }
                 }
+            } // Close LazyColumn here
+
+            Box(
+                modifier = Modifier
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                dominantColor.copy(alpha = topBarAlpha),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            ) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = state.title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = topBarAlpha)
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
             }
-        }
-    }
+        } // Close Box here
+    } // Close if statement here
+    } // Close Box modifier fillMaxSize here
 
     if (showStopDialog) {
         AlertDialog(
