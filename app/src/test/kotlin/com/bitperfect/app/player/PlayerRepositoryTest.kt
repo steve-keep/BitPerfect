@@ -10,6 +10,7 @@ import com.bitperfect.app.library.TrackInfo
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -126,7 +127,7 @@ class PlayerRepositoryTest {
     }
 
     @Test
-    fun `test playback controls coverage`() = runTest {
+    fun `test playback controls coverage`() = runBlocking {
         val mockContext = mock(Context::class.java)
         `when`(mockContext.packageName).thenReturn("com.bitperfect.app")
 
