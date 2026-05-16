@@ -107,11 +107,6 @@ class MainActivity : ComponentActivity() {
             }
 
             val navController = rememberNavController()
-            val currentBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = currentBackStackEntry?.destination?.route ?: AppRoutes.DeviceList
-
-            val selectedAlbumTitle by appViewModel.selectedAlbumTitle.collectAsState()
-            val trackListViewState by appViewModel.trackListViewState.collectAsState()
 
             val isControllerReady by appViewModel.isControllerReady.collectAsState()
             val isPlaying by appViewModel.isPlaying.collectAsState()
@@ -247,78 +242,14 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxSize(),
-                    topBar = {
-                        if (currentRoute != AppRoutes.TrackList) {
-                            TopAppBar(
-                                title = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (currentRoute == AppRoutes.DeviceList) {
-                                            Surface(
-                                                color = Color(0xFF191C20),
-                                                shape = MaterialTheme.shapes.small,
-                                                modifier = Modifier.padding(end = 12.dp).size(32.dp)
-                                            ) {
-                                                Image(
-                                                    painter = painterResource(id = R.drawable.app_logo),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            }
-                                        }
-                                        Text(
-                                            text = when (currentRoute) {
-                                                AppRoutes.Settings -> "Settings"
-                                                AppRoutes.About -> "About"
-                                                else -> ""
-                                            },
-                                            modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-                                    }
-                                },
-                                navigationIcon = {
-                                    if (currentRoute != AppRoutes.DeviceList) {
-                                        IconButton(onClick = {
-                                            if (currentRoute == AppRoutes.Settings) {
-                                                appViewModel.loadLibrary()
-                                            }
-                                            navController.popBackStack()
-                                        }) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                                contentDescription = "Back"
-                                            )
-                                        }
-                                    }
-                                },
-                                actions = {
-                                    if (currentRoute == AppRoutes.DeviceList) {
-                                        IconButton(onClick = { navController.navigate(AppRoutes.Settings) }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Settings,
-                                                contentDescription = "Settings"
-                                            )
-                                        }
-                                    }
-                                },
-                                colors = TopAppBarDefaults.topAppBarColors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        }
-                    }
+                    modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
                     val bottomPadding = if (currentTrackTitle != null) 64.dp else 0.dp
-                    val topPadding = if (currentRoute == AppRoutes.TrackList) 0.dp else innerPadding.calculateTopPadding()
                     NavHost(
                         navController = navController,
                         startDestination = AppRoutes.DeviceList,
                         modifier = Modifier.padding(
-                            top = topPadding,
+                            top = 0.dp,
                             start = innerPadding.calculateStartPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
                             end = innerPadding.calculateEndPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
                             bottom = bottomPadding + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -330,40 +261,115 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(AppRoutes.DeviceList) {
                             val bannerState by appViewModel.ripBannerState.collectAsStateWithLifecycle()
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                DeviceList(
-                                    viewModel = appViewModel,
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                                    bannerState = bannerState,
-                                    onNavigateToTrackList = {
-                                        navController.navigate(AppRoutes.TrackList)
-                                    },
-                                    onViewCd = {
-                                        navController.navigate(AppRoutes.TrackList)
-                                    }
-                                )
-                                LibrarySection(
-                                    viewModel = appViewModel,
-                                    modifier = Modifier.fillMaxWidth().weight(1f),
-                                    onAlbumClick = { album ->
-                                        appViewModel.selectAlbum(album.id, album.title)
-                                        navController.navigate(AppRoutes.TrackList)
-                                    }
-                                )
+                            Scaffold(
+                                modifier = Modifier.fillMaxSize(),
+                                topBar = {
+                                    TopAppBar(
+                                        title = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    color = Color(0xFF191C20),
+                                                    shape = MaterialTheme.shapes.small,
+                                                    modifier = Modifier.padding(end = 12.dp).size(32.dp)
+                                                ) {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.app_logo),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "",
+                                                    modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        },
+                                        actions = {
+                                            IconButton(onClick = { navController.navigate(AppRoutes.Settings) }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Settings,
+                                                    contentDescription = "Settings"
+                                                )
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = MaterialTheme.colorScheme.surface,
+                                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                }
+                            ) { scaffoldPadding ->
+                                Column(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
+                                    DeviceList(
+                                        viewModel = appViewModel,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                                        bannerState = bannerState,
+                                        onNavigateToTrackList = {
+                                            navController.navigate(AppRoutes.TrackList)
+                                        },
+                                        onViewCd = {
+                                            navController.navigate(AppRoutes.TrackList)
+                                        }
+                                    )
+                                    LibrarySection(
+                                        viewModel = appViewModel,
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        onAlbumClick = { album ->
+                                            appViewModel.selectAlbum(album.id, album.title)
+                                            navController.navigate(AppRoutes.TrackList)
+                                        }
+                                    )
+                                }
                             }
                         }
                         composable(AppRoutes.Settings) {
-                            SettingsScreen(
-                                driveOffsetRepository = driveOffsetRepository,
-                                settingsManager = settingsManager,
-                                viewModel = appViewModel,
-                                onNavigateToAbout = {
-                                    navController.navigate(AppRoutes.About)
-                                },
-                                onCalibrateOffsetClick = {
-                                    navController.navigate(AppRoutes.Calibration)
+                            Scaffold(
+                                modifier = Modifier.fillMaxSize(),
+                                topBar = {
+                                    TopAppBar(
+                                        title = {
+                                            Text(
+                                                text = "Settings",
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        },
+                                        navigationIcon = {
+                                            IconButton(onClick = {
+                                                appViewModel.loadLibrary()
+                                                navController.popBackStack()
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                    contentDescription = "Back"
+                                                )
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = MaterialTheme.colorScheme.surface,
+                                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
                                 }
-                            )
+                            ) { scaffoldPadding ->
+                                Box(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
+                                    SettingsScreen(
+                                        driveOffsetRepository = driveOffsetRepository,
+                                        settingsManager = settingsManager,
+                                        viewModel = appViewModel,
+                                        onNavigateToAbout = {
+                                            navController.navigate(AppRoutes.About)
+                                        },
+                                        onCalibrateOffsetClick = {
+                                            navController.navigate(AppRoutes.Calibration)
+                                        }
+                                    )
+                                }
+                            }
                         }
                         dialog(
                             route = AppRoutes.Calibration,
@@ -380,9 +386,39 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(AppRoutes.About) {
-                            AboutScreen(
-                                driveOffsetRepository = driveOffsetRepository
-                            )
+                            Scaffold(
+                                modifier = Modifier.fillMaxSize(),
+                                topBar = {
+                                    TopAppBar(
+                                        title = {
+                                            Text(
+                                                text = "About",
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        },
+                                        navigationIcon = {
+                                            IconButton(onClick = { navController.popBackStack() }) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                    contentDescription = "Back"
+                                                )
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = MaterialTheme.colorScheme.surface,
+                                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                }
+                            ) { scaffoldPadding ->
+                                Box(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
+                                    AboutScreen(
+                                        driveOffsetRepository = driveOffsetRepository
+                                    )
+                                }
+                            }
                         }
                         composable(AppRoutes.TrackList) {
                             TrackListScreen(
