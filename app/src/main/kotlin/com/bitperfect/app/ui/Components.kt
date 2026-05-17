@@ -742,70 +742,136 @@ fun LibrarySection(
                             }
                         }
                         item {
-                            if (aiMixesLoading && aiMixes.isEmpty()) {
-                                Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = Color.White)
+                            when {
+                                aiNanoUnsupported && aiMixes.isEmpty() -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                                    ) {
+                                        Text(
+                                            text = "AI Mixes require a supported device (Pixel 8+, Galaxy S24+)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.5f)
+                                        )
+                                    }
                                 }
-                            } else {
-                                val configuration = LocalConfiguration.current
-                                val screenWidth = configuration.screenWidthDp.dp
-                                val mixCardWidth = (screenWidth - 72.dp) / 2.2f
+                                aiMixError != null && aiMixes.isEmpty() -> {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Couldn't generate mixes",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                        Text(
+                                            text = aiMixError ?: "",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.4f),
+                                            maxLines = 3,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                        TextButton(onClick = { viewModel.retryAiMixes() }) {
+                                            Text("Retry", color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                                aiMixesLoading && aiMixes.isEmpty() -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(150.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            CircularProgressIndicator(color = Color.White)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Generating mixes...",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                    }
+                                }
+                                aiMixes.isNotEmpty() -> {
+                                    val configuration = LocalConfiguration.current
+                                    val screenWidth = configuration.screenWidthDp.dp
+                                    val mixCardWidth = (screenWidth - 72.dp) / 2.2f
 
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp),
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                                ) {
-                                    itemsIndexed(aiMixes) { index, mix ->
-                                        val accentColor = MixAccentColors[index % MixAccentColors.size]
-                                        Box(
-                                            modifier = Modifier
-                                                .width(mixCardWidth)
-                                                .aspectRatio(1f / 1.4f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(Color(0xFF1A1A1A))
-                                                .clickable { onMixClick(mix) }
-                                        ) {
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                                    ) {
+                                        itemsIndexed(aiMixes) { index, mix ->
+                                            val accentColor = MixAccentColors[index % MixAccentColors.size]
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .fillMaxHeight(0.5f)
-                                                    .background(
-                                                        brush = Brush.verticalGradient(
-                                                            colors = listOf(accentColor, Color.Transparent)
-                                                        )
-                                                    )
-                                            )
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(16.dp),
-                                                verticalArrangement = Arrangement.Bottom
+                                                    .width(mixCardWidth)
+                                                    .aspectRatio(1f / 1.4f)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(Color(0xFF1A1A1A))
+                                                    .clickable { onMixClick(mix) }
                                             ) {
-                                                Text(
-                                                    text = mix.name,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .fillMaxHeight(0.5f)
+                                                        .background(
+                                                            brush = Brush.verticalGradient(
+                                                                colors = listOf(accentColor, Color.Transparent)
+                                                            )
+                                                        )
                                                 )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = mix.description,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = Color.White.copy(alpha = 0.7f),
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text(
-                                                    text = "${mix.tracks.size} tracks",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White.copy(alpha = 0.5f)
-                                                )
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(16.dp),
+                                                    verticalArrangement = Arrangement.Bottom
+                                                ) {
+                                                    Text(
+                                                        text = mix.name,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = mix.description,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = Color.White.copy(alpha = 0.7f),
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Text(
+                                                        text = "${mix.tracks.size} tracks",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color.White.copy(alpha = 0.5f)
+                                                    )
+                                                }
                                             }
                                         }
+                                    }
+                                }
+                                else -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                                    ) {
+                                        Text(
+                                            text = "Mixes will appear here after your library is analysed",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.4f)
+                                        )
                                     }
                                 }
                             }

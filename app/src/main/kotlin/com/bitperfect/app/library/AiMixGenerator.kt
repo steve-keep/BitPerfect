@@ -115,7 +115,7 @@ class AiMixGenerator() {
         } catch (e: Exception) {
             println("AiMixGenerator generateMixes error: ${e::class.simpleName}: ${e.message}")
             e.printStackTrace()
-            emptyList()
+            throw e
         }
     }
 }

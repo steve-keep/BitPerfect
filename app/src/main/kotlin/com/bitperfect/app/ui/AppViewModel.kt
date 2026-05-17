@@ -520,6 +520,10 @@ open class AppViewModel(
                     if (result.isNotEmpty()) {
                         aiMixRepository.appendMixes(getApplication(), outputUri, result)
                         _aiMixes.value = aiMixRepository.getLatestMixes(getApplication(), outputUri)
+                    } else {
+                        if (_aiMixes.value.isEmpty()) {
+                            _aiMixError.value = "Nano couldn't generate mixes for this library. Try playing more tracks first."
+                        }
                     }
                 } catch (e: Exception) {
                     _aiMixError.value = e.message ?: "Failed to generate mixes"
