@@ -57,7 +57,7 @@ open class OutputRepository(
      * @param currentIndex     The currently playing index in that queue.
      */
     fun switchTo(target: OutputDevice, currentTracks: List<TrackInfo>, currentIndex: Int) {
-        scope.launch {
+        scope.launch(Dispatchers.Main) {
             switchMutex.withLock {
                 val positionMs = activeController.getPositionMs()
                 activeController.release()
