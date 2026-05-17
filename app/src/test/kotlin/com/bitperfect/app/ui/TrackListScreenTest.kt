@@ -99,4 +99,48 @@ class TrackListScreenTest {
         // Play text was removed when making it a circular button, check by content description
         composeTestRule.onNode(androidx.compose.ui.test.hasContentDescription("Play")).assertExists()
     }
+
+    @Test
+    fun trackListScreen_rendersAlbumHeader_withPauseButton_whenPlaying() {
+        val application = RuntimeEnvironment.getApplication()
+        val fakeFactory = object : com.bitperfect.app.player.PlayerRepository.MediaControllerFactory { override fun build(context: android.content.Context, token: androidx.media3.session.SessionToken) = com.google.common.util.concurrent.Futures.immediateFuture(org.mockito.Mockito.mock(androidx.media3.session.MediaController::class.java)) }
+        val playerRepo = com.bitperfect.app.player.PlayerRepository(application, fakeFactory)
+        val mockViewModel = AppViewModel(application, playerRepo, fakeOutputRepository(application, playerRepo))
+
+        // We need to inject tracks into the mockViewModel so it thinks they are playing
+        val trackListViewStateField = AppViewModel::class.java.getDeclaredField("_trackListViewState")
+        trackListViewStateField.isAccessible = true
+        (trackListViewStateField.get(mockViewModel) as kotlinx.coroutines.flow.MutableStateFlow<TrackListViewState?>).value = TrackListViewState(
+            title = "Test Album",
+            artistName = "Test Artist",
+            coverArtUrl = null,
+            tracks = listOf(
+                com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L)
+            ),
+            isCdMode = false
+        )
+
+        val isPlayingField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_isPlaying")
+        isPlayingField.isAccessible = true
+        (isPlayingField.get(playerRepo) as kotlinx.coroutines.flow.MutableStateFlow<Boolean>).value = true
+
+        val currentMediaIdField = com.bitperfect.app.player.PlayerRepository::class.java.getDeclaredField("_currentMediaId")
+        currentMediaIdField.isAccessible = true
+        (currentMediaIdField.get(playerRepo) as kotlinx.coroutines.flow.MutableStateFlow<String?>).value = "1"
+
+        composeTestRule.setContent {
+            com.bitperfect.app.ui.theme.BitPerfectTheme {
+                TrackListScreen(
+                    viewModel = mockViewModel,
+                    onShareRipInfo = {},
+                    onNavigateBack = {}
+                )
+            }
+        }
+
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNode(androidx.compose.ui.test.hasContentDescription("Pause")).assertExists()
+        composeTestRule.onNode(androidx.compose.ui.test.hasContentDescription("Play")).assertDoesNotExist()
+    }
 }

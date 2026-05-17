@@ -68,6 +68,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
@@ -168,6 +169,7 @@ fun AlbumHeader(
     isRipping: Boolean = false,
     overallProgress: Float = 0f,
     isFullyVerified: Boolean = false,
+    isAlbumPlaying: Boolean = false,
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {},
     onStopRipClick: () -> Unit = {},
@@ -298,8 +300,8 @@ fun AlbumHeader(
                             )
                         } else {
                             Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = "Play",
+                                if (isAlbumPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isAlbumPlaying) "Pause" else "Play",
                                 tint = Color.Black,
                                 modifier = Modifier.size(32.dp)
                             )

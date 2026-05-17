@@ -56,6 +56,7 @@ fun TrackListScreen(
     }
 
     val currentMediaId by viewModel.currentMediaId.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState()
     val ripStates by viewModel.ripStates.collectAsState()
     val tagsViewState by viewModel.tagsViewState.collectAsState()
 
@@ -161,6 +162,10 @@ fun TrackListScreen(
                         state.tracks.isNotEmpty() && state.tracks.all { it.isAccurateRipVerified }
                     }
 
+                    val isAlbumPlaying = remember(isPlaying, currentMediaId, state.tracks) {
+                        isPlaying && state.tracks.any { it.id.toString() == currentMediaId }
+                    }
+
                     Box(modifier = Modifier.graphicsLayer { this.alpha = albumHeaderAlpha }) {
                         AlbumHeader(
                             title = state.title,
@@ -171,8 +176,11 @@ fun TrackListScreen(
                             isRipping = isRipping,
                             overallProgress = overallProgress,
                             isFullyVerified = isFullyVerified,
+                            isAlbumPlaying = isAlbumPlaying,
                             onSaveClick = { viewModel.startRip() },
-                            onPlayClick = { viewModel.playAlbum(state.tracks) },
+                            onPlayClick = {
+                                if (isAlbumPlaying) viewModel.togglePlayPause() else viewModel.playAlbum(state.tracks)
+                            },
                             onStopRipClick = {
                                 showStopDialog = true
                             },
