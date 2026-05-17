@@ -92,8 +92,11 @@ open class PlayerRepository(
             _currentIndex.value = controller?.currentMediaItemIndex ?: 0
 
             mediaItem?.let { item ->
-                recordRecentlyPlayed(item)
-                updateSyncedLyrics(item)
+                scope.launch {
+                    kotlinx.coroutines.delay(500)
+                    recordRecentlyPlayed(item)
+                    updateSyncedLyrics(item)
+                }
             }
         }
 
@@ -312,8 +315,8 @@ open class PlayerRepository(
         }
 
         controller?.apply {
-            setMediaItems(mediaItems)
-            seekToDefaultPosition(index)
+            stop()
+            setMediaItems(mediaItems, index, androidx.media3.common.C.TIME_UNSET)
             prepare()
             play()
         }
