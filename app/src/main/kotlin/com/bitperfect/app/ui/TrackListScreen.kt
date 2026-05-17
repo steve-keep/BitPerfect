@@ -459,7 +459,7 @@ fun TrackListScreen(
                                         Icon(
                                             imageVector = Icons.Default.MoreVert,
                                             contentDescription = "More options",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                     DropdownMenu(
@@ -529,7 +529,7 @@ fun TrackListScreen(
                                     Icon(
                                         imageVector = Icons.Default.MoreVert,
                                         contentDescription = "More options",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = topBarAlpha)
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                                 DropdownMenu(
