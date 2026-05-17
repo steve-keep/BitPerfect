@@ -12,6 +12,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import kotlin.coroutines.resume
@@ -96,12 +97,16 @@ class AiMixGeneratorTest {
     }
 
     @Test
-    fun testGenerateMixesReturnsEmptyListOnFailure() = runTest {
+    fun testGenerateMixesRethrowsExceptionOnFailure() = runTest {
         coEvery { model.generateContent(any<String>()) } throws RuntimeException("Error")
 
         val generator = AiMixGenerator()
 
-        val mixes = generator.generateMixes(context, "Library Summary", emptyList())
-        assertTrue(mixes.isEmpty())
+        try {
+            generator.generateMixes(context, "Library Summary", emptyList())
+            fail("Expected RuntimeException")
+        } catch (e: RuntimeException) {
+            assertEquals("Error", e.message)
+        }
     }
 }
