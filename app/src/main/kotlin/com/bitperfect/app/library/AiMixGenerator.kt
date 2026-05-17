@@ -5,6 +5,7 @@ import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerateContentRequest
 import com.google.mlkit.genai.prompt.GenerateContentResponse
 import com.google.mlkit.genai.prompt.TextPart
+import com.google.mlkit.genai.common.FeatureStatus
 import org.json.JSONArray
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -16,9 +17,14 @@ class AiMixGenerator() {
     suspend fun isAvailable(context: Context): Boolean {
         return try {
             val model = Generation.getClient()
-            model.close()
-            true
+            try {
+                val status = model.checkStatus()
+                status == FeatureStatus.AVAILABLE
+            } finally {
+                model.close()
+            }
         } catch (e: Exception) {
+            println("AiMixGenerator isAvailable error: ${e::class.simpleName}: ${e.message}")
             false
         }
     }
@@ -107,7 +113,8 @@ class AiMixGenerator() {
             model.close()
             mixes
         } catch (e: Exception) {
-            println("AiMixGenerator error: ${e::class.simpleName}: ${e.message}")
+            println("AiMixGenerator generateMixes error: ${e::class.simpleName}: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }

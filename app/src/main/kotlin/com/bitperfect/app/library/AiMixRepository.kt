@@ -192,8 +192,12 @@ class AiMixRepository {
                                 try {
                                     val json = JSONObject(line!!)
                                     val artist = json.optString("artist", "")
-                                    val albumTitle = json.optString("albumTitle", "")
-                                    val trackTitle = json.optString("trackTitle", "")
+                                    val albumTitle = json.optString("albumTitle", "").ifBlank {
+                                        json.optString("album", "")
+                                    }
+                                    val trackTitle = json.optString("trackTitle", "").ifBlank {
+                                        json.optString("title", "")
+                                    }
                                     if (artist.isBlank() || albumTitle.isBlank() || trackTitle.isBlank()) continue
 
                                     val key = "$artist|$albumTitle|$trackTitle"

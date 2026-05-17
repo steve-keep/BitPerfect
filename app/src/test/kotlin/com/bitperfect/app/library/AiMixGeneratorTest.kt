@@ -41,6 +41,7 @@ class AiMixGeneratorTest {
 
     @Test
     fun testIsAvailableReturnsTrueWhenModelCreatedSuccessfully() = runTest {
+        coEvery { model.checkStatus() } returns com.google.mlkit.genai.common.FeatureStatus.AVAILABLE
         val generator = AiMixGenerator()
         val isAvail = generator.isAvailable(context)
         assertTrue(isAvail)
