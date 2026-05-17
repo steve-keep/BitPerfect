@@ -247,25 +247,37 @@ class PlaybackService : MediaLibraryService() {
                     }
                 } else {
                     val trackId = mediaItem.mediaId.toLongOrNull() ?: continue
-                    val foundTrack = libraryRepository.getTrack(trackId, settingsManager.outputFolderUri)
 
-                    if (foundTrack != null) {
-                        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
-                        val albumArtUri = if (foundTrack.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId) else null
-                        val resolvedItem = MediaItem.Builder()
-                            .setMediaId(mediaItem.mediaId)
-                            .setUri(uri)
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(foundTrack.title)
-                                    .setArtist(foundTrack.artist)
-                                    .setAlbumTitle(foundTrack.albumTitle)
-                                    .setTrackNumber(foundTrack.trackNumber)
-                                    .setArtworkUri(albumArtUri)
-                                    .build()
-                            )
-                            .build()
-                        resolvedItems.add(resolvedItem)
+                    if (mediaItem.mediaMetadata.title != null) {
+                        // Fast path: metadata already populated by PlayerRepository.
+                        // Just reattach the URI — skip all database and SAF lookups.
+                        val uri = ContentUris.withAppendedId(
+                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId
+                        )
+                        resolvedItems.add(mediaItem.buildUpon().setUri(uri).build())
+                    } else {
+                        // Slow path: bare mediaId from Android Auto browsing.
+                        // Must look up metadata from the library.
+                        val foundTrack = libraryRepository.getTrack(trackId, settingsManager.outputFolderUri)
+
+                        if (foundTrack != null) {
+                            val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
+                            val albumArtUri = if (foundTrack.albumId != -1L) ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), foundTrack.albumId) else null
+                            val resolvedItem = MediaItem.Builder()
+                                .setMediaId(mediaItem.mediaId)
+                                .setUri(uri)
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle(foundTrack.title)
+                                        .setArtist(foundTrack.artist)
+                                        .setAlbumTitle(foundTrack.albumTitle)
+                                        .setTrackNumber(foundTrack.trackNumber)
+                                        .setArtworkUri(albumArtUri)
+                                        .build()
+                                )
+                                .build()
+                            resolvedItems.add(resolvedItem)
+                        }
                     }
                 }
             }

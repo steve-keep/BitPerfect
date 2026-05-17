@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaSession
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.app.library.TrackInfo
@@ -106,6 +107,65 @@ class PlaybackServiceTest {
         assertEquals(5, resolvedItem?.mediaMetadata?.trackNumber)
         val expectedArtUri = Uri.parse("content://media/external/audio/albumart/$albumId")
         assertEquals(expectedArtUri, resolvedItem?.mediaMetadata?.artworkUri)
+    }
+
+    @Test
+    fun `onAddMediaItems uses fast path when metadata already populated`() {
+        val trackId = 123L
+        val albumId = 456L
+
+        val inputMediaItem = MediaItem.Builder()
+            .setMediaId(trackId.toString())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("Fast Path Track")
+                    .setArtist("Fast Path Artist")
+                    .setAlbumTitle("Fast Path Album")
+                    .setTrackNumber(7)
+                    .setArtworkUri(Uri.parse("content://media/external/audio/albumart/$albumId"))
+                    .build()
+            )
+            .build()
+
+        val innerClass = Class.forName("com.bitperfect.app.player.PlaybackService\$BrowseCallback")
+        val constructor = innerClass.getDeclaredConstructors()[0]
+        constructor.isAccessible = true
+        val callback = constructor.newInstance(playbackService)
+
+        val onAddMediaItemsMethod = callback::class.java.getDeclaredMethods().first { it.name == "onAddMediaItems" }
+        onAddMediaItemsMethod.isAccessible = true
+
+        val controllerInfoClass = MediaSession.ControllerInfo::class.java
+        val unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")
+        unsafeField.isAccessible = true
+        val unsafe = unsafeField.get(null)
+        val allocateInstance = unsafe.javaClass.getDeclaredMethod("allocateInstance", Class::class.java)
+        val dummyController = allocateInstance.invoke(unsafe, controllerInfoClass)
+
+        @Suppress("UNCHECKED_CAST")
+        val future = onAddMediaItemsMethod.invoke(
+            callback,
+            mock(MediaSession::class.java),
+            dummyController,
+            listOf(inputMediaItem)
+        ) as ListenableFuture<List<MediaItem>>?
+
+        val resultItems = future?.get()
+
+        // Verify libraryRepository.getTrack is NEVER called
+        org.mockito.Mockito.verify(mockLibraryRepository, org.mockito.Mockito.never()).getTrack(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any())
+
+        assertEquals(1, resultItems?.size)
+        val resolvedItem = resultItems?.get(0)
+        assertEquals(trackId.toString(), resolvedItem?.mediaId)
+        assertEquals("Fast Path Track", resolvedItem?.mediaMetadata?.title)
+        assertEquals("Fast Path Artist", resolvedItem?.mediaMetadata?.artist)
+        assertEquals("Fast Path Album", resolvedItem?.mediaMetadata?.albumTitle)
+        assertEquals(7, resolvedItem?.mediaMetadata?.trackNumber)
+        val expectedArtUri = Uri.parse("content://media/external/audio/albumart/$albumId")
+        assertEquals(expectedArtUri, resolvedItem?.mediaMetadata?.artworkUri)
+        val expectedExternalUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
+        assertEquals(expectedExternalUri, resolvedItem?.localConfiguration?.uri)
     }
 
     @Test
