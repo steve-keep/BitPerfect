@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -100,6 +101,33 @@ class MainActivity : ComponentActivity() {
         settingsManager = SettingsManager(this)
 
         setContent {
+            val context = androidx.compose.ui.platform.LocalContext.current
+
+            val bluetoothPermLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestMultiplePermissions()
+            ) {
+                // Open sheet regardless of grant outcome;
+                // OutputRepository handles the empty-list case gracefully.
+                appViewModel.openOutputDeviceSheet()
+            }
+
+            fun openOutputSheetWithPermissionCheck() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val needed = arrayOf(
+                        Manifest.permission.BLUETOOTH_CONNECT,
+                        Manifest.permission.BLUETOOTH_SCAN
+                    )
+                    val allGranted = needed.all {
+                        ContextCompat.checkSelfPermission(context, it) ==
+                            PackageManager.PERMISSION_GRANTED
+                    }
+                    if (allGranted) appViewModel.openOutputDeviceSheet()
+                    else bluetoothPermLauncher.launch(needed)
+                } else {
+                    appViewModel.openOutputDeviceSheet()
+                }
+            }
+
             LaunchedEffect(Unit) {
                 appViewModel.shareIntent.collect { intent ->
                     startActivity(Intent.createChooser(intent, "Share rip info"))
@@ -478,7 +506,7 @@ class MainActivity : ComponentActivity() {
                                 enabled = isControllerReady,
                                 isExternalOutput = isExternalOutput,
                                 onPlayPause = { appViewModel.togglePlayPause() },
-                                onOutputDeviceClick = { appViewModel.openOutputDeviceSheet() },
+                                onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
                                 onExpand = {
                                     coroutineScope.launch {
                                         bottomSheetScaffoldState.bottomSheetState.expand()
