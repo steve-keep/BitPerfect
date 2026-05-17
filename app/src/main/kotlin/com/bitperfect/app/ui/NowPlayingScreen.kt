@@ -427,16 +427,38 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
         val currentPosition = positionMs.coerceAtMost(durationMs)
         val remainingMs = durationMs - currentPosition
 
+        val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+
         androidx.compose.material3.Slider(
             value = currentPosition.toFloat(),
             valueRange = 0f..(durationMs.toFloat().coerceAtLeast(1f)),
             onValueChange = { viewModel.seekTo(it.toLong()) },
             modifier = Modifier.fillMaxWidth(),
+            interactionSource = interactionSource,
             colors = androidx.compose.material3.SliderDefaults.colors(
-                thumbColor = Color(0xFF1DB954),
-                activeTrackColor = Color(0xFF1DB954),
-                inactiveTrackColor = Color.DarkGray
-            )
+                thumbColor = Color.White,
+                activeTrackColor = Color.White,
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+            ),
+            thumb = {
+                androidx.compose.material3.SliderDefaults.Thumb(
+                    interactionSource = interactionSource,
+                    modifier = Modifier.size(12.dp),
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color.White
+                    )
+                )
+            },
+            track = { sliderState ->
+                androidx.compose.material3.SliderDefaults.Track(
+                    sliderState = sliderState,
+                    modifier = Modifier.height(2.dp),
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    )
+                )
+            }
         )
 
         Row(
