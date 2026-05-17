@@ -3,6 +3,7 @@ package com.bitperfect.app.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,10 +68,17 @@ fun LyricsCard(
             if (activeIndex >= 0) {
                 val viewportHeight = listState.layoutInfo.viewportSize.height
                 val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
-                val itemHeight = visibleItem?.size ?: 100 // Estimate if not visible
-                val beforeContentPadding = listState.layoutInfo.beforeContentPadding
-                val centerOffset = -(viewportHeight / 2) + (itemHeight / 2) + beforeContentPadding
-                listState.animateScrollToItem(index = activeIndex, scrollOffset = centerOffset)
+
+                if (visibleItem != null) {
+                    val itemCenter = visibleItem.offset + (visibleItem.size / 2)
+                    val distanceToCenter = itemCenter - (viewportHeight / 2)
+                    listState.animateScrollBy(distanceToCenter.toFloat())
+                } else {
+                    val itemHeight = 100 // Estimate if not visible
+                    val beforeContentPadding = listState.layoutInfo.beforeContentPadding
+                    val centerOffset = -(viewportHeight / 2) + (itemHeight / 2) + beforeContentPadding
+                    listState.animateScrollToItem(index = activeIndex, scrollOffset = centerOffset)
+                }
             }
         }
     }
@@ -80,10 +88,17 @@ fun LyricsCard(
         if (!userScrolling && activeIndex >= 0) {
             val viewportHeight = listState.layoutInfo.viewportSize.height
             val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
-            val itemHeight = visibleItem?.size ?: 100 // Estimate if not visible
-            val beforeContentPadding = listState.layoutInfo.beforeContentPadding
-            val centerOffset = -(viewportHeight / 2) + (itemHeight / 2) + beforeContentPadding
-            listState.animateScrollToItem(index = activeIndex, scrollOffset = centerOffset)
+
+            if (visibleItem != null) {
+                val itemCenter = visibleItem.offset + (visibleItem.size / 2)
+                val distanceToCenter = itemCenter - (viewportHeight / 2)
+                listState.animateScrollBy(distanceToCenter.toFloat())
+            } else {
+                val itemHeight = 100 // Estimate if not visible
+                val beforeContentPadding = listState.layoutInfo.beforeContentPadding
+                val centerOffset = -(viewportHeight / 2) + (itemHeight / 2) + beforeContentPadding
+                listState.animateScrollToItem(index = activeIndex, scrollOffset = centerOffset)
+            }
         }
     }
 
