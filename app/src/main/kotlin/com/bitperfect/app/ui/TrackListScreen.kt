@@ -31,6 +31,15 @@ import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.RipStatus
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.graphicsLayer
+import coil.compose.AsyncImage
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import kotlinx.coroutines.launch
+import com.bitperfect.app.ui.theme.TextSecondary
 
 private fun numberToWord(n: Int): String {
     val words = arrayOf("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
@@ -492,6 +501,72 @@ fun TrackListScreen(
                             }
                         }
                         HorizontalDivider(color = Color(0x14FFFFFF))
+                    }
+                }
+
+                if (state.otherAlbums.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 24.dp)
+                        ) {
+                            Text(
+                                text = "Other albums by ${state.artistName}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                            )
+                            val configuration = LocalConfiguration.current
+                            val screenWidth = configuration.screenWidthDp.dp
+                            val albumWidth = (screenWidth - 48.dp) / 2.5f
+
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(state.otherAlbums) { album ->
+                                    val coroutineScope = rememberCoroutineScope()
+                                    Column(
+                                        modifier = Modifier
+                                            .width(albumWidth)
+                                            .clickable {
+                                                coroutineScope.launch {
+                                                    listState.scrollToItem(0)
+                                                }
+                                                viewModel.selectAlbum(album.id, album.title)
+                                            }
+                                    ) {
+                                        AsyncImage(
+                                            model = album.artUri,
+                                            contentDescription = "Album Art",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(albumWidth)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color.DarkGray)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = album.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = state.artistName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             } // Close LazyColumn here

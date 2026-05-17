@@ -65,7 +65,8 @@ data class TrackListViewState(
     val artistName: String,
     val coverArtUrl: String?,
     val tracks: List<TrackInfo>,
-    val isCdMode: Boolean
+    val isCdMode: Boolean,
+    val otherAlbums: List<com.bitperfect.app.library.AlbumInfo> = emptyList()
 )
 
 data class RipBannerState(
@@ -585,11 +586,13 @@ open class AppViewModel(
 
         var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
         var foundArtistName = ""
+        var otherAlbums = emptyList<com.bitperfect.app.library.AlbumInfo>()
         for (artist in artists) {
             val album = artist.albums.find { it.id == albumId }
             if (album != null) {
                 foundAlbum = album
                 foundArtistName = artist.name
+                otherAlbums = artist.albums.filter { it.id != albumId }
                 break
             }
         }
@@ -602,7 +605,8 @@ open class AppViewModel(
             artistName = foundArtistName,
             coverArtUrl = coverArtUrl,
             tracks = albumTracks,
-            isCdMode = false
+            isCdMode = false,
+            otherAlbums = otherAlbums
         )
     }
 
