@@ -272,7 +272,6 @@ class MainActivity : ComponentActivity() {
                     },
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
-                    val bottomPadding = if (currentTrackTitle != null) 64.dp else 0.dp
                     NavHost(
                         navController = navController,
                         startDestination = AppRoutes.DeviceList,
@@ -280,7 +279,7 @@ class MainActivity : ComponentActivity() {
                             top = 0.dp,
                             start = innerPadding.calculateStartPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
                             end = innerPadding.calculateEndPadding(layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current),
-                            bottom = bottomPadding + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                            bottom = innerPadding.calculateBottomPadding()
                         ).fillMaxSize(),
                         enterTransition = { slideInHorizontally { width -> width } + fadeIn() },
                         exitTransition = { slideOutHorizontally { width -> -width } + fadeOut() },
