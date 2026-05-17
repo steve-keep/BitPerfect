@@ -25,6 +25,9 @@
 
     <uses-feature android:name="android.hardware.usb.host" />
     <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
+    <uses-feature
+        android:name="android.software.ml_inference"
+        android:required="false" />
 
     <application
         android:name=".BitPerfectApplication"
@@ -35,6 +38,10 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.BitPerfect.Starting">
+        <meta-data
+            android:name="com.google.mlkit.genai.prompt"
+            android:value="genai_prompt" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

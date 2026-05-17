@@ -478,7 +478,9 @@ open class AppViewModel(
             val now = System.currentTimeMillis()
 
             if (forceRegenerate || lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
-                if (!aiMixGenerator.isAvailable(getApplication())) {
+                val available = aiMixGenerator.isAvailable(getApplication())
+                println("AiMixGenerator: isAvailable=$available")
+                if (!available) {
                     _aiNanoUnsupported.value = true
                     return
                 }
@@ -486,7 +488,9 @@ open class AppViewModel(
                 _aiMixesLoading.value = true
 
                 val summary = aiMixRepository.buildLibrarySummary(getApplication(), outputUri)
+                println("AiMixGenerator: summary blank=${summary.isBlank()}, length=${summary.length}")
                 if (summary.isBlank()) {
+                    println("AiMixGenerator: no tracks in JSONL files — skipping generation")
                     _aiMixesLoading.value = false
                     return
                 }
