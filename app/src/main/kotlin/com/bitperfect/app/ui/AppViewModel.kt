@@ -687,13 +687,17 @@ open class AppViewModel(
     fun playAlbum(tracks: List<TrackInfo>) {
         _playingTracks.value = tracks
         playerRepository.playAlbum(tracks)
-        outputRepository.play()
+        viewModelScope.launch {
+            outputRepository.play()
+        }
     }
 
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
         _playingTracks.value = tracks
         playerRepository.playTrack(tracks, index)
-        outputRepository.play()
+        viewModelScope.launch {
+            outputRepository.play()
+        }
     }
 
     fun playNext(track: TrackInfo) {
@@ -727,11 +731,15 @@ open class AppViewModel(
     }
 
     fun togglePlayPause() {
-        outputRepository.togglePlayPause(isPlaying.value)
+        viewModelScope.launch {
+            outputRepository.togglePlayPause(isPlaying.value)
+        }
     }
 
     fun seekTo(ms: Long) {
-        outputRepository.seekTo(ms)
+        viewModelScope.launch {
+            outputRepository.seekTo(ms)
+        }
     }
 
     fun skipNext() {

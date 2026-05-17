@@ -35,16 +35,12 @@ open class OutputRepository(
     // --- Playback delegation ---
     // AppViewModel calls these instead of PlayerRepository directly.
 
-    fun play() { scope.launch { switchMutex.withLock { activeController.play() } } }
-    fun pause() { scope.launch { switchMutex.withLock { activeController.pause() } } }
-    fun togglePlayPause(isPlaying: Boolean) {
-        scope.launch {
-            switchMutex.withLock {
-                if (isPlaying) activeController.pause() else activeController.play()
-            }
-        }
+    open suspend fun play() = activeController.play()
+    open suspend fun pause() = activeController.pause()
+    open suspend fun togglePlayPause(isPlaying: Boolean) {
+        if (isPlaying) activeController.pause() else activeController.play()
     }
-    fun seekTo(positionMs: Long) { scope.launch { switchMutex.withLock { activeController.seekTo(positionMs) } } }
+    open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
 
     // --- Device switching ---
 

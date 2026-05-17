@@ -15,10 +15,11 @@ fun fakeOutputRepository(application: Application, playerRepository: PlayerRepos
         override val activeDevice: StateFlow<OutputDevice> = MutableStateFlow(OutputDevice.ThisPhone).asStateFlow()
         override val availableDevices: StateFlow<List<OutputDevice>> = MutableStateFlow(listOf<OutputDevice>()).asStateFlow()
 
-
-
-
-
-
+        override suspend fun play() { playerRepository.play() }
+        override suspend fun pause() { playerRepository.pause() }
+        override suspend fun togglePlayPause(isPlaying: Boolean) {
+            if (isPlaying) playerRepository.pause() else playerRepository.play()
+        }
+        override suspend fun seekTo(positionMs: Long) { playerRepository.seekTo(positionMs) }
     }
 }
