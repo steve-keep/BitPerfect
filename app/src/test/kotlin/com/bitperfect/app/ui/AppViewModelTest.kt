@@ -33,6 +33,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.After
 import org.junit.Test
@@ -53,10 +54,13 @@ class AppViewModelTest {
     private lateinit var mockDriveStatusFlow: MutableStateFlow<DriveStatus>
     private var originalDriveStatusFlow: StateFlow<DriveStatus>? = null
 
+    private val testScheduler = kotlinx.coroutines.test.TestCoroutineScheduler()
+    private val testDispatcher = StandardTestDispatcher(testScheduler)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setup() {
-        Dispatchers.setMain(StandardTestDispatcher())
+        Dispatchers.setMain(testDispatcher)
         val application = ApplicationProvider.getApplicationContext<Application>()
         mockRepository = mock(PlayerRepository::class.java)
 
@@ -85,7 +89,7 @@ class AppViewModelTest {
         detectorField.set(DeviceStateManager, null)
 
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
-        viewModel = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
+        viewModel = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), testDispatcher, { mockLookupMusicBrainz(it) })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -107,7 +111,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testDiscMetadataPopulatedOnDiscReadyWithToc() = runTest {
+    fun testDiscMetadataPopulatedOnDiscReadyWithToc() = runTest(testScheduler) {
         val dummyToc = DiscToc(emptyList(), 10)
         val dummyMetadata = DiscMetadata("Album", "Artist", emptyList(), "mbid")
 
@@ -157,7 +161,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testDiscMetadataResetsToNullOnNoDrive() = runTest {
+    fun testDiscMetadataResetsToNullOnNoDrive() = runTest(testScheduler) {
         val dummyToc = DiscToc(emptyList(), 10)
         val dummyMetadata = DiscMetadata("Album", "Artist", emptyList(), "mbid")
 
@@ -207,7 +211,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testDiscMetadataStaysNullOnDiscReadyNullToc() = runTest {
+    fun testDiscMetadataStaysNullOnDiscReadyNullToc() = runTest(testScheduler) {
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.discMetadata.collect {}
         }
@@ -223,7 +227,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testCurrentTrackTitleResolution() = runTest {
+    fun testCurrentTrackTitleResolution() = runTest(testScheduler) {
         val tracks = listOf(
             TrackInfo(1L, "First Song", 1, 1000L, 1, 100L),
             TrackInfo(2L, "Second Song", 2, 2000L, 1, 100L)
@@ -292,7 +296,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testSelectAlbumAndLoadTracks() = runTest {
+    fun testSelectAlbumAndLoadTracks() = runTest(testScheduler) {
         // Set an initial track list state
         viewModel._trackListViewState.value = TrackListViewState(
             title = "Old Album",
@@ -303,9 +307,6 @@ class AppViewModelTest {
         )
 
         // Call selectAlbum which should clear the tracks immediately before loading new ones
-        // We pause the dispatcher to prevent loadTracks from immediately populating it again
-        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.test.StandardTestDispatcher(testScheduler))
-
         viewModel.selectAlbum(123L, "Test Album")
 
         assertEquals(123L, viewModel.selectedAlbumId.value)
@@ -314,7 +315,11 @@ class AppViewModelTest {
         // Verify that the track state was cleared synchronously by selectAlbum
         assertEquals(null, viewModel.trackListViewState.value)
 
-        kotlinx.coroutines.Dispatchers.resetMain()
+        // Advance dispatcher to let loadTracks execute
+        advanceUntilIdle()
+
+        // Now assert the loaded state is non-null
+        assertNotNull(viewModel.trackListViewState.value)
     }
 
     @Test
@@ -331,7 +336,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testRipBannerState_VisibleWhenRipping() = runTest {
+    fun testRipBannerState_VisibleWhenRipping() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipSession.getInstance(application)
 
@@ -362,7 +367,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testRipBannerState_CountsCompletedTracksCorrectly() = runTest {
+    fun testRipBannerState_CountsCompletedTracksCorrectly() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipSession.getInstance(application)
 
@@ -397,7 +402,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testRipBannerState_CalculatesOverallProgress() = runTest {
+    fun testRipBannerState_CalculatesOverallProgress() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipSession.getInstance(application)
 
@@ -429,7 +434,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testRipBannerState_UpdatesOnMetadataAndArtwork() = runTest {
+    fun testRipBannerState_UpdatesOnMetadataAndArtwork() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipSession.getInstance(application)
 
@@ -475,7 +480,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testRipBannerState_VisibleAfterRipCompletes() = runTest {
+    fun testRipBannerState_VisibleAfterRipCompletes() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipSession.getInstance(application)
 
@@ -541,7 +546,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testShareRipInfo_withNonWarningTrack_isNoOp() = runTest {
+    fun testShareRipInfo_withNonWarningTrack_isNoOp() = runTest(testScheduler) {
         viewModel._ripStates.value = mapOf(
             1 to TrackRipState(
                 trackNumber = 1,
@@ -562,7 +567,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testShareRipInfo_withWarningTrack_emitsCorrectIntent() = runTest {
+    fun testShareRipInfo_withWarningTrack_emitsCorrectIntent() = runTest(testScheduler) {
         val accurateRipUrl = "http://accuraterip.com/path"
         val computedChecksum = 0x12345678L
         val expectedChecksums = listOf(0x87654321L, 0xABCDEF01L)
@@ -620,7 +625,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testShareRipInfo_withUnknownTrackNumber_isNoOp() = runTest {
+    fun testShareRipInfo_withUnknownTrackNumber_isNoOp() = runTest(testScheduler) {
         viewModel._ripStates.value = emptyMap()
 
         val emissions = mutableListOf<android.content.Intent>()
