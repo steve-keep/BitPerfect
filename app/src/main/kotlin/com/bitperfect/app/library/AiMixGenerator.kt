@@ -1,30 +1,44 @@
 package com.bitperfect.app.library
 
 import android.content.Context
-import com.google.ai.client.generativeai.GenerativeModel
+import com.google.mlkit.genai.prompt.Generation
+import com.google.mlkit.genai.prompt.GenerateContentRequest
+import com.google.mlkit.genai.prompt.GenerateContentResponse
+import com.google.mlkit.genai.prompt.TextPart
 import org.json.JSONArray
-import com.google.ai.client.generativeai.type.generationConfig
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.guava.await
 
-class AiMixGenerator(private val context: Context) {
+class AiMixGenerator() {
 
-    suspend fun isAvailable(): Boolean {
+    suspend fun isAvailable(context: Context): Boolean {
         return try {
+            val model = Generation.getClient()
+            model.close()
             true
         } catch (e: Exception) {
             false
         }
     }
 
-    suspend fun generateMixes(librarySummary: String, availableTracks: List<AiMixTrack>): List<AiMix> {
+    suspend fun generateMixes(
+        context: Context,
+        librarySummary: String,
+        availableTracks: List<AiMixTrack>
+    ): List<AiMix> {
         return try {
             val prompt = """
-                You are a music curator for an audiophile. Based on the following music library, create 5
-                interesting and varied playlists. Be creative with the names and descriptions — surprise the user.
-                Consider energy flow, harmonic compatibility (Camelot keys), genre, era, and mood.
+                You are a music curator for an audiophile. Based on the following music library,
+                create 5 interesting and varied playlists. Be creative with the names and
+                descriptions — surprise the user. Consider energy flow, harmonic compatibility
+                (Camelot keys), genre, era, and mood.
 
                 $librarySummary
 
-                Respond ONLY with a JSON array. No preamble, no explanation, no markdown. Each element:
+                Respond ONLY with a JSON array. No preamble, no explanation, no markdown.
+                Each element:
                 {
                   "name": "Creative mix name",
                   "description": "One sentence describing the vibe",
@@ -39,15 +53,12 @@ class AiMixGenerator(private val context: Context) {
                 - At least one mix should focus on AccurateRip verified tracks only
             """.trimIndent()
 
-            val config = generationConfig {
-                temperature = 0.8f
-                maxOutputTokens = 2048
-            }
-            val model = GenerativeModel("gemini-pro", "DUMMY_API_KEY", generationConfig = config)
-            val response = model.generateContent(prompt)
-            var text = response.text ?: return emptyList()
+            val model = Generation.getClient()
 
-            // Strip any markdown fences
+            val response = model.generateContent(prompt) as GenerateContentResponse
+
+            var text: String = response.candidates.firstOrNull()?.text ?: return emptyList()
+
             text = text.trim()
             if (text.startsWith("```json")) {
                 text = text.substring("```json".length)
@@ -93,8 +104,10 @@ class AiMixGenerator(private val context: Context) {
                     )
                 }
             }
+            model.close()
             mixes
         } catch (e: Exception) {
+            println("AiMixGenerator error: ${e::class.simpleName}: ${e.message}")
             emptyList()
         }
     }
