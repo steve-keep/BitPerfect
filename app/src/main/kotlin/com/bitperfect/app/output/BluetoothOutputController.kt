@@ -2,6 +2,7 @@ package com.bitperfect.app.output
 
 import android.content.Context
 import android.media.AudioManager
+import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 
 class BluetoothOutputController(
@@ -29,10 +30,13 @@ class BluetoothOutputController(
         playerRepository.seekTo(positionMs)
     }
 
-    override suspend fun takeOver(mediaIds: List<String>, startIndex: Int, startPositionMs: Long) {
+    override suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
         // Android routes A2DP automatically when the BT device is the active audio output.
         // No explicit routing call needed here for phase 1 — MediaSession + AVRCP handles it.
-        playerRepository.setQueueAndPlay(mediaIds, startIndex, startPositionMs)
+        playerRepository.playTrack(tracks, startIndex)
+        if (startPositionMs > 0) {
+            playerRepository.seekTo(startPositionMs)
+        }
     }
 
     override suspend fun release() {

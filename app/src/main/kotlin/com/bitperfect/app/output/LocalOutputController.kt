@@ -1,5 +1,6 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 
 class LocalOutputController(
@@ -21,8 +22,11 @@ class LocalOutputController(
         playerRepository.seekTo(positionMs)
     }
 
-    override suspend fun takeOver(mediaIds: List<String>, startIndex: Int, startPositionMs: Long) {
-        playerRepository.setQueueAndPlay(mediaIds, startIndex, startPositionMs)
+    override suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
+        playerRepository.playTrack(tracks, startIndex)
+        if (startPositionMs > 0) {
+            playerRepository.seekTo(startPositionMs)
+        }
     }
 
     override suspend fun release() {

@@ -1,5 +1,7 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.app.library.TrackInfo
+
 /**
  * Contract for any playback output target.
  * Implementations: LocalOutputController, BluetoothOutputController, UpnpOutputController (future).
@@ -19,11 +21,11 @@ interface OutputController {
      * Hand off a new queue to this controller and start playback.
      * Called by OutputRepository when switching to this device.
      *
-     * @param mediaIds  Ordered list of media IDs matching PlayerRepository's queue format.
-     * @param startIndex  Index within mediaIds to start playing.
+     * @param tracks  Ordered list of tracks matching PlayerRepository's queue format.
+     * @param startIndex  Index within tracks to start playing.
      * @param startPositionMs  Position within the track to seek to before playing.
      */
-    suspend fun takeOver(mediaIds: List<String>, startIndex: Int, startPositionMs: Long)
+    suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long)
 
     /**
      * Release resources (e.g. disconnect BT profile proxy, stop HTTP server).

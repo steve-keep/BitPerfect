@@ -138,9 +138,9 @@ open class AppViewModel(
     }
 
     fun selectOutputDevice(device: OutputDevice) {
-        val mediaIds = upNextQueue.value.map { it.mediaId }
+        val tracks = _playingTracks.value
         val index = currentQueueIndex.value
-        outputRepository.switchTo(device, mediaIds, index)
+        outputRepository.switchTo(device, tracks, index)
         _showOutputSheet.value = false
     }
 
@@ -686,17 +686,15 @@ open class AppViewModel(
 
     fun playAlbum(tracks: List<TrackInfo>) {
         _playingTracks.value = tracks
-        playerRepository.playAlbum(tracks)
         viewModelScope.launch {
-            outputRepository.play()
+            outputRepository.takeOverAndPlay(tracks, 0)
         }
     }
 
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
         _playingTracks.value = tracks
-        playerRepository.playTrack(tracks, index)
         viewModelScope.launch {
-            outputRepository.play()
+            outputRepository.takeOverAndPlay(tracks, index)
         }
     }
 

@@ -517,7 +517,7 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testPlaybackDelegates() {
+    fun testPlaybackDelegates() = runTest(testScheduler) {
         // AppViewModel delegates play/pause/seek to OutputRepository now,
         // and skips to PlayerRepository. We need to verify against mockRepository
         // for skips, and because we use fakeOutputRepository which delegates
@@ -526,12 +526,16 @@ class AppViewModelTest {
         val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
 
         viewModel.playAlbum(tracks)
-        verify(mockRepository).playAlbum(tracks)
-
-        viewModel.playTrack(tracks, 0)
+        advanceUntilIdle()
+        // fakeOutputRepository maps takeOverAndPlay(tracks, 0) to playTrack(tracks, 0)
         verify(mockRepository).playTrack(tracks, 0)
 
+        viewModel.playTrack(tracks, 0)
+        advanceUntilIdle()
+        verify(mockRepository, org.mockito.Mockito.times(2)).playTrack(tracks, 0)
+
         viewModel.togglePlayPause()
+        advanceUntilIdle()
         // Our fakeOutputRepository doesn't track state, so togglePlayPause
         // usually checks if playing then delegates. For test sake, we
         // assume it forwards to activeController which is LocalOutputController.
