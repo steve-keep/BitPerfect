@@ -170,7 +170,6 @@ fun AlbumHeader(
     isFullyVerified: Boolean = false,
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit = {},
-    onAddToQueueClick: (() -> Unit)? = null,
     onStopRipClick: () -> Unit = {},
     dominantColor: Color = Color(0xFF141414),
     onColorExtracted: (Color) -> Unit = {}
@@ -277,56 +276,33 @@ fun AlbumHeader(
                 }
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    IconButton(
                         onClick = if (isCdMode) onSaveClick else onPlayClick,
-                        enabled = true,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.Black,
-                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                        ),
-                        modifier = Modifier.fillMaxWidth(0.5f).height(56.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
                     ) {
                         if (isCdMode) {
-                            Icon(Icons.Default.Download, contentDescription = "Save Disc")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Save Disc", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = "Save Disc",
+                                tint = Color.Black,
+                                modifier = Modifier.size(32.dp)
+                            )
                         } else {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Play")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Play", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    if (!isCdMode && onAddToQueueClick != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        var showMenu by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { showMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    contentDescription = "More options",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Add to Queue") },
-                                    onClick = {
-                                        onAddToQueueClick()
-                                        showMenu = false
-                                    }
-                                )
-                            }
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color.Black,
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
                     }
                 }

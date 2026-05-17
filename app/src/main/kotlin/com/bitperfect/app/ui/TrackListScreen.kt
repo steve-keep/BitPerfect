@@ -173,7 +173,6 @@ fun TrackListScreen(
                             isFullyVerified = isFullyVerified,
                             onSaveClick = { viewModel.startRip() },
                             onPlayClick = { viewModel.playAlbum(state.tracks) },
-                            onAddToQueueClick = { viewModel.addAlbumToQueue(state.tracks) },
                             onStopRipClick = {
                                 showStopDialog = true
                             },
@@ -512,6 +511,32 @@ fun TrackListScreen(
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        if (!state.isCdMode) {
+                            var showMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { showMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More options",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = topBarAlpha)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Add to Queue") },
+                                        onClick = {
+                                            viewModel.addAlbumToQueue(state.tracks)
+                                            showMenu = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
