@@ -571,7 +571,7 @@ fun LibrarySection(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp)
+                contentPadding = PaddingValues(bottom = 0.dp)
             ) {
                 item {
                     OutlinedTextField(
