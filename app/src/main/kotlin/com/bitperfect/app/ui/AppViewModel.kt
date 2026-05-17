@@ -89,7 +89,7 @@ open class AppViewModel(
         ItunesArtworkRepository(application).fetchItunesArtwork(artist, album)
     },
     private val aiMixRepository: AiMixRepository = AiMixRepository(),
-    private val aiMixGenerator: AiMixGenerator = AiMixGenerator(application)
+    private val aiMixGenerator: AiMixGenerator = AiMixGenerator()
 ) : AndroidViewModel(application) {
 
     private val settingsManager = SettingsManager(application)
@@ -99,6 +99,12 @@ open class AppViewModel(
 
     private val _aiMixesLoading = MutableStateFlow(false)
     val aiMixesLoading: StateFlow<Boolean> = _aiMixesLoading.asStateFlow()
+
+    private val _aiMixError = MutableStateFlow<String?>(null)
+    val aiMixError: StateFlow<String?> = _aiMixError.asStateFlow()
+
+    private val _aiNanoUnsupported = MutableStateFlow(false)
+    val aiNanoUnsupported: StateFlow<Boolean> = _aiNanoUnsupported.asStateFlow()
 
     private val accurateRipService = AccurateRipService()
 
@@ -459,13 +465,23 @@ open class AppViewModel(
         }
     }
 
-    private suspend fun checkAndRegenerateMixes(outputUri: String?) {
+    fun retryAiMixes() {
+        viewModelScope.launch(ioDispatcher) {
+            _aiMixError.value = null
+            checkAndRegenerateMixes(settingsManager.outputFolderUri, forceRegenerate = true)
+        }
+    }
+
+    private suspend fun checkAndRegenerateMixes(outputUri: String?, forceRegenerate: Boolean = false) {
         try {
             val lastGeneratedAt = aiMixRepository.getLastGeneratedAt(getApplication(), outputUri)
             val now = System.currentTimeMillis()
 
-            if (lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
-                if (!aiMixGenerator.isAvailable()) return
+            if (forceRegenerate || lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
+                if (!aiMixGenerator.isAvailable(getApplication())) {
+                    _aiNanoUnsupported.value = true
+                    return
+                }
 
                 _aiMixesLoading.value = true
 
@@ -495,16 +511,21 @@ open class AppViewModel(
                     }
                 }
 
-                val result = aiMixGenerator.generateMixes(summary, availableTracks)
-                if (result.isNotEmpty()) {
-                    aiMixRepository.appendMixes(getApplication(), outputUri, result)
-                    _aiMixes.value = aiMixRepository.getLatestMixes(getApplication(), outputUri)
+                try {
+                    val result = aiMixGenerator.generateMixes(getApplication(), summary, availableTracks)
+                    if (result.isNotEmpty()) {
+                        aiMixRepository.appendMixes(getApplication(), outputUri, result)
+                        _aiMixes.value = aiMixRepository.getLatestMixes(getApplication(), outputUri)
+                    }
+                } catch (e: Exception) {
+                    _aiMixError.value = e.message ?: "Failed to generate mixes"
+                } finally {
+                    _aiMixesLoading.value = false
                 }
-
-                _aiMixesLoading.value = false
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            _aiMixError.value = e.message ?: "Failed to generate mixes"
             _aiMixesLoading.value = false
         }
     }

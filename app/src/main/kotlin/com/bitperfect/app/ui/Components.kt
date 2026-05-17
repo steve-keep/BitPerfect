@@ -548,6 +548,8 @@ fun LibrarySection(
     val latestRippedAlbums by viewModel.latestRippedAlbums.collectAsState()
     val aiMixes by viewModel.aiMixes.collectAsState()
     val aiMixesLoading by viewModel.aiMixesLoading.collectAsState()
+    val aiMixError by viewModel.aiMixError.collectAsState()
+    val aiNanoUnsupported by viewModel.aiNanoUnsupported.collectAsState()
 
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -722,7 +724,7 @@ fun LibrarySection(
                     }
 
 
-                    if (searchQuery.isBlank() && (aiMixes.isNotEmpty() || aiMixesLoading)) {
+                    if (searchQuery.isBlank() && (aiMixes.isNotEmpty() || aiMixesLoading || aiMixError != null || aiNanoUnsupported)) {
                         stickyHeader(key = "mixes_header") {
                             Box(
                                 modifier = Modifier
