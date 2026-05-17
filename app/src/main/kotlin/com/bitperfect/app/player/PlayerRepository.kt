@@ -291,11 +291,13 @@ open class PlayerRepository(
         controller = null
     }
 
-    open fun playAlbum(tracks: List<TrackInfo>) {
+    @androidx.annotation.VisibleForTesting
+    internal open fun playAlbum(tracks: List<TrackInfo>) {
         playTrack(tracks, 0)
     }
 
-    open fun playTrack(tracks: List<TrackInfo>, index: Int) {
+    @androidx.annotation.VisibleForTesting
+    internal open fun playTrack(tracks: List<TrackInfo>, index: Int) {
         val mediaItems = tracks.map { track ->
             val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
             val albumArtUri = if (track.albumId != -1L) ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), track.albumId) else null
@@ -394,8 +396,8 @@ open class PlayerRepository(
                 val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toLong())
                 MediaItem.Builder().setUri(uri).setMediaId(id).build()
             }
-            c.setMediaItems(mediaItems)
-            c.seekTo(startIndex, startPositionMs)
+            c.stop()
+            c.setMediaItems(mediaItems, startIndex, startPositionMs)
             c.prepare()
             c.play()
         }

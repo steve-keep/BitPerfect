@@ -3,6 +3,7 @@ package com.bitperfect.app.output
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,10 @@ open class OutputRepository(
     // --- Playback delegation ---
     // AppViewModel calls these instead of PlayerRepository directly.
 
+    open suspend fun takeOverAndPlay(tracks: List<TrackInfo>, startIndex: Int) {
+        activeController.takeOver(tracks, startIndex, 0L)
+    }
+
     open suspend fun play() = activeController.play()
     open suspend fun pause() = activeController.pause()
     open suspend fun togglePlayPause(isPlaying: Boolean) {
@@ -48,10 +53,10 @@ open class OutputRepository(
      * Switch active output to [target]. Captures current position from the active
      * controller before tearing it down, then hands off queue + position to the new one.
      *
-     * @param currentMediaIds  The current play queue (from AppViewModel state).
+     * @param currentTracks    The current play queue (from AppViewModel state).
      * @param currentIndex     The currently playing index in that queue.
      */
-    fun switchTo(target: OutputDevice, currentMediaIds: List<String>, currentIndex: Int) {
+    fun switchTo(target: OutputDevice, currentTracks: List<TrackInfo>, currentIndex: Int) {
         scope.launch {
             switchMutex.withLock {
                 val positionMs = activeController.getPositionMs()
@@ -66,7 +71,7 @@ open class OutputRepository(
                         throw UnsupportedOperationException("UPnP controller not yet implemented")
                 }
 
-                newController.takeOver(currentMediaIds, currentIndex, positionMs)
+                newController.takeOver(currentTracks, currentIndex, positionMs)
                 activeController = newController
                 _activeDevice.value = target
             }
