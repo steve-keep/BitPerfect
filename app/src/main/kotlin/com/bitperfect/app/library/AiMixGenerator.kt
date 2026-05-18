@@ -6,25 +6,77 @@ import com.google.mlkit.genai.prompt.GenerateContentRequest
 import com.google.mlkit.genai.prompt.GenerateContentResponse
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.common.FeatureStatus
+import com.google.mlkit.genai.common.DownloadStatus
 import org.json.JSONArray
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.guava.await
 
+enum class NanoStatus {
+    AVAILABLE,
+    DOWNLOADING,
+    DOWNLOADABLE,
+    UNAVAILABLE
+}
+
 class AiMixGenerator() {
 
-    suspend fun isAvailable(context: Context): Boolean {
+    suspend fun checkNanoStatus(): NanoStatus {
         return try {
             val model = Generation.getClient()
             try {
-                val status = model.checkStatus()
-                status == FeatureStatus.AVAILABLE
+                when (model.checkStatus()) {
+                    FeatureStatus.AVAILABLE -> NanoStatus.AVAILABLE
+                    FeatureStatus.DOWNLOADABLE -> NanoStatus.DOWNLOADABLE
+                    FeatureStatus.DOWNLOADING -> NanoStatus.DOWNLOADING
+                    else -> NanoStatus.UNAVAILABLE
+                }
             } finally {
                 model.close()
             }
         } catch (e: Exception) {
-            println("AiMixGenerator isAvailable error: ${e::class.simpleName}: ${e.message}")
+            println("AiMixGenerator checkNanoStatus error: ${e::class.simpleName}: ${e.message}")
+            NanoStatus.UNAVAILABLE
+        }
+    }
+
+    suspend fun isAvailable(context: Context): Boolean = checkNanoStatus() == NanoStatus.AVAILABLE
+
+    /**
+     * Triggers download if DOWNLOADABLE. Collects progress via the provided callback.
+     * Returns true if download completed successfully, false otherwise.
+     */
+    suspend fun downloadNano(onProgress: (bytesDownloaded: Long) -> Unit = {}): Boolean {
+        return try {
+            val model = Generation.getClient()
+            var success = false
+            try {
+                model.download().collect { status ->
+                    when (status) {
+                        is DownloadStatus.DownloadStarted -> {
+                            println("AiMixGenerator: Nano download started")
+                        }
+                        is DownloadStatus.DownloadProgress -> {
+                            println("AiMixGenerator: Nano download ${status.totalBytesDownloaded} bytes")
+                            onProgress(status.totalBytesDownloaded)
+                        }
+                        is DownloadStatus.DownloadCompleted -> {
+                            println("AiMixGenerator: Nano download complete")
+                            success = true
+                        }
+                        is DownloadStatus.DownloadFailed -> {
+                            println("AiMixGenerator: Nano download failed: ${status.e.message}")
+                            success = false
+                        }
+                    }
+                }
+            } finally {
+                model.close()
+            }
+            success
+        } catch (e: Exception) {
+            println("AiMixGenerator downloadNano error: ${e::class.simpleName}: ${e.message}")
             false
         }
     }

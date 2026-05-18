@@ -527,6 +527,7 @@ fun LibrarySection(
     val aiMixesLoading by viewModel.aiMixesLoading.collectAsState()
     val aiMixError by viewModel.aiMixError.collectAsState()
     val aiNanoUnsupported by viewModel.aiNanoUnsupported.collectAsState()
+    val nanoDownloadProgress by viewModel.nanoDownloadProgress.collectAsState()
 
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -701,7 +702,7 @@ fun LibrarySection(
                     }
 
 
-                    if (searchQuery.isBlank() && (aiMixes.isNotEmpty() || aiMixesLoading || aiMixError != null || aiNanoUnsupported)) {
+                    if (searchQuery.isBlank() && (aiMixes.isNotEmpty() || aiMixesLoading || aiMixError != null || aiNanoUnsupported || nanoDownloadProgress != null)) {
                         stickyHeader(key = "mixes_header") {
                             Box(
                                 modifier = Modifier
@@ -728,6 +729,34 @@ fun LibrarySection(
                                             text = "AI Mixes require a supported device (Pixel 8+, Galaxy S24+)",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = Color.White.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                                nanoDownloadProgress != null && aiMixes.isEmpty() -> {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                                    ) {
+                                        Text(
+                                            text = "Downloading AI model...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                        val mb = (nanoDownloadProgress ?: 0L) / (1024 * 1024)
+                                        Text(
+                                            text = "${mb} MB downloaded",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.4f),
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                        androidx.compose.material3.LinearProgressIndicator(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 8.dp)
+                                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            trackColor = Color.White.copy(alpha = 0.1f)
                                         )
                                     }
                                 }
