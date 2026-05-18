@@ -25,7 +25,7 @@ class DiscIdUtilsTest {
         )
         val toc = DiscToc(tracks = tracks, leadOutLba = 247632)
         val discId = computeMusicBrainzDiscId(toc)
-        org.junit.Assert.assertEquals("Tvqqw5l80pQjX4aHX6gZEMSw6O4-", discId)
+        org.junit.Assert.assertEquals("KVH9hRP8qRxGDHlc6GRCFWGh_wo-", discId)
     }
 
     @Test
@@ -47,7 +47,7 @@ class DiscIdUtilsTest {
         )
         val toc = DiscToc(tracks = tracks, leadOutLba = 276265)
         val discId = computeMusicBrainzDiscId(toc)
-        org.junit.Assert.assertEquals("QPBiWO7V9EgTpVA69ooCea20__0-", discId)
+        org.junit.Assert.assertEquals("n9R9CLr6a9FBBTqB_Vsk9CYIhfQ-", discId)
     }
 
     @Test
@@ -66,7 +66,34 @@ class DiscIdUtilsTest {
         )
         val toc = DiscToc(tracks = tracks, leadOutLba = 247632)
         val tocString = computeMusicBrainzTocString(toc)
-        org.junit.Assert.assertEquals("1+10+247782+300+24938+43446+66647+88060+106748+126275+146116+174729+197017", tocString)
+        org.junit.Assert.assertEquals("1+10+247632+150+24788+43296+66497+87910+106598+126125+145966+174579+196867", tocString)
+    }
+
+    @Test
+    fun debugReportFixture_calculatesAllIdsCorrectly() {
+        val tracks = listOf(
+            TocEntry(trackNumber = 1, lba = 150),
+            TocEntry(trackNumber = 2, lba = 31198),
+            TocEntry(trackNumber = 3, lba = 52868),
+            TocEntry(trackNumber = 4, lba = 80115),
+            TocEntry(trackNumber = 5, lba = 91290),
+            TocEntry(trackNumber = 6, lba = 122980),
+            TocEntry(trackNumber = 7, lba = 146928),
+            TocEntry(trackNumber = 8, lba = 166415),
+            TocEntry(trackNumber = 9, lba = 176298),
+            TocEntry(trackNumber = 10, lba = 193385)
+        )
+        val toc = DiscToc(tracks = tracks, leadOutLba = 233745)
+
+        val mbId = computeMusicBrainzDiscId(toc)
+        org.junit.Assert.assertEquals("mW3Rj1CEhQgkx5LnlEpLZlnmEeQ-", mbId)
+
+        val mbTocString = computeMusicBrainzTocString(toc)
+        org.junit.Assert.assertEquals("1+10+233745+150+31198+52868+80115+91290+122980+146928+166415+176298+193385", mbTocString)
+
+        val arIds = computeAccurateRipDiscId(toc)
+        org.junit.Assert.assertEquals("0013bd9a", String.format("%08x", arIds.id1))
+        org.junit.Assert.assertEquals("009b4c30", String.format("%08x", arIds.id2))
     }
 
     @Test
