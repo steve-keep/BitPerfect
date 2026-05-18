@@ -151,6 +151,7 @@ open class AppViewModel(
         val tracks = _playingTracks.value
         val index = currentQueueIndex.value
         outputRepository.switchTo(device, tracks, index)
+        outputRepository.userSelectedDevice = device
         _showOutputSheet.value = false
     }
 

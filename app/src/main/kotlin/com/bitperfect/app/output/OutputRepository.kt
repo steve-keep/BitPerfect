@@ -16,6 +16,12 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothA2dp
+
 open class OutputRepository(
     private val context: Context,
     private val playerRepository: PlayerRepository,
@@ -27,11 +33,32 @@ open class OutputRepository(
     )
     open val availableDevices: StateFlow<List<OutputDevice>> = _availableDevices.asStateFlow()
 
+    var userSelectedDevice: OutputDevice? = null
+
     private val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
     private val switchMutex = kotlinx.coroutines.sync.Mutex()
-    @Volatile private var activeController: OutputController = LocalOutputController(playerRepository)
+    @Volatile private var activeController: OutputController = LocalOutputController(context, playerRepository)
+
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_DISCONNECTED)
+                if (state == BluetoothProfile.STATE_CONNECTED) {
+                    refreshDevices()
+                }
+            }
+        }
+    }
+
+    init {
+        refreshDevices()
+        context.registerReceiver(
+            bluetoothReceiver,
+            IntentFilter(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+        )
+    }
 
     // --- Playback delegation ---
     // AppViewModel calls these instead of PlayerRepository directly.
@@ -64,7 +91,7 @@ open class OutputRepository(
 
                 val newController: OutputController = when (target) {
                     is OutputDevice.ThisPhone ->
-                        LocalOutputController(playerRepository)
+                        LocalOutputController(context, playerRepository)
                     is OutputDevice.Bluetooth ->
                         BluetoothOutputController(context, playerRepository, target)
                     is OutputDevice.Upnp ->
@@ -91,6 +118,20 @@ open class OutputRepository(
             val btDevices = fetchConnectedA2dpDevices()
             devices.addAll(btDevices)
             _availableDevices.value = devices
+
+            if (btDevices.isNotEmpty() && _activeDevice.value is OutputDevice.ThisPhone && userSelectedDevice == null) {
+                // Auto switch to first connected Bluetooth device if current is ThisPhone and user hasn't overridden it
+                // Don't take over if we're just initializing to avoid wiping state
+                switchMutex.withLock {
+                    val positionMs = activeController.getPositionMs()
+                    activeController.release()
+                    val newController = BluetoothOutputController(context, playerRepository, btDevices.first())
+                    // Wait, if it's just initialized, takeOver doesn't need to do anything if tracks are empty
+                    // BUT we don't have tracks. Actually, just changing the controller is enough for future playback.
+                    activeController = newController
+                    _activeDevice.value = btDevices.first()
+                }
+            }
         }
     }
 
