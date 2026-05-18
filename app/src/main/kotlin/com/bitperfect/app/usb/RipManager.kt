@@ -65,7 +65,7 @@ class RipManager(
     initialTracks: List<Int>
 ) {
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
-        toc.tracks.associate { it.trackNumber to TrackRipState(it.trackNumber) }
+        toc.tracks.associate { it.trackNumber to TrackRipState(trackNumber = it.trackNumber, discNumber = metadata.discNumber ?: 1) }
     )
     val trackStates: StateFlow<Map<Int, TrackRipState>> = _trackStates
 
@@ -486,7 +486,7 @@ class RipManager(
         durationSeconds: Double? = null
     ) {
         val currentStates = _trackStates.value.toMutableMap()
-        val existingState = currentStates[trackNumber] ?: TrackRipState(trackNumber)
+        val existingState = currentStates[trackNumber] ?: TrackRipState(trackNumber = trackNumber, discNumber = metadata.discNumber ?: 1)
 
         currentStates[trackNumber] = existingState.copy(
             progress = progress,
