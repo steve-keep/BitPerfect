@@ -28,6 +28,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.layout.ContentScale
@@ -674,11 +676,14 @@ fun LibrarySection(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(
-                                                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                                            .drawBehind {
+                                                drawRect(
+                                                    brush = Brush.horizontalGradient(
+                                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                                                    ),
+                                                    blendMode = BlendMode.ColorBurn
                                                 )
-                                            )
+                                            }
                                     )
 
                                     // Foreground content
