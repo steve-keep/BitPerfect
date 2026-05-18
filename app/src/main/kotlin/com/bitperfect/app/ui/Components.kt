@@ -74,6 +74,11 @@ import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.blur
 import coil.compose.SubcomposeAsyncImage
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 
 @OptIn(ExperimentalFoundationApi::class)
 
@@ -187,13 +192,43 @@ fun AlbumHeader(
                 }
             )
             Spacer(modifier = Modifier.height(24.dp))
+            val verifiedIconId = "verified_icon"
+            val textToDisplay = buildAnnotatedString {
+                append(title)
+                if (isFullyVerified && !isCdMode) {
+                    append(" ")
+                    appendInlineContent(verifiedIconId, "[icon]")
+                }
+            }
+
+            val inlineContent = mapOf(
+                Pair(
+                    verifiedIconId,
+                    InlineTextContent(
+                        Placeholder(
+                            width = 24.sp,
+                            height = 24.sp,
+                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Verified,
+                            contentDescription = "AccurateRip Verified",
+                            tint = com.bitperfect.app.ui.theme.VerificationGreen,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                )
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = title,
+                    text = textToDisplay,
+                    inlineContent = inlineContent,
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
@@ -202,15 +237,6 @@ fun AlbumHeader(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                if (isFullyVerified && !isCdMode) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Filled.Verified,
-                        contentDescription = "AccurateRip Verified",
-                        tint = com.bitperfect.app.ui.theme.VerificationGreen,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
