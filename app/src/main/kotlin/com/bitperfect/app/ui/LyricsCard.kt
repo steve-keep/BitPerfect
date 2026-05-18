@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,13 +86,21 @@ fun LyricsCard(
     var userScrolling by remember { mutableStateOf(false) }
 
     // ── Finger-lift → resume-auto-scroll timer ───────────────────────────────
+    // Whenever isDragged or isFingerDown transitions to false we start (or
+    // restart) the 3-second timer. If either goes true again we just flip
+    // userScrolling back on immediately (the LaunchedEffect for those states
+    // handles that).
     LaunchedEffect(isDragged, isFingerDown) {
         if (isDragged || isFingerDown) {
+            // Finger is on-screen — make sure userScrolling is set and kill
+            // any running timer coroutine (this effect restarts on each change).
             userScrolling = true
         } else {
+            // Both are false — start the 3-second grace period.
             userScrolling = true
             delay(3_000)
             userScrolling = false
+            // Snap back to the active line once the grace period ends.
             scrollToActive(listState, activeIndex, viewportHeight)
         }
     }
@@ -117,9 +125,12 @@ fun LyricsCard(
     Box(
         modifier = modifier
             .fillMaxSize()
+            // Capture viewport height for centering calculations.
             .onGloballyPositioned { coords ->
                 viewportHeight = coords.size.height
             }
+            // Detect raw finger press/release so we can suppress auto-scroll
+            // even during a slow, non-fling touch.
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -139,6 +150,8 @@ fun LyricsCard(
                     drawContent()
                     drawRect(brush = fadeBrush, blendMode = BlendMode.DstIn)
                 },
+            // Large vertical padding so the first and last lines can be
+            // centred in the viewport rather than pinned to the edges.
             contentPadding = PaddingValues(vertical = 400.dp)
         ) {
             itemsIndexed(lrcLines) { index, line ->
@@ -178,6 +191,13 @@ fun LyricsCard(
 /**
  * Smoothly scrolls [listState] so that the item at [activeIndex] is vertically
  * centred within the [viewportHeight]-pixel viewport.
+ *
+ * Strategy:
+ *  1. If the item is already in the visible item list we can compute the exact
+ *     pixel distance to the centre and use [androidx.compose.foundation.gestures.animateScrollBy].
+ *  2. If the item is off-screen we jump to it with [LazyListState.animateScrollToItem],
+ *     using a negative scrollOffset so the item lands at the centre rather than
+ *     the top of the viewport.
  */
 private suspend fun scrollToActive(
     listState: androidx.compose.foundation.lazy.LazyListState,
@@ -189,6 +209,7 @@ private suspend fun scrollToActive(
     val visibleItem = listState.layoutInfo.visibleItemsInfo.find { it.index == activeIndex }
 
     if (visibleItem != null) {
+        // Item is on-screen — scroll by the exact pixel delta to centre it.
         val itemCenter = visibleItem.offset + visibleItem.size / 2
         val delta = itemCenter - viewportHeight / 2
         listState.animateScrollBy(
@@ -196,12 +217,19 @@ private suspend fun scrollToActive(
             animationSpec = tween(durationMillis = 400)
         )
     } else {
+        // Item is off-screen — jump to it, then centre.
+        // scrollOffset is the number of pixels *past* the top of the item
+        // at which the viewport top should sit, so a negative value of
+        // -(viewportHeight/2 - itemHeight/2) centres it.
+        // We don't know the exact item height yet, so we use the average
+        // visible item height as an approximation.
         val avgItemHeight = listState.layoutInfo.visibleItemsInfo
             .takeIf { it.isNotEmpty() }
             ?.let { items -> items.sumOf { it.size } / items.size }
-            ?: 120
+            ?: 120 // fallback estimate
 
-        val centreOffset = -(viewportHeight / 2) + avgItemHeight / 2 +
+        val centreOffset =
+ -(viewportHeight / 2) + avgItemHeight / 2 +
             listState.layoutInfo.beforeContentPadding
 
         listState.animateScrollToItem(

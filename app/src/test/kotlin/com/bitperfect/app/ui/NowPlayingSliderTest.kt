@@ -11,6 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.height
@@ -39,7 +40,7 @@ class NowPlayingSliderTest {
                 ),
                 thumb = {
                     SliderDefaults.Thumb(
-                        interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource(),
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         modifier = Modifier.size(12.dp)
                     )
                 },
