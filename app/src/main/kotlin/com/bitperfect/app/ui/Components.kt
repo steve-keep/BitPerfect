@@ -451,7 +451,10 @@ fun DeviceList(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, Color(0xFF2A2A2A)),
-                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToTrackList() }
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        viewModel.viewCdTracks()
+                        onNavigateToTrackList()
+                    }
                 ) {
                     RipProgressContent(
                         bannerState = bannerState
