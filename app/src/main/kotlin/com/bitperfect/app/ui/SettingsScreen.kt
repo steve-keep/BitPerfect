@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -333,7 +334,8 @@ fun SettingsScreen(
                             Text(
                                 text = "Send Debug Info",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.testTag("SendDebugInfoTitle")
                             )
                             Text(
                                 text = "Share drive information for troubleshooting",
