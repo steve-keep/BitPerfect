@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothAudio
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -28,17 +30,30 @@ import com.bitperfect.app.ui.theme.VerificationGreen
 fun OutputDeviceSheet(
     devices: List<OutputDevice>,
     activeDevice: OutputDevice,
+    isDiscovering: Boolean = false,
     onDeviceSelected: (OutputDevice) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Connect",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 16.dp)
-        )
+        Row(
+            modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 16.dp, end = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Connect",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            if (isDiscovering) {
+                Spacer(modifier = Modifier.width(8.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+            }
+        }
 
         devices.forEach { device ->
             val isActive = device == activeDevice
@@ -54,7 +69,7 @@ fun OutputDeviceSheet(
                     val icon = when (device) {
                         is OutputDevice.ThisPhone -> Icons.Default.PhoneAndroid
                         is OutputDevice.Bluetooth -> Icons.Default.BluetoothAudio
-                        is OutputDevice.Upnp -> Icons.Default.PhoneAndroid // Fallback
+                        is OutputDevice.Upnp -> Icons.Default.Speaker
                     }
 
                     Icon(
@@ -90,6 +105,12 @@ fun OutputDeviceSheet(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.5f)
                             )
+                        } else if (device is OutputDevice.Upnp) {
+                            Text(
+                                text = "Wi-Fi · FLAC lossless",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
                         }
                     }
                 }
@@ -106,6 +127,17 @@ fun OutputDeviceSheet(
             } else {
                 rowContent()
             }
+        }
+
+        if (isDiscovering && devices.none { it is OutputDevice.Upnp }) {
+            Text(
+                text = "Scanning for speakers on Wi-Fi…",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+            )
         }
     }
 }

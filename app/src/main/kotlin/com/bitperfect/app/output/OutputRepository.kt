@@ -38,6 +38,10 @@ open class OutputRepository(
     private val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
+    private val wiimDiscovery = WiimDiscovery(context)
+    private val _isDiscovering = MutableStateFlow(false)
+    open val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
+
     private val switchMutex = kotlinx.coroutines.sync.Mutex()
     @Volatile private var activeController: OutputController = LocalOutputController(context, playerRepository)
 
@@ -95,7 +99,7 @@ open class OutputRepository(
                     is OutputDevice.Bluetooth ->
                         BluetoothOutputController(context, playerRepository, target)
                     is OutputDevice.Upnp ->
-                        throw UnsupportedOperationException("UPnP controller not yet implemented")
+                        WiimOutputController(context, target)
                 }
 
                 newController.takeOver(currentTracks, currentIndex, positionMs)
@@ -131,6 +135,16 @@ open class OutputRepository(
                     activeController = newController
                     _activeDevice.value = btDevices.first()
                 }
+            }
+
+            try {
+                _isDiscovering.value = true
+                val wiimDevices = wiimDiscovery.discover()
+                val updatedDevices = _availableDevices.value.toMutableList()
+                updatedDevices.addAll(wiimDevices)
+                _availableDevices.value = updatedDevices
+            } finally {
+                _isDiscovering.value = false
             }
         }
     }
