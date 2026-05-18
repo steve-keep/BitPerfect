@@ -315,7 +315,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxSize(),
                                 contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.navigationBars),
                                 topBar = {
-                                    TopAppBar(
+                                    CenterAlignedTopAppBar(
                                         title = {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Surface(
@@ -347,7 +347,7 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             }
                                         },
-                                        colors = TopAppBarDefaults.topAppBarColors(
+                                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                             containerColor = MaterialTheme.colorScheme.surface,
                                             titleContentColor = MaterialTheme.colorScheme.onSurface,
                                             navigationIconContentColor = MaterialTheme.colorScheme.onSurface
