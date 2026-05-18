@@ -46,7 +46,7 @@ fun LyricsCard(
     var activeIndex by remember { mutableStateOf(-1) }
 
     LaunchedEffect(positionMs, lrcLines) {
-        val newIndex = lrcLines.indexOfLast { it.timestampMs <= positionMs }
+        val newIndex = lrcLines.indexOfLast { it.timestampMs <= positionMs + 500L }
         if (newIndex != activeIndex) {
             activeIndex = newIndex
         }
