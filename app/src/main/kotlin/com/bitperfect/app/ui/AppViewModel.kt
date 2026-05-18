@@ -108,6 +108,9 @@ open class AppViewModel(
     private val _aiNanoUnsupported = MutableStateFlow(false)
     val aiNanoUnsupported: StateFlow<Boolean> = _aiNanoUnsupported.asStateFlow()
 
+    private val _nanoDebugStatus = MutableStateFlow<String>("Checking...")
+    val nanoDebugStatus: StateFlow<String> = _nanoDebugStatus.asStateFlow()
+
     private val _nanoDownloadProgress = MutableStateFlow<Long?>(null)
     val nanoDownloadProgress: StateFlow<Long?> = _nanoDownloadProgress.asStateFlow()
 
@@ -487,6 +490,10 @@ open class AppViewModel(
             val now = System.currentTimeMillis()
 
             if (forceRegenerate || lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
+                val debugStatus = aiMixGenerator.getDebugStatus()
+                _nanoDebugStatus.value = debugStatus
+                println("AiMixGenerator debug: $debugStatus")
+
                 when (aiMixGenerator.checkNanoStatus()) {
                     NanoStatus.AVAILABLE -> {
                         // proceed with generation as normal
@@ -517,6 +524,7 @@ open class AppViewModel(
                     }
                     NanoStatus.UNAVAILABLE -> {
                         _aiNanoUnsupported.value = true
+                        // nanoDebugStatus already set above
                         return
                     }
                 }

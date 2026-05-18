@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -531,6 +532,7 @@ fun LibrarySection(
     val aiMixError by viewModel.aiMixError.collectAsState()
     val aiNanoUnsupported by viewModel.aiNanoUnsupported.collectAsState()
     val nanoDownloadProgress by viewModel.nanoDownloadProgress.collectAsState()
+    val nanoDebugStatus by viewModel.nanoDebugStatus.collectAsState()
 
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -723,16 +725,33 @@ fun LibrarySection(
                         item {
                             when {
                                 aiNanoUnsupported && aiMixes.isEmpty() -> {
-                                    Box(
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
                                     ) {
                                         Text(
                                             text = "AI Mixes require a supported device (Pixel 8+, Galaxy S24+)",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = Color.White.copy(alpha = 0.5f)
                                         )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        // Debug info box — shows raw status so we can diagnose issues
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF1A1A1A)
+                                        ) {
+                                            SelectionContainer {
+                                                Text(
+                                                    text = nanoDebugStatus,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White.copy(alpha = 0.6f),
+                                                    modifier = Modifier.padding(8.dp),
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                                 nanoDownloadProgress != null && aiMixes.isEmpty() -> {
