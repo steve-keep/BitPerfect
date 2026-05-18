@@ -743,7 +743,7 @@ fun LibrarySection(
                             ) {
                                 Text(
                                     "Mixes",
-                                    style = MaterialTheme.typography.titleLarge,
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
