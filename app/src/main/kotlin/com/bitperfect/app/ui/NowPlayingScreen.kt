@@ -146,7 +146,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
 
                 if (upcomingItems.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No upcoming tracks", color = Color.Gray)
+                        Text("No upcoming tracks", color = Color.White.copy(alpha = 0.5f))
                     }
                 } else {
                     val lazyListState = rememberLazyListState()
@@ -245,7 +245,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                                 Text(
                                                     text = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
                                                     style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color.Gray,
+                                                    color = Color.White.copy(alpha = 0.5f),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -260,7 +260,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                                 Icon(
                                                     imageVector = Icons.Default.DragHandle,
                                                     contentDescription = "Reorder",
-                                                    tint = Color.Gray
+                                                    tint = Color.White.copy(alpha = 0.5f)
                                                 )
                                             }
                                         }

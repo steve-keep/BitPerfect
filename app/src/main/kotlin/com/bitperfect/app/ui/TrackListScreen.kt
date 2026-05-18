@@ -285,7 +285,7 @@ fun TrackListScreen(
                                                 Icon(
                                                     imageVector = Icons.Filled.RemoveCircle,
                                                     contentDescription = "Unverified",
-                                                    tint = Color.Gray,
+                                                    tint = Color.White.copy(alpha = 0.5f),
                                                     modifier = Modifier.size(32.dp)
                                                 )
                                             }
@@ -330,7 +330,7 @@ fun TrackListScreen(
                                         val statusColor = when (ripState.status) {
                                             RipStatus.SUCCESS -> MaterialTheme.colorScheme.primary
                                             RipStatus.WARNING -> Color(0xFFFFC107)
-                                            RipStatus.UNVERIFIED -> Color.Gray
+                                            RipStatus.UNVERIFIED -> Color.White.copy(alpha = 0.5f)
                                             RipStatus.ERROR -> Color(0xFFF44336)
                                             else -> MaterialTheme.colorScheme.onSurface
                                         }
