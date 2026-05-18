@@ -41,6 +41,9 @@
         <meta-data
             android:name="com.google.mlkit.genai.prompt"
             android:value="genai_prompt" />
+        <uses-library
+            android:name="com.google.android.aicore"
+            android:required="false" />
 
         <activity
             android:name=".MainActivity"
