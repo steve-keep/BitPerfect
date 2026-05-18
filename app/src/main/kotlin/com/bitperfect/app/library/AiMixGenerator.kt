@@ -41,6 +41,27 @@ class AiMixGenerator() {
         }
     }
 
+    suspend fun getDebugStatus(): String {
+        return try {
+            val model = Generation.getClient()
+            try {
+                val statusCode = model.checkStatus()
+                val statusName = when (statusCode) {
+                    FeatureStatus.AVAILABLE -> "AVAILABLE"
+                    FeatureStatus.DOWNLOADABLE -> "DOWNLOADABLE"
+                    FeatureStatus.DOWNLOADING -> "DOWNLOADING"
+                    FeatureStatus.UNAVAILABLE -> "UNAVAILABLE"
+                    else -> "UNKNOWN($statusCode)"
+                }
+                "checkStatus() = $statusName (raw=$statusCode)"
+            } finally {
+                model.close()
+            }
+        } catch (e: Exception) {
+            "EXCEPTION: ${e::class.qualifiedName}: ${e.message}\nCause: ${e.cause?.message}"
+        }
+    }
+
     suspend fun isAvailable(context: Context): Boolean = checkNanoStatus() == NanoStatus.AVAILABLE
 
     /**
