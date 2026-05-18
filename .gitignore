@@ -17,8 +17,12 @@ local.properties
 # OS
 .DS_Store
 
-# Temporary files
+# Patch and diff files
 *.patch
+*.rej
+*.diff
+
+# Temporary files
 *.temp
 *.tmp
 *.orig
