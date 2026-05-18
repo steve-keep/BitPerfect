@@ -3,7 +3,21 @@ package com.bitperfect.core.services
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-@Serializable data class MbDiscIdResponse(val releases: List<MbRelease> = emptyList())
+@Serializable
+data class MbDiscWrapper(
+    val id: String,
+    val releases: List<MbRelease> = emptyList()
+)
+
+@Serializable
+data class MbDiscIdResponse(
+    val disc: MbDiscWrapper? = null,
+    val releases: List<MbRelease> = emptyList()
+) {
+    /** Returns releases from whichever shape this response used. */
+    fun resolvedReleases(): List<MbRelease> =
+        disc?.releases?.takeIf { it.isNotEmpty() } ?: releases
+}
 
 @Serializable data class MbRelease(
     val id: String,

@@ -149,9 +149,9 @@ class MusicBrainzRepository(private val context: Context) {
     }
 
     private fun mapToMetadata(response: MbDiscIdResponse, queryDiscId: String): DiscMetadata? {
-        if (response.releases.isEmpty()) return null
+        if (response.resolvedReleases().isEmpty()) return null
 
-        val release = response.releases.maxByOrNull { release ->
+        val release = response.resolvedReleases().maxByOrNull { release ->
             var score = 0
             // Exact disc ID match is the strongest signal
             if (release.media.any { m -> m.discs.any { d -> d.id == queryDiscId } }) score += 100
