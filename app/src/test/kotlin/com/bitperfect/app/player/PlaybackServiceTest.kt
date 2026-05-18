@@ -277,17 +277,22 @@ class PlaybackServiceTest {
         val result = future?.get()
         val items = result?.value
 
-        assertEquals(2, items?.size)
+        assertEquals(3, items?.size)
 
-        assertEquals("recent_albums", items?.get(0)?.mediaId)
-        assertEquals("Recently Played", items?.get(0)?.mediaMetadata?.title)
+        assertEquals("recent_added", items?.get(0)?.mediaId)
+        assertEquals("Recently Added", items?.get(0)?.mediaMetadata?.title)
         assertEquals(true, items?.get(0)?.mediaMetadata?.isBrowsable)
         assertEquals(false, items?.get(0)?.mediaMetadata?.isPlayable)
 
-        assertEquals("all_albums", items?.get(1)?.mediaId)
-        assertEquals("All Albums", items?.get(1)?.mediaMetadata?.title)
+        assertEquals("recent_albums", items?.get(1)?.mediaId)
+        assertEquals("Recently Played", items?.get(1)?.mediaMetadata?.title)
         assertEquals(true, items?.get(1)?.mediaMetadata?.isBrowsable)
         assertEquals(false, items?.get(1)?.mediaMetadata?.isPlayable)
+
+        assertEquals("all_albums", items?.get(2)?.mediaId)
+        assertEquals("All Albums", items?.get(2)?.mediaMetadata?.title)
+        assertEquals(true, items?.get(2)?.mediaMetadata?.isBrowsable)
+        assertEquals(false, items?.get(2)?.mediaMetadata?.isPlayable)
 
         @Suppress("UNCHECKED_CAST")
         val futureAllAlbums = onGetChildrenMethod.invoke(
@@ -309,7 +314,7 @@ class PlaybackServiceTest {
         assertEquals("album_3", itemsAllAlbums?.get(0)?.mediaId)
         assertEquals("Banana", itemsAllAlbums?.get(0)?.mediaMetadata?.title)
         assertEquals("Artist A", itemsAllAlbums?.get(0)?.mediaMetadata?.subtitle)
-        assertEquals(false, itemsAllAlbums?.get(0)?.mediaMetadata?.isBrowsable)
+        assertEquals(true, itemsAllAlbums?.get(0)?.mediaMetadata?.isBrowsable)
         assertEquals(true, itemsAllAlbums?.get(0)?.mediaMetadata?.isPlayable)
 
         assertEquals("album_2", itemsAllAlbums?.get(1)?.mediaId)

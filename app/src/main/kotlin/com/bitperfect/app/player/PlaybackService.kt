@@ -113,6 +113,18 @@ class PlaybackService : MediaLibraryService() {
                         putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
                     }
 
+                    val recentlyAddedItem = MediaItem.Builder()
+                        .setMediaId("recent_added")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle("Recently Added")
+                                .setIsBrowsable(true)
+                                .setIsPlayable(false)
+                                .setExtras(folderExtras)
+                                .build()
+                        )
+                        .build()
+
                     val recentAlbumsItem = MediaItem.Builder()
                         .setMediaId("recent_albums")
                         .setMediaMetadata(
@@ -137,7 +149,30 @@ class PlaybackService : MediaLibraryService() {
                         )
                         .build()
 
-                    listOf(recentAlbumsItem, allAlbumsItem)
+                    listOf(recentlyAddedItem, recentAlbumsItem, allAlbumsItem)
+                }
+                "recent_added" -> {
+                    val recentAddedAlbums = libraryRepository.getLatestRippedAlbums(outputFolderUri)
+                    recentAddedAlbums.map { (artist, album) ->
+                        val albumExtras = Bundle().apply {
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                        }
+                        MediaItem.Builder()
+                            .setMediaId("album_${album.id}")
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(album.title)
+                                    .setSubtitle(artist.name)
+                                    .setArtist(artist.name)
+                                    .setArtworkUri(album.artUri)
+                                    .setIsBrowsable(true)
+                                    .setIsPlayable(true)
+                                    .setExtras(albumExtras)
+                                    .build()
+                            )
+                            .build()
+                    }
                 }
                 "recent_albums" -> {
                     val recentAlbums = libraryRepository.getRecentlyPlayedAlbums(outputFolderUri)
@@ -154,7 +189,7 @@ class PlaybackService : MediaLibraryService() {
                                     .setSubtitle(artist.name)
                                     .setArtist(artist.name)
                                     .setArtworkUri(album.artUri)
-                                    .setIsBrowsable(false)
+                                    .setIsBrowsable(true)
                                     .setIsPlayable(true)
                                     .setExtras(albumExtras)
                                     .build()
@@ -188,7 +223,7 @@ class PlaybackService : MediaLibraryService() {
                                     .setSubtitle(artist.name)
                                     .setArtist(artist.name)
                                     .setArtworkUri(album.artUri)
-                                    .setIsBrowsable(false)
+                                    .setIsBrowsable(true)
                                     .setIsPlayable(true)
                                     .setExtras(albumExtras)
                                     .build()
@@ -199,7 +234,7 @@ class PlaybackService : MediaLibraryService() {
                 else -> emptyList()
             }
 
-            val resultParams = if (parentId == "root" || parentId == "recent_albums" || parentId == "all_albums") {
+            val resultParams = if (parentId == "root" || parentId == "recent_added" || parentId == "recent_albums" || parentId == "all_albums") {
                 val styleExtras = Bundle().apply {
                     putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
                     putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
