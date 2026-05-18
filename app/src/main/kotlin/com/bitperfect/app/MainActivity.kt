@@ -288,6 +288,21 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(AppRoutes.DeviceList) {
                             val bannerState by appViewModel.ripBannerState.collectAsStateWithLifecycle()
+                            val artists by appViewModel.artists.collectAsStateWithLifecycle()
+                            val totalTracks by appViewModel.totalTracks.collectAsStateWithLifecycle()
+
+                            val totalArtists = artists.size
+                            val totalAlbums = artists.sumOf { it.albums.size }
+
+                            val albumsText = if (totalAlbums == 1) "1 Album" else "$totalAlbums Albums"
+                            val artistsText = if (totalArtists == 1) "1 Artist" else "$totalArtists Artists"
+                            val tracksText = if (totalTracks == 1) "1 Track" else "$totalTracks Tracks"
+                            val statusText = if (totalAlbums > 0) {
+                                "$albumsText • $artistsText • $tracksText"
+                            } else {
+                                ""
+                            }
+
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
                                 contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.navigationBars),
@@ -307,7 +322,9 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                                 Text(
-                                                    text = "",
+                                                    text = statusText,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                                     modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
                                                     maxLines = 1,
                                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

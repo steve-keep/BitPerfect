@@ -194,6 +194,42 @@ open class LibraryRepository(private val context: Context) {
         }
     }
 
+    open fun getTotalTracks(outputFolderUriString: String?): Int {
+        if (outputFolderUriString.isNullOrBlank()) {
+            return 0
+        }
+
+        val decodedUri = URLDecoder.decode(outputFolderUriString, "UTF-8")
+        val pathIndex = decodedUri.lastIndexOf(":")
+        if (pathIndex == -1 || pathIndex == decodedUri.length - 1) {
+            return 0
+        }
+
+        var relativePath = decodedUri.substring(pathIndex + 1)
+        if (relativePath.endsWith("/")) {
+            relativePath = relativePath.dropLast(1)
+        }
+        if (relativePath.startsWith("/")) {
+            relativePath = relativePath.drop(1)
+        }
+
+        val projection = arrayOf(MediaStore.Audio.Media._ID)
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        val selectionArgs = arrayOf("$relativePath/%")
+
+        var total = 0
+        context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        )?.use { cursor ->
+            total = cursor.count
+        }
+        return total
+    }
+
     open fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
         if (outputFolderUriString.isNullOrBlank()) {
             return emptyList()
