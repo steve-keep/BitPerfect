@@ -142,6 +142,9 @@ open class AppViewModel(
     val activeDevice: StateFlow<OutputDevice> = outputRepository.activeDevice
     val availableDevices: StateFlow<List<OutputDevice>> = outputRepository.availableDevices
 
+    val isDiscovering: StateFlow<Boolean> = outputRepository.isDiscovering
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     private val _showOutputSheet = MutableStateFlow(false)
     val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
 

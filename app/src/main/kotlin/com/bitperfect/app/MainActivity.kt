@@ -553,9 +553,11 @@ class MainActivity : ComponentActivity() {
                     containerColor = androidx.compose.ui.graphics.Color(0xFF121212),
                     dragHandle = null
                 ) {
+                    val isDiscovering by appViewModel.isDiscovering.collectAsState()
                     OutputDeviceSheet(
                         devices = availableDevices,
                         activeDevice = activeDevice,
+                        isDiscovering = isDiscovering,
                         onDeviceSelected = { appViewModel.selectOutputDevice(it) }
                     )
                 }
