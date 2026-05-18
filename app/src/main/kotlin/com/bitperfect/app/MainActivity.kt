@@ -317,25 +317,25 @@ class MainActivity : ComponentActivity() {
                                 topBar = {
                                     CenterAlignedTopAppBar(
                                         title = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Surface(
-                                                    color = Color(0xFF191C20),
-                                                    shape = MaterialTheme.shapes.small,
-                                                    modifier = Modifier.padding(end = 12.dp).size(32.dp)
-                                                ) {
-                                                    Image(
-                                                        painter = painterResource(id = R.drawable.app_logo),
-                                                        contentDescription = null,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                }
-                                                Text(
-                                                    text = statusText,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                                    modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
-                                                    maxLines = 1,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            Text(
+                                                text = statusText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                                modifier = androidx.compose.ui.Modifier.semantics { testTag = "status_label" },
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        },
+                                        navigationIcon = {
+                                            Surface(
+                                                color = Color(0xFF191C20),
+                                                shape = MaterialTheme.shapes.small,
+                                                modifier = Modifier.padding(start = 16.dp).size(32.dp)
+                                            ) {
+                                                Image(
+                                                    painter = painterResource(id = R.drawable.app_logo),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize()
                                                 )
                                             }
                                         },
