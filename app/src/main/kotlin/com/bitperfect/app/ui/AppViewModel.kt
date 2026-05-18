@@ -112,6 +112,9 @@ open class AppViewModel(
     private val _artists = MutableStateFlow<List<ArtistInfo>>(emptyList())
     val artists: StateFlow<List<ArtistInfo>> = _artists
 
+    private val _totalTracks = MutableStateFlow(0)
+    val totalTracks: StateFlow<Int> = _totalTracks.asStateFlow()
+
     private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.AlbumInfo>>(emptyList())
     val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.AlbumInfo>> = _recentlyPlayedAlbums
 
@@ -560,6 +563,8 @@ open class AppViewModel(
         viewModelScope.launch(ioDispatcher) {
             val loadedArtists = libraryRepository.getLibrary(uriString)
             _artists.value = loadedArtists
+
+            _totalTracks.value = libraryRepository.getTotalTracks(uriString)
 
             val recent = libraryRepository.getRecentlyPlayedAlbums(uriString)
             _recentlyPlayedAlbums.value = recent.map { it.second }
