@@ -138,32 +138,149 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
+    fun `disc ID lookup with wrapped disc response returns correct DiscMetadata`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        // Simulates the real MB /ws/2/discid/{id} response shape:
+        // releases are nested inside a "disc" object, NOT at the top level.
+        val mockJson = """
+            {
+                "disc": {
+                    "id": "$discId",
+                    "releases": [
+                        {
+                            "id": "release-id-456",
+                            "title": "Every Kingdom",
+                            "date": "2011",
+                            "artist-credit": [
+                                {
+                                    "artist": {
+                                        "name": "Ben Howard"
+                                    }
+                                }
+                            ],
+                            "media": [
+                                {
+                                    "position": 1,
+                                    "discs": [{"id": "$discId"}],
+                                    "tracks": [
+                                        { "title": "Old Pine" },
+                                        { "title": "Promise" },
+                                        { "title": "The Wolves" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        """.trimIndent()
+
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = mockJson,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+
+        assertNotNull("Metadata should not be null for wrapped disc response", metadata)
+        assertEquals("Every Kingdom", metadata!!.albumTitle)
+        assertEquals("Ben Howard", metadata.artistName)
+        assertEquals("release-id-456", metadata.mbReleaseId)
+        assertEquals("2011", metadata.year)
+        assertEquals(listOf("Old Pine", "Promise", "The Wolves"), metadata.trackTitles)
+        assertEquals(1, metadata.discNumber)
+    }
+
+    @Test
+    fun `disc ID lookup falls back to top-level releases when wrapped releases is empty`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        // Simulates an edge case where disc exists but has empty releases,
+        // and top-level releases exist.
+        val mockJson = """
+            {
+                "disc": {
+                    "id": "$discId",
+                    "releases": []
+                },
+                "releases": [
+                    {
+                        "id": "release-id-fallback",
+                        "title": "Fallback Album",
+                        "artist-credit": [
+                            {
+                                "artist": {
+                                    "name": "Fallback Artist"
+                                }
+                            }
+                        ],
+                        "media": [
+                            {
+                                "position": 1,
+                                "discs": [{"id": "$discId"}],
+                                "tracks": [
+                                    { "title": "Fallback Track 1" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = mockJson,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+
+        assertNotNull("Metadata should not be null for fallback response", metadata)
+        assertEquals("Fallback Album", metadata!!.albumTitle)
+        assertEquals("Fallback Artist", metadata.artistName)
+        assertEquals("release-id-fallback", metadata.mbReleaseId)
+        assertEquals(listOf("Fallback Track 1"), metadata.trackTitles)
+    }
+
+    @Test
     fun `lookup checks cache and parses successfully`(): Unit = runBlocking {
         val toc = getSyntheticToc()
         val discId = computeMusicBrainzDiscId(toc)
         val cacheFile = File(context.cacheDir, "mb_$discId.json")
         val mockJson = """
             {
-                "releases": [
-                    {
-                        "id": "release-id-cached",
-                        "title": "Cached Album",
-                        "artist-credit": [
-                            {
-                                "artist": {
-                                    "name": "Cached Artist"
+                "disc": {
+                    "id": "some-disc-id",
+                    "releases": [
+                        {
+                            "id": "release-id-cached",
+                            "title": "Cached Album",
+                            "artist-credit": [
+                                {
+                                    "artist": {
+                                        "name": "Cached Artist"
+                                    }
                                 }
-                            }
-                        ],
-                        "media": [
-                            {
-                                "tracks": [
-                                    { "title": "Cached Track 1" }
-                                ]
-                            }
-                        ]
-                    }
-                ]
+                            ],
+                            "media": [
+                                {
+                                    "tracks": [
+                                        { "title": "Cached Track 1" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
         """.trimIndent()
         cacheFile.writeText(mockJson)
