@@ -23,10 +23,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.guava.await
+import com.bitperfect.app.output.SpeakerTypeProvider
 
 open class PlayerRepository(
     private val context: Context,
-    private val factory: MediaControllerFactory = DefaultMediaControllerFactory()
+    private val factory: MediaControllerFactory = DefaultMediaControllerFactory(),
+    private var speakerTypeProvider: SpeakerTypeProvider? = null
 ) {
 
     fun interface MediaControllerFactory {
@@ -37,6 +39,14 @@ open class PlayerRepository(
         override fun build(context: Context, token: SessionToken): ListenableFuture<MediaController> {
             return MediaController.Builder(context, token).buildAsync()
         }
+    }
+
+    fun setSpeakerTypeProvider(provider: SpeakerTypeProvider) {
+        this.speakerTypeProvider = provider
+    }
+
+    fun clearSpeakerTypeProvider() {
+        this.speakerTypeProvider?.clear()
     }
 
     private var controller: MediaController? = null
@@ -171,6 +181,9 @@ open class PlayerRepository(
 
                     val json = JSONObject().apply {
                         put("timestamp", System.currentTimeMillis())
+                        speakerTypeProvider?.let { provider ->
+                            put("speakerType", provider.getCurrentType().id)
+                        }
                         put("albumId", albumId)
                         put("albumTitle", track.albumTitle)
                         put("artist", track.artist)

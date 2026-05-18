@@ -759,6 +759,7 @@ open class AppViewModel(
     }
 
     override fun onCleared() {
+        (playerRepository as? PlayerRepository)?.clearSpeakerTypeProvider()
         super.onCleared()
         playerRepository.disconnect()
     }
@@ -929,6 +930,13 @@ open class AppViewModel(
                         playerRepository,
                         CoroutineScope(SupervisorJob() + Dispatchers.IO)
                     )
+                    val speakerTypeProvider = com.bitperfect.app.output.SpeakerTypeProvider(
+                        application,
+                        CoroutineScope(SupervisorJob() + Dispatchers.Main)
+                    )
+                    speakerTypeProvider.setOutputRepository(outputRepository)
+                    playerRepository.setSpeakerTypeProvider(speakerTypeProvider)
+
                     AppViewModel(application, playerRepository, outputRepository)
                 }
             }
