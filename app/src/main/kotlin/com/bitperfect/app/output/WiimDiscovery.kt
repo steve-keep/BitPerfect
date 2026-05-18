@@ -35,45 +35,46 @@ class WiimDiscovery(private val context: Context) {
 
             """.trimIndent().replace("\n", "\r\n").toByteArray()
 
-            val socket = MulticastSocket(port)
-            socket.joinGroup(group)
-            socket.soTimeout = 4000 // 4 seconds timeout loop
+            MulticastSocket().use { socket ->
+                socket.joinGroup(group)
+                socket.soTimeout = 4000 // 4 seconds timeout loop
 
-            val packet = DatagramPacket(searchMessage, searchMessage.size, group, port)
-            // Send twice for reliability
-            socket.send(packet)
-            socket.send(packet)
+                val packet = DatagramPacket(searchMessage, searchMessage.size, group, port)
+                // Send twice for reliability
+                socket.send(packet)
+                socket.send(packet)
 
-            val receiveData = ByteArray(1024)
-            val receivePacket = DatagramPacket(receiveData, receiveData.size)
+                val receiveData = ByteArray(1024)
+                val receivePacket = DatagramPacket(receiveData, receiveData.size)
 
-            val startTime = System.currentTimeMillis()
-            while (System.currentTimeMillis() - startTime < 4000) {
-                try {
-                    socket.receive(receivePacket)
-                    val response = String(receivePacket.data, 0, receivePacket.length)
-                    val locationLine = response.lines().find { it.startsWith("LOCATION:", ignoreCase = true) }
+                val startTime = System.currentTimeMillis()
+                while (System.currentTimeMillis() - startTime < 4000) {
+                    try {
+                        socket.receive(receivePacket)
+                        val response = String(receivePacket.data, 0, receivePacket.length)
+                        val locationLine = response.lines().find { it.trim().startsWith("LOCATION:", ignoreCase = true) }
 
-                    if (locationLine != null) {
-                        val location = locationLine.substringAfter(":").trim()
-                        if (uniqueLocations.add(location)) {
-                            Log.d("WiimDiscovery", "Found location: $location")
-                            val device = parseDeviceDescription(location)
-                            if (device != null) {
-                                devices.add(device)
+                        if (locationLine != null) {
+                            val parts = locationLine.split(":", limit = 2)
+                            if (parts.size == 2) {
+                                val location = parts[1].trim()
+                                if (uniqueLocations.add(location)) {
+                                    Log.d("WiimDiscovery", "Found location: $location")
+                                    val device = parseDeviceDescription(location)
+                                    if (device != null) {
+                                        devices.add(device)
+                                    }
+                                }
                             }
                         }
+                    } catch (e: SocketTimeoutException) {
+                        // Ignore timeout and continue if within time limit, but break if we exceeded 4s total.
+                    } catch (e: Exception) {
+                        Log.e("WiimDiscovery", "Error receiving SSDP", e)
                     }
-                } catch (e: SocketTimeoutException) {
-                    // Ignore timeout and continue if within time limit, but break if we exceeded 4s total.
-                    // Actually, socket.receive blocking means we might block up to 4s.
-                    // So after a timeout we just loop back to check total time.
-                } catch (e: Exception) {
-                    Log.e("WiimDiscovery", "Error receiving SSDP", e)
                 }
+                socket.leaveGroup(group)
             }
-            socket.leaveGroup(group)
-            socket.close()
         } catch (e: Exception) {
             Log.e("WiimDiscovery", "Error during SSDP discovery", e)
         } finally {

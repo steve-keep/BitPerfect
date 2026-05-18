@@ -26,19 +26,7 @@ class WiimOutputController(
     private var wifiIp: String? = null
 
     private fun getWifiIpAddress(): String? {
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val ipAddress = wifiManager.connectionInfo.ipAddress
-        if (ipAddress != 0) {
-            return String.format(
-                "%d.%d.%d.%d",
-                ipAddress and 0xff,
-                ipAddress shr 8 and 0xff,
-                ipAddress shr 16 and 0xff,
-                ipAddress shr 24 and 0xff
-            )
-        }
-
-        // Fallback to NetworkInterfaces
+        // Primary path: Use NetworkInterfaces (modern, robust approach)
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
             while (interfaces.hasMoreElements()) {
@@ -50,6 +38,24 @@ class WiimOutputController(
                         return address.hostAddress
                     }
                 }
+            }
+        } catch (e: Exception) {
+            Log.e("WiimOutputController", "Error getting IP from NetworkInterfaces", e)
+        }
+
+        // Fallback to deprecated WifiManager approach
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
+            val ipAddress = wifiManager.connectionInfo.ipAddress
+            if (ipAddress != 0) {
+                return String.format(
+                    "%d.%d.%d.%d",
+                    ipAddress and 0xff,
+                    ipAddress shr 8 and 0xff,
+                    ipAddress shr 16 and 0xff,
+                    ipAddress shr 24 and 0xff
+                )
             }
         } catch (e: Exception) {
             Log.e("WiimOutputController", "Error getting fallback IP", e)
@@ -180,7 +186,7 @@ class WiimOutputController(
     }
 
     override suspend fun release() {
-        scope.launch {
+        withContext(Dispatchers.IO) {
             sendSoapAction(
                 "Stop",
                 """
