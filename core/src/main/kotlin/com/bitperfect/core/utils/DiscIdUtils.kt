@@ -35,6 +35,8 @@ fun computeFreedbId(toc: DiscToc): Long {
 }
 
 private const val LEAD_IN_FRAMES = 150
+// Standard CD lead-in: 2s × 75 frames/s
+private const val MB_LEAD_IN_FRAMES = 150
 
 fun computeAccurateRipDiscId(toc: DiscToc): AccurateRipDiscId {
     var id1 = 0L
@@ -58,22 +60,22 @@ fun computeAccurateRipDiscId(toc: DiscToc): AccurateRipDiscId {
 fun computeMusicBrainzDiscId(toc: DiscToc): String {
     val tokens = mutableListOf<String>()
 
-    // Token 1: first track number (always 1 as per instructions: "00000001")
+    // Token 1: first track number (always 1 as per instructions: "01")
     tokens.add(String.format("%02X", 1))
 
     // Token 2: last track number
     val lastTrack = toc.tracks.size
     tokens.add(String.format("%02X", lastTrack))
 
-    // Token 3: lead-out LBA
-    tokens.add(String.format("%08X", toc.leadOutLba))
+    // Token 3: lead-out frame offset (LBA + 150 lead-in frames)
+    tokens.add(String.format("%08X", toc.leadOutLba + MB_LEAD_IN_FRAMES))
 
-    // Tokens 4-102: slots 1-99
+    // Tokens 4-102: track frame offsets (LBA + 150) for slots 1-99
     val trackMap = toc.tracks.mapIndexed { index, entry -> (index + 1) to entry }.toMap()
     for (i in 1..99) {
         val entry = trackMap[i]
         if (entry != null) {
-            tokens.add(String.format("%08X", entry.lba))
+            tokens.add(String.format("%08X", entry.lba + MB_LEAD_IN_FRAMES))
         } else {
             tokens.add("00000000")
         }

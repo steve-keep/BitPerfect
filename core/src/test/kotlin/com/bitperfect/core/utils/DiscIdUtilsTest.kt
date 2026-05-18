@@ -10,44 +10,63 @@ import org.robolectric.RobolectricTestRunner
 class DiscIdUtilsTest {
 
     @Test
-    fun computeMusicBrainzDiscId_structuralValidityAndDeterminism() {
+    fun computeMusicBrainzDiscId_tenTrackDisc_matchesLibdiscid() {
         val tracks = listOf(
             TocEntry(trackNumber = 1, lba = 150),
-            TocEntry(trackNumber = 2, lba = 16239),
-            TocEntry(trackNumber = 3, lba = 29113),
-            TocEntry(trackNumber = 4, lba = 46438),
-            TocEntry(trackNumber = 5, lba = 53085),
-            TocEntry(trackNumber = 6, lba = 64980),
-            TocEntry(trackNumber = 7, lba = 77270),
-            TocEntry(trackNumber = 8, lba = 95745),
-            TocEntry(trackNumber = 9, lba = 108270),
-            TocEntry(trackNumber = 10, lba = 122250)
+            TocEntry(trackNumber = 2, lba = 24788),
+            TocEntry(trackNumber = 3, lba = 43296),
+            TocEntry(trackNumber = 4, lba = 66497),
+            TocEntry(trackNumber = 5, lba = 87910),
+            TocEntry(trackNumber = 6, lba = 106598),
+            TocEntry(trackNumber = 7, lba = 126125),
+            TocEntry(trackNumber = 8, lba = 145966),
+            TocEntry(trackNumber = 9, lba = 174579),
+            TocEntry(trackNumber = 10, lba = 196867)
         )
-        val toc = DiscToc(
-            tracks = tracks,
-            leadOutLba = 247073
+        val toc = DiscToc(tracks = tracks, leadOutLba = 247632)
+        val discId = computeMusicBrainzDiscId(toc)
+        org.junit.Assert.assertEquals("Tvqqw5l80pQjX4aHX6gZEMSw6O4-", discId)
+    }
+
+    @Test
+    fun computeMusicBrainzDiscId_thirteenTrackDisc_matchesLibdiscid() {
+        val tracks = listOf(
+            TocEntry(trackNumber = 1, lba = 150),
+            TocEntry(trackNumber = 2, lba = 7623),
+            TocEntry(trackNumber = 3, lba = 27635),
+            TocEntry(trackNumber = 4, lba = 44838),
+            TocEntry(trackNumber = 5, lba = 66353),
+            TocEntry(trackNumber = 6, lba = 92265),
+            TocEntry(trackNumber = 7, lba = 111658),
+            TocEntry(trackNumber = 8, lba = 135098),
+            TocEntry(trackNumber = 9, lba = 158750),
+            TocEntry(trackNumber = 10, lba = 162375),
+            TocEntry(trackNumber = 11, lba = 181668),
+            TocEntry(trackNumber = 12, lba = 203508),
+            TocEntry(trackNumber = 13, lba = 224703)
         )
+        val toc = DiscToc(tracks = tracks, leadOutLba = 276265)
+        val discId = computeMusicBrainzDiscId(toc)
+        org.junit.Assert.assertEquals("QPBiWO7V9EgTpVA69ooCea20__0-", discId)
+    }
 
-        val discId1 = computeMusicBrainzDiscId(toc)
-        val discId2 = computeMusicBrainzDiscId(toc)
-
-        // Determinism
-        org.junit.Assert.assertEquals(discId1, discId2)
-
-        // Structure: 28 characters
-        org.junit.Assert.assertEquals(28, discId1.length)
-
-        // Structure: ends with -
-        org.junit.Assert.assertTrue(discId1.endsWith("-"))
-
-        // Structure: valid characters only (a-z, A-Z, 0-9, ., _, -)
-        val validCharsRegex = Regex("^[a-zA-Z0-9._-]+$")
-        org.junit.Assert.assertTrue(discId1.matches(validCharsRegex))
-
-        // Ensure no +, /, or =
-        org.junit.Assert.assertFalse(discId1.contains("+"))
-        org.junit.Assert.assertFalse(discId1.contains("/"))
-        org.junit.Assert.assertFalse(discId1.contains("="))
+    @Test
+    fun computeMusicBrainzTocString_tenTrackDisc_correctFormat() {
+        val tracks = listOf(
+            TocEntry(trackNumber = 1, lba = 150),
+            TocEntry(trackNumber = 2, lba = 24788),
+            TocEntry(trackNumber = 3, lba = 43296),
+            TocEntry(trackNumber = 4, lba = 66497),
+            TocEntry(trackNumber = 5, lba = 87910),
+            TocEntry(trackNumber = 6, lba = 106598),
+            TocEntry(trackNumber = 7, lba = 126125),
+            TocEntry(trackNumber = 8, lba = 145966),
+            TocEntry(trackNumber = 9, lba = 174579),
+            TocEntry(trackNumber = 10, lba = 196867)
+        )
+        val toc = DiscToc(tracks = tracks, leadOutLba = 247632)
+        val tocString = computeMusicBrainzTocString(toc)
+        org.junit.Assert.assertEquals("1+10+247782+300+24938+43446+66647+88060+106748+126275+146116+174729+197017", tocString)
     }
 
     @Test
