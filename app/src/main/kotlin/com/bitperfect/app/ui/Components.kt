@@ -129,36 +129,6 @@ fun throbbingBackgroundModifier(): Modifier {
 }
 
 @Composable
-private fun AccurateRipStamp() {
-    Surface(
-        shape = RoundedCornerShape(4.dp),
-        color = Color(0xFF4CAF50).copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, Color(0xFF4CAF50))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Verified,
-                contentDescription = null,
-                tint = Color(0xFF4CAF50),
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = "ACCURATERIP VERIFIED",
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                color = Color(0xFF4CAF50)
-            )
-        }
-    }
-}
-
-@Composable
 fun AlbumHeader(
     onSaveClick: () -> Unit = {},
     title: String,
@@ -218,6 +188,7 @@ fun AlbumHeader(
             )
             Spacer(modifier = Modifier.height(24.dp))
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
@@ -228,8 +199,18 @@ fun AlbumHeader(
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                if (isFullyVerified && !isCdMode) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Verified,
+                        contentDescription = "AccurateRip Verified",
+                        tint = com.bitperfect.app.ui.theme.VerificationGreen,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -245,13 +226,7 @@ fun AlbumHeader(
                 color = Color(0x99FFFFFF),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            if (isFullyVerified && !isCdMode) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AccurateRipStamp()
-                Spacer(modifier = Modifier.height(20.dp))
-            } else {
-                Spacer(modifier = Modifier.height(24.dp))
-            }
+            Spacer(modifier = Modifier.height(24.dp))
             if (isRipping) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
