@@ -66,7 +66,10 @@ class RipSession(private val context: Context) {
         // Synchronously copy the initial states from RipManager so that it is instantly available
         _ripStates.value = manager.trackStates.value
 
-        val intent = android.content.Intent(context, RipService::class.java)
+        val intent = android.content.Intent(context, RipService::class.java).apply {
+            putExtra(RipService.EXTRA_ARTIST, metadata.artistName)
+            putExtra(RipService.EXTRA_ALBUM, metadata.albumTitle)
+        }
         androidx.core.content.ContextCompat.startForegroundService(context, intent)
 
         scope.launch {

@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">BitPerfect</string>
+    <string name="notif_ripping_title">Ripping CD</string>
+    <string name="notif_channel_name">CD Ripping</string>
+    <string name="notif_cancel">Cancel</string>
+    <string name="notif_finishing">Finishing up…</string>
+    <string name="notif_starting">Starting rip…</string>
+    <string name="notif_ripping_text">Track %1$d of %2$d · %3$d%%</string>
+    <string name="notif_verifying_text">Verifying track %1$d…</string>
+    <string name="notif_subtext">%1$d / %2$d tracks</string>
 </resources>
