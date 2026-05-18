@@ -290,6 +290,7 @@ class MainActivity : ComponentActivity() {
                             val bannerState by appViewModel.ripBannerState.collectAsStateWithLifecycle()
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
+                                contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.navigationBars),
                                 topBar = {
                                     TopAppBar(
                                         title = {
@@ -359,6 +360,7 @@ class MainActivity : ComponentActivity() {
                         composable(AppRoutes.Settings) {
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
+                                contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.navigationBars),
                                 topBar = {
                                     TopAppBar(
                                         title = {
@@ -419,6 +421,7 @@ class MainActivity : ComponentActivity() {
                         composable(AppRoutes.About) {
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
+                                contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.navigationBars),
                                 topBar = {
                                     TopAppBar(
                                         title = {
