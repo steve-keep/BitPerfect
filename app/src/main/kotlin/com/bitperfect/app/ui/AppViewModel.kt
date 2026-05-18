@@ -12,6 +12,7 @@ import com.bitperfect.app.library.AiMix
 import com.bitperfect.app.library.AiMixTrack
 import com.bitperfect.app.library.AiMixRepository
 import com.bitperfect.app.library.AiMixGenerator
+import com.bitperfect.app.library.NanoStatus
 import androidx.media3.common.MediaItem
 import com.bitperfect.core.utils.SettingsManager
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +107,9 @@ open class AppViewModel(
 
     private val _aiNanoUnsupported = MutableStateFlow(false)
     val aiNanoUnsupported: StateFlow<Boolean> = _aiNanoUnsupported.asStateFlow()
+
+    private val _nanoDownloadProgress = MutableStateFlow<Long?>(null)
+    val nanoDownloadProgress: StateFlow<Long?> = _nanoDownloadProgress.asStateFlow()
 
     private val accurateRipService = AccurateRipService()
 
@@ -482,11 +486,38 @@ open class AppViewModel(
             val now = System.currentTimeMillis()
 
             if (forceRegenerate || lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
-                val available = aiMixGenerator.isAvailable(getApplication())
-                println("AiMixGenerator: isAvailable=$available")
-                if (!available) {
-                    _aiNanoUnsupported.value = true
-                    return
+                when (aiMixGenerator.checkNanoStatus()) {
+                    NanoStatus.AVAILABLE -> {
+                        // proceed with generation as normal
+                        _aiNanoUnsupported.value = false
+                    }
+                    NanoStatus.DOWNLOADABLE -> {
+                        // trigger download, show progress in UI
+                        _aiNanoUnsupported.value = false
+                        _aiMixesLoading.value = false
+                        println("AiMixGenerator: status DOWNLOADABLE — triggering download")
+                        val success = aiMixGenerator.downloadNano { bytesDownloaded ->
+                            _nanoDownloadProgress.value = bytesDownloaded
+                        }
+                        _nanoDownloadProgress.value = null
+                        if (success) {
+                            // model is now downloaded — re-enter to generate
+                            checkAndRegenerateMixes(outputUri, forceRegenerate = true)
+                        } else {
+                            _aiMixError.value = "Gemini Nano download failed. Please try again."
+                        }
+                        return
+                    }
+                    NanoStatus.DOWNLOADING -> {
+                        // already downloading in background — just show a waiting message
+                        _aiNanoUnsupported.value = false
+                        _aiMixError.value = "Gemini Nano is downloading. Mixes will appear when ready."
+                        return
+                    }
+                    NanoStatus.UNAVAILABLE -> {
+                        _aiNanoUnsupported.value = true
+                        return
+                    }
                 }
 
                 _aiMixesLoading.value = true
