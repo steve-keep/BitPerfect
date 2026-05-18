@@ -3,7 +3,13 @@ package com.bitperfect.app.output
 import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 
+import android.content.Context
+import android.media.AudioManager
+import android.media.AudioDeviceInfo
+import android.os.Build
+
 class LocalOutputController(
+    private val context: Context,
     private val playerRepository: PlayerRepository
 ) : OutputController {
 
@@ -22,7 +28,20 @@ class LocalOutputController(
         playerRepository.seekTo(positionMs)
     }
 
+    private val audioManager =
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
     override suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val devices = audioManager.availableCommunicationDevices
+            val speaker = devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            if (speaker != null) {
+                audioManager.setCommunicationDevice(speaker)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = true
+        }
         playerRepository.playTrack(tracks, startIndex)
         if (startPositionMs > 0) {
             playerRepository.seekTo(startPositionMs)
@@ -30,6 +49,12 @@ class LocalOutputController(
     }
 
     override suspend fun release() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.clearCommunicationDevice()
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = false
+        }
         // Local controller is never fully released — just pause
         playerRepository.pause()
     }
