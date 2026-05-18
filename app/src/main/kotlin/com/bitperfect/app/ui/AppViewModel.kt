@@ -645,7 +645,8 @@ open class AppViewModel(
                     id = index.toLong(),
                     title = trackTitle,
                     trackNumber = index + 1,
-                    durationMs = durationMs
+                    durationMs = durationMs,
+                    discNumber = meta?.discNumber ?: 1
                 )
             }
 
