@@ -4,6 +4,7 @@ import android.content.Context
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.AccurateRipTrackMetadata
+import com.bitperfect.core.models.LyricsFetchResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +32,7 @@ class RipSession(private val context: Context) {
         metadata: DiscMetadata,
         expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
         artworkBytes: ByteArray?,
-        lyricsMap: Map<Int, LyricsResult> = emptyMap(),
+        lyricsMap: Map<Int, LyricsFetchResult> = emptyMap(),
         tracksToRip: List<Int>? = null
     ) {
         if (_isRipping.value) {

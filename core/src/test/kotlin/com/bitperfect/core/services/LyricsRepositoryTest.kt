@@ -50,14 +50,14 @@ class LyricsRepositoryTest {
             trackNumber = 1,
             mbReleaseId = "valid-id",
             durationSeconds = 120.0
-        )
+        ) as com.bitperfect.core.models.LyricsFetchResult.Success
 
-        assertEquals("Hello world", result?.plainLyrics)
-        assertEquals("[00:01.00] Hello world", result?.syncedLyrics)
+        assertEquals("Hello world", result.lyrics.plainLyrics)
+        assertEquals("[00:01.00] Hello world", result.lyrics.syncedLyrics)
     }
 
     @Test
-    fun `fetchReturnsNullOn404`() = runBlocking {
+    fun `fetchReturnsFailureOn404`() = runBlocking {
         val mockEngine = MockEngine { _ ->
             respondError(HttpStatusCode.NotFound)
         }
@@ -75,13 +75,13 @@ class LyricsRepositoryTest {
             trackNumber = 1,
             mbReleaseId = "valid-id",
             durationSeconds = 120.0
-        )
+        ) as com.bitperfect.core.models.LyricsFetchResult.Failure
 
-        assertNull(result)
+        assertEquals(com.bitperfect.core.models.FetchState.NOT_FOUND, result.state)
     }
 
     @Test
-    fun `fetchReturnsNullOnNetworkError`() = runBlocking {
+    fun `fetchReturnsFailureWhenResponseIsMissingLyrics`() = runBlocking {
         val mockEngine = MockEngine { _ ->
             throw IOException("Network error")
         }
@@ -99,8 +99,8 @@ class LyricsRepositoryTest {
             trackNumber = 1,
             mbReleaseId = "valid-id",
             durationSeconds = 120.0
-        )
+        ) as com.bitperfect.core.models.LyricsFetchResult.Failure
 
-        assertNull(result)
+        assertEquals(com.bitperfect.core.models.FetchState.NETWORK_ERROR, result.state)
     }
 }
