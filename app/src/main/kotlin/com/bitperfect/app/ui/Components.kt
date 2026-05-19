@@ -738,6 +738,7 @@ fun LibrarySection(
                     }
 
 
+                    /* Mixes section temporarily disabled
                     if (searchQuery.isBlank() && (aiMixes.isNotEmpty() || aiMixesLoading || aiMixError != null || aiNanoUnsupported || nanoDownloadProgress != null)) {
                         stickyHeader(key = "mixes_header") {
                             Box(
@@ -934,6 +935,7 @@ fun LibrarySection(
                             }
                         }
                     }
+                    */
 
                     if (searchQuery.isBlank() && recentlyPlayedAlbums.isNotEmpty()) {
                         stickyHeader(key = "recently_played_header") {
