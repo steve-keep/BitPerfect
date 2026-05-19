@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.InetAddress
@@ -15,75 +18,74 @@ import java.net.HttpURLConnection
 class WiimDiscovery(private val context: Context) {
 
     suspend fun discover(): List<OutputDevice.Upnp> = withContext(Dispatchers.IO) {
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val multicastLock = wifiManager.createMulticastLock("WiimDiscoveryLock")
-        multicastLock.setReferenceCounted(true)
-        multicastLock.acquire()
+        coroutineScope {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val multicastLock = wifiManager.createMulticastLock("WiimDiscoveryLock")
+            multicastLock.setReferenceCounted(true)
+            multicastLock.acquire()
 
-        val devices = mutableListOf<OutputDevice.Upnp>()
-        val uniqueLocations = mutableSetOf<String>()
+            val deferredDevices = mutableListOf<kotlinx.coroutines.Deferred<OutputDevice.Upnp?>>()
+            val uniqueLocations = mutableSetOf<String>()
 
-        try {
-            val group = InetAddress.getByName("239.255.255.250")
-            val port = 1900
-            val searchMessage = """
-                M-SEARCH * HTTP/1.1
-                HOST: 239.255.255.250:1900
-                MAN: "ssdp:discover"
-                MX: 3
-                ST: urn:schemas-upnp-org:device:MediaRenderer:1
+            try {
+                val group = InetAddress.getByName("239.255.255.250")
+                val port = 1900
+                val searchMessage = """
+                    M-SEARCH * HTTP/1.1
+                    HOST: 239.255.255.250:1900
+                    MAN: "ssdp:discover"
+                    MX: 3
+                    ST: urn:schemas-upnp-org:device:MediaRenderer:1
 
-            """.trimIndent().replace("\n", "\r\n").toByteArray()
+                """.trimIndent().replace("\n", "\r\n").toByteArray()
 
-            MulticastSocket().use { socket ->
-                socket.joinGroup(group)
-                socket.soTimeout = 4000 // 4 seconds timeout loop
+                MulticastSocket().use { socket ->
+                    socket.joinGroup(group)
+                    socket.soTimeout = 4000 // 4 seconds timeout loop
 
-                val packet = DatagramPacket(searchMessage, searchMessage.size, group, port)
-                // Send twice for reliability
-                socket.send(packet)
-                socket.send(packet)
+                    val packet = DatagramPacket(searchMessage, searchMessage.size, group, port)
+                    // Send twice for reliability
+                    socket.send(packet)
+                    socket.send(packet)
 
-                val receiveData = ByteArray(1024)
-                val receivePacket = DatagramPacket(receiveData, receiveData.size)
+                    val receiveData = ByteArray(1024)
+                    val receivePacket = DatagramPacket(receiveData, receiveData.size)
 
-                val startTime = System.currentTimeMillis()
-                while (System.currentTimeMillis() - startTime < 4000) {
-                    try {
-                        socket.receive(receivePacket)
-                        val response = String(receivePacket.data, 0, receivePacket.length)
-                        val locationLine = response.lines().find { it.trim().startsWith("LOCATION:", ignoreCase = true) }
+                    val startTime = System.currentTimeMillis()
+                    while (System.currentTimeMillis() - startTime < 4000) {
+                        try {
+                            socket.receive(receivePacket)
+                            val response = String(receivePacket.data, 0, receivePacket.length)
+                            val locationLine = response.lines().find { it.trim().startsWith("LOCATION:", ignoreCase = true) }
 
-                        if (locationLine != null) {
-                            val parts = locationLine.split(":", limit = 2)
-                            if (parts.size == 2) {
-                                val location = parts[1].trim()
-                                if (uniqueLocations.add(location)) {
-                                    Log.d("WiimDiscovery", "Found location: $location")
-                                    val device = parseDeviceDescription(location)
-                                    if (device != null) {
-                                        devices.add(device)
+                            if (locationLine != null) {
+                                val parts = locationLine.split(":", limit = 2)
+                                if (parts.size == 2) {
+                                    val location = parts[1].trim()
+                                    if (uniqueLocations.add(location)) {
+                                        Log.d("WiimDiscovery", "Found location: $location")
+                                        deferredDevices.add(async { parseDeviceDescription(location) })
                                     }
                                 }
                             }
+                        } catch (e: SocketTimeoutException) {
+                            // Ignore timeout and continue if within time limit, but break if we exceeded 4s total.
+                        } catch (e: Exception) {
+                            Log.e("WiimDiscovery", "Error receiving SSDP", e)
                         }
-                    } catch (e: SocketTimeoutException) {
-                        // Ignore timeout and continue if within time limit, but break if we exceeded 4s total.
-                    } catch (e: Exception) {
-                        Log.e("WiimDiscovery", "Error receiving SSDP", e)
                     }
+                    socket.leaveGroup(group)
                 }
-                socket.leaveGroup(group)
+            } catch (e: Exception) {
+                Log.e("WiimDiscovery", "Error during SSDP discovery", e)
+            } finally {
+                if (multicastLock.isHeld) {
+                    multicastLock.release()
+                }
             }
-        } catch (e: Exception) {
-            Log.e("WiimDiscovery", "Error during SSDP discovery", e)
-        } finally {
-            if (multicastLock.isHeld) {
-                multicastLock.release()
-            }
-        }
 
-        devices
+            deferredDevices.awaitAll().filterNotNull()
+        }
     }
 
     private fun parseDeviceDescription(locationUrlString: String): OutputDevice.Upnp? {
