@@ -7,6 +7,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.bitperfect.app.BuildConfig
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.DiscMetadata
+import com.bitperfect.core.models.LyricsFetchResult
 import com.bitperfect.core.services.AccurateRipService
 import com.bitperfect.core.services.AccurateRipVerifier
 import com.bitperfect.core.services.AccurateRipTrackMetadata
@@ -59,7 +60,7 @@ class RipManager(
     private val metadata: DiscMetadata,
     private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
     private val artworkBytes: ByteArray?,
-    private val lyricsMap: Map<Int, LyricsResult> = emptyMap(),
+    private val lyricsMap: Map<Int, LyricsFetchResult> = emptyMap(),
     private val driveVendor: String,
     private val driveProduct: String,
     initialTracks: List<Int>
@@ -149,7 +150,7 @@ class RipManager(
 
             if (isCancelled) break
 
-            val lyricsResult = lyricsMap[trackNumber]
+            val lyricsResult = (lyricsMap[trackNumber] as? LyricsFetchResult.Success)?.lyrics
 
             val safeTitle = trackTitle.replace("/", "_")
 
@@ -779,17 +780,33 @@ class RipManager(
                 val url = "https://lrclib.net/api/get?artist_name=$encodedArtist&track_name=$encodedTrack&album_name=$encodedAlbum&duration=$durationSeconds"
 
                 val mbGuard = if (metadata.mbReleaseId.isNullOrBlank()) "SKIPPED (mbReleaseId blank)" else "PASSED"
-                val lyricsResult = lyricsMap[state.trackNumber]
-                val resultStr = if (lyricsResult == null) "NULL" else {
-                    if (lyricsResult.plainLyrics != null && lyricsResult.syncedLyrics != null) "FOUND (plain + synced)"
-                    else if (lyricsResult.plainLyrics != null) "FOUND (plain only)"
-                    else if (lyricsResult.syncedLyrics != null) "FOUND (synced only)"
-                    else "NOT FETCHED"
+                val fetchResult = lyricsMap[state.trackNumber]
+
+                val resultStr = when (fetchResult) {
+                    is LyricsFetchResult.Success -> {
+                        val lyrics = fetchResult.lyrics
+                        if (lyrics.plainLyrics != null && lyrics.syncedLyrics != null) "SUCCESS (plain + synced)"
+                        else if (lyrics.plainLyrics != null) "SUCCESS (plain only)"
+                        else if (lyrics.syncedLyrics != null) "SUCCESS (synced only)"
+                        else "SUCCESS (empty)"
+                    }
+                    is LyricsFetchResult.Failure -> "FAILED (${fetchResult.state})"
+                    null -> "NOT ATTEMPTED"
                 }
 
                 sb.append("        URL:       ").append(url).append("\n")
                 sb.append("        mbRelease: ").append(mbGuard).append("\n")
                 sb.append("        Result:    ").append(resultStr).append("\n")
+
+                if (fetchResult is LyricsFetchResult.Failure) {
+                    val message = fetchResult.message
+                    if (!message.isNullOrBlank()) {
+                        sb.append("        Detail:    ").append(message).append("\n")
+                    }
+                    if (fetchResult.httpCode != null) {
+                        sb.append("        HTTP Code: ").append(fetchResult.httpCode).append("\n")
+                    }
+                }
             }
             if (states.isNotEmpty()) {
                 sb.append("  ---------------------------------------------------------------\n")

@@ -48,8 +48,12 @@ import com.bitperfect.core.services.ItunesArtwork
 import com.bitperfect.core.services.ItunesArtworkRepository
 import com.bitperfect.core.services.LyricsRepository
 import com.bitperfect.core.models.LyricsResult
+import com.bitperfect.core.models.LyricsFetchResult
 import java.net.URL
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitAll
@@ -178,8 +182,16 @@ open class AppViewModel(
     private val _artwork = MutableStateFlow<ItunesArtwork?>(null)
     private val _artworkBytes = MutableStateFlow<ByteArray?>(null)
 
-    private val _lyricsMap = MutableStateFlow<Map<Int, LyricsResult>>(emptyMap())
-    val lyricsMap: StateFlow<Map<Int, LyricsResult>> = _lyricsMap.asStateFlow()
+    private data class LyricsFetchKey(
+        val mbReleaseId: String,
+        val embedLyrics: Boolean
+    )
+
+    private val lyricsRepository = LyricsRepository(application)
+    private var lastLyricsFetchKey: LyricsFetchKey? = null
+    private var lyricsFetchJob: Job? = null
+    private val _lyricsMap = MutableStateFlow<Map<Int, LyricsFetchResult>>(emptyMap())
+    val lyricsMap: StateFlow<Map<Int, LyricsFetchResult>> = _lyricsMap.asStateFlow()
 
     open val coverArtUrl: StateFlow<String?> = _artwork
         .map { it?.previewUrl }
@@ -419,51 +431,70 @@ open class AppViewModel(
         }
 
         viewModelScope.launch {
-            discMetadata.collectLatest { metadata ->
+            discMetadata.collect { metadata ->
                 if (metadata == null) {
                     _lyricsMap.value = emptyMap()
-                    return@collectLatest
+                    lastLyricsFetchKey = null
+                    lyricsFetchJob?.cancel()
+                    return@collect
+                }
+
+                val currentKey = LyricsFetchKey(
+                    mbReleaseId = metadata.mbReleaseId,
+                    embedLyrics = settingsManager.embedLyrics
+                )
+
+                if (currentKey == lastLyricsFetchKey && currentKey.mbReleaseId.isNotBlank()) {
+                    return@collect
                 }
 
                 if (!settingsManager.embedLyrics) {
                     _lyricsMap.value = emptyMap()
-                    return@collectLatest
+                    lastLyricsFetchKey = currentKey
+                    lyricsFetchJob?.cancel()
+                    return@collect
                 }
 
                 val status = driveStatus.value
                 val toc = (status as? DriveStatus.DiscReady)?.toc
                 if (toc == null) {
                     _lyricsMap.value = emptyMap()
-                    return@collectLatest
+                    return@collect
                 }
 
-                try {
-                    val fetchedLyricsMap = coroutineScope {
-                        toc.tracks.mapIndexed { i, entry ->
-                            async {
-                                val trackTitle = metadata.trackTitles.getOrNull(i) ?: return@async null
-                                val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
-                                val durationSeconds = (nextLba - entry.lba).toLong() * 588.0 / 44100.0
-                                val result = LyricsRepository(application).fetch(
-                                    artistName = metadata.artistName,
-                                    albumTitle = metadata.albumTitle,
-                                    trackTitle = trackTitle,
-                                    trackNumber = entry.trackNumber,
-                                    mbReleaseId = metadata.mbReleaseId,
-                                    durationSeconds = durationSeconds
-                                )
-                                if (result != null) {
+                // Launch lyrics fetch disconnected from collect's cancellation scope
+                lyricsFetchJob?.cancel()
+                lyricsFetchJob = viewModelScope.launch(ioDispatcher) {
+                    try {
+                        val semaphore = Semaphore(2)
+                        val fetchedLyricsMap = coroutineScope {
+                            toc.tracks.mapIndexed { i, entry ->
+                                async {
+                                    val trackTitle = metadata.trackTitles.getOrNull(i) ?: return@async null
+                                    val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
+                                    val durationSeconds = (nextLba - entry.lba).toLong() * 588.0 / 44100.0
+                                    val result = semaphore.withPermit {
+                                        lyricsRepository.fetch(
+                                            artistName = metadata.artistName,
+                                            albumTitle = metadata.albumTitle,
+                                            trackTitle = trackTitle,
+                                            trackNumber = entry.trackNumber,
+                                            mbReleaseId = metadata.mbReleaseId,
+                                            durationSeconds = durationSeconds
+                                        )
+                                    }
                                     Pair(entry.trackNumber, result)
-                                } else {
-                                    null
                                 }
-                            }
-                        }.awaitAll().filterNotNull().toMap()
+                            }.awaitAll().filterNotNull().toMap()
+                        }
+                        _lyricsMap.value = fetchedLyricsMap
+                        lastLyricsFetchKey = currentKey
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        // Expected, do not suppress
+                        throw e
+                    } catch (e: Exception) {
+                        com.bitperfect.core.utils.AppLogger.e("AppViewModel", "Failed to fetch lyrics: ${e.message}")
                     }
-                    _lyricsMap.value = fetchedLyricsMap
-                } catch (e: Exception) {
-                    com.bitperfect.core.utils.AppLogger.e("AppViewModel", "Failed to fetch lyrics concurrently: ${e.message}")
-                    // Leave map unchanged or empty? Left unchanged on error as per requirements.
                 }
             }
         }
