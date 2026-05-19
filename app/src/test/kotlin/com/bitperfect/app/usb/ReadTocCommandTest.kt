@@ -12,6 +12,10 @@ import org.mockito.Mockito.`when`
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+@RunWith(RobolectricTestRunner::class)
 class ReadTocCommandTest {
 
     private lateinit var transport: UsbTransport
@@ -265,11 +269,231 @@ class ReadTocCommandTest {
         assertEquals(150, toc.tracks[0].lba)
         assertEquals(10150, toc.tracks[1].lba)
         assertEquals(20150, toc.tracks[2].lba)
+        // With main TOC leadout canonical parsing, we should have leadOutLba = track1Lba + 40000 = 40150
+        assertEquals(40150, toc.leadOutLba)
+    }
 
-        // Because the short read missed the session 1 lead-out, audioLeadOutLba will be null,
-        // so it falls back to the main leadOutLba. In createFakeTocData, with isCdExtra=true,
-        // leadOutLba is track1Lba + 40000 = 40150.
-        // But wait! Is `normalisedAudioLeadOut` exposed?
-        // We can just verify it didn't crash and we got the right data out.
+    @Test
+    fun `test malformed TOC lengths and alignment`() {
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            val buffer = invocation.arguments[1] as ByteArray
+            val length = invocation.arguments[2] as Int
+
+            if (length == 31) {
+                return@thenAnswer length
+            } else if (length == 804) {
+                // Return misaligned length
+                buffer[0] = 0
+                buffer[1] = 5 // length 5, so 5 - 2 = 3 which is not % 8 == 0
+                return@thenAnswer 804
+            } else if (length == 13) {
+                val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
+                cswBuffer.putInt(3) // tag
+                cswBuffer.putInt(0) // data residue
+                cswBuffer.put(0.toByte()) // status success
+                return@thenAnswer length
+            } else {
+                return@thenAnswer -1
+            }
+        }
+
+        val result = readTocCommand.execute()
+        org.junit.Assert.assertNull(result)
+    }
+
+    @Test
+    fun `test short USB reads`() {
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            val buffer = invocation.arguments[1] as ByteArray
+            val length = invocation.arguments[2] as Int
+
+            if (length == 31) {
+                return@thenAnswer length
+            } else if (length == 804) {
+                // Short read of 2 bytes
+                buffer[0] = 0
+                buffer[1] = 10
+                return@thenAnswer 2
+            } else if (length == 13) {
+                val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
+                cswBuffer.putInt(3) // tag
+                cswBuffer.putInt(0) // data residue
+                cswBuffer.put(0.toByte()) // status success
+                return@thenAnswer length
+            } else {
+                return@thenAnswer -1
+            }
+        }
+
+        val result = readTocCommand.execute()
+        org.junit.Assert.assertNull(result)
+    }
+
+    @Test
+    fun `test missing leadout`() {
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            val buffer = invocation.arguments[1] as ByteArray
+            val length = invocation.arguments[2] as Int
+
+            if (length == 31) {
+                return@thenAnswer length
+            } else if (length == 804) {
+                val dataBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.BIG_ENDIAN)
+                dataBuffer.putShort(18) // 2 entries -> 2 + 16 = 18
+                dataBuffer.put(1)
+                dataBuffer.put(2)
+                dataBuffer.position(4)
+                // Track 1
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(1)
+                dataBuffer.put(0)
+                dataBuffer.putInt(150)
+                // Track 2
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(2)
+                dataBuffer.put(0)
+                dataBuffer.putInt(200)
+                return@thenAnswer 804
+            } else if (length == 13) {
+                val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
+                cswBuffer.putInt(3) // tag
+                cswBuffer.putInt(0) // data residue
+                cswBuffer.put(0.toByte()) // status success
+                return@thenAnswer length
+            } else {
+                return@thenAnswer -1
+            }
+        }
+
+        val result = readTocCommand.execute()
+        org.junit.Assert.assertNull(result)
+    }
+
+    @Test
+    fun `test duplicate tracks`() {
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            val buffer = invocation.arguments[1] as ByteArray
+            val length = invocation.arguments[2] as Int
+
+            if (length == 31) {
+                return@thenAnswer length
+            } else if (length == 804) {
+                val dataBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.BIG_ENDIAN)
+                dataBuffer.putShort(26) // 3 entries -> 2 + 24 = 26
+                dataBuffer.put(1)
+                dataBuffer.put(2)
+                dataBuffer.position(4)
+                // Track 1
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(1)
+                dataBuffer.put(0)
+                dataBuffer.putInt(150)
+                // Duplicate Track 1
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(1)
+                dataBuffer.put(0)
+                dataBuffer.putInt(200)
+                // Lead-out
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(0xAA.toByte())
+                dataBuffer.put(0)
+                dataBuffer.putInt(300)
+                return@thenAnswer 804
+            } else if (length == 13) {
+                val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
+                cswBuffer.putInt(3) // tag
+                cswBuffer.putInt(0) // data residue
+                cswBuffer.put(0.toByte()) // status success
+                return@thenAnswer length
+            } else {
+                return@thenAnswer -1
+            }
+        }
+
+        val result = readTocCommand.execute()
+        org.junit.Assert.assertNull(result)
+    }
+
+    @Test
+    fun `test descending LBAs`() {
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            val buffer = invocation.arguments[1] as ByteArray
+            val length = invocation.arguments[2] as Int
+
+            if (length == 31) {
+                return@thenAnswer length
+            } else if (length == 804) {
+                val dataBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.BIG_ENDIAN)
+                dataBuffer.putShort(26) // 3 entries -> 2 + 24 = 26
+                dataBuffer.put(1)
+                dataBuffer.put(2)
+                dataBuffer.position(4)
+                // Track 1
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(1)
+                dataBuffer.put(0)
+                dataBuffer.putInt(200)
+                // Track 2 with smaller LBA
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(2)
+                dataBuffer.put(0)
+                dataBuffer.putInt(150)
+                // Lead-out
+                dataBuffer.put(0)
+                dataBuffer.put(0x10)
+                dataBuffer.put(0xAA.toByte())
+                dataBuffer.put(0)
+                dataBuffer.putInt(300)
+                return@thenAnswer 804
+            } else if (length == 13) {
+                val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                cswBuffer.putInt(0x53425355) // CSW_SIGNATURE
+                cswBuffer.putInt(3) // tag
+                cswBuffer.putInt(0) // data residue
+                cswBuffer.put(0.toByte()) // status success
+                return@thenAnswer length
+            } else {
+                return@thenAnswer -1
+            }
+        }
+
+        val result = readTocCommand.execute()
+        org.junit.Assert.assertNull(result)
     }
 }
