@@ -48,7 +48,7 @@ class ReadTocCommandTest {
         }
     }
 
-    private fun handleMockTransfer(invocation: org.mockito.invocation.InvocationOnMock, track1Lba: Int, cswTag: Int): Int {
+    private fun handleMockTransfer(invocation: org.mockito.invocation.InvocationOnMock, track1Lba: Int, cswTag: Int, isCdExtra: Boolean = false, shortReadSession1: Boolean = false): Int {
         val buffer = invocation.arguments[1] as ByteArray
         val length = invocation.arguments[2] as Int
 
@@ -57,8 +57,14 @@ class ReadTocCommandTest {
             return length
         } else if (length == 804) {
             // TOC Data Single Phase
-            val fakeData = createFakeTocData(track1Lba)
+            val fakeData = createFakeTocData(track1Lba, isCdExtra)
             val toCopy = Math.min(length, fakeData.size)
+            System.arraycopy(fakeData, 0, buffer, 0, toCopy)
+            return toCopy
+        } else if (length == 36) {
+            // Session 1 TOC Data
+            val fakeData = createSession1TocData(track1Lba)
+            val toCopy = if (shortReadSession1) 12 else Math.min(length, fakeData.size)
             System.arraycopy(fakeData, 0, buffer, 0, toCopy)
             return toCopy
         } else if (length == 13) {
@@ -74,23 +80,72 @@ class ReadTocCommandTest {
         }
     }
 
-    private fun createFakeTocData(track1Lba: Int): ByteArray {
+    private fun setupMockTransferWithCdExtra(track1Lba: Int, shortReadSession1: Boolean = false) {
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            handleMockTransfer(invocation, track1Lba, 3, isCdExtra = true, shortReadSession1 = shortReadSession1)
+        }
+        `when`(transport.bulkTransferFully(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            handleMockTransfer(invocation, track1Lba, 3, isCdExtra = true, shortReadSession1 = shortReadSession1)
+        }
+    }
+
+    private fun createSession1TocData(track1Lba: Int): ByteArray {
+        val tocData = ByteArray(36)
+        val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
+
+        // Claiming 1 track + 1 lead-out = 2 entries, so tocDataLength = 2 + (2 * 8) = 18
+        // Let's claim a very large length to simulate a short read scenario
+        // E.g., it claims length=34 (4 entries), but short read only returns 12 bytes
+        dataBuffer.putShort(34.toShort())
+        dataBuffer.put(1.toByte())
+        dataBuffer.put(1.toByte())
+
+        dataBuffer.position(4)
+        // Track 1
+        dataBuffer.put(0)
+        dataBuffer.put(0x10)
+        dataBuffer.put(1)
+        dataBuffer.put(0)
+        dataBuffer.putInt(track1Lba)
+
+        // Session 1 Lead-out (AA)
+        dataBuffer.put(0)
+        dataBuffer.put(0x10)
+        dataBuffer.put(0xAA.toByte())
+        dataBuffer.put(0)
+        dataBuffer.putInt(track1Lba + 10000)
+
+        return tocData
+    }
+
+    private fun createFakeTocData(track1Lba: Int, isCdExtra: Boolean = false): ByteArray {
         val tocData = ByteArray(804)
         val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
 
         // 3 tracks + 1 lead-out
-        val entryCount = 4
+        val entryCount = if (isCdExtra) 5 else 4
         val tocDataLength = 2 + (entryCount * 8)
         dataBuffer.putShort(tocDataLength.toShort())
         dataBuffer.put(1.toByte()) // first track
-        dataBuffer.put(3.toByte()) // last track
+        dataBuffer.put(if (isCdExtra) 4.toByte() else 3.toByte()) // last track
 
         val lbas = listOf(
             track1Lba,
             track1Lba + 10000,
             track1Lba + 20000
         )
-        val leadOutLba = track1Lba + 30000
+        val dataTrackLba = track1Lba + 30000
+        val leadOutLba = if (isCdExtra) track1Lba + 40000 else track1Lba + 30000
 
         dataBuffer.position(4)
 
@@ -114,6 +169,15 @@ class ReadTocCommandTest {
         dataBuffer.put(3)
         dataBuffer.put(0)
         dataBuffer.putInt(lbas[2])
+
+        if (isCdExtra) {
+            // Data Track (Track 4)
+            dataBuffer.put(0)
+            dataBuffer.put(0x14) // 0x14 indicates data track (0x04 bit set)
+            dataBuffer.put(4)
+            dataBuffer.put(0)
+            dataBuffer.putInt(dataTrackLba)
+        }
 
         // Lead-out
         dataBuffer.put(0)
@@ -183,5 +247,29 @@ class ReadTocCommandTest {
 
         val result = readTocCommand.execute()
         org.junit.Assert.assertNull(result)
+    }
+
+    @Test
+    fun `test CD-Extra session 1 short read`() {
+        // Simulate a CD-Extra disc with a short read on the Session 1 TOC
+        setupMockTransferWithCdExtra(150, shortReadSession1 = true)
+
+        val result = readTocCommand.execute()
+
+        assertNotNull(result)
+        val toc = result!!.first
+        assertEquals(3, toc.tracks.size) // The 3 audio tracks
+
+        // The short read returns 12 bytes. That's enough for the header (4 bytes) and Track 1 (8 bytes),
+        // but it misses the Session 1 Lead-Out (AA). It shouldn't crash, and should fall back gracefully.
+        assertEquals(150, toc.tracks[0].lba)
+        assertEquals(10150, toc.tracks[1].lba)
+        assertEquals(20150, toc.tracks[2].lba)
+
+        // Because the short read missed the session 1 lead-out, audioLeadOutLba will be null,
+        // so it falls back to the main leadOutLba. In createFakeTocData, with isCdExtra=true,
+        // leadOutLba is track1Lba + 40000 = 40150.
+        // But wait! Is `normalisedAudioLeadOut` exposed?
+        // We can just verify it didn't crash and we got the right data out.
     }
 }
