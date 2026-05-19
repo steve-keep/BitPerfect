@@ -27,6 +27,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
 import java.io.File
 import java.io.IOException
+import kotlin.math.roundToLong
 
 class LyricsRepository(private val context: Context) {
     private val TAG = "LyricsRepository"
@@ -76,6 +77,7 @@ class LyricsRepository(private val context: Context) {
             }
         } catch (e: SerializationException) {
             AppLogger.e(TAG, "$logTag Error parsing cache: ${e.message}")
+            try { cacheFile.delete() } catch (ignored: Exception) {}
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             AppLogger.e(TAG, "$logTag Error reading from cache: ${e.message}")
@@ -112,7 +114,7 @@ class LyricsRepository(private val context: Context) {
                 parameter("track_name", trackTitle)
                 parameter("album_name", albumTitle)
                 if (durationSeconds != null) {
-                    parameter("duration", durationSeconds.toLong())
+                    parameter("duration", durationSeconds.roundToLong())
                 }
             }
 
@@ -140,7 +142,7 @@ class LyricsRepository(private val context: Context) {
 
             val responseBody = httpResponse.bodyAsText()
             if (responseBody.isBlank()) {
-                return LyricsFetchResult.Failure(FetchState.EMPTY_RESPONSE)
+                return LyricsFetchResult.Failure(FetchState.EMPTY_HTTP_BODY)
             }
 
             val response: LrclibResponse = sharedJson.decodeFromString(responseBody)
@@ -162,7 +164,7 @@ class LyricsRepository(private val context: Context) {
                 return LyricsFetchResult.Success(result)
             } else {
                 AppLogger.d(TAG, "$logTag Response contained no lyrics")
-                return LyricsFetchResult.Failure(FetchState.EMPTY_RESPONSE, "Response contained no lyrics")
+                return LyricsFetchResult.Failure(FetchState.NO_LYRICS, "Response contained no lyrics")
             }
         } catch (e: CancellationException) {
             AppLogger.w(TAG, "$logTag Lyrics fetch cancelled")

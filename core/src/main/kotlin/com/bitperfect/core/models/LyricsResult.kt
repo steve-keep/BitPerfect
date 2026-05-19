@@ -25,7 +25,8 @@ enum class FetchState {
     TIMEOUT,
     CANCELLED,
     JSON_PARSE_ERROR,
-    EMPTY_RESPONSE,
+    EMPTY_HTTP_BODY,
+    NO_LYRICS,
     INVALID_RESPONSE,
     UNKNOWN_ERROR
 }

@@ -53,6 +53,7 @@ import java.net.URL
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitAll
@@ -181,8 +182,14 @@ open class AppViewModel(
     private val _artwork = MutableStateFlow<ItunesArtwork?>(null)
     private val _artworkBytes = MutableStateFlow<ByteArray?>(null)
 
+    private data class LyricsFetchKey(
+        val mbReleaseId: String,
+        val embedLyrics: Boolean
+    )
+
     private val lyricsRepository = LyricsRepository(application)
-    private var lastLyricsReleaseId: String? = null
+    private var lastLyricsFetchKey: LyricsFetchKey? = null
+    private var lyricsFetchJob: Job? = null
     private val _lyricsMap = MutableStateFlow<Map<Int, LyricsFetchResult>>(emptyMap())
     val lyricsMap: StateFlow<Map<Int, LyricsFetchResult>> = _lyricsMap.asStateFlow()
 
@@ -427,17 +434,24 @@ open class AppViewModel(
             discMetadata.collect { metadata ->
                 if (metadata == null) {
                     _lyricsMap.value = emptyMap()
-                    lastLyricsReleaseId = null
+                    lastLyricsFetchKey = null
+                    lyricsFetchJob?.cancel()
                     return@collect
                 }
 
-                if (metadata.mbReleaseId == lastLyricsReleaseId && lastLyricsReleaseId?.isNotBlank() == true) {
+                val currentKey = LyricsFetchKey(
+                    mbReleaseId = metadata.mbReleaseId,
+                    embedLyrics = settingsManager.embedLyrics
+                )
+
+                if (currentKey == lastLyricsFetchKey && currentKey.mbReleaseId.isNotBlank()) {
                     return@collect
                 }
-                lastLyricsReleaseId = metadata.mbReleaseId
 
                 if (!settingsManager.embedLyrics) {
                     _lyricsMap.value = emptyMap()
+                    lastLyricsFetchKey = currentKey
+                    lyricsFetchJob?.cancel()
                     return@collect
                 }
 
@@ -449,7 +463,8 @@ open class AppViewModel(
                 }
 
                 // Launch lyrics fetch disconnected from collect's cancellation scope
-                viewModelScope.launch(ioDispatcher) {
+                lyricsFetchJob?.cancel()
+                lyricsFetchJob = viewModelScope.launch(ioDispatcher) {
                     try {
                         val semaphore = Semaphore(2)
                         val fetchedLyricsMap = coroutineScope {
@@ -473,6 +488,10 @@ open class AppViewModel(
                             }.awaitAll().filterNotNull().toMap()
                         }
                         _lyricsMap.value = fetchedLyricsMap
+                        lastLyricsFetchKey = currentKey
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        // Expected, do not suppress
+                        throw e
                     } catch (e: Exception) {
                         com.bitperfect.core.utils.AppLogger.e("AppViewModel", "Failed to fetch lyrics: ${e.message}")
                     }

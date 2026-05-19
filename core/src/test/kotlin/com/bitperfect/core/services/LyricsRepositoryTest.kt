@@ -83,6 +83,34 @@ class LyricsRepositoryTest {
     @Test
     fun `fetchReturnsFailureWhenResponseIsMissingLyrics`() = runBlocking {
         val mockEngine = MockEngine { _ ->
+            respond(
+                content = "{}",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val cacheDir = File(System.getProperty("java.io.tmpdir"), "lyrics_test_cache_" + System.currentTimeMillis())
+        cacheDir.mkdirs()
+        cacheDir.deleteOnExit()
+        io.mockk.every { mockContext.cacheDir } returns cacheDir
+
+        val repository = LyricsRepository(mockContext, mockEngine)
+        val result = repository.fetch(
+            artistName = "Artist",
+            albumTitle = "Album",
+            trackTitle = "Track",
+            trackNumber = 1,
+            mbReleaseId = "valid-id",
+            durationSeconds = 120.0
+        ) as com.bitperfect.core.models.LyricsFetchResult.Failure
+
+        assertEquals(com.bitperfect.core.models.FetchState.NO_LYRICS, result.state)
+    }
+
+    @Test
+    fun `fetchReturnsFailureOnNetworkError`() = runBlocking {
+        val mockEngine = MockEngine { _ ->
             throw IOException("Network error")
         }
 
