@@ -378,7 +378,9 @@ fun TrackListScreen(
                                             val computedStr = String.format("0x%08X", ripState.computedChecksum and 0xFFFFFFFFL)
                                             when (ripState.status) {
                                                 RipStatus.SUCCESS -> {
-                                                    Text("Checksum  $computedStr  ✓ matched", style = MaterialTheme.typography.bodyMedium)
+                                                    Text("Computed   $computedStr  ✓ matched", style = MaterialTheme.typography.bodyMedium)
+                                                    val expectedStr = ripState.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    Text("Expected   $expectedStr", style = MaterialTheme.typography.bodyMedium)
                                                 }
                                                 RipStatus.WARNING -> {
                                                     Text("Computed   $computedStr", style = MaterialTheme.typography.bodyMedium)
