@@ -111,7 +111,7 @@ class DiscIdUtilsTest {
             TocEntry(trackNumber = 10, lba = 196867)
         )
         // audio session leadout is 225673
-        val toc = DiscToc(tracks = tracks, leadOutLba = 225673)
+        val toc = DiscToc(tracks = tracks, leadOutLba = 247632, audioLeadOutLba = 225673)
 
         val mbId = computeMusicBrainzDiscId(toc)
         org.junit.Assert.assertEquals("Cr1Rf7_SmFh.v1QEjuASxozukf0-", mbId)

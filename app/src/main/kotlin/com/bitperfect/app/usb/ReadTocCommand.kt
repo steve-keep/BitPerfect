@@ -359,7 +359,7 @@ class ReadTocCommand(
                 val psec = tocData[offset + 9].toInt() and 0xFF
                 val pframe = tocData[offset + 10].toInt() and 0xFF
 
-                val lba = (((pmin * 60) + psec) * 75 + pframe) - 150
+                val lba = ((pmin * 60) + psec) * 75 + pframe
                 AppLogger.d(TAG, "Session $targetSession A2 leadout MSF=$pmin:$psec:$pframe lba=$lba")
 
                 if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
@@ -456,7 +456,7 @@ class ReadTocCommand(
                     continue
                 }
 
-                val lba = (((min * 60) + sec) * 75 + frame) - 150
+                val lba = ((min * 60) + sec) * 75 + frame
                 AppLogger.d(TAG, "MSF TOC session-1 leadout: MSF=$min:$sec:$frame lba=$lba")
 
                 if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
