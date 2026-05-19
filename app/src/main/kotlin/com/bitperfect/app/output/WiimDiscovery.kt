@@ -31,7 +31,7 @@ class WiimDiscovery(private val context: Context) {
                 HOST: 239.255.255.250:1900
                 MAN: "ssdp:discover"
                 MX: 3
-                ST: urn:schemas-upnp-org:service:AVTransport:1
+                ST: urn:schemas-upnp-org:device:MediaRenderer:1
 
             """.trimIndent().replace("\n", "\r\n").toByteArray()
 
