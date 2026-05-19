@@ -38,7 +38,7 @@ open class OutputRepository(
     private val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
-    private val wiimDiscovery = WiimDiscovery(context)
+    private val upnpManager = UpnpManager(context)
     private val _isDiscovering = MutableStateFlow(false)
     open val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
 
@@ -62,6 +62,23 @@ open class OutputRepository(
             bluetoothReceiver,
             IntentFilter(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
         )
+
+        scope.launch {
+            upnpManager.devices.collect { upnpDevices ->
+                val current = _availableDevices.value.filter { it !is OutputDevice.Upnp }.toMutableList()
+                current.addAll(upnpDevices)
+                _availableDevices.value = current
+            }
+        }
+        upnpManager.start()
+    }
+
+    // Add a cleanup method to stop discovery when app closes
+    fun release() {
+        upnpManager.stop()
+        try {
+            context.unregisterReceiver(bluetoothReceiver)
+        } catch (e: Exception) {}
     }
 
     // --- Playback delegation ---
@@ -121,6 +138,11 @@ open class OutputRepository(
             val devices = mutableListOf<OutputDevice>(OutputDevice.ThisPhone)
             val btDevices = fetchConnectedA2dpDevices()
             devices.addAll(btDevices)
+
+            // Keep existing UPnP devices
+            val existingUpnp = _availableDevices.value.filterIsInstance<OutputDevice.Upnp>()
+            devices.addAll(existingUpnp)
+
             _availableDevices.value = devices
 
             if (btDevices.isNotEmpty() && _activeDevice.value is OutputDevice.ThisPhone && userSelectedDevice == null) {
@@ -135,16 +157,6 @@ open class OutputRepository(
                     activeController = newController
                     _activeDevice.value = btDevices.first()
                 }
-            }
-
-            try {
-                _isDiscovering.value = true
-                val wiimDevices = wiimDiscovery.discover()
-                val updatedDevices = _availableDevices.value.toMutableList()
-                updatedDevices.addAll(wiimDevices)
-                _availableDevices.value = updatedDevices
-            } finally {
-                _isDiscovering.value = false
             }
         }
     }

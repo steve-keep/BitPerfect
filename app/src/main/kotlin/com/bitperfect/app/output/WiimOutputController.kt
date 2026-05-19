@@ -224,9 +224,9 @@ class WiimOutputController(
     }
 
     private fun sendSoapActionWithResponse(action: String, body: String): String? {
-        if (target.controlUrl.isEmpty()) return null
+        if (target.avTransportControlUrl.isNullOrEmpty()) return null
         try {
-            val url = URL(target.controlUrl)
+            val url = URL(target.avTransportControlUrl!!)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 5000
