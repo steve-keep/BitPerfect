@@ -133,13 +133,24 @@ class ReadTocCommand(
         val lastAudioTrackIndex = allEntries.indexOfLast { !isDataTrack(it.ctrl) }
         val isCdExtra = lastAudioTrackIndex in 0 until allEntries.size - 1 && isDataTrack(allEntries.last().ctrl)
 
+        val audioEntries = if (lastAudioTrackIndex >= 0) {
+            allEntries.take(lastAudioTrackIndex + 1).map { TocEntry(it.trackNumber, it.lba) }
+        } else {
+            emptyList()
+        }
+
+        AppLogger.d(TAG, "Audio track count=${audioEntries.size}")
+        if (audioEntries.isNotEmpty()) {
+            AppLogger.d(TAG, "Last audio track=${audioEntries.last().trackNumber}")
+        }
+
         var finalLeadOutLba = leadOutLba
 
         if (isCdExtra) {
             val sessionLeadout = fetchSession1LeadOut()
             AppLogger.d(TAG, "Raw leadout=$leadOutLba")
             AppLogger.d(TAG, "Session leadout=$sessionLeadout")
-            if (sessionLeadout != null && sessionLeadout != leadOutLba) {
+            if (sessionLeadout != null && sessionLeadout != leadOutLba && audioEntries.isNotEmpty() && sessionLeadout > audioEntries.last().lba) {
                 AppLogger.w(TAG, "Session leadout mismatch: main=$leadOutLba session1=$sessionLeadout")
                 finalLeadOutLba = sessionLeadout
             } else if (finalLeadOutLba == null) {
@@ -160,8 +171,8 @@ class ReadTocCommand(
             }
         }
 
-        if (finalLeadOutLba <= allEntries.last().lba) {
-            AppLogger.e(TAG, "Invalid leadout ordering")
+        if (audioEntries.isNotEmpty() && finalLeadOutLba <= audioEntries.last().lba) {
+            AppLogger.e(TAG, "Invalid leadout ordering against audio tracks")
             return null
         }
 
@@ -171,12 +182,6 @@ class ReadTocCommand(
                 AppLogger.e(TAG, "Duplicate track number: ${entry.trackNumber}")
                 return null
             }
-        }
-
-        val audioEntries = if (lastAudioTrackIndex >= 0) {
-            allEntries.take(lastAudioTrackIndex + 1).map { TocEntry(it.trackNumber, it.lba) }
-        } else {
-            emptyList()
         }
 
         // Normalise to 150-based LBAs (Redbook standard).
