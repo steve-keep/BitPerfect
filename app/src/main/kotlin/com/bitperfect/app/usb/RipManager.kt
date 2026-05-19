@@ -290,6 +290,7 @@ class RipManager(
                 }
 
                 encoder.stop()
+                tempOutputStream.close() // Flush remaining buffers to temp file
 
                 var audioAnalysis: AudioAnalysis? = null
                 try {
@@ -358,12 +359,30 @@ class RipManager(
                 )
                 continue
             } finally {
+                var closeException: Exception? = null
                 try {
                     outputStream?.close()
                 } catch (e: Exception) {
-                    // Ignore
+                    closeException = e
                 }
                 tempFile.delete()
+
+                if (closeException != null) {
+                    AppLogger.e("RipManager", "Error closing output stream for track $trackNumber", closeException)
+                    updateTrackState(
+                        trackNumber = trackNumber,
+                        status = RipStatus.ERROR,
+                        progress = sectorsRead.toFloat() / totalSectors,
+                        errorMessage = "Failed to save file: ${closeException.message ?: "Unknown error"}",
+                        startLba = entry.lba,
+                        endLba = nextLba,
+                        totalSectors = totalSectors,
+                        sectorsRead = sectorsRead,
+                        totalSamples = totalSamples,
+                        durationSeconds = sectorsRead.toLong() * 588L / 44100.0
+                    )
+                    continue
+                }
             }
 
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
