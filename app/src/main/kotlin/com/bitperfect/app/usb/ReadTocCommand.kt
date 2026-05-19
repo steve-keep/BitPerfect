@@ -144,25 +144,28 @@ class ReadTocCommand(
             AppLogger.d(TAG, "Last audio track=${audioEntries.last().trackNumber}")
         }
 
-        var finalLeadOutLba = leadOutLba
+        var audioLeadOutLba: Int? = null
 
-        if (isCdExtra) {
-            val sessionLeadout = fetchSession1LeadOut()
+        val hasDataTrack = allEntries.any { isDataTrack(it.ctrl) }
+        if (hasDataTrack) {
+            val lastAudioLba = audioEntries.lastOrNull()?.lba
+            val sessionLeadout = fetchAudioLeadOutFromFullToc(lastAudioLba, leadOutLba)
             AppLogger.d(TAG, "Raw leadout=$leadOutLba")
             AppLogger.d(TAG, "Session leadout=$sessionLeadout")
-            if (sessionLeadout != null && sessionLeadout != leadOutLba && audioEntries.isNotEmpty() && sessionLeadout > audioEntries.last().lba) {
+            if (sessionLeadout != null && sessionLeadout != leadOutLba) {
                 AppLogger.w(TAG, "Session leadout mismatch: main=$leadOutLba session1=$sessionLeadout")
-                finalLeadOutLba = sessionLeadout
-            } else if (finalLeadOutLba == null) {
-                finalLeadOutLba = sessionLeadout
+                audioLeadOutLba = sessionLeadout
+                AppLogger.d(TAG, "Selected MB leadout source=full_toc_a2")
+            } else if (leadOutLba == null) {
+                leadOutLba = sessionLeadout
             }
         }
 
-        if (finalLeadOutLba == null) {
-            AppLogger.e(TAG, "Missing leadout")
+        if (leadOutLba == null) {
+            AppLogger.e(TAG, "Missing physical leadout")
             return null
         }
-        AppLogger.d(TAG, "Final MB leadout=$finalLeadOutLba")
+        AppLogger.d(TAG, "Final MB leadout=${audioLeadOutLba ?: leadOutLba}")
 
         for (i in 1 until allEntries.size) {
             if (allEntries[i].lba <= allEntries[i - 1].lba) {
@@ -171,7 +174,7 @@ class ReadTocCommand(
             }
         }
 
-        if (audioEntries.isNotEmpty() && finalLeadOutLba <= audioEntries.last().lba) {
+        if (audioEntries.isNotEmpty() && leadOutLba!! <= audioEntries.last().lba) {
             AppLogger.e(TAG, "Invalid leadout ordering against audio tracks")
             return null
         }
@@ -191,100 +194,125 @@ class ReadTocCommand(
         val pregapOffset = if (audioEntries.firstOrNull()?.lba == 0) 150 else 0
         AppLogger.d(TAG, "Pregap adjustment=$pregapOffset")
         val normalisedEntries = if (pregapOffset == 0) audioEntries else audioEntries.map { it.copy(lba = it.lba + pregapOffset) }
-        val normalisedLeadOut = finalLeadOutLba + pregapOffset
+        val normalisedLeadOut = leadOutLba!! + pregapOffset
+        val normalisedAudioLeadOut = audioLeadOutLba?.let { it + pregapOffset }
 
-        val pair = Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset), tocData.copyOf(totalTocRead))
+        val pair = Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset, normalisedAudioLeadOut), tocData.copyOf(totalTocRead))
         AppLogger.d(TAG, "Generated MB Disc ID: ${com.bitperfect.core.utils.computeMusicBrainzDiscId(pair.first)}")
         return pair
     }
 
-    private fun fetchSession1LeadOut(): Int? {
+    private fun fetchAudioLeadOutFromFullToc(lastAudioTrackLba: Int?, physicalLeadOutLba: Int?): Int? {
+        AppLogger.d(TAG, "Fetching Full TOC (Format=0x02) to determine audio session leadout")
         val tag = transport.nextTag()
-        // CBW: 31 bytes
+        val allocLen = 2048
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(ByteOrder.LITTLE_ENDIAN)
         buffer.putInt(CBW_SIGNATURE)
         buffer.putInt(tag)
-        buffer.putInt(36)
-        buffer.put(0x80.toByte())
-        buffer.put(0)
-        buffer.put(10)
+        buffer.putInt(allocLen)      // dCBWDataTransferLength
+        buffer.put(0x80.toByte())    // bmCBWFlags
+        buffer.put(0)                // bCBWLUN
+        buffer.put(10)               // bCBWCBLength
 
         // SCSI READ TOC Command Block (10 bytes)
         buffer.put(0x43)             // Opcode: READ TOC/PMA/ATIP
-        buffer.put(0)                // MSF bit 0 (LBA format)
-        buffer.put(0)                // Format 0b0000
+        buffer.put(2)                // MSF bit 1
+        buffer.put(2)                // Format 0b0010 (Full TOC / Format 0x02)
         buffer.put(0)                // Reserved
         buffer.put(0)                // Reserved
         buffer.put(0)                // Reserved
-        buffer.put(1)                // Session Number = 1 (restrict to session 1)
-
-        buffer.put(0x00)
-        buffer.put(0x24)
-
+        buffer.put(1)                // Session Number = 1
+        buffer.put((allocLen shr 8).toByte())
+        buffer.put((allocLen and 0xFF).toByte())
         buffer.put(0)
 
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
         if (transferred < 0) {
-            AppLogger.e(TAG, "Failed to send CBW for Session 1 READ TOC")
+            AppLogger.e(TAG, "Failed to send CBW for Full TOC")
             return null
         }
 
-        val tocData = ByteArray(36)
-        val totalTocRead = transport.bulkTransfer(inEndpoint, tocData, 36, 5000)
+        val tocData = ByteArray(allocLen)
+        val totalTocRead = transport.bulkTransferFully(inEndpoint, tocData, allocLen, 5000)
         if (totalTocRead < 4) {
-            AppLogger.e(TAG, "Failed to read TOC data for Session 1")
+            AppLogger.e(TAG, "Failed to read Full TOC data")
             return null
         }
 
         val csw = ByteArray(13)
         transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
         if (transferred < 0) {
-            AppLogger.e(TAG, "Failed to read CSW for Session 1 READ TOC")
+            AppLogger.e(TAG, "Failed to read CSW for Full TOC")
             return null
         }
 
         val cswBuffer = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN)
         if (cswBuffer.getInt(0) != CSW_SIGNATURE || cswBuffer.getInt(4) != tag || csw[12] != 0.toByte()) {
-            AppLogger.e(TAG, "Invalid or failed CSW for Session 1 READ TOC")
+            AppLogger.e(TAG, "Invalid or failed CSW for Full TOC")
             return null
         }
 
         val tocLength = ((tocData[0].toInt() and 0xFF) shl 8) or (tocData[1].toInt() and 0xFF)
 
         if (tocLength < 2) {
-            AppLogger.e(TAG, "Invalid Session 1 TOC length")
-            return null
-        }
-
-        if ((tocLength - 2) % 8 != 0) {
-            AppLogger.e(TAG, "Session 1 TOC descriptor alignment invalid")
-            return null
-        }
-
-        if (tocLength + 2 > totalTocRead) {
-            AppLogger.e(TAG, "Session 1 TOC length exceeds received bytes")
+            AppLogger.e(TAG, "Invalid Full TOC length")
             return null
         }
 
         var offset = 4
-        while (offset + 8 <= totalTocRead && offset < tocLength + 2) {
-            val trackNumber = tocData[offset + 2].toInt() and 0xFF
-            val lba = ((tocData[offset + 4].toInt() and 0xFF) shl 24) or
-                      ((tocData[offset + 5].toInt() and 0xFF) shl 16) or
-                      ((tocData[offset + 6].toInt() and 0xFF) shl 8) or
-                      (tocData[offset + 7].toInt() and 0xFF)
+        val audioSessions = mutableSetOf<Int>()
 
-            if (trackNumber == 0xAA) {
+        // Scan Full TOC descriptors to identify audio sessions
+        while (offset + 11 <= totalTocRead && offset < tocLength + 2) {
+            val session = tocData[offset].toInt() and 0xFF
+            val control = tocData[offset + 1].toInt() and 0xFF
+            val point = tocData[offset + 3].toInt() and 0xFF
+
+            if (point in 0x01..0x63) {
+                val isData = (control and 0x04) != 0
+                if (!isData) {
+                    audioSessions.add(session)
+                }
+            }
+            offset += 11
+        }
+
+        val targetSession = audioSessions.maxOrNull() ?: 1
+        AppLogger.d(TAG, "Identified audio sessions: $audioSessions. Selected target session=$targetSession")
+
+        offset = 4
+        while (offset + 11 <= totalTocRead && offset < tocLength + 2) {
+            val session = tocData[offset].toInt() and 0xFF
+            val point = tocData[offset + 3].toInt() and 0xFF
+
+            if (session == targetSession && point == 0xA2) {
+                val pmin = tocData[offset + 8].toInt() and 0xFF
+                val psec = tocData[offset + 9].toInt() and 0xFF
+                val pframe = tocData[offset + 10].toInt() and 0xFF
+
+                val lba = ((pmin * 60) + psec) * 75 + pframe
+                AppLogger.d(TAG, "Session $targetSession A2 leadout MSF=$pmin:$psec:$pframe lba=$lba")
+
+                if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
+                    AppLogger.w(TAG, "Extracted Full TOC A2 leadout ($lba) <= last audio track LBA ($lastAudioTrackLba)")
+                    return null
+                }
+                if (physicalLeadOutLba != null && lba >= physicalLeadOutLba) {
+                    AppLogger.w(TAG, "Extracted Full TOC A2 leadout ($lba) >= physical leadout ($physicalLeadOutLba)")
+                    return null
+                }
+
                 return lba
             }
 
-            offset += 8
+            offset += 11
         }
+
+        AppLogger.e(TAG, "Failed to find 0xA2 entry for target session $targetSession in Full TOC")
         return null
     }
-
     companion object {
         private const val TAG = "ReadTocCommand"
         private const val CBW_SIGNATURE = 0x43425355 // "USBC"
