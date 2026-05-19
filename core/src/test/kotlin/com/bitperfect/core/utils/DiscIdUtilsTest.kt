@@ -110,7 +110,7 @@ class DiscIdUtilsTest {
             TocEntry(trackNumber = 9, lba = 174579),
             TocEntry(trackNumber = 10, lba = 196867)
         )
-        // main TOC 0xAA leadOutLba is 225673
+        // audio session leadout is 225673
         val toc = DiscToc(tracks = tracks, leadOutLba = 225673)
 
         val mbId = computeMusicBrainzDiscId(toc)
@@ -166,6 +166,15 @@ class DiscIdUtilsTest {
 
         val tocString = computeMusicBrainzTocString(toc)
         org.junit.Assert.assertEquals("1+10+225673+150+24788+43296+66497+87910+106598+126125+145966+174579+196867", tocString)
+
+        org.junit.Assert.assertNotEquals(
+            computeMusicBrainzDiscId(
+                DiscToc(tracks, leadOutLba = 247632, audioLeadOutLba = null)
+            ),
+            computeMusicBrainzDiscId(
+                DiscToc(tracks, leadOutLba = 247632, audioLeadOutLba = 225673)
+            )
+        )
     }
 
     @Test

@@ -111,19 +111,19 @@ class ReadTocCommand(
 
         var offset = 4
         while (offset + 8 <= totalTocRead && offset < tocLength + 2) {
-            val adrControl = tocData[offset + 1].toInt() and 0xFF
+            val control = tocData[offset + 1].toInt() and 0x0F
             val trackNumber = tocData[offset + 2].toInt() and 0xFF
             val lba = ((tocData[offset + 4].toInt() and 0xFF) shl 24) or
                       ((tocData[offset + 5].toInt() and 0xFF) shl 16) or
                       ((tocData[offset + 6].toInt() and 0xFF) shl 8) or
                       (tocData[offset + 7].toInt() and 0xFF)
 
-            AppLogger.d(TAG, "TOC track=$trackNumber lba=$lba ctrl=$adrControl")
+            AppLogger.d(TAG, "TOC track=$trackNumber lba=$lba ctrl=$control")
 
             if (trackNumber == 0xAA) {
                 leadOutLba = lba
             } else {
-                allEntries.add(RawTocEntry(trackNumber, lba, adrControl))
+                allEntries.add(RawTocEntry(trackNumber, lba, control))
             }
 
             offset += 8
@@ -180,8 +180,7 @@ class ReadTocCommand(
 
                     // Tier 3: Heuristic
                     val isPureCdExtra = firstDataTrackIndex > 0 &&
-                            allEntries.take(firstDataTrackIndex).all { !isDataTrack(it.ctrl) } &&
-                            allEntries.drop(firstDataTrackIndex).all { isDataTrack(it.ctrl) }
+                            firstDataTrackIndex == allEntries.indexOfLast { !isDataTrack(it.ctrl) } + 1
 
                     if (isPureCdExtra) {
                         val firstDataTrackLba = allEntries[firstDataTrackIndex].lba
@@ -273,12 +272,12 @@ class ReadTocCommand(
 
         // SCSI READ TOC Command Block (10 bytes)
         buffer.put(0x43)             // Opcode: READ TOC/PMA/ATIP
-        buffer.put(0x02)             // MSF=1
+        buffer.put(0x02.toByte())    // MSF bit set
         buffer.put(2)                // Format 0b0010 (Full TOC / Format 0x02)
         buffer.put(0)                // Reserved
         buffer.put(0)                // Reserved
         buffer.put(0)                // Reserved
-        buffer.put(1)                // Session Number = 1
+        buffer.put(0)                // Session Number = 0
         buffer.put((allocLen shr 8).toByte())
         buffer.put((allocLen and 0xFF).toByte())
         buffer.put(0)
@@ -305,6 +304,8 @@ class ReadTocCommand(
         }
 
         val cswBuffer = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN)
+        val residue = cswBuffer.getInt(8)
+        AppLogger.d(TAG, "Full TOC CSW residue=$residue")
         if (cswBuffer.getInt(0) != CSW_SIGNATURE || cswBuffer.getInt(4) != tag || csw[12] != 0.toByte()) {
             AppLogger.e(TAG, "Invalid or failed CSW for Full TOC")
             return null
@@ -317,23 +318,19 @@ class ReadTocCommand(
             return null
         }
 
-        if ((tocLength - 2) % 11 != 0) {
-            AppLogger.e(TAG, "Full TOC descriptor alignment invalid")
-            return null
-        }
-
         if (tocLength + 2 > totalTocRead) {
             AppLogger.e(TAG, "Full TOC length exceeds received bytes")
             return null
         }
 
+        val descriptorBytes = minOf(tocLength - 2, totalTocRead - 4)
         var offset = 4
         val audioSessions = mutableSetOf<Int>()
 
         // Scan Full TOC descriptors to identify audio sessions
-        while (offset + 11 <= totalTocRead && offset < tocLength + 2) {
+        while (offset + 10 < totalTocRead && offset + 10 < 4 + descriptorBytes) {
             val session = tocData[offset].toInt() and 0xFF
-            val control = tocData[offset + 1].toInt() and 0xFF
+            val control = tocData[offset + 1].toInt() and 0x0F
             val point = tocData[offset + 3].toInt() and 0xFF
 
             if (point in 0x01..0x63) {
@@ -353,7 +350,7 @@ class ReadTocCommand(
         AppLogger.d(TAG, "Identified audio sessions: $audioSessions. Selected target session=$targetSession")
 
         offset = 4
-        while (offset + 11 <= totalTocRead && offset < tocLength + 2) {
+        while (offset + 10 < totalTocRead && offset + 10 < 4 + descriptorBytes) {
             val session = tocData[offset].toInt() and 0xFF
             val point = tocData[offset + 3].toInt() and 0xFF
 
@@ -362,7 +359,7 @@ class ReadTocCommand(
                 val psec = tocData[offset + 9].toInt() and 0xFF
                 val pframe = tocData[offset + 10].toInt() and 0xFF
 
-                val lba = ((pmin * 60) + psec) * 75 + pframe
+                val lba = (((pmin * 60) + psec) * 75 + pframe) - 150
                 AppLogger.d(TAG, "Session $targetSession A2 leadout MSF=$pmin:$psec:$pframe lba=$lba")
 
                 if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
@@ -431,14 +428,22 @@ class ReadTocCommand(
         }
 
         val cswBuffer = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN)
+        val residue = cswBuffer.getInt(8)
+        AppLogger.d(TAG, "MSF Session 1 CSW residue=$residue")
         if (cswBuffer.getInt(0) != CSW_SIGNATURE || cswBuffer.getInt(4) != tag || csw[12] != 0.toByte()) {
             AppLogger.e(TAG, "Invalid or failed CSW for MSF Session 1")
             return null
         }
 
+        val tocLength = ((tocData[0].toInt() and 0xFF) shl 8) or (tocData[1].toInt() and 0xFF)
+        if (tocLength + 2 > totalBytesRead) {
+            AppLogger.e(TAG, "MSF Session 1 TOC length exceeds received bytes")
+            return null
+        }
+
         var offset = 4
         // Scan standard TOC descriptors (8 bytes each) to find 0xAA leadout for Session 1
-        while (offset + 8 <= totalBytesRead) {
+        while (offset + 7 < totalBytesRead && offset < tocLength + 2) {
             val trackNumber = tocData[offset + 2].toInt() and 0xFF
             val min = tocData[offset + 4].toInt() and 0xFF
             val sec = tocData[offset + 5].toInt() and 0xFF
@@ -451,7 +456,7 @@ class ReadTocCommand(
                     continue
                 }
 
-                val lba = ((min * 60) + sec) * 75 + frame
+                val lba = (((min * 60) + sec) * 75 + frame) - 150
                 AppLogger.d(TAG, "MSF TOC session-1 leadout: MSF=$min:$sec:$frame lba=$lba")
 
                 if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
