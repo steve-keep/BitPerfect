@@ -86,28 +86,47 @@ class ReadTocCommand(
         }
 
         // Parse TOC Data
-        val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
-        val tocDataLength = dataBuffer.getShort(0).toInt() and 0xFFFF
+        val tocLength = ((tocData[0].toInt() and 0xFF) shl 8) or (tocData[1].toInt() and 0xFF)
+
+        if (tocLength < 2) {
+            AppLogger.e(TAG, "Invalid TOC length")
+            return null
+        }
+
+        if ((tocLength - 2) % 8 != 0) {
+            AppLogger.e(TAG, "TOC descriptor alignment invalid")
+            return null
+        }
+
+        if (tocLength + 2 > totalTocRead) {
+            AppLogger.e(TAG, "TOC length exceeds received bytes")
+            return null
+        }
+
+        AppLogger.d(TAG, "TOC Claimed Length: $tocLength, Actual Bytes Read: $totalTocRead")
 
         data class RawTocEntry(val trackNumber: Int, val lba: Int, val ctrl: Int)
         val allEntries = mutableListOf<RawTocEntry>()
-        var leadOutLba = 0
+        var leadOutLba: Int? = null
 
-        // Entries start at byte 4. Each entry is 8 bytes.
-        // Number of entries = (tocDataLength - 2) / 8
-        val entryCount = (tocDataLength - 2) / 8
-
-        for (i in 0 until entryCount) {
-            val offset = 4 + (i * 8)
-            val adrControl = tocData[offset + 1].toInt()
+        var offset = 4
+        while (offset + 8 <= totalTocRead && offset < tocLength + 2) {
+            val adrControl = tocData[offset + 1].toInt() and 0xFF
             val trackNumber = tocData[offset + 2].toInt() and 0xFF
-            val lba = dataBuffer.getInt(offset + 4)
+            val lba = ((tocData[offset + 4].toInt() and 0xFF) shl 24) or
+                      ((tocData[offset + 5].toInt() and 0xFF) shl 16) or
+                      ((tocData[offset + 6].toInt() and 0xFF) shl 8) or
+                      (tocData[offset + 7].toInt() and 0xFF)
+
+            AppLogger.d(TAG, "TOC track=$trackNumber lba=$lba ctrl=$adrControl")
 
             if (trackNumber == 0xAA) {
                 leadOutLba = lba
             } else {
                 allEntries.add(RawTocEntry(trackNumber, lba, adrControl))
             }
+
+            offset += 8
         }
 
         val isDataTrack: (Int) -> Boolean = { ctrl -> (ctrl and 0x04) != 0 }
@@ -120,24 +139,63 @@ class ReadTocCommand(
             emptyList()
         }
 
-        var audioLeadOutLba: Int? = null
+        AppLogger.d(TAG, "Audio track count=${audioEntries.size}")
+        if (audioEntries.isNotEmpty()) {
+            AppLogger.d(TAG, "Last audio track=${audioEntries.last().trackNumber}")
+        }
+
+        var finalLeadOutLba = leadOutLba
 
         if (isCdExtra) {
-            AppLogger.d(TAG, "CD-Extra detected, fetching session 1 lead-out")
-            val s1LeadOut = fetchSession1LeadOut()
-            if (s1LeadOut != null) {
-                audioLeadOutLba = s1LeadOut
+            val sessionLeadout = fetchSession1LeadOut()
+            AppLogger.d(TAG, "Raw leadout=$leadOutLba")
+            AppLogger.d(TAG, "Session leadout=$sessionLeadout")
+            if (sessionLeadout != null && sessionLeadout != leadOutLba && audioEntries.isNotEmpty() && sessionLeadout > audioEntries.last().lba) {
+                AppLogger.w(TAG, "Session leadout mismatch: main=$leadOutLba session1=$sessionLeadout")
+                finalLeadOutLba = sessionLeadout
+            } else if (finalLeadOutLba == null) {
+                finalLeadOutLba = sessionLeadout
+            }
+        }
+
+        if (finalLeadOutLba == null) {
+            AppLogger.e(TAG, "Missing leadout")
+            return null
+        }
+        AppLogger.d(TAG, "Final MB leadout=$finalLeadOutLba")
+
+        for (i in 1 until allEntries.size) {
+            if (allEntries[i].lba <= allEntries[i - 1].lba) {
+                AppLogger.e(TAG, "Non-monotonic track LBA")
+                return null
+            }
+        }
+
+        if (audioEntries.isNotEmpty() && finalLeadOutLba <= audioEntries.last().lba) {
+            AppLogger.e(TAG, "Invalid leadout ordering against audio tracks")
+            return null
+        }
+
+        val trackSet = mutableSetOf<Int>()
+        for (entry in allEntries) {
+            if (!trackSet.add(entry.trackNumber)) {
+                AppLogger.e(TAG, "Duplicate track number: ${entry.trackNumber}")
+                return null
             }
         }
 
         // Normalise to 150-based LBAs (Redbook standard).
         // Some drives (e.g. ASUS SDRW-08D2S-U) return 0-based LBAs with track 1 at LBA 0.
         // MusicBrainz, AccurateRip, and the ripping pipeline all expect 150-based offsets.
+        AppLogger.d(TAG, "Track1 raw=${audioEntries.firstOrNull()?.lba}")
         val pregapOffset = if (audioEntries.firstOrNull()?.lba == 0) 150 else 0
+        AppLogger.d(TAG, "Pregap adjustment=$pregapOffset")
         val normalisedEntries = if (pregapOffset == 0) audioEntries else audioEntries.map { it.copy(lba = it.lba + pregapOffset) }
-        val normalisedLeadOut = leadOutLba + pregapOffset
-        val normalisedAudioLeadOut = audioLeadOutLba?.plus(pregapOffset)
-        return Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset, normalisedAudioLeadOut), tocData.copyOf(totalTocRead))
+        val normalisedLeadOut = finalLeadOutLba + pregapOffset
+
+        val pair = Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset), tocData.copyOf(totalTocRead))
+        AppLogger.d(TAG, "Generated MB Disc ID: ${com.bitperfect.core.utils.computeMusicBrainzDiscId(pair.first)}")
+        return pair
     }
 
     private fun fetchSession1LeadOut(): Int? {
@@ -193,20 +251,36 @@ class ReadTocCommand(
             return null
         }
 
-        val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
-        val tocDataLength = dataBuffer.getShort(0).toInt() and 0xFFFF
+        val tocLength = ((tocData[0].toInt() and 0xFF) shl 8) or (tocData[1].toInt() and 0xFF)
 
-        val maxReadable = totalTocRead
-        val entryCount = (tocDataLength - 2) / 8
-        for (i in 0 until entryCount) {
-            val offset = 4 + (i * 8)
-            if (offset + 8 > maxReadable) break
+        if (tocLength < 2) {
+            AppLogger.e(TAG, "Invalid Session 1 TOC length")
+            return null
+        }
+
+        if ((tocLength - 2) % 8 != 0) {
+            AppLogger.e(TAG, "Session 1 TOC descriptor alignment invalid")
+            return null
+        }
+
+        if (tocLength + 2 > totalTocRead) {
+            AppLogger.e(TAG, "Session 1 TOC length exceeds received bytes")
+            return null
+        }
+
+        var offset = 4
+        while (offset + 8 <= totalTocRead && offset < tocLength + 2) {
             val trackNumber = tocData[offset + 2].toInt() and 0xFF
-            val lba = dataBuffer.getInt(offset + 4)
+            val lba = ((tocData[offset + 4].toInt() and 0xFF) shl 24) or
+                      ((tocData[offset + 5].toInt() and 0xFF) shl 16) or
+                      ((tocData[offset + 6].toInt() and 0xFF) shl 8) or
+                      (tocData[offset + 7].toInt() and 0xFF)
 
             if (trackNumber == 0xAA) {
                 return lba
             }
+
+            offset += 8
         }
         return null
     }
