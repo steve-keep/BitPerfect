@@ -112,9 +112,7 @@ class ReadTocCommand(
 
         val isDataTrack: (Int) -> Boolean = { ctrl -> (ctrl and 0x04) != 0 }
         val lastAudioTrackIndex = allEntries.indexOfLast { !isDataTrack(it.ctrl) }
-        val isCdExtra = lastAudioTrackIndex >= 0
-            && lastAudioTrackIndex < allEntries.size - 1
-            && isDataTrack(allEntries.last().ctrl)
+        val isCdExtra = lastAudioTrackIndex in 0 until allEntries.size - 1 && isDataTrack(allEntries.last().ctrl)
 
         val audioEntries = if (lastAudioTrackIndex >= 0) {
             allEntries.take(lastAudioTrackIndex + 1).map { TocEntry(it.trackNumber, it.lba) }
@@ -149,7 +147,7 @@ class ReadTocCommand(
         val buffer = ByteBuffer.wrap(cbw).order(ByteOrder.LITTLE_ENDIAN)
         buffer.putInt(CBW_SIGNATURE)
         buffer.putInt(tag)
-        buffer.putInt(804)
+        buffer.putInt(36)
         buffer.put(0x80.toByte())
         buffer.put(0)
         buffer.put(10)
@@ -163,7 +161,7 @@ class ReadTocCommand(
         buffer.put(0)                // Reserved
         buffer.put(1)                // Session Number = 1 (restrict to session 1)
 
-        buffer.put(0x03)
+        buffer.put(0x00)
         buffer.put(0x24)
 
         buffer.put(0)
@@ -175,8 +173,8 @@ class ReadTocCommand(
             return null
         }
 
-        val tocData = ByteArray(804)
-        val totalTocRead = transport.bulkTransfer(inEndpoint, tocData, 804, 5000)
+        val tocData = ByteArray(36)
+        val totalTocRead = transport.bulkTransfer(inEndpoint, tocData, 36, 5000)
         if (totalTocRead < 4) {
             AppLogger.e(TAG, "Failed to read TOC data for Session 1")
             return null
