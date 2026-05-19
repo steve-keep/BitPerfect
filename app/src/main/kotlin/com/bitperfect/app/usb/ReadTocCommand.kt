@@ -137,11 +137,11 @@ class ReadTocCommand(
 
         if (isCdExtra) {
             val sessionLeadout = fetchSession1LeadOut()
+            AppLogger.d(TAG, "Raw leadout=$leadOutLba")
+            AppLogger.d(TAG, "Session leadout=$sessionLeadout")
             if (sessionLeadout != null && sessionLeadout != leadOutLba) {
                 AppLogger.w(TAG, "Session leadout mismatch: main=$leadOutLba session1=$sessionLeadout")
-                if (finalLeadOutLba == null) {
-                    finalLeadOutLba = sessionLeadout
-                }
+                finalLeadOutLba = sessionLeadout
             } else if (finalLeadOutLba == null) {
                 finalLeadOutLba = sessionLeadout
             }
@@ -151,12 +151,18 @@ class ReadTocCommand(
             AppLogger.e(TAG, "Missing leadout")
             return null
         }
+        AppLogger.d(TAG, "Final MB leadout=$finalLeadOutLba")
 
         for (i in 1 until allEntries.size) {
             if (allEntries[i].lba <= allEntries[i - 1].lba) {
                 AppLogger.e(TAG, "Non-monotonic track LBA")
                 return null
             }
+        }
+
+        if (finalLeadOutLba <= allEntries.last().lba) {
+            AppLogger.e(TAG, "Invalid leadout ordering")
+            return null
         }
 
         val trackSet = mutableSetOf<Int>()
@@ -176,7 +182,9 @@ class ReadTocCommand(
         // Normalise to 150-based LBAs (Redbook standard).
         // Some drives (e.g. ASUS SDRW-08D2S-U) return 0-based LBAs with track 1 at LBA 0.
         // MusicBrainz, AccurateRip, and the ripping pipeline all expect 150-based offsets.
+        AppLogger.d(TAG, "Track1 raw=${audioEntries.firstOrNull()?.lba}")
         val pregapOffset = if (audioEntries.firstOrNull()?.lba == 0) 150 else 0
+        AppLogger.d(TAG, "Pregap adjustment=$pregapOffset")
         val normalisedEntries = if (pregapOffset == 0) audioEntries else audioEntries.map { it.copy(lba = it.lba + pregapOffset) }
         val normalisedLeadOut = finalLeadOutLba + pregapOffset
 
