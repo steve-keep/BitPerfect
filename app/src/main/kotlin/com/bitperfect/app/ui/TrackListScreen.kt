@@ -182,7 +182,7 @@ fun TrackListScreen(
                             coverArtUrl = state.coverArtUrl,
                             trackCount = state.tracks.size,
                             isCdMode = state.isCdMode,
-                            isRipping = isRipping,
+                            isRipping = isRipping && state.isCdMode,
                             overallProgress = overallProgress,
                             isFullyVerified = isFullyVerified,
                             isAlbumPlaying = isAlbumPlaying,
