@@ -196,9 +196,11 @@ class ReadTocCommand(
         val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
         val tocDataLength = dataBuffer.getShort(0).toInt() and 0xFFFF
 
+        val maxReadable = totalTocRead
         val entryCount = (tocDataLength - 2) / 8
         for (i in 0 until entryCount) {
             val offset = 4 + (i * 8)
+            if (offset + 8 > maxReadable) break
             val trackNumber = tocData[offset + 2].toInt() and 0xFF
             val lba = dataBuffer.getInt(offset + 4)
 
