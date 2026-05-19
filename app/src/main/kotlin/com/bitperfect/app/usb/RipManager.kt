@@ -749,6 +749,8 @@ class RipManager(
                     when (state.status) {
                         RipStatus.SUCCESS -> {
                             sb.append("      Checksum:  ").append(computedStr).append("  ✓ matched\n")
+                            val expectedStr = state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                            sb.append("      Expected:  ").append(expectedStr).append("\n")
                         }
                         RipStatus.WARNING -> {
                             sb.append("      Checksum:  ").append(computedStr).append("  ← computed\n")
