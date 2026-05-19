@@ -89,7 +89,8 @@ class ReadTocCommand(
         val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
         val tocDataLength = dataBuffer.getShort(0).toInt() and 0xFFFF
 
-        val entries = mutableListOf<TocEntry>()
+        data class RawTocEntry(val trackNumber: Int, val lba: Int, val ctrl: Int)
+        val allEntries = mutableListOf<RawTocEntry>()
         var leadOutLba = 0
 
         // Entries start at byte 4. Each entry is 8 bytes.
@@ -105,20 +106,109 @@ class ReadTocCommand(
             if (trackNumber == 0xAA) {
                 leadOutLba = lba
             } else {
-                // Check if audio track (Control bit 2 should be 0)
-                if ((adrControl and 0x04) == 0) {
-                    entries.add(TocEntry(trackNumber, lba))
-                }
+                allEntries.add(RawTocEntry(trackNumber, lba, adrControl))
+            }
+        }
+
+        val isDataTrack: (Int) -> Boolean = { ctrl -> (ctrl and 0x04) != 0 }
+        val lastAudioTrackIndex = allEntries.indexOfLast { !isDataTrack(it.ctrl) }
+        val isCdExtra = lastAudioTrackIndex >= 0
+            && lastAudioTrackIndex < allEntries.size - 1
+            && isDataTrack(allEntries.last().ctrl)
+
+        val audioEntries = if (lastAudioTrackIndex >= 0) {
+            allEntries.take(lastAudioTrackIndex + 1).map { TocEntry(it.trackNumber, it.lba) }
+        } else {
+            emptyList()
+        }
+
+        var audioLeadOutLba: Int? = null
+
+        if (isCdExtra) {
+            AppLogger.d(TAG, "CD-Extra detected, fetching session 1 lead-out")
+            val s1LeadOut = fetchSession1LeadOut()
+            if (s1LeadOut != null) {
+                audioLeadOutLba = s1LeadOut
             }
         }
 
         // Normalise to 150-based LBAs (Redbook standard).
         // Some drives (e.g. ASUS SDRW-08D2S-U) return 0-based LBAs with track 1 at LBA 0.
         // MusicBrainz, AccurateRip, and the ripping pipeline all expect 150-based offsets.
-        val pregapOffset = if (entries.firstOrNull()?.lba == 0) 150 else 0
-        val normalisedEntries = if (pregapOffset == 0) entries else entries.map { it.copy(lba = it.lba + pregapOffset) }
+        val pregapOffset = if (audioEntries.firstOrNull()?.lba == 0) 150 else 0
+        val normalisedEntries = if (pregapOffset == 0) audioEntries else audioEntries.map { it.copy(lba = it.lba + pregapOffset) }
         val normalisedLeadOut = leadOutLba + pregapOffset
-        return Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset), tocData.copyOf(totalTocRead))
+        val normalisedAudioLeadOut = audioLeadOutLba?.plus(pregapOffset)
+        return Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset, normalisedAudioLeadOut), tocData.copyOf(totalTocRead))
+    }
+
+    private fun fetchSession1LeadOut(): Int? {
+        val tag = transport.nextTag()
+        // CBW: 31 bytes
+        val cbw = ByteArray(31)
+        val buffer = ByteBuffer.wrap(cbw).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(CBW_SIGNATURE)
+        buffer.putInt(tag)
+        buffer.putInt(804)
+        buffer.put(0x80.toByte())
+        buffer.put(0)
+        buffer.put(10)
+
+        // SCSI READ TOC Command Block (10 bytes)
+        buffer.put(0x43)             // Opcode: READ TOC/PMA/ATIP
+        buffer.put(0)                // MSF bit 0 (LBA format)
+        buffer.put(0)                // Format 0b0000
+        buffer.put(0)                // Reserved
+        buffer.put(0)                // Reserved
+        buffer.put(0)                // Reserved
+        buffer.put(1)                // Session Number = 1 (restrict to session 1)
+
+        buffer.put(0x03)
+        buffer.put(0x24)
+
+        buffer.put(0)
+
+        // Send CBW
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
+        if (transferred < 0) {
+            AppLogger.e(TAG, "Failed to send CBW for Session 1 READ TOC")
+            return null
+        }
+
+        val tocData = ByteArray(804)
+        val totalTocRead = transport.bulkTransfer(inEndpoint, tocData, 804, 5000)
+        if (totalTocRead < 4) {
+            AppLogger.e(TAG, "Failed to read TOC data for Session 1")
+            return null
+        }
+
+        val csw = ByteArray(13)
+        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
+        if (transferred < 0) {
+            AppLogger.e(TAG, "Failed to read CSW for Session 1 READ TOC")
+            return null
+        }
+
+        val cswBuffer = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN)
+        if (cswBuffer.getInt(0) != CSW_SIGNATURE || cswBuffer.getInt(4) != tag || csw[12] != 0.toByte()) {
+            AppLogger.e(TAG, "Invalid or failed CSW for Session 1 READ TOC")
+            return null
+        }
+
+        val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
+        val tocDataLength = dataBuffer.getShort(0).toInt() and 0xFFFF
+
+        val entryCount = (tocDataLength - 2) / 8
+        for (i in 0 until entryCount) {
+            val offset = 4 + (i * 8)
+            val trackNumber = tocData[offset + 2].toInt() and 0xFF
+            val lba = dataBuffer.getInt(offset + 4)
+
+            if (trackNumber == 0xAA) {
+                return lba
+            }
+        }
+        return null
     }
 
     companion object {

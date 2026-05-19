@@ -97,6 +97,30 @@ class DiscIdUtilsTest {
     }
 
     @Test
+    fun debugReportFixture_cdExtra_calculatesMusicBrainzIdsCorrectly() {
+        val tracks = listOf(
+            TocEntry(trackNumber = 1, lba = 150),
+            TocEntry(trackNumber = 2, lba = 24788),
+            TocEntry(trackNumber = 3, lba = 43296),
+            TocEntry(trackNumber = 4, lba = 66497),
+            TocEntry(trackNumber = 5, lba = 87910),
+            TocEntry(trackNumber = 6, lba = 106598),
+            TocEntry(trackNumber = 7, lba = 126125),
+            TocEntry(trackNumber = 8, lba = 145966),
+            TocEntry(trackNumber = 9, lba = 174579),
+            TocEntry(trackNumber = 10, lba = 196867)
+        )
+        // audioLeadOutLba is 225673, full leadOutLba is 247632
+        val toc = DiscToc(tracks = tracks, leadOutLba = 247632, audioLeadOutLba = 225673)
+
+        val mbId = computeMusicBrainzDiscId(toc)
+        org.junit.Assert.assertEquals("Cr1Rf7_SmFh.v1QEjuASxozukf0-", mbId)
+
+        val mbTocString = computeMusicBrainzTocString(toc)
+        org.junit.Assert.assertEquals("1+10+225673+150+24788+43296+66497+87910+106598+126125+145966+174579+196867", mbTocString)
+    }
+
+    @Test
     fun computeAccurateRipDiscId_nevermindRemaster_calculatesCorrectly() {
         val tracks = listOf(
             TocEntry(trackNumber = 1, lba = 150),
