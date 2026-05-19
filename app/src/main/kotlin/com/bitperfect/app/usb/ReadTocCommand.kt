@@ -153,7 +153,7 @@ class ReadTocCommand(
             AppLogger.d(TAG, "Raw leadout=$leadOutLba")
             AppLogger.d(TAG, "Session leadout=$sessionLeadout")
             if (sessionLeadout != null && sessionLeadout != leadOutLba) {
-                AppLogger.w(TAG, "Session leadout mismatch: main=$leadOutLba session1=$sessionLeadout")
+                AppLogger.w(TAG, "Audio-session leadout mismatch: physical=$leadOutLba audio=$sessionLeadout")
                 audioLeadOutLba = sessionLeadout
                 AppLogger.d(TAG, "Selected MB leadout source=full_toc_a2")
             } else if (leadOutLba == null) {
@@ -217,7 +217,7 @@ class ReadTocCommand(
 
         // SCSI READ TOC Command Block (10 bytes)
         buffer.put(0x43)             // Opcode: READ TOC/PMA/ATIP
-        buffer.put(2)                // MSF bit 1
+        buffer.put(0x02)             // MSF=1
         buffer.put(2)                // Format 0b0010 (Full TOC / Format 0x02)
         buffer.put(0)                // Reserved
         buffer.put(0)                // Reserved
@@ -261,6 +261,16 @@ class ReadTocCommand(
             return null
         }
 
+        if ((tocLength - 2) % 11 != 0) {
+            AppLogger.e(TAG, "Full TOC descriptor alignment invalid")
+            return null
+        }
+
+        if (tocLength + 2 > totalTocRead) {
+            AppLogger.e(TAG, "Full TOC length exceeds received bytes")
+            return null
+        }
+
         var offset = 4
         val audioSessions = mutableSetOf<Int>()
 
@@ -279,7 +289,11 @@ class ReadTocCommand(
             offset += 11
         }
 
-        val targetSession = audioSessions.maxOrNull() ?: 1
+        if (audioSessions.isEmpty()) {
+            AppLogger.e(TAG, "No audio sessions found in Full TOC")
+            return null
+        }
+        val targetSession = audioSessions.maxOrNull()!!
         AppLogger.d(TAG, "Identified audio sessions: $audioSessions. Selected target session=$targetSession")
 
         offset = 4
