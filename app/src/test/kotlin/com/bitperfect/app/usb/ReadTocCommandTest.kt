@@ -65,9 +65,9 @@ class ReadTocCommandTest {
             val toCopy = Math.min(length, fakeData.size)
             System.arraycopy(fakeData, 0, buffer, 0, toCopy)
             return toCopy
-        } else if (length == 36) {
-            // Session 1 TOC Data
-            val fakeData = createSession1TocData(track1Lba)
+        } else if (length == 2048) {
+            // Full TOC Data
+            val fakeData = createFullTocData(track1Lba, isCdExtra)
             val toCopy = if (shortReadSession1) 12 else Math.min(length, fakeData.size)
             System.arraycopy(fakeData, 0, buffer, 0, toCopy)
             return toCopy
@@ -103,31 +103,51 @@ class ReadTocCommandTest {
         }
     }
 
-    private fun createSession1TocData(track1Lba: Int): ByteArray {
-        val tocData = ByteArray(36)
+    private fun createFullTocData(track1Lba: Int, isCdExtra: Boolean): ByteArray {
+        val tocData = ByteArray(2048)
         val dataBuffer = ByteBuffer.wrap(tocData).order(ByteOrder.BIG_ENDIAN)
 
-        // Claiming 1 track + 1 lead-out = 2 entries, so tocDataLength = 2 + (2 * 8) = 18
-        // Let's claim a very large length to simulate a short read scenario
-        // E.g., it claims length=34 (4 entries), but short read only returns 12 bytes
-        dataBuffer.putShort(34.toShort())
-        dataBuffer.put(1.toByte())
-        dataBuffer.put(1.toByte())
+        // For Full TOC, header is 4 bytes.
+        // We'll add 1 track + 0xA2 point
+        val entryCount = 2
+        val tocDataLength = 2 + (entryCount * 11)
+        dataBuffer.putShort(tocDataLength.toShort())
+        dataBuffer.put(1.toByte()) // First session
+        dataBuffer.put(if (isCdExtra) 2.toByte() else 1.toByte()) // Last session
 
         dataBuffer.position(4)
-        // Track 1
-        dataBuffer.put(0)
-        dataBuffer.put(0x10)
-        dataBuffer.put(1)
-        dataBuffer.put(0)
-        dataBuffer.putInt(track1Lba)
+        // Track 1 descriptor
+        dataBuffer.put(1) // SESSION 1
+        dataBuffer.put(0x10) // ADR/CONTROL (Audio)
+        dataBuffer.put(0) // TNO
+        dataBuffer.put(1) // POINT (Track 1)
+        dataBuffer.put(0) // MIN
+        dataBuffer.put(0) // SEC
+        dataBuffer.put(0) // FRAME
+        dataBuffer.put(0) // ZERO
+        dataBuffer.put(0) // PMIN
+        dataBuffer.put(0) // PSEC
+        dataBuffer.put(0) // PFRAME (Wait, track 1 PMIN/PSEC/PFRAME should be MSF, but we just need POINT 0xA2)
 
-        // Session 1 Lead-out (AA)
-        dataBuffer.put(0)
-        dataBuffer.put(0x10)
-        dataBuffer.put(0xAA.toByte())
-        dataBuffer.put(0)
-        dataBuffer.putInt(track1Lba + 10000)
+        // Session 1 Lead-out (0xA2)
+        dataBuffer.put(1) // SESSION 1
+        dataBuffer.put(0x10) // ADR/CONTROL
+        dataBuffer.put(0) // TNO
+        dataBuffer.put(0xA2.toByte()) // POINT
+        dataBuffer.put(0) // MIN
+        dataBuffer.put(0) // SEC
+        dataBuffer.put(0) // FRAME
+        dataBuffer.put(0) // ZERO
+
+        // Convert track1Lba + 10000 to MSF
+        val audioLeadOutLba = track1Lba + 10000
+        val pmin = audioLeadOutLba / 75 / 60
+        val psec = (audioLeadOutLba / 75) % 60
+        val pframe = audioLeadOutLba % 75
+
+        dataBuffer.put(pmin.toByte()) // PMIN
+        dataBuffer.put(psec.toByte()) // PSEC
+        dataBuffer.put(pframe.toByte()) // PFRAME
 
         return tocData
     }
