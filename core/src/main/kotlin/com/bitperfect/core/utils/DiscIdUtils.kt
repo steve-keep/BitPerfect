@@ -66,7 +66,8 @@ fun computeMusicBrainzDiscId(toc: DiscToc): String {
     tokens.add(String.format("%02X", lastTrack))
 
     // Token 3: lead-out frame offset (LBA)
-    tokens.add(String.format("%08X", toc.leadOutLba))
+    val leadOut = toc.audioLeadOutLba ?: toc.leadOutLba
+    tokens.add(String.format("%08X", leadOut))
 
     // Tokens 4-102: track frame offsets (LBA) for slots 1-99
     val trackMap = toc.tracks.mapIndexed { index, entry -> (index + 1) to entry }.toMap()
@@ -92,6 +93,7 @@ fun computeMusicBrainzDiscId(toc: DiscToc): String {
 
 fun computeMusicBrainzTocString(toc: DiscToc): String {
     // Build MB TOC string: firstTrack + trackCount + leadOutLba + (lba for each track)
+    val leadOut = toc.audioLeadOutLba ?: toc.leadOutLba
     val offsets = toc.tracks.joinToString("+") { it.lba.toString() }
-    return "1+${toc.tracks.size}+${toc.leadOutLba}+$offsets"
+    return "1+${toc.tracks.size}+$leadOut+$offsets"
 }
