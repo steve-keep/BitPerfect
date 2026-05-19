@@ -147,18 +147,74 @@ class ReadTocCommand(
         var audioLeadOutLba: Int? = null
 
         val hasDataTrack = allEntries.any { isDataTrack(it.ctrl) }
-        if (hasDataTrack) {
+        val firstDataTrackIndex = allEntries.indexOfFirst { isDataTrack(it.ctrl) }
+
+        if (hasDataTrack && isCdExtra) {
             val lastAudioLba = audioEntries.lastOrNull()?.lba
-            val sessionLeadout = fetchAudioLeadOutFromFullToc(lastAudioLba, leadOutLba)
-            AppLogger.d(TAG, "Raw leadout=$leadOutLba")
-            AppLogger.d(TAG, "Session leadout=$sessionLeadout")
-            if (sessionLeadout != null && sessionLeadout != leadOutLba) {
-                AppLogger.w(TAG, "Audio-session leadout mismatch: physical=$leadOutLba audio=$sessionLeadout")
-                audioLeadOutLba = sessionLeadout
+
+            AppLogger.d(TAG, "Raw physical leadout=$leadOutLba")
+
+            // Tier 1: Full TOC A2
+            var candidateLeadout = fetchAudioLeadOutFromFullToc(lastAudioLba, leadOutLba)
+            var valid = candidateLeadout != null &&
+                        (lastAudioLba == null || candidateLeadout > lastAudioLba) &&
+                        (leadOutLba == null || candidateLeadout < leadOutLba)
+
+            if (valid) {
+                audioLeadOutLba = candidateLeadout
                 AppLogger.d(TAG, "Selected MB leadout source=full_toc_a2")
-            } else if (leadOutLba == null) {
-                leadOutLba = sessionLeadout
+            } else {
+                if (candidateLeadout != null) {
+                    AppLogger.d(TAG, "Full TOC A2 returned invalid leadout ($candidateLeadout); falling back to MSF session read")
+                } else {
+                    AppLogger.d(TAG, "Full TOC A2 lookup failed; falling back to MSF session read")
+                }
+
+                // Tier 2: MSF Session 1
+                candidateLeadout = fetchAudioLeadOutFromMsfSession1(lastAudioLba, leadOutLba)
+                if (candidateLeadout != null) {
+                    audioLeadOutLba = candidateLeadout
+                    AppLogger.d(TAG, "Selected MB leadout source=msf_session1")
+                } else {
+                    AppLogger.d(TAG, "MSF session read failed; falling back to heuristic")
+
+                    // Tier 3: Heuristic
+                    val isPureCdExtra = firstDataTrackIndex > 0 &&
+                            allEntries.take(firstDataTrackIndex).all { !isDataTrack(it.ctrl) } &&
+                            allEntries.drop(firstDataTrackIndex).all { isDataTrack(it.ctrl) }
+
+                    if (isPureCdExtra) {
+                        val firstDataTrackLba = allEntries[firstDataTrackIndex].lba
+                        val heuristicLeadout = firstDataTrackLba - 11250
+
+                        val valid = (lastAudioLba == null || heuristicLeadout > lastAudioLba) &&
+                                    (leadOutLba == null || heuristicLeadout < leadOutLba)
+
+                        if (valid) {
+                            AppLogger.w(TAG, "Drive does not support Full TOC; using heuristic CD-Extra leadout fallback")
+                            AppLogger.w(TAG, "firstDataTrackLba=$firstDataTrackLba heuristicLeadout=$heuristicLeadout")
+                            AppLogger.w(TAG, "MusicBrainz ID may be incorrect for discs with non-standard session pregaps")
+                            audioLeadOutLba = heuristicLeadout
+                            AppLogger.d(TAG, "Selected MB leadout source=heuristic_pregap")
+                        } else {
+                            AppLogger.d(TAG, "Heuristic rejected by validation; using physical leadout")
+                        }
+                    } else {
+                        AppLogger.d(TAG, "Structural validation failed for heuristic; using physical leadout")
+                    }
+                }
             }
+
+            if (audioLeadOutLba == null) {
+                AppLogger.d(TAG, "Selected MB leadout source=physical_leadout")
+            }
+        } else {
+            if (hasDataTrack && !isCdExtra) {
+                AppLogger.d(TAG, "Disc has data tracks but is not a standard CD-Extra; using physical leadout")
+            } else {
+                AppLogger.d(TAG, "Single-session audio CD; using physical leadout")
+            }
+            AppLogger.d(TAG, "Selected MB leadout source=physical_leadout")
         }
 
         if (leadOutLba == null) {
@@ -327,6 +383,102 @@ class ReadTocCommand(
         AppLogger.e(TAG, "Failed to find 0xA2 entry for target session $targetSession in Full TOC")
         return null
     }
+
+    private fun fetchAudioLeadOutFromMsfSession1(lastAudioTrackLba: Int?, physicalLeadOutLba: Int?): Int? {
+        AppLogger.d(TAG, "Fetching MSF Session 1 (Format=0x00) to determine audio session leadout")
+        val tag = transport.nextTag()
+        val allocLen = 2048
+        val cbw = ByteArray(31)
+        val buffer = ByteBuffer.wrap(cbw).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(CBW_SIGNATURE)
+        buffer.putInt(tag)
+        buffer.putInt(allocLen)      // dCBWDataTransferLength
+        buffer.put(0x80.toByte())    // bmCBWFlags
+        buffer.put(0)                // bCBWLUN
+        buffer.put(10)               // bCBWCBLength
+
+        // SCSI READ TOC Command Block (10 bytes)
+        buffer.put(0x43)             // Opcode: READ TOC/PMA/ATIP
+        buffer.put(0x02)             // MSF=1
+        buffer.put(0x00)             // Format 0b0000 (Standard TOC / Format 0x00)
+        buffer.put(0)                // Reserved
+        buffer.put(0)                // Reserved
+        buffer.put(0)                // Reserved
+        buffer.put(1)                // Session Number = 1
+        buffer.put((allocLen shr 8).toByte())
+        buffer.put((allocLen and 0xFF).toByte())
+        buffer.put(0)
+
+        // Send CBW
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
+        if (transferred < 0) {
+            AppLogger.e(TAG, "Failed to send CBW for MSF Session 1")
+            return null
+        }
+
+        val tocData = ByteArray(allocLen)
+        val totalBytesRead = transport.bulkTransferFully(inEndpoint, tocData, allocLen, 5000)
+        if (totalBytesRead < 4) {
+            AppLogger.e(TAG, "Failed to read MSF Session 1 data")
+            return null
+        }
+
+        val csw = ByteArray(13)
+        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
+        if (transferred < 0) {
+            AppLogger.e(TAG, "Failed to read CSW for MSF Session 1")
+            return null
+        }
+
+        val cswBuffer = ByteBuffer.wrap(csw).order(ByteOrder.LITTLE_ENDIAN)
+        if (cswBuffer.getInt(0) != CSW_SIGNATURE || cswBuffer.getInt(4) != tag || csw[12] != 0.toByte()) {
+            AppLogger.e(TAG, "Invalid or failed CSW for MSF Session 1")
+            return null
+        }
+
+        var offset = 4
+        // Scan standard TOC descriptors (8 bytes each) to find 0xAA leadout for Session 1
+        while (offset + 8 <= totalBytesRead) {
+            val trackNumber = tocData[offset + 2].toInt() and 0xFF
+            val min = tocData[offset + 4].toInt() and 0xFF
+            val sec = tocData[offset + 5].toInt() and 0xFF
+            val frame = tocData[offset + 6].toInt() and 0xFF
+
+            if (trackNumber == 0xAA) {
+                // Skip impossible MSF values
+                if (sec >= 60 || frame >= 75) {
+                    offset += 8
+                    continue
+                }
+
+                val lba = ((min * 60) + sec) * 75 + frame
+                AppLogger.d(TAG, "MSF TOC session-1 leadout: MSF=$min:$sec:$frame lba=$lba")
+
+                if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
+                    AppLogger.w(TAG, "MSF session-1 leadout ($lba) <= last audio track LBA ($lastAudioTrackLba)")
+                    return null
+                }
+                if (physicalLeadOutLba != null && lba >= physicalLeadOutLba) {
+                    AppLogger.w(TAG, "MSF session-1 leadout ($lba) >= physical leadout ($physicalLeadOutLba)")
+                    return null
+                }
+
+                return lba
+            }
+
+            // Skip malformed descriptor tails
+            if (trackNumber == 0x00) {
+                offset += 8
+                continue
+            }
+
+            offset += 8
+        }
+
+        AppLogger.e(TAG, "Failed to find valid 0xAA entry in MSF Session 1")
+        return null
+    }
+
     companion object {
         private const val TAG = "ReadTocCommand"
         private const val CBW_SIGNATURE = 0x43425355 // "USBC"
