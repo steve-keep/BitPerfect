@@ -55,7 +55,10 @@ fun OutputDeviceSheet(
             }
         }
 
+        android.util.Log.d("OutputDeviceSheet", "Rendering output devices: ${devices.map { it.displayName }}")
+
         devices.forEach { device ->
+            androidx.compose.runtime.key(device.id) {
             val isActive = device == activeDevice
 
             val rowContent = @Composable {
@@ -133,6 +136,7 @@ fun OutputDeviceSheet(
                 }
             } else {
                 rowContent()
+            }
             }
         }
 

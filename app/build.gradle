@@ -159,8 +159,10 @@ dependencies {
     implementation 'io.coil-kt:coil-compose:2.6.0'
     implementation 'androidx.palette:palette-ktx:1.0.0'
 
-    implementation 'org.jupnp:org.jupnp:2.5.2'
-    implementation 'org.jupnp:org.jupnp.support:2.5.2'
+    implementation 'org.jupnp:org.jupnp.android:3.0.0'
+    implementation 'org.jupnp:org.jupnp:3.0.0'
+
+    implementation 'org.jupnp:org.jupnp.support:3.0.0'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation "org.mockito:mockito-core:4.8.0"

@@ -21,3 +21,6 @@
 -dontwarn javax.swing.filechooser.FileFilter
 -dontwarn org.osgi.annotation.bundle.Export
 -dontwarn org.slf4j.impl.StaticLoggerBinder
+
+-keep class org.jupnp.** { *; }
+-dontwarn org.jupnp.**
