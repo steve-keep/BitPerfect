@@ -478,6 +478,23 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
     } else {
         sb.appendLine("- Track count: ${toc.trackCount}")
         sb.appendLine("- Lead-out LBA: ${toc.leadOutLba}")
+        if (toc.audioLeadOutLba != null) {
+            sb.appendLine("- Audio session lead-out LBA: ${toc.audioLeadOutLba}")
+            sb.appendLine()
+            sb.appendLine("### CD-Extra Diagnostics")
+            sb.appendLine("- Data track detected: Yes")
+            sb.appendLine("- Audio session lead-out LBA: ${toc.audioLeadOutLba}")
+            sb.appendLine("- Physical lead-out LBA: ${toc.leadOutLba}")
+            val source = toc.audioLeadOutSource
+            if (source != null) {
+                sb.appendLine("- Resolution method: ${source.name}")
+            }
+            if (toc.firstDataTrackLba != null && toc.audioLeadOutSource == com.bitperfect.core.models.AudioLeadOutSource.HEURISTIC) {
+                sb.appendLine()
+                sb.appendLine("Heuristic calculation:")
+                sb.appendLine("${toc.firstDataTrackLba} - 11400 = ${toc.audioLeadOutLba}")
+            }
+        }
         sb.appendLine()
         sb.appendLine("### Tracks")
         sb.appendLine("| Track | LBA |")
@@ -551,6 +568,16 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         }
         tocJson.put("tracks", tracksArray)
         tocJson.put("leadOutLba", toc.leadOutLba)
+        if (toc.audioLeadOutLba != null) {
+            tocJson.put("audioLeadOutLba", toc.audioLeadOutLba)
+        }
+        val source = toc.audioLeadOutSource
+        if (source != null) {
+            tocJson.put("audioLeadOutSource", source.name)
+        }
+        if (toc.firstDataTrackLba != null) {
+            tocJson.put("firstDataTrackLba", toc.firstDataTrackLba)
+        }
         sb.appendLine(tocJson.toString(2))
         sb.appendLine("```")
         sb.appendLine()

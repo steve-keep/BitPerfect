@@ -1,6 +1,7 @@
 package com.bitperfect.app.usb
 
 import android.hardware.usb.UsbEndpoint
+import com.bitperfect.core.models.AudioLeadOutSource
 import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.TocEntry
@@ -154,6 +155,8 @@ class ReadTocCommand(
         val normalisedLeadOut = leadOutLba?.let { it + pregapOffset }
 
         var audioLeadOutLba: Int? = null
+        var audioLeadOutSource: AudioLeadOutSource? = null
+        var firstDataTrackLba: Int? = null
 
         val hasDataTrack = allEntries.any { isDataTrack(it.ctrl) }
         val firstDataTrackIndex = allEntries.indexOfFirst { isDataTrack(it.ctrl) }
@@ -172,6 +175,7 @@ class ReadTocCommand(
 
             if (valid) {
                 audioLeadOutLba = candidateLeadout
+                audioLeadOutSource = AudioLeadOutSource.FULL_TOC_A2
                 AppLogger.d(TAG, "Selected MB leadout source=full_toc_a2")
             } else {
                 if (candidateLeadout != null) {
@@ -184,6 +188,7 @@ class ReadTocCommand(
                 candidateLeadout = fetchAudioLeadOutFromMsfSession1(lastAudioLba, normalisedLeadOut)
                 if (candidateLeadout != null) {
                     audioLeadOutLba = candidateLeadout
+                    audioLeadOutSource = AudioLeadOutSource.SESSION1_MSF
                     AppLogger.d(TAG, "Selected MB leadout source=msf_session1")
                 } else {
                     AppLogger.d(TAG, "MSF session read failed; falling back to heuristic")
@@ -193,19 +198,22 @@ class ReadTocCommand(
                             firstDataTrackIndex == allEntries.indexOfLast { !isDataTrack(it.ctrl) } + 1
 
                     if (isPureCdExtra) {
-                        val firstDataTrackLba = allEntries[firstDataTrackIndex].lba + pregapOffset
-                        val heuristicLeadout = firstDataTrackLba - 11400
+                        val firstDataTrackLbaNormalised = allEntries[firstDataTrackIndex].lba + pregapOffset
+                        firstDataTrackLba = firstDataTrackLbaNormalised
+                        val heuristicLeadout = firstDataTrackLbaNormalised - 11400
 
                         val valid = (lastAudioLba == null || heuristicLeadout > lastAudioLba) &&
                                     (normalisedLeadOut == null || heuristicLeadout < normalisedLeadOut)
 
                         if (valid) {
                             AppLogger.w(TAG, "Drive does not support Full TOC; using heuristic CD-Extra leadout fallback")
-                            AppLogger.w(TAG, "firstDataTrackLba=$firstDataTrackLba heuristicLeadout=$heuristicLeadout")
+                            AppLogger.w(TAG, "firstDataTrackLba=$firstDataTrackLbaNormalised heuristicLeadout=$heuristicLeadout")
                             AppLogger.w(TAG, "MusicBrainz ID may be incorrect for discs with non-standard session pregaps")
                             audioLeadOutLba = heuristicLeadout
+                            audioLeadOutSource = AudioLeadOutSource.HEURISTIC
                             AppLogger.d(TAG, "Selected MB leadout source=heuristic_pregap")
                         } else {
+                            firstDataTrackLba = null
                             AppLogger.d(TAG, "Heuristic rejected by validation; using physical leadout")
                         }
                     } else {
@@ -254,7 +262,7 @@ class ReadTocCommand(
 
         val normalisedAudioLeadOut = audioLeadOutLba
 
-        val pair = Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset, normalisedAudioLeadOut), tocData.copyOf(totalTocRead))
+        val pair = Pair(DiscToc(normalisedEntries, normalisedLeadOut, pregapOffset, normalisedAudioLeadOut, audioLeadOutSource, firstDataTrackLba), tocData.copyOf(totalTocRead))
         AppLogger.d(TAG, "Generated MB Disc ID: ${com.bitperfect.core.utils.computeMusicBrainzDiscId(pair.first)}")
         return pair
     }
