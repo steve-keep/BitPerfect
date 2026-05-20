@@ -27,7 +27,9 @@ class ItunesArtworkRepositoryTest {
                         {
                             "artistName": "Artist",
                             "collectionName": "Album",
-                            "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/80/7e/ab/807eab7e-ccf8-3e91-cd20-4050d2bb2e40/12345.jpg/100x100bb.jpg"
+                            "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/80/7e/ab/807eab7e-ccf8-3e91-cd20-4050d2bb2e40/12345.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
                         }
                     ]
                 }
@@ -57,12 +59,16 @@ class ItunesArtworkRepositoryTest {
                         {
                             "artistName": "Tribute Fake",
                             "collectionName": "Album",
-                            "artworkUrl100": "https://example.com/wrong.jpg/100x100bb.jpg"
+                            "artworkUrl100": "https://example.com/wrong.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
                         },
                         {
                             "artistName": "Artist",
                             "collectionName": "Album",
-                            "artworkUrl100": "https://example.com/right.jpg/100x100bb.jpg"
+                            "artworkUrl100": "https://example.com/right.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
                         }
                     ]
                 }
@@ -152,7 +158,9 @@ class ItunesArtworkRepositoryTest {
                         {
                             "artistName": "Guns N’ Roses",
                             "collectionName": "Appetite for Destruction",
-                            "artworkUrl100": "https://example.com/guns.jpg/100x100bb.jpg"
+                            "artworkUrl100": "https://example.com/guns.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
                         }
                     ]
                 }
@@ -182,7 +190,9 @@ class ItunesArtworkRepositoryTest {
                         {
                             "artistName": "Guns N' Roses",
                             "collectionName": "Use Your Illusion I",
-                            "artworkUrl100": "https://example.com/illusion.jpg/100x100bb.jpg"
+                            "artworkUrl100": "https://example.com/illusion.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
                         }
                     ]
                 }
@@ -202,17 +212,37 @@ class ItunesArtworkRepositoryTest {
         assertEquals("https://example.com/illusion.jpg/3000x3000bb.jpg", result?.highResUrl)
     }
 
+
     @Test
-    fun `fetchItunesArtwork fails correctly on mixed punctuation with no match possible`() = runBlocking {
+    fun `fetchItunesArtwork prefers exact match over anniversary edition and remix`() = runBlocking {
         val mockEngine = MockEngine { _ ->
             val jsonResponse = """
                 {
-                    "resultCount": 1,
+                    "resultCount": 3,
                     "results": [
                         {
-                            "artistName": "Artist",
-                            "collectionName": "Other Album",
-                            "artworkUrl100": "https://example.com/other.jpg/100x100bb.jpg"
+                            "artistName": "Nas",
+                            "collectionName": "From Illmatic To Stillmatic: The Remixes",
+                            "trackCount": 14,
+                            "artworkUrl100": "https://example.com/remix.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
+                        },
+                        {
+                            "artistName": "Nas",
+                            "collectionName": "Illmatic (10th Anniversary Platinum Edition)",
+                            "trackCount": 16,
+                            "artworkUrl100": "https://example.com/anniversary.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
+                        },
+                        {
+                            "artistName": "Nas",
+                            "collectionName": "Illmatic",
+                            "trackCount": 10,
+                            "artworkUrl100": "https://example.com/exact.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
                         }
                     ]
                 }
@@ -226,8 +256,9 @@ class ItunesArtworkRepositoryTest {
         }
 
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
-        val result = repository.fetchItunesArtwork("Artist", "Something")
+        val result = repository.fetchItunesArtwork("Nas", "Illmatic", 10)
 
-        assertNull(result)
+        assertEquals("https://example.com/exact.jpg/600x600bb.jpg", result?.previewUrl)
+        assertEquals("https://example.com/exact.jpg/3000x3000bb.jpg", result?.highResUrl)
     }
 }

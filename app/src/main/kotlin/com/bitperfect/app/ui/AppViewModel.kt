@@ -91,8 +91,8 @@ open class AppViewModel(
     private val libraryRepository: LibraryRepository = LibraryRepository(application),
     private val ioDispatcher: CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
-    private val fetchItunesArtwork: suspend (String, String) -> ItunesArtwork? = { artist, album ->
-        ItunesArtworkRepository(application).fetchItunesArtwork(artist, album)
+    private val fetchItunesArtwork: suspend (String, String, Int?) -> ItunesArtwork? = { artist, album, trackCount ->
+        ItunesArtworkRepository(application).fetchItunesArtwork(artist, album, trackCount)
     },
     private val aiMixRepository: AiMixRepository = AiMixRepository(),
     private val aiMixGenerator: AiMixGenerator = AiMixGenerator()
@@ -404,7 +404,7 @@ open class AppViewModel(
         viewModelScope.launch {
             discMetadata.collectLatest { metadata ->
                 if (metadata != null) {
-                    val artwork = fetchItunesArtwork(metadata.artistName, metadata.albumTitle)
+                    val artwork = fetchItunesArtwork(metadata.artistName, metadata.albumTitle, metadata.trackTitles.size.takeIf { it > 0 })
                     _artwork.value = artwork
                     _artworkBytes.value = null
                     if (artwork != null) {
