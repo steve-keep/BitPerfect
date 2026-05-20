@@ -116,6 +116,11 @@ class UpnpManager(private val context: Context) {
     }
 
     fun start() {
+        Log.d(TAG, "UPnP Manager start() called")
+        if (upnpService != null) {
+            Log.d(TAG, "UPnP Manager already started")
+            return
+        }
         Log.d(TAG, "Starting UPnP Manager")
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -132,6 +137,7 @@ class UpnpManager(private val context: Context) {
                 upnpService?.registry?.addListener(registryListener)
 
                 Log.d(TAG, "Triggering explicit UPnP search")
+                kotlinx.coroutines.delay(1000)
                 upnpService?.controlPoint?.search()
             } catch(e: Exception) {
                 Log.e(TAG, "Error starting UPnP Service", e)
@@ -143,21 +149,21 @@ class UpnpManager(private val context: Context) {
 
     fun stop() {
         Log.d(TAG, "Stopping UPnP Manager")
-        scope.launch {
-            try {
-                upnpService?.registry?.removeListener(registryListener)
-                upnpService?.shutdown()
-            } catch(e: Exception) {
-                Log.e(TAG, "Error stopping UPnP Service", e)
-            } finally {
-                upnpService = null
-                scope.cancel()
 
-                if (multicastLock?.isHeld == true) {
-                    Log.d(TAG, "Releasing Multicast Lock")
-                    multicastLock?.release()
-                }
+        try {
+            upnpService?.registry?.removeListener(registryListener)
+            upnpService?.shutdown()
+        } catch(e: Exception) {
+            Log.e(TAG, "Error stopping UPnP Service", e)
+        } finally {
+            upnpService = null
+
+            if (multicastLock?.isHeld == true) {
+                Log.d(TAG, "Releasing Multicast Lock")
+                multicastLock?.release()
             }
+
+            scope.cancel()
         }
     }
 
@@ -197,8 +203,7 @@ class UpnpManager(private val context: Context) {
                 if (!controlUri.isNullOrEmpty()) {
                     val urlObj = (this as? RemoteDevice)?.identity?.descriptorURL
                     if (urlObj != null) {
-                        val baseUrlStr = "${urlObj.protocol}://${urlObj.authority}"
-                        avTransportControlUrl = if (controlUri.startsWith("/")) baseUrlStr + controlUri else "$baseUrlStr/$controlUri"
+                        avTransportControlUrl = URL(urlObj, controlUri).toString()
                     }
                 }
             }
@@ -208,8 +213,7 @@ class UpnpManager(private val context: Context) {
                 if (!controlUri.isNullOrEmpty()) {
                     val urlObj = (this as? RemoteDevice)?.identity?.descriptorURL
                     if (urlObj != null) {
-                        val baseUrlStr = "${urlObj.protocol}://${urlObj.authority}"
-                        renderingControlUrl = if (controlUri.startsWith("/")) baseUrlStr + controlUri else "$baseUrlStr/$controlUri"
+                        renderingControlUrl = URL(urlObj, controlUri).toString()
                     }
                 }
             }
@@ -230,6 +234,9 @@ class UpnpManager(private val context: Context) {
     }
 
     private fun updateState() {
-        _devices.value = discoveredDevices.values.toList()
+        _devices.value = discoveredDevices.values
+            .distinctBy { it.udn }
+            .sortedBy { it.friendlyName }
+        Log.d(TAG, "Renderer count: ${_devices.value.size}")
     }
 }
