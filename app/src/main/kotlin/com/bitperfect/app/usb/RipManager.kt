@@ -394,10 +394,23 @@ class RipManager(
             when {
                 expectedForTrack == null -> {
                     AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
-                    updateTrackState(trackNumber, RipStatus.UNVERIFIED, 1f)
+                    updateTrackState(
+                        trackNumber,
+                        RipStatus.UNVERIFIED,
+                        1f,
+                        accurateRipUrl = accurateRipUrl,
+                        computedChecksum = finalChecksum
+                    )
                 }
                 expectedForTrack.any { it.checksum == finalChecksum } -> {
-                    updateTrackState(trackNumber, RipStatus.SUCCESS, 1f)
+                    updateTrackState(
+                        trackNumber,
+                        RipStatus.SUCCESS,
+                        1f,
+                        accurateRipUrl = accurateRipUrl,
+                        computedChecksum = finalChecksum,
+                        expectedChecksums = expectedForTrack.map { it.checksum }
+                    )
                 }
                 else -> {
                     AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
