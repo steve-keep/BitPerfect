@@ -106,8 +106,15 @@ fun OutputDeviceSheet(
                                 color = Color.White.copy(alpha = 0.5f)
                             )
                         } else if (device is OutputDevice.Upnp) {
+                            val subtitle = buildString {
+                                if (device.manufacturer != null) append("${device.manufacturer} ")
+                                if (device.modelName != null) append("${device.modelName} ")
+                                if (device.manufacturer != null || device.modelName != null) append("· ")
+                                append("Wi-Fi · FLAC lossless")
+                            }
+
                             Text(
-                                text = "Wi-Fi · FLAC lossless",
+                                text = subtitle,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.5f)
                             )

@@ -18,13 +18,17 @@ sealed class OutputDevice {
         override val displayName = name
     }
 
-    // Stubs for future types — present in the sealed class so when-expressions stay exhaustive
     data class Upnp(
-        val location: String,
+        val udn: String,
         val friendlyName: String,
-        val controlUrl: String = ""
+        val manufacturer: String?,
+        val modelName: String?,
+        val deviceDescriptionUrl: String,
+        val avTransportControlUrl: String?,
+        val renderingControlUrl: String?,
+        val ipAddress: String?
     ) : OutputDevice() {
-        override val id = location
+        override val id = udn
         override val displayName = friendlyName
     }
 }
