@@ -238,5 +238,6 @@ class UpnpManager(private val context: Context) {
             .distinctBy { it.udn }
             .sortedBy { it.friendlyName }
         Log.d(TAG, "Renderer count: ${_devices.value.size}")
+        Log.d(TAG, "Publishing UPnP devices: ${_devices.value.map { it.friendlyName }}")
     }
 }

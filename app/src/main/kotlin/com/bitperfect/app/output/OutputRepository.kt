@@ -3,6 +3,7 @@ package com.bitperfect.app.output
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.util.Log
 import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import kotlinx.coroutines.CoroutineScope
@@ -65,8 +66,10 @@ open class OutputRepository(
 
         scope.launch {
             upnpManager.devices.collect { upnpDevices ->
+                Log.d("OutputRepository", "UPnP devices from manager: ${upnpDevices.map { it.friendlyName }}")
                 val current = _availableDevices.value.filter { it !is OutputDevice.Upnp }.toMutableList()
                 current.addAll(upnpDevices)
+                Log.d("OutputRepository", "Combined output devices: ${current.map { it.displayName }}")
                 _availableDevices.value = current
             }
         }
