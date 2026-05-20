@@ -471,7 +471,7 @@ open class AppViewModel(
                             toc.tracks.mapIndexed { i, entry ->
                                 async {
                                     val trackTitle = metadata.trackTitles.getOrNull(i) ?: return@async null
-                                    val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
+                                    val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.effectiveAudioLeadOutLba
                                     val durationSeconds = (nextLba - entry.lba).toLong() * 588.0 / 44100.0
                                     val result = semaphore.withPermit {
                                         lyricsRepository.fetch(
@@ -714,7 +714,7 @@ open class AppViewModel(
 
             val cdTracks = toc.tracks.mapIndexed { index, _ ->
                 val trackTitle = meta?.trackTitles?.getOrNull(index) ?: "Track \${index + 1}"
-                val nextLba = if (index + 1 < toc.tracks.size) toc.tracks[index + 1].lba else toc.leadOutLba
+                val nextLba = if (index + 1 < toc.tracks.size) toc.tracks[index + 1].lba else toc.effectiveAudioLeadOutLba
                 val currentLba = toc.tracks[index].lba
                 val durationMs = if (nextLba > currentLba) {
                     ((nextLba - currentLba) * 1000L) / 75L

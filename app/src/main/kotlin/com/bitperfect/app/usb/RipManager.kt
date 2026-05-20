@@ -142,7 +142,7 @@ class RipManager(
 
             val entry = toc.tracks[i]
             val trackTitle = metadata.trackTitles.getOrNull(i) ?: "Track $trackNumber"
-            val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.leadOutLba
+            val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.effectiveAudioLeadOutLba
             val totalSectors = nextLba - entry.lba
             val totalSamples = totalSectors.toLong() * 588L
 

@@ -4,12 +4,12 @@ package com.bitperfect.app.usb
  * Calculates the range of physical LBAs that the read loop should request for a single track.
  *
  * @param trackLba      The track's LBA from the TOC (pregap-normalised, e.g. 150-based)
- * @param nextLba       The LBA of the next track's start (or leadOutLba for the last track)
+ * @param nextLba       The LBA of the next track's start (or effectiveAudioLeadOutLba for the last track)
  * @param tocOffset     Number of whole sectors by which the drive read offset shifts the window
  * @param pregapOffset  Pregap normalisation offset stored in DiscToc (typically 150 or 0)
  * @param isLastTrack   Whether this is the final track on the disc
  * @return              Pair of (firstLba, lastLba) — the inclusive range of LBAs to request.
- *                      lastLba must be strictly less than leadOutLba for the last track.
+ *                      lastLba must be strictly less than effectiveAudioLeadOutLba for the last track.
  */
 internal fun ripLbaRange(
     trackLba: Int,
