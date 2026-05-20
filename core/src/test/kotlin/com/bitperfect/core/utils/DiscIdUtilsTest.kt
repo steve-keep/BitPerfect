@@ -215,6 +215,62 @@ class DiscIdUtilsTest {
     }
 
     @Test
+    fun computeAccurateRipDiscId_cdExtra_benHoward_usesAudioSessionLeadOut() {
+        // CD-Extra: AccurateRip must use audioLeadOutLba (session-1 audio lead-out),
+        // not the physical leadOutLba. Same lead-out value as MusicBrainz uses.
+        // Verified against debug report from ASUS SDRW-08D2S-U on Ben Howard - Every Kingdom.
+        val tracks = listOf(
+            TocEntry(trackNumber = 1,  lba = 150),
+            TocEntry(trackNumber = 2,  lba = 24788),
+            TocEntry(trackNumber = 3,  lba = 43296),
+            TocEntry(trackNumber = 4,  lba = 66497),
+            TocEntry(trackNumber = 5,  lba = 87910),
+            TocEntry(trackNumber = 6,  lba = 106598),
+            TocEntry(trackNumber = 7,  lba = 126125),
+            TocEntry(trackNumber = 8,  lba = 145966),
+            TocEntry(trackNumber = 9,  lba = 174579),
+            TocEntry(trackNumber = 10, lba = 196867),
+        )
+        val toc = DiscToc(tracks = tracks, leadOutLba = 247632, audioLeadOutLba = 225673)
+
+        val ids = computeAccurateRipDiscId(toc)
+        org.junit.Assert.assertEquals("001242ff", String.format("%08x", ids.id1))
+        org.junit.Assert.assertEquals("00924c10", String.format("%08x", ids.id2))
+        org.junit.Assert.assertEquals("840ce30a", String.format("%08x", ids.id3))  // freedb unchanged
+
+        val url = ids.toUrl(toc.trackCount)
+        org.junit.Assert.assertEquals(
+            "http://www.accuraterip.com/accuraterip/f/f/2/dBAR-010-001242ff-00924c10-840ce30a.bin",
+            url
+        )
+    }
+
+    @Test
+    fun computeAccurateRipDiscId_standardAudioCd_unaffected() {
+        // Standard audio CD (audioLeadOutLba = null): behaviour must be unchanged.
+        val tracks = listOf(
+            TocEntry(trackNumber = 1,  lba = 150),
+            TocEntry(trackNumber = 2,  lba = 22794),
+            TocEntry(trackNumber = 3,  lba = 41925),
+            TocEntry(trackNumber = 4,  lba = 58344),
+            TocEntry(trackNumber = 5,  lba = 72147),
+            TocEntry(trackNumber = 6,  lba = 91426),
+            TocEntry(trackNumber = 7,  lba = 104705),
+            TocEntry(trackNumber = 8,  lba = 115426),
+            TocEntry(trackNumber = 9,  lba = 132217),
+            TocEntry(trackNumber = 10, lba = 143984),
+            TocEntry(trackNumber = 11, lba = 159920),
+            TocEntry(trackNumber = 12, lba = 174651),
+        )
+        val toc = DiscToc(tracks = tracks, leadOutLba = 267269, audioLeadOutLba = null)
+
+        val ids = computeAccurateRipDiscId(toc)
+        org.junit.Assert.assertEquals("00151a60", String.format("%08x", ids.id1))
+        org.junit.Assert.assertEquals("00c51580", String.format("%08x", ids.id2))
+        org.junit.Assert.assertEquals("ad0de90c", String.format("%08x", ids.id3))
+    }
+
+    @Test
     fun computeAccurateRipDiscId_nevermindRemaster_calculatesCorrectly() {
         val tracks = listOf(
             TocEntry(trackNumber = 1, lba = 150),

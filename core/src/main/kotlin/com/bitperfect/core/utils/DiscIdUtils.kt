@@ -44,7 +44,10 @@ fun computeAccurateRipDiscId(toc: DiscToc): AccurateRipDiscId {
         id1 += lsn
         id2 += maxOf(lsn, 1L) * entry.trackNumber
     }
-    val lsnLeadOut = (toc.leadOutLba - LEAD_IN_FRAMES).toLong()
+    // Use session-1 audio lead-out for CD-Extra (same field MusicBrainz uses).
+    // For standard audio CDs audioLeadOutLba is null and leadOutLba is used.
+    val arLeadOut = toc.audioLeadOutLba ?: toc.leadOutLba
+    val lsnLeadOut = (arLeadOut - LEAD_IN_FRAMES).toLong()
     id1 += lsnLeadOut
     id2 += lsnLeadOut * (toc.trackCount + 1)
     val id3 = computeFreedbId(toc)
