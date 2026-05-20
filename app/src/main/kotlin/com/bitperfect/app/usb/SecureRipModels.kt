@@ -26,13 +26,6 @@ data class PendingChunk(
     }
 }
 
-enum class SeamState {
-    VERIFIED,
-    RECOVERED,
-    LOW_CONFIDENCE,
-    DAMAGED
-}
-
 /**
  * Zero-allocation overlap comparison.
  * Compares the tail of [this] ByteArray with the head of [other] ByteArray.
@@ -40,17 +33,22 @@ enum class SeamState {
  * will be bounded by the available size in both arrays.
  * @return The effective overlap size used for the comparison, or 0 if they do not match.
  */
-fun ByteArray.matchOverlapTailWithHead(other: ByteArray, requestedOverlapBytes: Int): Int {
-    val effectiveOverlap = minOf(requestedOverlapBytes, this.size, other.size)
-    if (effectiveOverlap <= 0) return 0
+/**
+ * Zero-allocation overlap comparison.
+ * Compares the tail of [this] ByteArray with the head of [other] ByteArray.
+ * @param effectiveOverlap The exact number of bytes to compare.
+ * @return True if they match, false otherwise.
+ */
+fun ByteArray.matchOverlapTailWithHead(other: ByteArray, effectiveOverlap: Int): Boolean {
+    if (effectiveOverlap <= 0 || this.size < effectiveOverlap || other.size < effectiveOverlap) return false
 
     val thisOffset = this.size - effectiveOverlap
     val otherOffset = 0
 
     for (i in 0 until effectiveOverlap) {
         if (this[thisOffset + i] != other[otherOffset + i]) {
-            return 0 // Mismatch
+            return false // Mismatch
         }
     }
-    return effectiveOverlap // Match
+    return true // Match
 }

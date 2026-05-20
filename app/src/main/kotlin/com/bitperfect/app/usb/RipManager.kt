@@ -280,13 +280,13 @@ class RipManager(
 
                         if (pendingChunk != null) {
                             val effectiveOverlap = minOf(overlapBytes, pendingChunk.pcm.size, currentChunk.pcm.size)
-                            val matchedOverlap = pendingChunk.pcm.matchOverlapTailWithHead(currentChunk.pcm, overlapBytes)
+                            val overlapMatches = pendingChunk.pcm.matchOverlapTailWithHead(currentChunk.pcm, effectiveOverlap)
 
                             if (effectiveOverlap < overlapBytes) {
                                 AppLogger.w("RipManager", "Degraded overlap size at LBA $currentStartLba: $effectiveOverlap bytes instead of $overlapBytes bytes")
                             }
 
-                            if (matchedOverlap != effectiveOverlap || effectiveOverlap <= 0) {
+                            if (!overlapMatches) {
                                 // Mismatch! Reread escalation
                                 AppLogger.w("RipManager", "Overlap mismatch at LBA $currentStartLba. Entering recovery.")
                                 var recoverySuccess = false
@@ -300,10 +300,10 @@ class RipManager(
                                     val rereadPcm = session.readSectors(currentStartLba, sectorsToRead) ?: continue
                                     val rereadTrimmed = if (currentStartLba == firstLba && skipBytes > 0) rereadPcm.copyOfRange(skipBytes, rereadPcm.size) else rereadPcm
                                     val candidateChunk = PendingChunk(currentStartLba, currentStartLba + (rereadPcm.size / 2352) - 1, rereadTrimmed)
-                                    bestCandidate = candidateChunk
 
-                                    val candidateMatchedOverlap = pendingChunk.pcm.matchOverlapTailWithHead(candidateChunk.pcm, effectiveOverlap)
-                                    if (candidateMatchedOverlap == effectiveOverlap) {
+                                    val overlapMatchesCandidate = pendingChunk.pcm.matchOverlapTailWithHead(candidateChunk.pcm, effectiveOverlap)
+                                    if (overlapMatchesCandidate) {
+                                        bestCandidate = candidateChunk
                                         if (lastCandidate != null && lastCandidate.pcm.contentEquals(candidateChunk.pcm)) {
                                             matchesFound++
                                         } else {

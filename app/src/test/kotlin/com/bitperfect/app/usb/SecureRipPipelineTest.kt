@@ -10,7 +10,8 @@ class SecureRipPipelineTest {
 
     // Helper to simulate the overlap extraction
     private fun simulateOverlap(chunk1: ByteArray, chunk2: ByteArray, overlapSize: Int): Boolean {
-        return chunk1.matchOverlapTailWithHead(chunk2, overlapSize) == minOf(overlapSize, chunk1.size, chunk2.size) && minOf(overlapSize, chunk1.size, chunk2.size) > 0
+        val effectiveOverlap = minOf(overlapSize, chunk1.size, chunk2.size)
+        return chunk1.matchOverlapTailWithHead(chunk2, effectiveOverlap) && effectiveOverlap > 0
     }
 
     @Test
@@ -40,8 +41,8 @@ class SecureRipPipelineTest {
         val chunk1 = pcm.copyOfRange(skipBytes, 50)
         val chunk2 = pcm.copyOfRange(40, 90) // Overlap is 10 bytes: 40-49
 
-        val matchedOverlap = chunk1.matchOverlapTailWithHead(chunk2, 10)
-        assertEquals(10, matchedOverlap)
+        val isMatch = chunk1.matchOverlapTailWithHead(chunk2, 10)
+        assertEquals(true, isMatch)
     }
 
     @Test
@@ -58,8 +59,10 @@ class SecureRipPipelineTest {
         // So chunk2 should be 75..89.
         val chunk2Correct = pcm.copyOfRange(75, 90)
 
-        val matchedOverlap = chunk1.matchOverlapTailWithHead(chunk2Correct, 20)
-        assertEquals(15, matchedOverlap)
+        val effectiveOverlap = minOf(20, chunk1.size, chunk2Correct.size)
+        val isMatch = chunk1.matchOverlapTailWithHead(chunk2Correct, effectiveOverlap)
+        assertEquals(15, effectiveOverlap)
+        assertEquals(true, isMatch)
     }
 
     @Test
