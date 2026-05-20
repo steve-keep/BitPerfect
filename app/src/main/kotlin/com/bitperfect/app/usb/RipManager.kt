@@ -314,19 +314,20 @@ class RipManager(
                                     val rereadPcm = session.readSectors(currentStartLba, sectorsToRead) ?: continue
                                     val candidateChunk = PendingChunk(currentStartLba, currentStartLba + (rereadPcm.size / 2352) - 1, rereadPcm)
 
+                                    // Review feedback: verify full payload stability independently of overlap
+                                    if (lastCandidate != null && lastCandidate.pcm.contentEquals(candidateChunk.pcm)) {
+                                        matchesFound++
+                                    } else {
+                                        matchesFound = 0
+                                    }
+                                    lastCandidate = candidateChunk
+
                                     val overlapMatchesCandidate = pendingChunk.pcm.matchOverlapTailWithHead(candidateChunk.pcm, effectiveOverlap)
                                     if (overlapMatchesCandidate) {
                                         bestCandidate = candidateChunk
-                                        if (lastCandidate != null && lastCandidate.pcm.contentEquals(candidateChunk.pcm)) {
-                                            matchesFound++
-                                        } else {
-                                            matchesFound = 0 // Reset to 0 per review
-                                        }
-                                        lastCandidate = candidateChunk
 
-                                        if (matchesFound >= 1) { // 1 match with previous means 2 identical reads
+                                        if (matchesFound >= 1) { // 2 identical reads + matching overlap
                                             recoverySuccess = true
-                                            bestCandidate = candidateChunk
                                             actualAttempts = attempt
                                             break
                                         }
@@ -339,7 +340,7 @@ class RipManager(
                                     suspiciousReadsList[suspiciousReadsList.size - 1] = lastSuspicious.copy(
                                         endLba = maxOf(lastSuspicious.endLba, newSuspiciousRead.endLba),
                                         mismatchCount = lastSuspicious.mismatchCount + 1,
-                                        rereadAttempts = lastSuspicious.rereadAttempts + maxRereads
+                                        rereadAttempts = lastSuspicious.rereadAttempts + actualAttempts
                                     )
                                 } else {
                                     suspiciousReadsList.add(newSuspiciousRead)
@@ -354,13 +355,22 @@ class RipManager(
                                     val candidateSectors = bestCandidate!!.pcm.size / 2352
                                     sectorsRead += if (candidateSectors < sectorsToRead) maxOf(1, candidateSectors - overlapSectors) else strideSectors
                                 } else {
-                                    AppLogger.e("RipManager", "Unrecoverable seam at LBA $currentStartLba. Accepting best candidate.")
-                                    currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
-                                    commitPcm(pendingChunk!!.pcm.copyOfRange(0, pendingChunk!!.pcm.size - effectiveOverlap))
-                                    pendingChunk = bestCandidate ?: currentChunk
+                                    AppLogger.e("RipManager", "Unrecoverable seam at LBA $currentStartLba. Resetting overlap anchor.")
+                                    currentConfidence = currentConfidence.degradeTo(RipConfidence.DAMAGED)
 
-                                    val candidateSectors = pendingChunk!!.pcm.size / 2352
-                                    sectorsRead += if (candidateSectors < sectorsToRead) maxOf(1, candidateSectors - overlapSectors) else strideSectors
+                                    // Flush the entire pending chunk because we do not trust the seam overlap
+                                    commitPcm(pendingChunk!!.pcm)
+
+                                    // Also commit the damaged current chunk to preserve track timing/length
+                                    val fallbackChunk = bestCandidate ?: currentChunk
+                                    commitPcm(fallbackChunk.pcm)
+
+                                    // Nullify pendingChunk to force a fresh anchor on the next loop iteration,
+                                    // preventing cascading overlap misalignment.
+                                    pendingChunk = null
+
+                                    val candidateSectors = fallbackChunk.pcm.size / 2352
+                                    sectorsRead += if (candidateSectors < sectorsToRead) candidateSectors else chunkSize
                                 }
 
                                 updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors, confidence = currentConfidence, suspiciousReads = suspiciousReadsList)
