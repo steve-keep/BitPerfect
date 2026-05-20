@@ -245,14 +245,28 @@ class RipManager(
                 var currentConfidence = RipConfidence.HIGH
                 val suspiciousReadsList = mutableListOf<SuspiciousRead>()
 
+                var remainingSkipBytes = skipBytes
+
                 fun commitPcm(pcm: ByteArray) {
-                    encoder.encode(pcm)
-                    checksumAccumulator.accumulate(pcm)
-                    analyser.feed(pcm)
-                    committedPcmBytes += pcm.size
+                    if (pcm.isEmpty()) return
+
+                    val toEncode = if (remainingSkipBytes > 0) {
+                        val skipAmount = minOf(remainingSkipBytes, pcm.size)
+                        remainingSkipBytes -= skipAmount
+                        if (skipAmount == pcm.size) return // The entire chunk was skipped!
+                        pcm.copyOfRange(skipAmount, pcm.size)
+                    } else {
+                        pcm
+                    }
+
+                    encoder.encode(toEncode)
+                    checksumAccumulator.accumulate(toEncode)
+                    analyser.feed(toEncode)
+                    committedPcmBytes += toEncode.size
                 }
 
                 if (overreadBuffer != null) {
+                    remainingSkipBytes = 0 // overreadBuffer is already offset-corrected
                     commitPcm(overreadBuffer!!)
                     sectorsRead = 1
                     isFirstSector = false
@@ -273,15 +287,9 @@ class RipManager(
                             currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
                         }
 
-                        var trimmed = pcmData
-                        if (isFirstSector && skipBytes > 0) {
-                            val prefix = pcmData.copyOfRange(0, skipBytes)
-                            commitPcm(prefix)
-                            trimmed = pcmData.copyOfRange(skipBytes, pcmData.size)
-                        }
                         isFirstSector = false
-
-                        val currentChunk = PendingChunk(currentStartLba, currentStartLba + sectorsActuallyRead - 1, trimmed)
+                        // The verification window MUST operate on raw, un-trimmed sector-aligned data.
+                        val currentChunk = PendingChunk(currentStartLba, currentStartLba + sectorsActuallyRead - 1, pcmData)
 
                         if (pendingChunk != null) {
                             val effectiveOverlap = minOf(overlapBytes, pendingChunk.pcm.size, currentChunk.pcm.size)
@@ -299,12 +307,12 @@ class RipManager(
                                 var matchesFound = 0
                                 var lastCandidate: PendingChunk? = null
                                 val maxRereads = 6
+                                var actualAttempts = maxRereads
 
                                 for (attempt in 1..maxRereads) {
                                     if (isCancelled) break
                                     val rereadPcm = session.readSectors(currentStartLba, sectorsToRead) ?: continue
-                                    val rereadTrimmed = if (currentStartLba == firstLba && skipBytes > 0) rereadPcm.copyOfRange(skipBytes, rereadPcm.size) else rereadPcm
-                                    val candidateChunk = PendingChunk(currentStartLba, currentStartLba + (rereadPcm.size / 2352) - 1, rereadTrimmed)
+                                    val candidateChunk = PendingChunk(currentStartLba, currentStartLba + (rereadPcm.size / 2352) - 1, rereadPcm)
 
                                     val overlapMatchesCandidate = pendingChunk.pcm.matchOverlapTailWithHead(candidateChunk.pcm, effectiveOverlap)
                                     if (overlapMatchesCandidate) {
@@ -319,12 +327,12 @@ class RipManager(
                                         if (matchesFound >= 1) { // 1 match with previous means 2 identical reads
                                             recoverySuccess = true
                                             bestCandidate = candidateChunk
+                                            actualAttempts = attempt
                                             break
                                         }
                                     }
                                 }
 
-                                val actualAttempts = if (recoverySuccess) matchesFound else maxRereads
                                 val newSuspiciousRead = SuspiciousRead(currentStartLba, currentStartLba + sectorsToRead - 1, 1, actualAttempts)
                                 val lastSuspicious = suspiciousReadsList.lastOrNull()
                                 if (lastSuspicious != null && currentStartLba <= lastSuspicious.endLba + 1) {
@@ -344,7 +352,7 @@ class RipManager(
                                     pendingChunk = bestCandidate
 
                                     val candidateSectors = bestCandidate!!.pcm.size / 2352
-                                    sectorsRead += if (candidateSectors < chunkSize) candidateSectors else strideSectors
+                                    sectorsRead += if (candidateSectors < sectorsToRead) maxOf(1, candidateSectors - overlapSectors) else strideSectors
                                 } else {
                                     AppLogger.e("RipManager", "Unrecoverable seam at LBA $currentStartLba. Accepting best candidate.")
                                     currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
@@ -352,7 +360,7 @@ class RipManager(
                                     pendingChunk = bestCandidate ?: currentChunk
 
                                     val candidateSectors = pendingChunk!!.pcm.size / 2352
-                                    sectorsRead += if (candidateSectors < chunkSize) candidateSectors else strideSectors
+                                    sectorsRead += if (candidateSectors < sectorsToRead) maxOf(1, candidateSectors - overlapSectors) else strideSectors
                                 }
 
                                 updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors, confidence = currentConfidence, suspiciousReads = suspiciousReadsList)
@@ -361,12 +369,12 @@ class RipManager(
                                 // Match!
                                 commitPcm(pendingChunk.pcm.copyOfRange(0, pendingChunk.pcm.size - effectiveOverlap))
                                 pendingChunk = currentChunk
-                                sectorsRead += if (sectorsActuallyRead < chunkSize) sectorsActuallyRead else strideSectors
+                                sectorsRead += if (sectorsActuallyRead < sectorsToRead) maxOf(1, sectorsActuallyRead - overlapSectors) else strideSectors
                             }
                         } else {
                             // First chunk ever
                             pendingChunk = currentChunk
-                            sectorsRead += strideSectors // Advance by stride to overlap on the next read
+                            sectorsRead += if (sectorsActuallyRead < sectorsToRead) maxOf(1, sectorsActuallyRead - overlapSectors) else strideSectors
                         }
                     } else {
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {

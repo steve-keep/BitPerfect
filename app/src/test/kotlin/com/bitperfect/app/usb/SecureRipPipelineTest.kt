@@ -59,6 +59,37 @@ class SecureRipPipelineTest {
     }
 
     @Test
+    fun `test skipBytes prefix removal logic`() {
+        val out = ByteArrayOutputStream()
+        var remainingSkipBytes = 5
+
+        fun commitPcm(pcm: ByteArray) {
+            if (pcm.isEmpty()) return
+
+            val toEncode = if (remainingSkipBytes > 0) {
+                val skipAmount = minOf(remainingSkipBytes, pcm.size)
+                remainingSkipBytes -= skipAmount
+                if (skipAmount == pcm.size) return
+                pcm.copyOfRange(skipAmount, pcm.size)
+            } else {
+                pcm
+            }
+            out.write(toEncode)
+        }
+
+        val chunk1 = byteArrayOf(1, 2, 3, 4, 5, 6, 7) // 7 bytes
+        val chunk2 = byteArrayOf(8, 9, 10) // 3 bytes
+
+        commitPcm(chunk1)
+        commitPcm(chunk2)
+
+        // Expected: skip first 5 bytes.
+        // 6, 7, 8, 9, 10
+        val expected = byteArrayOf(6, 7, 8, 9, 10)
+        assertArrayEquals(expected, out.toByteArray())
+    }
+
+    @Test
     fun `test recovery loop matches requirement`() {
         // Simulating the matchesFound logic
         var matchesFound = 0
