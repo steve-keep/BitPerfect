@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.jupnp.UpnpService
 import org.jupnp.UpnpServiceImpl
+import org.jupnp.android.AndroidUpnpServiceConfiguration
 import org.jupnp.model.meta.Device
 import org.jupnp.model.meta.LocalDevice
 import org.jupnp.model.meta.RemoteDevice
@@ -26,6 +27,9 @@ import kotlinx.coroutines.cancel
 class UpnpManager(private val context: Context) {
 
     private val TAG = "UpnpManager"
+
+    private val _isDiscovering = MutableStateFlow(false)
+    val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
 
     private val _devices = MutableStateFlow<List<OutputDevice.Upnp>>(emptyList())
     val devices: StateFlow<List<OutputDevice.Upnp>> = _devices.asStateFlow()
@@ -123,6 +127,7 @@ class UpnpManager(private val context: Context) {
         }
         Log.d(TAG, "Starting UPnP Manager")
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        _isDiscovering.value = true
 
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicastLock = wifiManager.createMulticastLock("WiimDiscoveryLock")
@@ -132,7 +137,7 @@ class UpnpManager(private val context: Context) {
 
         scope.launch {
             try {
-                upnpService = UpnpServiceImpl()
+                upnpService = UpnpServiceImpl(AndroidUpnpServiceConfiguration())
                 Log.d(TAG, "Attaching RegistryListener")
                 upnpService?.registry?.addListener(registryListener)
 
@@ -141,8 +146,10 @@ class UpnpManager(private val context: Context) {
                 upnpService?.controlPoint?.search()
             } catch(e: Exception) {
                 Log.e(TAG, "Error starting UPnP Service", e)
+                _isDiscovering.value = false
             } catch (e: Error) {
                 Log.e(TAG, "Critical error starting UPnP Service", e)
+                _isDiscovering.value = false
             }
         }
     }
@@ -239,5 +246,6 @@ class UpnpManager(private val context: Context) {
             .sortedBy { it.friendlyName }
         Log.d(TAG, "Renderer count: ${_devices.value.size}")
         Log.d(TAG, "Publishing UPnP devices: ${_devices.value.map { it.friendlyName }}")
+        _isDiscovering.value = false
     }
 }

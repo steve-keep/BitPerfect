@@ -40,8 +40,7 @@ open class OutputRepository(
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
     private val upnpManager = UpnpManager(context)
-    private val _isDiscovering = MutableStateFlow(false)
-    open val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
+    open val isDiscovering: StateFlow<Boolean> = upnpManager.isDiscovering
 
     private val switchMutex = kotlinx.coroutines.sync.Mutex()
     @Volatile private var activeController: OutputController = LocalOutputController(context, playerRepository)
