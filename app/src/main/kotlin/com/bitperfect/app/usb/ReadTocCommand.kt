@@ -194,7 +194,7 @@ class ReadTocCommand(
 
                     if (isPureCdExtra) {
                         val firstDataTrackLba = allEntries[firstDataTrackIndex].lba + pregapOffset
-                        val heuristicLeadout = firstDataTrackLba - 11250
+                        val heuristicLeadout = firstDataTrackLba - 11400
 
                         val valid = (lastAudioLba == null || heuristicLeadout > lastAudioLba) &&
                                     (normalisedLeadOut == null || heuristicLeadout < normalisedLeadOut)

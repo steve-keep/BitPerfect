@@ -274,6 +274,59 @@ class ReadTocCommandTest {
     }
 
     @Test
+    fun `test CD-Extra heuristic produces correct audioLeadOutLba`() {
+        // Simulate a drive that fails both Full TOC and MSF Session 1 reads,
+        // forcing the heuristic path. track1Lba=0 gives pregapOffset=150.
+        // We push the data track out to 40000 so the heuristic leadout is
+        // greater than the last audio track (20150), passing validation.
+        // dataTrackLba (raw) = 40000, normalised = 40150.
+        // Expected heuristic: 40150 - 11400 = 28750.
+        `when`(transport.bulkTransfer(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenAnswer { invocation ->
+            val buffer = invocation.arguments[1] as ByteArray
+            val length = invocation.arguments[2] as Int
+            when (length) {
+                31 -> length  // CBW
+                804 -> {
+                    val fakeData = createFakeTocData(0, isCdExtra = true)
+                    val bb = ByteBuffer.wrap(fakeData).order(ByteOrder.BIG_ENDIAN)
+                    bb.putInt(32, 40000) // data track LBA
+                    bb.putInt(40, 50000) // physical lead-out LBA
+                    System.arraycopy(fakeData, 0, buffer, 0, fakeData.size)
+                    fakeData.size
+                }
+                13 -> {
+                    val cswBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                    cswBuffer.putInt(0x53425355)
+                    cswBuffer.putInt(3)
+                    cswBuffer.putInt(0)
+                    cswBuffer.put(0.toByte())
+                    length
+                }
+                else -> -1  // fail Full TOC and MSF Session 1 (length==2048)
+            }
+        }
+        `when`(transport.bulkTransferFully(
+            any(UsbEndpoint::class.java) ?: inEndpoint,
+            any(ByteArray::class.java) ?: ByteArray(0),
+            anyInt(),
+            anyInt()
+        )).thenReturn(-1)  // fail all bulkTransferFully calls (used for 2048-byte reads)
+
+        val result = readTocCommand.execute()
+
+        assertNotNull(result)
+        val toc = result!!.first
+        assertEquals(3, toc.tracks.size)
+        assertEquals(28750, toc.audioLeadOutLba)  // 40150 - 11400
+        assertEquals(50150, toc.leadOutLba)       // physical lead-out remains unchanged
+    }
+
+    @Test
     fun `test CD-Extra session 1 short read`() {
         // Simulate a CD-Extra disc with a short read on the Session 1 TOC
         setupMockTransferWithCdExtra(150, shortReadSession1 = true)
