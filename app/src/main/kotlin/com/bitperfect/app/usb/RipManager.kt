@@ -35,6 +35,13 @@ enum class RipConfidence {
     HIGH, MEDIUM, LOW, DAMAGED
 }
 
+/**
+ * Ensures confidence can only degrade, never improve.
+ */
+fun RipConfidence.degradeTo(newConfidence: RipConfidence): RipConfidence {
+    return if (newConfidence.ordinal > this.ordinal) newConfidence else this
+}
+
 data class SuspiciousRead(
     val startLba: Int,
     val endLba: Int,
@@ -262,7 +269,8 @@ class RipManager(
                         val sectorsActuallyRead = pcmData.size / 2352
                         if (sectorsActuallyRead < sectorsToRead) {
                             AppLogger.w("RipManager", "Short read at LBA $currentStartLba: " +
-                                "got $sectorsActuallyRead of $sectorsToRead sectors")
+                                "got $sectorsActuallyRead of $sectorsToRead sectors. Marking LOW confidence.")
+                            currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
                         }
 
                         var trimmed = if (isFirstSector && skipBytes > 0) pcmData.copyOfRange(skipBytes, pcmData.size) else pcmData
@@ -271,14 +279,14 @@ class RipManager(
                         val currentChunk = PendingChunk(currentStartLba, currentStartLba + sectorsActuallyRead - 1, trimmed)
 
                         if (pendingChunk != null) {
-                            val previousTail = pendingChunk.pcm.overlapTail(overlapBytes)
-                            val currentHead = currentChunk.pcm.overlapHead(overlapBytes)
-                            val effectiveOverlap = minOf(previousTail.size, currentHead.size)
+                            val effectiveOverlap = minOf(overlapBytes, pendingChunk.pcm.size, currentChunk.pcm.size)
+                            val matchedOverlap = pendingChunk.pcm.matchOverlapTailWithHead(currentChunk.pcm, overlapBytes)
 
-                            val previousTailClamped = previousTail.overlapTail(effectiveOverlap)
-                            val currentHeadClamped = currentHead.overlapHead(effectiveOverlap)
+                            if (effectiveOverlap < overlapBytes) {
+                                AppLogger.w("RipManager", "Degraded overlap size at LBA $currentStartLba: $effectiveOverlap bytes instead of $overlapBytes bytes")
+                            }
 
-                            if (effectiveOverlap > 0 && !previousTailClamped.contentEquals(currentHeadClamped)) {
+                            if (matchedOverlap != effectiveOverlap || effectiveOverlap <= 0) {
                                 // Mismatch! Reread escalation
                                 AppLogger.w("RipManager", "Overlap mismatch at LBA $currentStartLba. Entering recovery.")
                                 var recoverySuccess = false
@@ -294,8 +302,8 @@ class RipManager(
                                     val candidateChunk = PendingChunk(currentStartLba, currentStartLba + (rereadPcm.size / 2352) - 1, rereadTrimmed)
                                     bestCandidate = candidateChunk
 
-                                    val candidateHead = candidateChunk.pcm.overlapHead(effectiveOverlap)
-                                    if (candidateHead.contentEquals(previousTailClamped)) {
+                                    val candidateMatchedOverlap = pendingChunk.pcm.matchOverlapTailWithHead(candidateChunk.pcm, effectiveOverlap)
+                                    if (candidateMatchedOverlap == effectiveOverlap) {
                                         if (lastCandidate != null && lastCandidate.pcm.contentEquals(candidateChunk.pcm)) {
                                             matchesFound++
                                         } else {
@@ -311,20 +319,30 @@ class RipManager(
                                     }
                                 }
 
-                                suspiciousReadsList.add(SuspiciousRead(currentStartLba, currentStartLba + sectorsToRead - 1, 1, maxRereads))
+                                val newSuspiciousRead = SuspiciousRead(currentStartLba, currentStartLba + sectorsToRead - 1, 1, maxRereads)
+                                val lastSuspicious = suspiciousReadsList.lastOrNull()
+                                if (lastSuspicious != null && currentStartLba <= lastSuspicious.endLba + 1) {
+                                    suspiciousReadsList[suspiciousReadsList.size - 1] = lastSuspicious.copy(
+                                        endLba = maxOf(lastSuspicious.endLba, newSuspiciousRead.endLba),
+                                        mismatchCount = lastSuspicious.mismatchCount + 1,
+                                        rereadAttempts = lastSuspicious.rereadAttempts + maxRereads
+                                    )
+                                } else {
+                                    suspiciousReadsList.add(newSuspiciousRead)
+                                }
 
                                 if (recoverySuccess) {
                                     AppLogger.i("RipManager", "Recovered seam at LBA $currentStartLba.")
-                                    if (currentConfidence == RipConfidence.HIGH) currentConfidence = RipConfidence.MEDIUM
-                                    commitPcm(pendingChunk!!.pcm.dropLast(effectiveOverlap).toByteArray())
+                                    currentConfidence = currentConfidence.degradeTo(RipConfidence.MEDIUM)
+                                    commitPcm(pendingChunk!!.pcm.copyOfRange(0, pendingChunk!!.pcm.size - effectiveOverlap))
                                     pendingChunk = bestCandidate
 
                                     val candidateSectors = bestCandidate!!.pcm.size / 2352
                                     sectorsRead += if (candidateSectors < chunkSize) candidateSectors else strideSectors
                                 } else {
                                     AppLogger.e("RipManager", "Unrecoverable seam at LBA $currentStartLba. Accepting best candidate.")
-                                    currentConfidence = RipConfidence.LOW
-                                    commitPcm(pendingChunk!!.pcm.dropLast(effectiveOverlap).toByteArray())
+                                    currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
+                                    commitPcm(pendingChunk!!.pcm.copyOfRange(0, pendingChunk!!.pcm.size - effectiveOverlap))
                                     pendingChunk = bestCandidate ?: currentChunk
 
                                     val candidateSectors = pendingChunk!!.pcm.size / 2352
@@ -335,7 +353,7 @@ class RipManager(
                                 continue // Skip normal progression
                             } else {
                                 // Match!
-                                commitPcm(pendingChunk.pcm.dropLast(effectiveOverlap).toByteArray())
+                                commitPcm(pendingChunk.pcm.copyOfRange(0, pendingChunk.pcm.size - effectiveOverlap))
                                 pendingChunk = currentChunk
                                 sectorsRead += if (sectorsActuallyRead < chunkSize) sectorsActuallyRead else strideSectors
                             }
@@ -395,9 +413,7 @@ class RipManager(
 
                 if (committedPcmBytes != totalSamples * 4) {
                     AppLogger.e("RipManager", "Track length mismatch! Expected ${totalSamples * 4} bytes, got $committedPcmBytes bytes")
-                    if (currentConfidence == RipConfidence.HIGH || currentConfidence == RipConfidence.MEDIUM) {
-                        currentConfidence = RipConfidence.LOW
-                    }
+                    currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
                 }
 
                 encoder.stop()

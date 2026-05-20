@@ -33,14 +33,24 @@ enum class SeamState {
     DAMAGED
 }
 
-fun ByteArray.overlapHead(bytes: Int): ByteArray {
-    val sizeToTake = minOf(bytes, this.size)
-    if (sizeToTake <= 0) return ByteArray(0)
-    return this.copyOfRange(0, sizeToTake)
-}
+/**
+ * Zero-allocation overlap comparison.
+ * Compares the tail of [this] ByteArray with the head of [other] ByteArray.
+ * @param requestedOverlapBytes The desired overlap size. The actual comparison
+ * will be bounded by the available size in both arrays.
+ * @return The effective overlap size used for the comparison, or 0 if they do not match.
+ */
+fun ByteArray.matchOverlapTailWithHead(other: ByteArray, requestedOverlapBytes: Int): Int {
+    val effectiveOverlap = minOf(requestedOverlapBytes, this.size, other.size)
+    if (effectiveOverlap <= 0) return 0
 
-fun ByteArray.overlapTail(bytes: Int): ByteArray {
-    val sizeToTake = minOf(bytes, this.size)
-    if (sizeToTake <= 0) return ByteArray(0)
-    return this.copyOfRange(this.size - sizeToTake, this.size)
+    val thisOffset = this.size - effectiveOverlap
+    val otherOffset = 0
+
+    for (i in 0 until effectiveOverlap) {
+        if (this[thisOffset + i] != other[otherOffset + i]) {
+            return 0 // Mismatch
+        }
+    }
+    return effectiveOverlap // Match
 }

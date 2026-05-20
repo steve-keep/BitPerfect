@@ -4,15 +4,13 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.ByteArrayOutputStream
+import com.bitperfect.core.utils.AppLogger
 
 class SecureRipPipelineTest {
 
     // Helper to simulate the overlap extraction
     private fun simulateOverlap(chunk1: ByteArray, chunk2: ByteArray, overlapSize: Int): Boolean {
-        val previousTail = chunk1.overlapTail(overlapSize)
-        val currentHead = chunk2.overlapHead(overlapSize)
-        val effectiveOverlap = minOf(previousTail.size, currentHead.size)
-        return previousTail.overlapTail(effectiveOverlap).contentEquals(currentHead.overlapHead(effectiveOverlap))
+        return chunk1.matchOverlapTailWithHead(chunk2, overlapSize) == minOf(overlapSize, chunk1.size, chunk2.size) && minOf(overlapSize, chunk1.size, chunk2.size) > 0
     }
 
     @Test
@@ -36,6 +34,35 @@ class SecureRipPipelineTest {
     }
 
     @Test
+    fun `test skipBytes seam alignment`() {
+        val pcm = ByteArray(100) { it.toByte() }
+        val skipBytes = 5
+        val chunk1 = pcm.copyOfRange(skipBytes, 50)
+        val chunk2 = pcm.copyOfRange(40, 90) // Overlap is 10 bytes: 40-49
+
+        val matchedOverlap = chunk1.matchOverlapTailWithHead(chunk2, 10)
+        assertEquals(10, matchedOverlap)
+    }
+
+    @Test
+    fun `test EOF overlap truncation`() {
+        val pcm = ByteArray(100) { it.toByte() }
+        val chunk1 = pcm.copyOfRange(0, 90)
+        val chunk2 = pcm.copyOfRange(80, 95) // Overlap is theoretically 10, but EOF chunk is only 15 long.
+        // Wait, if overlapBytes is 20, the effective overlap should be min(20, 90, 15) = 15.
+        // And the tail of chunk1 (90-15=75 to 90) is 75-89.
+        // But chunk2 is 80-94. They mismatch!
+        // To properly test truncation, let's use the correct data:
+        // chunk1 ends at 90.
+        // To overlap by 15, we need chunk1's tail to be 75..89.
+        // So chunk2 should be 75..89.
+        val chunk2Correct = pcm.copyOfRange(75, 90)
+
+        val matchedOverlap = chunk1.matchOverlapTailWithHead(chunk2Correct, 20)
+        assertEquals(15, matchedOverlap)
+    }
+
+    @Test
     fun `test duplication prevention logic`() {
         // Simulating the dropLast logic
         val out = ByteArrayOutputStream()
@@ -52,7 +79,7 @@ class SecureRipPipelineTest {
         val match1 = simulateOverlap(p1.pcm, p2.pcm, overlap)
         assertEquals(true, match1)
         if (match1) {
-            out.write(p1.pcm.dropLast(overlap).toByteArray())
+            out.write(p1.pcm.copyOfRange(0, p1.pcm.size - overlap))
         }
 
         // Loop 3 starts: chunk2 overlaps with chunk3 by 2 bytes
@@ -60,7 +87,7 @@ class SecureRipPipelineTest {
         val match2 = simulateOverlap(p2.pcm, p3.pcm, overlap)
         assertEquals(true, match2)
         if (match2) {
-            out.write(p2.pcm.dropLast(overlap).toByteArray())
+            out.write(p2.pcm.copyOfRange(0, p2.pcm.size - overlap))
         }
 
         // EOF: commit the last pending chunk entirely
