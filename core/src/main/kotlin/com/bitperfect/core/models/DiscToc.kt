@@ -17,4 +17,5 @@ data class DiscToc(
     val firstDataTrackLba: Int? = null
 ) {
     val trackCount: Int get() = tracks.size
+    val effectiveAudioLeadOutLba: Int get() = audioLeadOutLba ?: leadOutLba
 }

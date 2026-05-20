@@ -144,7 +144,7 @@ class OffsetCalibrationViewModel(
 
                 val resolvedTrack = toc.tracks[resolvedTrackIndex]
                 val resolvedNextLba = if (resolvedTrackIndex + 1 < toc.tracks.size)
-                    toc.tracks[resolvedTrackIndex + 1].lba else toc.leadOutLba
+                    toc.tracks[resolvedTrackIndex + 1].lba else toc.effectiveAudioLeadOutLba
                 val totalSectors = resolvedNextLba - resolvedTrack.lba
                 val totalSamples = totalSectors.toLong() * 588L
                 val nativeTrackStart = resolvedTrack.lba   // normalised LBA (pregap-adjusted, 150-based)

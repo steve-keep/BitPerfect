@@ -96,4 +96,32 @@ class RipLbaCalculatorTest {
         assertEquals(expectedLast, last)
         assertTrue(last < 182471 - 150)
     }
+
+    @Test
+    fun `cdExtra_lastTrack_usesAudioLeadOut`() {
+        // Based on Ben Howard - Every Kingdom
+        val audioLeadOutLba = 225673
+        val leadOutLba = 247632
+        val trackLba = 196867
+
+        // We simulate the call using effectiveAudioLeadOutLba directly as nextLba
+        val effectiveLeadOut = audioLeadOutLba // audioLeadOutLba ?: leadOutLba
+
+        val (first, last) = ripLbaRange(
+            trackLba = trackLba,
+            nextLba = effectiveLeadOut,
+            tocOffset = 0,
+            pregapOffset = 150,
+            isLastTrack = true
+        )
+
+        val expectedSectors = 28806 // 225673 - 196867
+        val actualSectors = last - first + 1
+
+        assertEquals(expectedSectors, actualSectors)
+        assertEquals(trackLba - 150, first) // 196867 - 150 = 196717
+        assertEquals(196717 + 28806 - 1, last)
+
+        assertTrue(last < leadOutLba - 150)
+    }
 }
