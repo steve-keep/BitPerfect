@@ -273,7 +273,12 @@ class RipManager(
                             currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
                         }
 
-                        var trimmed = if (isFirstSector && skipBytes > 0) pcmData.copyOfRange(skipBytes, pcmData.size) else pcmData
+                        var trimmed = pcmData
+                        if (isFirstSector && skipBytes > 0) {
+                            val prefix = pcmData.copyOfRange(0, skipBytes)
+                            commitPcm(prefix)
+                            trimmed = pcmData.copyOfRange(skipBytes, pcmData.size)
+                        }
                         isFirstSector = false
 
                         val currentChunk = PendingChunk(currentStartLba, currentStartLba + sectorsActuallyRead - 1, trimmed)
@@ -307,11 +312,11 @@ class RipManager(
                                         if (lastCandidate != null && lastCandidate.pcm.contentEquals(candidateChunk.pcm)) {
                                             matchesFound++
                                         } else {
-                                            matchesFound = 1
+                                            matchesFound = 0 // Reset to 0 per review
                                         }
                                         lastCandidate = candidateChunk
 
-                                        if (matchesFound >= 2) {
+                                        if (matchesFound >= 1) { // 1 match with previous means 2 identical reads
                                             recoverySuccess = true
                                             bestCandidate = candidateChunk
                                             break
@@ -319,7 +324,8 @@ class RipManager(
                                     }
                                 }
 
-                                val newSuspiciousRead = SuspiciousRead(currentStartLba, currentStartLba + sectorsToRead - 1, 1, maxRereads)
+                                val actualAttempts = if (recoverySuccess) matchesFound else maxRereads
+                                val newSuspiciousRead = SuspiciousRead(currentStartLba, currentStartLba + sectorsToRead - 1, 1, actualAttempts)
                                 val lastSuspicious = suspiciousReadsList.lastOrNull()
                                 if (lastSuspicious != null && currentStartLba <= lastSuspicious.endLba + 1) {
                                     suspiciousReadsList[suspiciousReadsList.size - 1] = lastSuspicious.copy(
@@ -640,9 +646,11 @@ class RipManager(
             progress = progress,
             status = status,
             accurateRipUrl = accurateRipUrl ?: existingState.accurateRipUrl,
+            confidence = confidence ?: existingState.confidence,
             computedChecksum = computedChecksum ?: existingState.computedChecksum,
             expectedChecksums = if (expectedChecksums.isNotEmpty()) expectedChecksums else existingState.expectedChecksums,
             errorMessage = errorMessage ?: existingState.errorMessage,
+            suspiciousReads = suspiciousReads ?: existingState.suspiciousReads,
             startLba = startLba ?: existingState.startLba,
             endLba = endLba ?: existingState.endLba,
             totalSectors = totalSectors ?: existingState.totalSectors,

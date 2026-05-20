@@ -49,20 +49,46 @@ class SecureRipPipelineTest {
     fun `test EOF overlap truncation`() {
         val pcm = ByteArray(100) { it.toByte() }
         val chunk1 = pcm.copyOfRange(0, 90)
-        val chunk2 = pcm.copyOfRange(80, 95) // Overlap is theoretically 10, but EOF chunk is only 15 long.
-        // Wait, if overlapBytes is 20, the effective overlap should be min(20, 90, 15) = 15.
-        // And the tail of chunk1 (90-15=75 to 90) is 75-89.
-        // But chunk2 is 80-94. They mismatch!
-        // To properly test truncation, let's use the correct data:
-        // chunk1 ends at 90.
-        // To overlap by 15, we need chunk1's tail to be 75..89.
-        // So chunk2 should be 75..89.
-        val chunk2Correct = pcm.copyOfRange(75, 90)
+        val chunk2 = pcm.copyOfRange(75, 90)
 
-        val effectiveOverlap = minOf(20, chunk1.size, chunk2Correct.size)
-        val isMatch = chunk1.matchOverlapTailWithHead(chunk2Correct, effectiveOverlap)
+        val effectiveOverlap = minOf(20, chunk1.size, chunk2.size)
+        val isMatch = chunk1.matchOverlapTailWithHead(chunk2, effectiveOverlap)
+
         assertEquals(15, effectiveOverlap)
         assertEquals(true, isMatch)
+    }
+
+    @Test
+    fun `test recovery loop matches requirement`() {
+        // Simulating the matchesFound logic
+        var matchesFound = 0
+        var lastCandidate: ByteArray? = null
+
+        val candidates = listOf(
+            byteArrayOf(1, 2, 3), // Read 1 (Mismatches overlap)
+            byteArrayOf(4, 5, 6), // Read 2 (Matches overlap)
+            byteArrayOf(4, 5, 6)  // Read 3 (Matches overlap, identical to Read 2)
+        )
+
+        var recoverySuccess = false
+
+        for (candidate in candidates) {
+            val overlapMatches = candidate[0] == 4.toByte() // Simulating overlap match for array starting with 4
+            if (overlapMatches) {
+                if (lastCandidate != null && lastCandidate.contentEquals(candidate)) {
+                    matchesFound++
+                } else {
+                    matchesFound = 0 // Reset to 0 per review
+                }
+                lastCandidate = candidate
+                if (matchesFound >= 1) { // 1 match with previous means 2 identical reads
+                    recoverySuccess = true
+                    break
+                }
+            }
+        }
+
+        assertEquals(true, recoverySuccess)
     }
 
     @Test

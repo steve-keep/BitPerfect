@@ -29,13 +29,6 @@ data class PendingChunk(
 /**
  * Zero-allocation overlap comparison.
  * Compares the tail of [this] ByteArray with the head of [other] ByteArray.
- * @param requestedOverlapBytes The desired overlap size. The actual comparison
- * will be bounded by the available size in both arrays.
- * @return The effective overlap size used for the comparison, or 0 if they do not match.
- */
-/**
- * Zero-allocation overlap comparison.
- * Compares the tail of [this] ByteArray with the head of [other] ByteArray.
  * @param effectiveOverlap The exact number of bytes to compare.
  * @return True if they match, false otherwise.
  */
