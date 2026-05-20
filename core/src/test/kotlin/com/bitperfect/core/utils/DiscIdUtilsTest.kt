@@ -186,14 +186,14 @@ class DiscIdUtilsTest {
             TocEntry(trackNumber = 2, lba = 50000),
             TocEntry(trackNumber = 3, lba = 100000)
         )
-        // heuristic leadout: 180000 - 11250 = 168750
-        val toc = DiscToc(tracks = tracks, leadOutLba = 210000, audioLeadOutLba = 168750)
+        // heuristic leadout: 180000 - 11400 = 168600
+        val toc = DiscToc(tracks = tracks, leadOutLba = 210000, audioLeadOutLba = 168600)
 
-        // Let's verify the tocstring and disc ID are using 168750
+        // Let's verify the tocstring and disc ID are using 168600
         val tocString = computeMusicBrainzTocString(toc)
-        org.junit.Assert.assertEquals("1+3+168750+150+50000+100000", tocString)
+        org.junit.Assert.assertEquals("1+3+168600+150+50000+100000", tocString)
 
-        // disc ID should be based on 168750
+        // disc ID should be based on 168600
         val discId = computeMusicBrainzDiscId(toc)
         org.junit.Assert.assertNotEquals("Should not be null or empty", "", discId)
         // I won't hardcode a hash for the synthetic one since we just care it uses the right leadout,
