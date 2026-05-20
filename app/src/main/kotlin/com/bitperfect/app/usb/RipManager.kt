@@ -455,7 +455,7 @@ class RipManager(
 
             if (file == null) return
 
-            val isVerified = state.status == RipStatus.SUCCESS || state.status == RipStatus.UNVERIFIED
+            val isVerified = state.status == RipStatus.SUCCESS
             val checksumMatched = state.status == RipStatus.SUCCESS
             val inDatabase = state.expectedChecksums.isNotEmpty() || state.status == RipStatus.SUCCESS
 
