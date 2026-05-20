@@ -20,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class UpnpManager(private val context: Context) {
 
@@ -34,15 +36,17 @@ class UpnpManager(private val context: Context) {
 
     private var multicastLock: WifiManager.MulticastLock? = null
 
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val registryListener = object : DefaultRegistryListener() {
         override fun remoteDeviceAdded(registry: Registry?, device: RemoteDevice?) {
             if (device == null) return
             // We use wildcard generics to handle the complex signatures
             val d = device as Device<*, *, *>
-            Log.d(TAG, "RemoteDevice discovered: \${d.displayString}")
+            Log.d(TAG, "RemoteDevice discovered: ${d.displayString}")
             // Check for MediaRenderer
-            if (d.type.namespace == "schemas-upnp-org" && d.type.type == "MediaRenderer" && d.type.version == 1) {
-                Log.d(TAG, "Discovered renderer: \${d.details?.friendlyName} (\${d.identity?.udn?.identifierString})")
+            if (d.isMediaRenderer()) {
+                Log.d(TAG, "Discovered renderer: ${d.details?.friendlyName} (${d.identity?.udn?.identifierString})")
                 d.toOutputDevice()?.let {
                     discoveredDevices[it.udn] = it
                     updateState()
@@ -53,13 +57,13 @@ class UpnpManager(private val context: Context) {
         override fun remoteDeviceRemoved(registry: Registry?, device: RemoteDevice?) {
             if (device == null) return
             val d = device as Device<*, *, *>
-            Log.d(TAG, "RemoteDevice removed: \${d.displayString}")
-            if (d.type.namespace == "schemas-upnp-org" && d.type.type == "MediaRenderer" && d.type.version == 1) {
+            Log.d(TAG, "RemoteDevice removed: ${d.displayString}")
+            if (d.isMediaRenderer()) {
                 val udn = d.identity?.udn?.identifierString
                 if (udn != null) {
                     discoveredDevices.remove(udn)
                     updateState()
-                    Log.d(TAG, "Removed renderer: \${d.details?.friendlyName} (\$udn)")
+                    Log.d(TAG, "Removed renderer: ${d.details?.friendlyName} ($udn)")
                 }
             }
         }
@@ -67,8 +71,8 @@ class UpnpManager(private val context: Context) {
         override fun localDeviceAdded(registry: Registry?, device: LocalDevice?) {
             if (device == null) return
             val d = device as Device<*, *, *>
-            if (d.type.namespace == "schemas-upnp-org" && d.type.type == "MediaRenderer" && d.type.version == 1) {
-                Log.d(TAG, "LocalDevice discovered: \${d.displayString}")
+            if (d.isMediaRenderer()) {
+                Log.d(TAG, "LocalDevice discovered: ${d.displayString}")
                 d.toOutputDevice()?.let {
                     discoveredDevices[it.udn] = it
                     updateState()
@@ -79,29 +83,55 @@ class UpnpManager(private val context: Context) {
         override fun localDeviceRemoved(registry: Registry?, device: LocalDevice?) {
             if (device == null) return
             val d = device as Device<*, *, *>
-            if (d.type.namespace == "schemas-upnp-org" && d.type.type == "MediaRenderer" && d.type.version == 1) {
+            if (d.isMediaRenderer()) {
                 val udn = d.identity?.udn?.identifierString
                 if (udn != null) {
                     discoveredDevices.remove(udn)
                     updateState()
-                    Log.d(TAG, "Removed local renderer: \${d.details?.friendlyName} (\$udn)")
+                    Log.d(TAG, "Removed local renderer: ${d.details?.friendlyName} ($udn)")
                 }
             }
         }
     }
 
+
+    private fun Device<*, *, *>.hasAvTransport(): Boolean {
+        return try {
+            this.findService(UDAServiceType("AVTransport", 1)) != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun Device<*, *, *>.hasRenderingControl(): Boolean {
+        return try {
+            this.findService(UDAServiceType("RenderingControl", 1)) != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun Device<*, *, *>.isMediaRenderer(): Boolean {
+        return this.hasAvTransport() || this.hasRenderingControl()
+    }
+
     fun start() {
         Log.d(TAG, "Starting UPnP Manager")
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicastLock = wifiManager.createMulticastLock("WiimDiscoveryLock")
-        multicastLock?.setReferenceCounted(true)
+        multicastLock?.setReferenceCounted(false)
+        Log.d(TAG, "Acquiring Multicast Lock")
         multicastLock?.acquire()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        scope.launch {
             try {
                 upnpService = UpnpServiceImpl()
+                Log.d(TAG, "Attaching RegistryListener")
                 upnpService?.registry?.addListener(registryListener)
+
+                Log.d(TAG, "Triggering explicit UPnP search")
                 upnpService?.controlPoint?.search()
             } catch(e: Exception) {
                 Log.e(TAG, "Error starting UPnP Service", e)
@@ -113,7 +143,7 @@ class UpnpManager(private val context: Context) {
 
     fun stop() {
         Log.d(TAG, "Stopping UPnP Manager")
-        CoroutineScope(Dispatchers.IO).launch {
+        scope.launch {
             try {
                 upnpService?.registry?.removeListener(registryListener)
                 upnpService?.shutdown()
@@ -121,8 +151,10 @@ class UpnpManager(private val context: Context) {
                 Log.e(TAG, "Error stopping UPnP Service", e)
             } finally {
                 upnpService = null
+                scope.cancel()
 
                 if (multicastLock?.isHeld == true) {
+                    Log.d(TAG, "Releasing Multicast Lock")
                     multicastLock?.release()
                 }
             }
@@ -158,15 +190,15 @@ class UpnpManager(private val context: Context) {
             val avTransportService = this.findService(UDAServiceType("AVTransport", 1))
             val renderingControlService = this.findService(UDAServiceType("RenderingControl", 1))
 
-            Log.d(TAG, "Services for \$friendlyName: AVTransport=\${avTransportService != null}, RenderingControl=\${renderingControlService != null}")
+            Log.d(TAG, "Services for $friendlyName: AVTransport=${avTransportService != null}, RenderingControl=${renderingControlService != null}")
 
             if (avTransportService is RemoteService) {
                 val controlUri = avTransportService.controlURI?.toString()
                 if (!controlUri.isNullOrEmpty()) {
                     val urlObj = (this as? RemoteDevice)?.identity?.descriptorURL
                     if (urlObj != null) {
-                        val baseUrlStr = "\${urlObj.protocol}://\${urlObj.authority}"
-                        avTransportControlUrl = if (controlUri.startsWith("/")) baseUrlStr + controlUri else "\$baseUrlStr/\$controlUri"
+                        val baseUrlStr = "${urlObj.protocol}://${urlObj.authority}"
+                        avTransportControlUrl = if (controlUri.startsWith("/")) baseUrlStr + controlUri else "$baseUrlStr/$controlUri"
                     }
                 }
             }
@@ -176,8 +208,8 @@ class UpnpManager(private val context: Context) {
                 if (!controlUri.isNullOrEmpty()) {
                     val urlObj = (this as? RemoteDevice)?.identity?.descriptorURL
                     if (urlObj != null) {
-                        val baseUrlStr = "\${urlObj.protocol}://\${urlObj.authority}"
-                        renderingControlUrl = if (controlUri.startsWith("/")) baseUrlStr + controlUri else "\$baseUrlStr/\$controlUri"
+                        val baseUrlStr = "${urlObj.protocol}://${urlObj.authority}"
+                        renderingControlUrl = if (controlUri.startsWith("/")) baseUrlStr + controlUri else "$baseUrlStr/$controlUri"
                     }
                 }
             }
