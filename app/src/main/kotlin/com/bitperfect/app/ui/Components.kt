@@ -187,11 +187,13 @@ fun AlbumHeader(
                 error = ColorPainter(Color(0xFF141414)),
                 onSuccess = { success ->
                     val bitmap = success.result.drawable.toBitmap()
-                    Palette.from(bitmap).generate { palette ->
-                        palette?.dominantSwatch?.rgb?.let { colorValue ->
-                            onColorExtracted(Color(colorValue))
+                    Palette.from(bitmap)
+                        .addFilter { _, hsl -> hsl[2] >= 0.2f }
+                        .generate { palette ->
+                            palette?.dominantSwatch?.rgb?.let { colorValue ->
+                                onColorExtracted(Color(colorValue))
+                            }
                         }
-                    }
                 }
             )
             Spacer(modifier = Modifier.height(24.dp))
