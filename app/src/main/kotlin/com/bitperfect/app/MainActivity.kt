@@ -483,6 +483,20 @@ class MainActivity : ComponentActivity() {
                             TrackListScreen(
                                 viewModel = appViewModel,
                                 onShareRipInfo = { trackNumber -> appViewModel.shareRipInfo(trackNumber) },
+                                onNavigateToArtist = { artistName ->
+                                    appViewModel.selectArtist(artistName)
+                                    navController.navigate(AppRoutes.Artist)
+                                },
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(AppRoutes.Artist) {
+                            com.bitperfect.app.ui.ArtistScreen(
+                                viewModel = appViewModel,
+                                onNavigateToAlbum = { albumId ->
+                                    appViewModel.loadTracks(albumId)
+                                    navController.popBackStack() // Pop back to TrackList view
+                                },
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }

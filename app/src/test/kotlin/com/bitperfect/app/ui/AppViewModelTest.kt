@@ -34,6 +34,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.After
 import org.junit.Test
@@ -108,6 +109,12 @@ class AppViewModelTest {
             detectorField.isAccessible = true
             detectorField.set(DeviceStateManager, null)
         }
+    }
+
+    @Test
+    fun testSelectArtist() = runTest(testScheduler) {
+        viewModel.selectArtist("Test Artist")
+        assertNull(viewModel.selectedArtist.value)
     }
 
     @Test

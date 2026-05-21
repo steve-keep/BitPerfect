@@ -143,6 +143,12 @@ open class AppViewModel(
     private val _selectedAlbumTitle = MutableStateFlow<String?>(null)
     val selectedAlbumTitle: StateFlow<String?> = _selectedAlbumTitle
 
+    private val _selectedArtist = MutableStateFlow<com.bitperfect.app.library.ArtistInfo?>(null)
+    val selectedArtist: StateFlow<com.bitperfect.app.library.ArtistInfo?> = _selectedArtist
+
+    private val _selectedArtistThumbnail = MutableStateFlow<String?>(null)
+    val selectedArtistThumbnail: StateFlow<String?> = _selectedArtistThumbnail
+
     val activeDevice: StateFlow<OutputDevice> = outputRepository.activeDevice
     val availableDevices: StateFlow<List<OutputDevice>> = outputRepository.availableDevices
 
@@ -664,6 +670,18 @@ open class AppViewModel(
         loadTracks(albumId)
     }
 
+    fun selectArtist(artistName: String) {
+        val artist = _artists.value.find { it.name.equals(artistName, ignoreCase = true) }
+        _selectedArtist.value = artist
+        _selectedArtistThumbnail.value = null
+        if (artist != null) {
+            viewModelScope.launch(ioDispatcher) {
+                val thumbnailUrl = libraryRepository.getArtistThumbnailUrl(artist.name, settingsManager.outputFolderUri)
+                _selectedArtistThumbnail.value = thumbnailUrl
+            }
+        }
+    }
+
     private suspend fun reloadTracksInternal(albumId: Long, artists: List<ArtistInfo>) {
         val albumTracks = libraryRepository.getTracksForAlbum(albumId, settingsManager.outputFolderUri)
 
@@ -693,7 +711,7 @@ open class AppViewModel(
         )
     }
 
-    private fun loadTracks(albumId: Long) {
+    fun loadTracks(albumId: Long) {
         viewModelScope.launch(ioDispatcher) {
             reloadTracksInternal(albumId, _artists.value)
         }

@@ -51,6 +51,7 @@ private fun numberToWord(n: Int): String {
 fun TrackListScreen(
     viewModel: AppViewModel,
     onShareRipInfo: (trackNumber: Int) -> Unit,
+    onNavigateToArtist: (String) -> Unit = {},
     onNavigateBack: () -> Unit
 ) {
     val viewState by viewModel.trackListViewState.collectAsState()
@@ -186,6 +187,7 @@ fun TrackListScreen(
                             overallProgress = overallProgress,
                             isFullyVerified = isFullyVerified,
                             isAlbumPlaying = isAlbumPlaying,
+                            onArtistClick = { onNavigateToArtist(state.artistName) },
                             onSaveClick = { viewModel.startRip() },
                             onPlayClick = {
                                 if (isAlbumPlaying) viewModel.togglePlayPause() else viewModel.playAlbum(state.tracks)
