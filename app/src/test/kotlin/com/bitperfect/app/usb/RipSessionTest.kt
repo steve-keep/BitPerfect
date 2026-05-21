@@ -119,9 +119,12 @@ class RipSessionTest {
         val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
         isRippingField.isAccessible = true
         val stateFlow = isRippingField.get(ripSession) as kotlinx.coroutines.flow.MutableStateFlow<Boolean>
+
+        // Wait for coroutines to settle so finally block doesn't overwrite our mock value
+        Thread.sleep(50)
+
         stateFlow.value = true
 
-        // It might be empty if collect didn't run, but let's assert size 1 due to sync copy
         assertEquals(1, ripSession.ripStates.value.size)
 
         // Attempt to clear
