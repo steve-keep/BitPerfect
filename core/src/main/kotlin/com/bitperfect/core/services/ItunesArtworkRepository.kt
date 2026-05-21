@@ -30,6 +30,7 @@ data class ItunesSearchResponse(
 data class ItunesAlbumResult(
     val artistName: String? = null,
     val collectionName: String? = null,
+    val collectionId: Long? = null,
     val artworkUrl100: String? = null,
     val wrapperType: String? = null,
     val collectionType: String? = null,
@@ -138,20 +139,30 @@ class ItunesArtworkRepository(private val context: Context) {
         }
     }
 
-    private fun score(result: ItunesAlbumResult, normalisedArtist: String, expectedAlbum: String, expectedTrackCount: Int?): Int {
+    private fun score(
+        result: ItunesAlbumResult,
+        normalisedArtist: String,
+        expectedSimplifiedAlbum: String,
+        expectedNormalisedAlbum: String,
+        expectedTrackCount: Int?
+    ): Int {
         var score = 0
         val artist = result.artistName?.let { normalise(it) } ?: ""
         val album = result.collectionName?.let { normalise(it) } ?: ""
-        val actualAlbum = result.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
+        val actualSimplifiedAlbum = result.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
 
-        if (artist == normalisedArtist) {
+        if (artist == normalisedArtist && normalisedArtist.isNotEmpty()) {
             score += 20
         }
 
-        if (actualAlbum == expectedAlbum && expectedAlbum.isNotEmpty()) {
+        if (actualSimplifiedAlbum == expectedSimplifiedAlbum && expectedSimplifiedAlbum.isNotEmpty()) {
             score += 100
-        } else if (expectedAlbum.isNotEmpty() && actualAlbum.isNotEmpty() && (actualAlbum.contains(expectedAlbum) || expectedAlbum.contains(actualAlbum))) {
+        } else if (expectedSimplifiedAlbum.isNotEmpty() && actualSimplifiedAlbum.isNotEmpty() && (actualSimplifiedAlbum.contains(expectedSimplifiedAlbum) || expectedSimplifiedAlbum.contains(actualSimplifiedAlbum))) {
             score += 60
+        }
+
+        if (album == expectedNormalisedAlbum && expectedNormalisedAlbum.isNotEmpty()) {
+            score += 20
         }
 
         if (expectedTrackCount != null && result.trackCount == expectedTrackCount) {
@@ -163,62 +174,113 @@ class ItunesArtworkRepository(private val context: Context) {
             }
         }
 
-        if (album.contains("instrumental") || album.contains("remix") || album.contains("tribute") || album.contains("karaoke") || album.contains("lofi") || album.contains("greatest hits")) {
+        val penalties = listOf(
+            "instrumental", "remix", "tribute", "karaoke", "lofi",
+            "greatest hits", "best of", "cover", "live"
+        )
+        if (penalties.any { album.contains(it) }) {
             score -= 60
         }
 
-        score -= levenshtein(expectedAlbum, actualAlbum)
+        val levenshteinCost = levenshtein(expectedSimplifiedAlbum, actualSimplifiedAlbum)
+        score -= levenshteinCost
 
         return score
+    }
+
+    companion object {
+        private const val CONFIDENCE_THRESHOLD = 60
+        private const val BEST_EFFORT_THRESHOLD = 30
     }
 
     suspend fun fetchItunesArtwork(artist: String, album: String, expectedTrackCount: Int? = null): ItunesArtwork? = withContext(Dispatchers.IO) {
         try {
             val encodedArtist = URLEncoder.encode(artist, "UTF-8")
             val encodedAlbum = URLEncoder.encode(album, "UTF-8")
-            val url = "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&attribute=albumTerm&limit=25"
 
-            AppLogger.d("ItunesArtworkRepository", "Querying: $url")
-
-            val response: ItunesSearchResponse = client.get(url).body()
-
-            if (response.results.isEmpty()) return@withContext null
+            val queries = listOf(
+                Pair("Stage 1 (Primary strict)", "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&attribute=albumTerm&limit=25"),
+                Pair("Stage 2 (Relaxed text)", "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&limit=25"),
+                Pair("Stage 3 (Album only)", "https://itunes.apple.com/search?term=$encodedAlbum&media=music&entity=album&limit=25"),
+                Pair("Stage 4 (Broad media)", "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&limit=25")
+            )
 
             val normalisedArtist = normalise(artist)
-            val expectedAlbum = simplifyAlbumTitle(album)
+            val expectedSimplifiedAlbum = simplifyAlbumTitle(album)
+            val expectedNormalisedAlbum = normalise(album)
 
-            val validCandidates = response.results.filter {
-                it.artworkUrl100 != null && it.wrapperType == "collection" && it.collectionType == "Album"
-            }
+            var absoluteBestCandidate: ItunesAlbumResult? = null
+            var absoluteBestScore = Int.MIN_VALUE
 
-            var bestMatch: ItunesAlbumResult? = null
-            var bestScore = Int.MIN_VALUE
+            for ((stageName, url) in queries) {
+                AppLogger.d("ItunesArtworkRepository", "Executing $stageName query: $url")
+                val response: ItunesSearchResponse = client.get(url).body()
 
-            for (candidate in validCandidates) {
-                val score = score(candidate, normalisedArtist, expectedAlbum, expectedTrackCount)
-                AppLogger.d("ItunesArtworkRepository", "Artwork candidate: ${candidate.collectionName}, score=$score, trackCount=${candidate.trackCount}")
-                if (score > bestScore) {
-                    bestScore = score
-                    bestMatch = candidate
+                if (response.results.isEmpty()) {
+                    AppLogger.d("ItunesArtworkRepository", "$stageName returned 0 results")
+                    continue
+                }
+
+                val validCandidates = response.results.filter {
+                    it.artworkUrl100 != null && it.wrapperType == "collection" && it.collectionType == "Album"
+                }
+
+                // Deduplicate within the current stage using collectionId, falling back to artistName + collectionName
+                val deduplicatedCandidates = validCandidates.distinctBy {
+                    it.collectionId?.toString() ?: "${it.artistName}-${it.collectionName}"
+                }
+
+                AppLogger.d("ItunesArtworkRepository", "Artwork candidates after dedupe: ${deduplicatedCandidates.size}")
+
+                var stageBestMatch: ItunesAlbumResult? = null
+                var stageBestScore = Int.MIN_VALUE
+
+                for (candidate in deduplicatedCandidates) {
+                    val score = score(candidate, normalisedArtist, expectedSimplifiedAlbum, expectedNormalisedAlbum, expectedTrackCount)
+
+                    val actualSimplified = candidate.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
+                    AppLogger.d("ItunesArtworkRepository", "[$stageName] Candidate: '${candidate.collectionName}' (Simplified: '$actualSimplified') | TrackCount: ${candidate.trackCount} | Score: $score")
+
+                    if (score > stageBestScore) {
+                        stageBestScore = score
+                        stageBestMatch = candidate
+                    }
+                }
+
+                if (stageBestMatch != null) {
+                    if (stageBestScore >= CONFIDENCE_THRESHOLD) {
+                        AppLogger.d("ItunesArtworkRepository", "Selected best candidate in $stageName: ${stageBestMatch.collectionName} with score: $stageBestScore (>= threshold $CONFIDENCE_THRESHOLD)")
+                        return@withContext buildArtwork(stageBestMatch)
+                    } else {
+                        AppLogger.d("ItunesArtworkRepository", "Best candidate in $stageName narrowly missed threshold: ${stageBestMatch.collectionName} with score: $stageBestScore (< threshold $CONFIDENCE_THRESHOLD). Trying relaxed search...")
+                    }
+
+                    if (stageBestScore > absoluteBestScore) {
+                        absoluteBestScore = stageBestScore
+                        absoluteBestCandidate = stageBestMatch
+                    }
+                } else {
+                    AppLogger.d("ItunesArtworkRepository", "No valid candidate found after filtering in $stageName")
                 }
             }
 
-            if (bestMatch != null) {
-                AppLogger.d("ItunesArtworkRepository", "Selected best candidate: ${bestMatch.collectionName} with score: $bestScore")
-            } else {
-                AppLogger.d("ItunesArtworkRepository", "No valid candidate found after filtering")
+            if (absoluteBestCandidate != null && absoluteBestScore >= BEST_EFFORT_THRESHOLD) {
+                AppLogger.d("ItunesArtworkRepository", "Using best-effort fallback candidate: ${absoluteBestCandidate.collectionName} with score: $absoluteBestScore")
+                return@withContext buildArtwork(absoluteBestCandidate)
             }
 
-            if (bestMatch?.artworkUrl100 != null) {
-                val base = bestMatch.artworkUrl100
-                val previewUrl = base.replace("100x100bb", "600x600bb")
-                val highResUrl = base.replace("100x100bb", "3000x3000bb")
-                return@withContext ItunesArtwork(previewUrl, highResUrl)
-            }
+            AppLogger.d("ItunesArtworkRepository", "No acceptable artwork match found across all stages")
             null
         } catch (e: Exception) {
             AppLogger.e("ItunesArtworkRepository", "Error fetching artwork", e)
             null
         }
+    }
+
+    private fun buildArtwork(candidate: ItunesAlbumResult): ItunesArtwork? {
+        val base = candidate.artworkUrl100 ?: return null
+        val previewUrl = base.replace("100x100bb", "600x600bb")
+        val highResUrl = base.replace("100x100bb", "3000x3000bb")
+        return ItunesArtwork(previewUrl, highResUrl)
     }
 }
