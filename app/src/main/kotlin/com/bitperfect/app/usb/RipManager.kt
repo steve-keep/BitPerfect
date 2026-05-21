@@ -13,12 +13,16 @@ import com.bitperfect.core.services.AccurateRipVerifier
 import com.bitperfect.core.services.AccurateRipTrackMetadata
 import com.bitperfect.core.services.DriveOffsetRepository
 import com.bitperfect.core.utils.AppLogger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
 import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.io.BufferedOutputStream
 
 import java.net.URLEncoder
@@ -108,6 +112,41 @@ class RipManager(
         if (artistDir == null) {
             AppLogger.e("RipManager", "Could not create artist directory")
             return@withContext
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val existingFile = artistDir.findFile("artist.json")
+                if (existingFile == null) {
+                    val encodedArtist = URLEncoder.encode(metadata.artistName, "UTF-8")
+                    val urlString = "https://www.theaudiodb.com/api/v1/json/2/search.php?s=$encodedArtist"
+                    val url = URL(urlString)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 10000
+                    connection.readTimeout = 10000
+
+                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+                        val file = artistDir.createFile("application/json", "artist.json")
+                        if (file != null) {
+                            context.contentResolver.openOutputStream(file.uri)?.use { out ->
+                                out.write(responseBody.toByteArray(Charsets.UTF_8))
+                            }
+                            AppLogger.d("RipManager", "Successfully fetched and saved artist.json")
+                        } else {
+                            AppLogger.e("RipManager", "Could not create artist.json file")
+                        }
+                    } else {
+                        AppLogger.e("RipManager", "AudioDB API returned ${connection.responseCode}")
+                    }
+                    connection.disconnect()
+                } else {
+                    AppLogger.d("RipManager", "artist.json already exists, skipping fetch")
+                }
+            } catch (e: Exception) {
+                AppLogger.w("RipManager", "Failed to fetch artist.json: ${e.message}")
+            }
         }
 
         albumDir = artistDir.findFile(safeAlbum) ?: artistDir.createDirectory(safeAlbum)
