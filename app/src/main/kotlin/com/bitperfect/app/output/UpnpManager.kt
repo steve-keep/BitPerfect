@@ -120,11 +120,12 @@ class UpnpManager(private val context: Context) {
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicastLock = wifiManager.createMulticastLock("WiimDiscoveryLock")
         multicastLock?.setReferenceCounted(false)
-        Log.d(TAG, "Acquiring Multicast Lock")
-        multicastLock?.acquire()
 
-        scope.launch {
+        scope.launch(Dispatchers.Main) {
             try {
+                multicastLock?.acquire()
+                Log.d(TAG, "MulticastLock held: ${multicastLock?.isHeld}")
+
                 upnpService = object : UpnpServiceImpl(AndroidUpnpServiceConfiguration()) {
                     override fun createRouter(
                         protocolFactory: org.jupnp.protocol.ProtocolFactory,
