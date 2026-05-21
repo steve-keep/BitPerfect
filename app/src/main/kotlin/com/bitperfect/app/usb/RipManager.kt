@@ -317,6 +317,8 @@ class RipManager(
                     syncedLyrics = lyricsResult?.syncedLyrics,
                     discNumber = metadata.discNumber,
                     totalDiscs = metadata.totalDiscs,
+                    releaseTags = metadata.releaseTags,
+                    trackTags = metadata.trackTags.getOrNull(i) ?: emptyList(),
                     audioAnalysis = audioAnalysis
                 )
 
@@ -554,6 +556,8 @@ class RipManager(
         syncedLyrics: String?,
         discNumber: Int?,
         totalDiscs: Int?,
+        releaseTags: List<String> = emptyList(),
+        trackTags: List<String> = emptyList(),
         audioAnalysis: AudioAnalysis? = null
     ): ByteArray {
         val out = ByteArrayOutputStream()
@@ -607,6 +611,16 @@ class RipManager(
         if (totalDiscs != null) comments.add("DISCTOTAL=$totalDiscs")
         if (year != null) comments.add("DATE=$year")
         if (genre != null) comments.add("GENRE=$genre")
+
+        for (tag in releaseTags) {
+            comments.add("STYLE=$tag")
+        }
+        for (tag in trackTags) {
+            if (!releaseTags.contains(tag)) {
+                comments.add("STYLE=$tag")
+            }
+        }
+
         if (albumArtist != null) comments.add("ALBUMARTIST=$albumArtist")
         if (mbReleaseId != null) comments.add("MUSICBRAINZ_ALBUMID=$mbReleaseId")
         if (accurateRipUrl != null) {

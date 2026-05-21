@@ -183,6 +183,19 @@ open class LibraryRepository(private val context: Context) {
                     tags["DATE"]?.let { put("year", it) }
                     tags["ALBUMARTIST"]?.let { put("albumArtist", it) }
                     tags["MUSICBRAINZ_ALBUMID"]?.let { put("mbAlbumId", it) }
+
+                    val styleTags = mutableListOf<String>()
+                    for ((key, value) in tags) {
+                        if (key == "STYLE" || key == "GENRE") {
+                            styleTags.add(value)
+                        }
+                    }
+                    if (styleTags.isNotEmpty()) {
+                        val jsonArray = org.json.JSONArray()
+                        styleTags.distinct().forEach { jsonArray.put(it) }
+                        put("tags", jsonArray)
+                    }
+
                 }
             }
 

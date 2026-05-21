@@ -104,7 +104,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -133,7 +133,7 @@ class MusicBrainzRepository(private val context: Context) {
     private suspend fun lookupByToc(toc: DiscToc, discId: String, cacheFile: File): DiscMetadata? {
         // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
         val tocStr = computeMusicBrainzTocString(toc)
-        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings&cdstubs=no"
+        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags&cdstubs=no"
 
         AppLogger.d(TAG, "TOC fuzzy lookup: $url")
         val httpResponse = client.get(url)
@@ -172,7 +172,7 @@ class MusicBrainzRepository(private val context: Context) {
             media.discs.any { disc -> disc.id == queryDiscId }
         } ?: release.media.firstOrNull()
 
-        val trackTitles = targetMedia?.tracks?.map { it.title }?.takeIf { it.isNotEmpty() } ?: emptyList()
+                val trackTitles = targetMedia?.tracks?.map { it.title }?.takeIf { it.isNotEmpty() } ?: emptyList()
         val discNumber = targetMedia?.position
         val totalDiscs = release.media.size.takeIf { it > 0 }
         val mbReleaseId = release.id
@@ -186,6 +186,11 @@ class MusicBrainzRepository(private val context: Context) {
         val genre = release.genres.firstOrNull()?.name
             ?: release.artistCredit.firstOrNull()?.artist?.genres?.firstOrNull()?.name
 
+        val releaseTags = release.tags.map { it.name }
+        val trackTags = targetMedia?.tracks?.map { track ->
+            track.recording?.tags?.map { it.name } ?: emptyList()
+        } ?: emptyList()
+
         return DiscMetadata(
             albumTitle = albumTitle,
             artistName = artistName,
@@ -195,7 +200,9 @@ class MusicBrainzRepository(private val context: Context) {
             genre = genre,
             albumArtist = albumArtist,
             discNumber = discNumber,
-            totalDiscs = totalDiscs
+            totalDiscs = totalDiscs,
+            releaseTags = releaseTags,
+            trackTags = trackTags
         )
     }
 }
