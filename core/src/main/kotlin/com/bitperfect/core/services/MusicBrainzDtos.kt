@@ -25,6 +25,7 @@ data class MbDiscIdResponse(
     val date: String? = null,
     val barcode: String? = null,
     val genres: List<MbGenre> = emptyList(),
+    val tags: List<MbTag> = emptyList(),
     @SerialName("artist-credit") val artistCredit: List<MbArtistCredit> = emptyList(),
     val media: List<MbMedia> = emptyList(),
     @SerialName("cover-art-archive") val coverArtArchive: MbCoverArtArchive? = null
@@ -40,7 +41,8 @@ data class MbDiscIdResponse(
 
 @Serializable data class MbArtist(
     val name: String,
-    val genres: List<MbGenre> = emptyList()
+    val genres: List<MbGenre> = emptyList(),
+    val tags: List<MbTag> = emptyList()
 )
 
 @Serializable data class MbGenre(
@@ -58,5 +60,15 @@ data class MbDiscIdResponse(
 
 @Serializable data class MbTrack(
     val title: String,
-    val number: String? = null
+    val number: String? = null,
+    val recording: MbRecording? = null
+)
+
+@Serializable data class MbRecording(
+    val tags: List<MbTag> = emptyList()
+)
+
+@Serializable data class MbTag(
+    val name: String,
+    val count: Int? = null
 )

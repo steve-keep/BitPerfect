@@ -205,6 +205,19 @@ open class PlayerRepository(
                         put("durationMs", track.durationMs)
                         tags["MUSICBRAINZ_ALBUMID"]?.let { put("mbAlbumId", it) }
                         tags["MUSICBRAINZ_TRACKID"]?.let { put("mbTrackId", it) }
+
+                        val styleTags = mutableListOf<String>()
+                        for ((key, value) in tags) {
+                            if (key == "STYLE" || key == "GENRE") {
+                                styleTags.add(value)
+                            }
+                        }
+                        if (styleTags.isNotEmpty()) {
+                            val jsonArray = org.json.JSONArray()
+                            styleTags.distinct().forEach { jsonArray.put(it) }
+                            put("tags", jsonArray)
+                        }
+
                     }
 
                     context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->

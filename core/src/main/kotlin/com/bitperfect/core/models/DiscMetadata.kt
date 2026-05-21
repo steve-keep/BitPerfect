@@ -9,5 +9,7 @@ data class DiscMetadata(
     val genre: String? = null,
     val albumArtist: String? = null,
     val discNumber: Int? = null,
-    val totalDiscs: Int? = null
+    val totalDiscs: Int? = null,
+    val releaseTags: List<String> = emptyList(),
+    val trackTags: List<List<String>> = emptyList()
 )
