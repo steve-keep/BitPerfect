@@ -99,24 +99,12 @@ class UpnpManager(private val context: Context) {
     }
 
 
-    private fun Device<*, *, *>.hasAvTransport(): Boolean {
-        return try {
-            this.findService(UDAServiceType("AVTransport", 1)) != null
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun Device<*, *, *>.hasRenderingControl(): Boolean {
-        return try {
-            this.findService(UDAServiceType("RenderingControl", 1)) != null
-        } catch (e: Exception) {
-            false
-        }
+    private fun Device<*, *, *>.hasService(serviceType: String): Boolean {
+        return this.services?.any { it.serviceType?.type == serviceType } == true
     }
 
     private fun Device<*, *, *>.isMediaRenderer(): Boolean {
-        return this.hasAvTransport() || this.hasRenderingControl()
+        return this.hasService("AVTransport") || this.hasService("RenderingControl")
     }
 
     fun start() {
@@ -137,13 +125,29 @@ class UpnpManager(private val context: Context) {
 
         scope.launch {
             try {
-                upnpService = UpnpServiceImpl(AndroidUpnpServiceConfiguration())
+                upnpService = object : UpnpServiceImpl(AndroidUpnpServiceConfiguration()) {
+                    override fun createRouter(
+                        protocolFactory: org.jupnp.protocol.ProtocolFactory,
+                        registry: org.jupnp.registry.Registry
+                    ): org.jupnp.transport.Router {
+                        return org.jupnp.android.AndroidRouter(
+                            configuration,
+                            protocolFactory,
+                            context.applicationContext
+                        )
+                    }
+                }
                 Log.d(TAG, "Attaching RegistryListener")
                 upnpService?.registry?.addListener(registryListener)
 
                 Log.d(TAG, "Triggering explicit UPnP search")
                 kotlinx.coroutines.delay(1000)
                 upnpService?.controlPoint?.search()
+
+                launch {
+                    kotlinx.coroutines.delay(15_000)
+                    _isDiscovering.value = false
+                }
             } catch(e: Exception) {
                 Log.e(TAG, "Error starting UPnP Service", e)
                 _isDiscovering.value = false
@@ -200,8 +204,8 @@ class UpnpManager(private val context: Context) {
         var renderingControlUrl: String? = null
 
         try {
-            val avTransportService = this.findService(UDAServiceType("AVTransport", 1))
-            val renderingControlService = this.findService(UDAServiceType("RenderingControl", 1))
+            val avTransportService = this.services?.firstOrNull { it.serviceType?.type == "AVTransport" }
+            val renderingControlService = this.services?.firstOrNull { it.serviceType?.type == "RenderingControl" }
 
             Log.d(TAG, "Services for $friendlyName: AVTransport=${avTransportService != null}, RenderingControl=${renderingControlService != null}")
 
@@ -246,6 +250,5 @@ class UpnpManager(private val context: Context) {
             .sortedBy { it.friendlyName }
         Log.d(TAG, "Renderer count: ${_devices.value.size}")
         Log.d(TAG, "Publishing UPnP devices: ${_devices.value.map { it.friendlyName }}")
-        _isDiscovering.value = false
     }
 }
