@@ -42,6 +42,36 @@ data class ItunesArtwork(
     val highResUrl: String    // 3000x3000bb
 )
 
+private val editionPatterns = listOf(
+    "super deluxe edition",
+    "super deluxe",
+    "deluxe edition",
+    "deluxe",
+    "expanded edition",
+    "expanded",
+    "anniversary edition",
+    "remastered",
+    "remaster",
+    "bonus edition"
+)
+
+private fun simplifyAlbumTitle(value: String): String {
+    var normalized = value
+        .lowercase()
+        .replace("&", "and")
+        .replace(Regex("[^a-z0-9 ]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    editionPatterns.forEach {
+        normalized = normalized.replace(it, "")
+    }
+
+    return normalized
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
+
 private fun normalise(value: String): String =
     value.lowercase()
         .replace("&", "and")
@@ -108,17 +138,20 @@ class ItunesArtworkRepository(private val context: Context) {
         }
     }
 
-    private fun score(result: ItunesAlbumResult, normalisedArtist: String, normalisedAlbum: String, expectedTrackCount: Int?): Int {
+    private fun score(result: ItunesAlbumResult, normalisedArtist: String, expectedAlbum: String, expectedTrackCount: Int?): Int {
         var score = 0
         val artist = result.artistName?.let { normalise(it) } ?: ""
         val album = result.collectionName?.let { normalise(it) } ?: ""
+        val actualAlbum = result.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
 
         if (artist == normalisedArtist) {
             score += 20
         }
 
-        if (album == normalisedAlbum) {
+        if (actualAlbum == expectedAlbum && expectedAlbum.isNotEmpty()) {
             score += 100
+        } else if (expectedAlbum.isNotEmpty() && actualAlbum.isNotEmpty() && (actualAlbum.contains(expectedAlbum) || expectedAlbum.contains(actualAlbum))) {
+            score += 60
         }
 
         if (expectedTrackCount != null && result.trackCount == expectedTrackCount) {
@@ -130,15 +163,11 @@ class ItunesArtworkRepository(private val context: Context) {
             }
         }
 
-        if (album.contains("deluxe") || album.contains("anniversary") || album.contains("expanded") || album.contains("remaster")) {
-            score -= 20
-        }
-
         if (album.contains("instrumental") || album.contains("remix") || album.contains("tribute") || album.contains("karaoke") || album.contains("lofi") || album.contains("greatest hits")) {
             score -= 60
         }
 
-        score -= levenshtein(normalisedAlbum, album)
+        score -= levenshtein(expectedAlbum, actualAlbum)
 
         return score
     }
@@ -156,7 +185,7 @@ class ItunesArtworkRepository(private val context: Context) {
             if (response.results.isEmpty()) return@withContext null
 
             val normalisedArtist = normalise(artist)
-            val normalisedAlbum = normalise(album)
+            val expectedAlbum = simplifyAlbumTitle(album)
 
             val validCandidates = response.results.filter {
                 it.artworkUrl100 != null && it.wrapperType == "collection" && it.collectionType == "Album"
@@ -166,7 +195,7 @@ class ItunesArtworkRepository(private val context: Context) {
             var bestScore = Int.MIN_VALUE
 
             for (candidate in validCandidates) {
-                val score = score(candidate, normalisedArtist, normalisedAlbum, expectedTrackCount)
+                val score = score(candidate, normalisedArtist, expectedAlbum, expectedTrackCount)
                 AppLogger.d("ItunesArtworkRepository", "Artwork candidate: ${candidate.collectionName}, score=$score, trackCount=${candidate.trackCount}")
                 if (score > bestScore) {
                     bestScore = score
