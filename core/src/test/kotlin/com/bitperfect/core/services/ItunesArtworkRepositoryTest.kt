@@ -214,6 +214,70 @@ class ItunesArtworkRepositoryTest {
 
 
     @Test
+    fun `fetchItunesArtwork ignores prefix the in artist names`() = runBlocking {
+        val mockEngine = MockEngine { _ ->
+            val jsonResponse = """
+                {
+                    "resultCount": 1,
+                    "results": [
+                        {
+                            "artistName": "The Beatles",
+                            "collectionName": "Abbey Road",
+                            "artworkUrl100": "https://example.com/abbey.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
+                        }
+                    ]
+                }
+            """.trimIndent()
+
+            respond(
+                content = jsonResponse,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = ItunesArtworkRepository(mockContext, mockEngine)
+        // Request without "The", should match the candidate with "The"
+        val result = repository.fetchItunesArtwork("Beatles", "Abbey Road")
+
+        assertEquals("https://example.com/abbey.jpg/600x600bb.jpg", result?.previewUrl)
+        assertEquals("https://example.com/abbey.jpg/3000x3000bb.jpg", result?.highResUrl)
+    }
+
+    @Test
+    fun `fetchItunesArtwork rejects candidate if album matches but artist overlap is weak`() = runBlocking {
+        val mockEngine = MockEngine { _ ->
+            val jsonResponse = """
+                {
+                    "resultCount": 1,
+                    "results": [
+                        {
+                            "artistName": "Nine Inch Richards",
+                            "collectionName": "The Fragile",
+                            "artworkUrl100": "https://example.com/wrong.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
+                        }
+                    ]
+                }
+            """.trimIndent()
+
+            respond(
+                content = jsonResponse,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = ItunesArtworkRepository(mockContext, mockEngine)
+        val result = repository.fetchItunesArtwork("Nine Inch Nails", "The Fragile")
+
+        assertNull(result)
+    }
+
+    @Test
     fun `fetchItunesArtwork prefers exact match over anniversary edition and remix`() = runBlocking {
         val mockEngine = MockEngine { _ ->
             val jsonResponse = """
