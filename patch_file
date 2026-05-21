@@ -1,30 +1,51 @@
 <<<<<<< SEARCH
-@RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
-class PlayerRepositoryTest {
-
     @Test
+    fun testSelectAlbumAndLoadTracks() = runTest(testScheduler) {
+        // Set an initial track list state
+        viewModel._trackListViewState.value = TrackListViewState(
+            title = "Old Album",
+            artistName = "Old Artist",
+            coverArtUrl = null,
+            tracks = emptyList(),
+            isCdMode = false
+        )
+
+        // Call selectAlbum which should clear the tracks immediately before loading new ones
+        viewModel.selectAlbum(100L, "New Album")
+
+        assertEquals(100L, viewModel.selectedAlbumId.value)
+        assertEquals("New Album", viewModel.selectedAlbumTitle.value)
+
+        // Assert that the track list view state was cleared (isCdMode = false, empty tracks)
+        val viewState = viewModel.trackListViewState.value
+        assertNull(viewState)
+    }
 =======
-import org.junit.Before
-import org.junit.After
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.test.resetMain
+    @Test
+    fun testSelectAlbumAndLoadTracks() = runTest(testScheduler) {
+        // Set an initial track list state
+        viewModel._trackListViewState.value = TrackListViewState(
+            title = "Old Album",
+            artistName = "Old Artist",
+            coverArtUrl = null,
+            tracks = emptyList(),
+            isCdMode = false
+        )
 
-@RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
-class PlayerRepositoryTest {
+        // Call selectAlbum which should clear the tracks immediately before loading new ones
+        viewModel.selectAlbum(100L, "New Album")
 
-    @Before
-    fun setup() {
-        Dispatchers.setMain(StandardTestDispatcher())
-    }
+        assertEquals(100L, viewModel.selectedAlbumId.value)
+        assertEquals("New Album", viewModel.selectedAlbumTitle.value)
 
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
+        // Assert that the track list view state was cleared (isCdMode = false, empty tracks)
+        val viewState = viewModel.trackListViewState.value
+        assertNull(viewState)
     }
 
     @Test
+    fun testSelectArtist() = runTest(testScheduler) {
+        viewModel.selectArtist("Test Artist")
+        assertNull(viewModel.selectedArtist.value)
+    }
 >>>>>>> REPLACE

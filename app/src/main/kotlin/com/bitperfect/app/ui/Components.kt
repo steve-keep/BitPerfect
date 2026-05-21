@@ -149,6 +149,7 @@ fun AlbumHeader(
     isFullyVerified: Boolean = false,
     isAlbumPlaying: Boolean = false,
     modifier: Modifier = Modifier,
+    onArtistClick: () -> Unit = {},
     onPlayClick: () -> Unit = {},
     onStopRipClick: () -> Unit = {},
     dominantColor: Color = Color(0xFF141414),
@@ -246,7 +247,8 @@ fun AlbumHeader(
                 text = artistName,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.clickable { onArtistClick() }
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
