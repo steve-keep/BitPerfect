@@ -629,6 +629,14 @@ open class AppViewModel(
                 libraryRepository.getTrack(it.trackId, outputUri)
             }
             if (resolvedTracks.isNotEmpty()) {
+                _trackListViewState.value = TrackListViewState(
+                    title = mix.name,
+                    artistName = mix.description,
+                    coverArtUrl = null,
+                    tracks = resolvedTracks,
+                    isCdMode = false,
+                    otherAlbums = emptyList()
+                )
                 withContext(Dispatchers.Main) {
                     playAlbum(resolvedTracks)
                 }
