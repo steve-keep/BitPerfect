@@ -239,7 +239,6 @@ class RipManager(
                     isLastTrack   = isLastTrack
                 )
 
-                var isFirstSector = true
                 var pendingChunk: PendingChunk? = null
                 var committedPcmBytes = 0L
                 var currentConfidence = RipConfidence.HIGH
@@ -266,10 +265,11 @@ class RipManager(
                 }
 
                 if (overreadBuffer != null) {
-                    remainingSkipBytes = 0 // overreadBuffer is already offset-corrected
+                    // overreadBuffer contains the tail of the previous track's overshoot,
+                    // which naturally forms the start of this track without needing further trimming.
+                    remainingSkipBytes = 0
                     commitPcm(overreadBuffer!!)
                     sectorsRead = 1
-                    isFirstSector = false
                 }
 
                 val effectiveTotalSectors = lastReadableLba - firstLba + 1
@@ -287,7 +287,6 @@ class RipManager(
                             currentConfidence = currentConfidence.degradeTo(RipConfidence.LOW)
                         }
 
-                        isFirstSector = false
                         // The verification window MUST operate on raw, un-trimmed sector-aligned data.
                         val currentChunk = PendingChunk(currentStartLba, currentStartLba + sectorsActuallyRead - 1, pcmData)
 

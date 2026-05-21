@@ -91,28 +91,32 @@ class SecureRipPipelineTest {
 
     @Test
     fun `test recovery loop matches requirement`() {
-        // Simulating the matchesFound logic
-        var matchesFound = 0
-        var lastCandidate: ByteArray? = null
+        // Test recovery matching logic using real matchOverlapTailWithHead calls
+        val pendingChunk = ByteArray(10) { it.toByte() } // Tail is 5..9
 
-        val candidates = listOf(
-            byteArrayOf(1, 2, 3), // Read 1 (Mismatches overlap)
-            byteArrayOf(4, 5, 6), // Read 2 (Matches overlap)
-            byteArrayOf(4, 5, 6)  // Read 3 (Matches overlap, identical to Read 2)
-        )
+        val badCandidate1 = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) // Overlap (first 5 bytes) does not match 5..9
+        val goodCandidate1 = byteArrayOf(5, 6, 7, 8, 9, 10, 11, 12, 13, 14) // Matches overlap perfectly
+        val goodCandidate2 = byteArrayOf(5, 6, 7, 8, 9, 10, 11, 12, 13, 14) // Matches overlap and body perfectly
+
+        val candidates = listOf(badCandidate1, goodCandidate1, goodCandidate2)
 
         var recoverySuccess = false
+        var matchesFound = 0
+        var lastCandidate: ByteArray? = null
+        val effectiveOverlap = 5
 
         for (candidate in candidates) {
-            val overlapMatches = candidate[0] == 4.toByte() // Simulating overlap match for array starting with 4
+            if (lastCandidate != null && lastCandidate.contentEquals(candidate)) {
+                matchesFound++
+            } else {
+                matchesFound = 0
+            }
+            lastCandidate = candidate
+
+            val overlapMatches = pendingChunk.matchOverlapTailWithHead(candidate, effectiveOverlap)
+
             if (overlapMatches) {
-                if (lastCandidate != null && lastCandidate.contentEquals(candidate)) {
-                    matchesFound++
-                } else {
-                    matchesFound = 0 // Reset to 0 per review
-                }
-                lastCandidate = candidate
-                if (matchesFound >= 1) { // 1 match with previous means 2 identical reads
+                if (matchesFound >= 1) { // 2 identical reads + matching overlap
                     recoverySuccess = true
                     break
                 }
