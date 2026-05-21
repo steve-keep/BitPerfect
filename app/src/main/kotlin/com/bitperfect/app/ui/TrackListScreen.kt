@@ -57,13 +57,6 @@ fun TrackListScreen(
     val viewState by viewModel.trackListViewState.collectAsState()
     val isCdMode = viewState?.isCdMode == true
 
-    DisposableEffect(isCdMode) {
-        onDispose {
-            if (!isCdMode) {
-                viewModel.clearTracks()
-            }
-        }
-    }
 
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
