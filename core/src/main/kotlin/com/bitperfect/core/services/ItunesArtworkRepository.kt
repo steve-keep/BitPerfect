@@ -80,6 +80,27 @@ private fun normalise(value: String): String =
         .replace(Regex("\\s+"), " ")
         .trim()
 
+private fun normalizeArtistName(value: String): String {
+    val normalized = normalise(value)
+    return if (normalized.startsWith("the ")) {
+        normalized.removePrefix("the ").trim()
+    } else {
+        normalized
+    }
+}
+
+private fun calculateWordOverlap(expected: String, candidate: String): Float {
+    if (expected.isEmpty() || candidate.isEmpty()) return 0f
+
+    val expectedWords = expected.split(" ").filter { it.isNotEmpty() }
+    val candidateWords = candidate.split(" ").filter { it.isNotEmpty() }
+
+    if (expectedWords.isEmpty() || candidateWords.isEmpty()) return 0f
+
+    val sharedWords = expectedWords.intersect(candidateWords.toSet()).size
+    return sharedWords.toFloat() / maxOf(expectedWords.size, candidateWords.size)
+}
+
 private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
     if (lhs == rhs) return 0
     if (lhs.isEmpty()) return rhs.length
@@ -139,32 +160,70 @@ class ItunesArtworkRepository(private val context: Context) {
         }
     }
 
+    // Represents the scored evaluation of a candidate
+    data class CandidateScore(
+        val totalScore: Int,
+        val penaltiesApplied: List<String>,
+        val exactArtistMatch: Boolean,
+        val exactAlbumMatch: Boolean,
+        val artistOverlapRatio: Float,
+        val albumOverlapRatio: Float,
+        val levenshteinCost: Int
+    )
+
     private fun score(
         result: ItunesAlbumResult,
-        normalisedArtist: String,
+        expectedNormalisedArtist: String,
         expectedSimplifiedAlbum: String,
-        expectedNormalisedAlbum: String,
         expectedTrackCount: Int?
-    ): Int {
+    ): CandidateScore {
         var score = 0
-        val artist = result.artistName?.let { normalise(it) } ?: ""
-        val album = result.collectionName?.let { normalise(it) } ?: ""
-        val actualSimplifiedAlbum = result.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
+        val penaltiesApplied = mutableListOf<String>()
 
-        if (artist == normalisedArtist && normalisedArtist.isNotEmpty()) {
-            score += 20
+        val candidateArtist = result.artistName?.let { normalizeArtistName(it) } ?: ""
+        val candidateAlbum = result.collectionName?.let { normalise(it) } ?: ""
+        val candidateSimplifiedAlbum = result.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
+
+        val exactArtistMatch = candidateArtist == expectedNormalisedArtist && expectedNormalisedArtist.isNotEmpty()
+        val exactAlbumMatch = candidateSimplifiedAlbum == expectedSimplifiedAlbum && expectedSimplifiedAlbum.isNotEmpty()
+
+        val artistOverlapRatio = calculateWordOverlap(expectedNormalisedArtist, candidateArtist)
+        val albumOverlapRatio = calculateWordOverlap(expectedSimplifiedAlbum, candidateSimplifiedAlbum)
+
+        // 1. & 2. Exact match bonuses
+        if (exactArtistMatch && exactAlbumMatch) {
+            score += 2000
+        } else {
+            if (exactArtistMatch) {
+                score += 500
+            }
+            if (exactAlbumMatch) {
+                score += 1000
+            }
         }
 
-        if (actualSimplifiedAlbum == expectedSimplifiedAlbum && expectedSimplifiedAlbum.isNotEmpty()) {
-            score += 100
-        } else if (expectedSimplifiedAlbum.isNotEmpty() && actualSimplifiedAlbum.isNotEmpty() && (actualSimplifiedAlbum.contains(expectedSimplifiedAlbum) || expectedSimplifiedAlbum.contains(actualSimplifiedAlbum))) {
-            score += 60
+        // 3. Strong album overlap
+        if (!exactAlbumMatch && albumOverlapRatio >= 0.75f) {
+            score += 300
         }
 
-        if (album == expectedNormalisedAlbum && expectedNormalisedAlbum.isNotEmpty()) {
-            score += 20
+        // 4. Strong artist overlap
+        if (!exactArtistMatch && artistOverlapRatio >= 0.75f) {
+            score += 200
         }
 
+        // Penalties for weak/no artist match
+        if (!exactArtistMatch) {
+            if (artistOverlapRatio < 0.5f && artistOverlapRatio > 0.0f) {
+                score -= 300
+                penaltiesApplied.add("Weak artist overlap (-300)")
+            } else if (artistOverlapRatio == 0.0f) {
+                score -= 500
+                penaltiesApplied.add("No artist overlap (-500)")
+            }
+        }
+
+        // 5. Track count similarity
         if (expectedTrackCount != null && result.trackCount == expectedTrackCount) {
             score += 40
         } else if (expectedTrackCount != null && result.trackCount != null) {
@@ -174,18 +233,28 @@ class ItunesArtworkRepository(private val context: Context) {
             }
         }
 
-        val penalties = listOf(
+        val contentPenalties = listOf(
             "instrumental", "remix", "tribute", "karaoke", "lofi",
             "greatest hits", "best of", "cover", "live"
         )
-        if (penalties.any { album.contains(it) }) {
-            score -= 60
+        if (contentPenalties.any { candidateAlbum.contains(it) }) {
+            score -= 100
+            penaltiesApplied.add("Content penalty (-100)")
         }
 
-        val levenshteinCost = levenshtein(expectedSimplifiedAlbum, actualSimplifiedAlbum)
+        // 6. Levenshtein tie-breakers
+        val levenshteinCost = levenshtein(expectedSimplifiedAlbum, candidateSimplifiedAlbum)
         score -= levenshteinCost
 
-        return score
+        return CandidateScore(
+            totalScore = score,
+            penaltiesApplied = penaltiesApplied,
+            exactArtistMatch = exactArtistMatch,
+            exactAlbumMatch = exactAlbumMatch,
+            artistOverlapRatio = artistOverlapRatio,
+            albumOverlapRatio = albumOverlapRatio,
+            levenshteinCost = levenshteinCost
+        )
     }
 
     companion object {
@@ -205,12 +274,12 @@ class ItunesArtworkRepository(private val context: Context) {
                 Pair("Stage 4 (Broad media)", "https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&limit=25")
             )
 
-            val normalisedArtist = normalise(artist)
+            val expectedNormalisedArtist = normalizeArtistName(artist)
             val expectedSimplifiedAlbum = simplifyAlbumTitle(album)
-            val expectedNormalisedAlbum = normalise(album)
 
             var absoluteBestCandidate: ItunesAlbumResult? = null
             var absoluteBestScore = Int.MIN_VALUE
+            var absoluteBestReason: String? = null
 
             for ((stageName, url) in queries) {
                 AppLogger.d("ItunesArtworkRepository", "Executing $stageName query: $url")
@@ -234,22 +303,47 @@ class ItunesArtworkRepository(private val context: Context) {
 
                 var stageBestMatch: ItunesAlbumResult? = null
                 var stageBestScore = Int.MIN_VALUE
+                var stageBestReason: String? = null
 
                 for (candidate in deduplicatedCandidates) {
-                    val score = score(candidate, normalisedArtist, expectedSimplifiedAlbum, expectedNormalisedAlbum, expectedTrackCount)
+                    val candidateScore = score(candidate, expectedNormalisedArtist, expectedSimplifiedAlbum, expectedTrackCount)
 
-                    val actualSimplified = candidate.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
-                    AppLogger.d("ItunesArtworkRepository", "[$stageName] Candidate: '${candidate.collectionName}' (Simplified: '$actualSimplified') | TrackCount: ${candidate.trackCount} | Score: $score")
+                    val candidateArtist = candidate.artistName?.let { normalizeArtistName(it) } ?: ""
+                    val candidateSimplifiedAlbum = candidate.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
 
-                    if (score > stageBestScore) {
-                        stageBestScore = score
+                    AppLogger.d("ItunesArtworkRepository", "[$stageName] Evaluating Candidate:")
+                    AppLogger.d("ItunesArtworkRepository", "  - Expected Artist: '$expectedNormalisedArtist' | Candidate: '$candidateArtist'")
+                    AppLogger.d("ItunesArtworkRepository", "  - Exact Artist Match: ${candidateScore.exactArtistMatch} | Overlap Ratio: ${candidateScore.artistOverlapRatio}")
+                    AppLogger.d("ItunesArtworkRepository", "  - Expected Album: '$expectedSimplifiedAlbum' | Candidate: '$candidateSimplifiedAlbum'")
+                    AppLogger.d("ItunesArtworkRepository", "  - Exact Album Match: ${candidateScore.exactAlbumMatch} | Overlap Ratio: ${candidateScore.albumOverlapRatio}")
+                    AppLogger.d("ItunesArtworkRepository", "  - Levenshtein Distance: ${candidateScore.levenshteinCost}")
+                    AppLogger.d("ItunesArtworkRepository", "  - Penalties: ${candidateScore.penaltiesApplied}")
+                    AppLogger.d("ItunesArtworkRepository", "  - Final Score: ${candidateScore.totalScore}")
+
+                    // Sanity validation check
+                    val passesSanityCheck = (candidateScore.exactArtistMatch || candidateScore.artistOverlapRatio >= 0.9f) &&
+                                            (candidateScore.exactAlbumMatch || candidateScore.albumOverlapRatio >= 0.75f)
+
+                    if (!passesSanityCheck) {
+                        AppLogger.d("ItunesArtworkRepository", "  - REJECTED: Failed sanity validation (needs strong artist AND album match)")
+                        continue
+                    }
+
+                    if (candidateScore.totalScore > stageBestScore) {
+                        val reason = "Beat previous best score ($stageBestScore) with new score (${candidateScore.totalScore})"
+                        AppLogger.d("ItunesArtworkRepository", "  - ACCEPTED as current stage best: $reason")
+                        stageBestScore = candidateScore.totalScore
                         stageBestMatch = candidate
+                        stageBestReason = reason
+                    } else {
+                        AppLogger.d("ItunesArtworkRepository", "  - ACCEPTED but did not beat stage best score ($stageBestScore)")
                     }
                 }
 
                 if (stageBestMatch != null) {
                     if (stageBestScore >= CONFIDENCE_THRESHOLD) {
                         AppLogger.d("ItunesArtworkRepository", "Selected best candidate in $stageName: ${stageBestMatch.collectionName} with score: $stageBestScore (>= threshold $CONFIDENCE_THRESHOLD)")
+                        AppLogger.d("ItunesArtworkRepository", "Winning reason: $stageBestReason")
                         return@withContext buildArtwork(stageBestMatch)
                     } else {
                         AppLogger.d("ItunesArtworkRepository", "Best candidate in $stageName narrowly missed threshold: ${stageBestMatch.collectionName} with score: $stageBestScore (< threshold $CONFIDENCE_THRESHOLD). Trying relaxed search...")
@@ -258,14 +352,16 @@ class ItunesArtworkRepository(private val context: Context) {
                     if (stageBestScore > absoluteBestScore) {
                         absoluteBestScore = stageBestScore
                         absoluteBestCandidate = stageBestMatch
+                        absoluteBestReason = stageBestReason
                     }
                 } else {
-                    AppLogger.d("ItunesArtworkRepository", "No valid candidate found after filtering in $stageName")
+                    AppLogger.d("ItunesArtworkRepository", "No valid candidate found after filtering and scoring in $stageName")
                 }
             }
 
             if (absoluteBestCandidate != null && absoluteBestScore >= BEST_EFFORT_THRESHOLD) {
                 AppLogger.d("ItunesArtworkRepository", "Using best-effort fallback candidate: ${absoluteBestCandidate.collectionName} with score: $absoluteBestScore")
+                AppLogger.d("ItunesArtworkRepository", "Winning reason: $absoluteBestReason")
                 return@withContext buildArtwork(absoluteBestCandidate)
             }
 
