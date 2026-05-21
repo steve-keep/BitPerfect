@@ -1,21 +1,27 @@
 package com.bitperfect.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,90 +37,159 @@ fun ArtistScreen(
     val artist by viewModel.selectedArtist.collectAsState()
     val thumbnailUrl by viewModel.selectedArtistThumbnail.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = artist?.name ?: "Unknown Artist", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (artist != null) {
+            val listState = rememberLazyListState()
+            val density = LocalDensity.current
+
+            // Reusing typical hero image fade distances
+            val fadeEndPx = remember(density) { with(density) { 260.dp.toPx() } }
+
+            val topBarAlpha by remember {
+                derivedStateOf {
+                    if (listState.firstVisibleItemIndex > 0) 1f
+                    else {
+                        val offset = listState.firstVisibleItemScrollOffset.toFloat()
+                        (offset / fadeEndPx).coerceIn(0f, 1f)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            if (artist != null) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    item {
+                }
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(360.dp)
+                    ) {
+                        if (!thumbnailUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = thumbnailUrl,
+                                contentDescription = "Artist Thumbnail",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            )
+                        }
+
+                        // Gradient Overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color.Transparent,
+                                            Color(0xD9000000) // ~85% Black
+                                        )
+                                    )
+                                )
+                        )
+
+                        // Artist Title text on top of image
                         Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                                .align(Alignment.BottomStart)
+                                .padding(horizontal = 16.dp, vertical = 24.dp)
                         ) {
-                            if (!thumbnailUrl.isNullOrEmpty()) {
-                                AsyncImage(
-                                    model = thumbnailUrl,
-                                    contentDescription = "Artist Thumbnail",
-                                    modifier = Modifier
-                                        .size(160.dp)
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
                             Text(
                                 text = artist!!.name,
-                                style = MaterialTheme.typography.headlineMedium,
+                                style = MaterialTheme.typography.displaySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "${artist!!.albums.size} Albums",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                color = Color.White.copy(alpha = 0.8f)
                             )
                         }
                     }
+                }
 
-                    items(artist!!.albums) { album ->
-                        Row(
+                items(artist!!.albums) { album ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToAlbum(album.id) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = album.artUri,
+                            contentDescription = "Album Art",
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onNavigateToAlbum(album.id) }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = album.artUri,
-                                contentDescription = "Album Art",
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clip(MaterialTheme.shapes.small),
-                                contentScale = ContentScale.Crop
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = album.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                                .size(56.dp)
+                                .clip(MaterialTheme.shapes.small),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = album.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
-            } else {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = "Artist not found", style = MaterialTheme.typography.titleMedium)
-                }
+            }
+
+            // Collapsing Top App Bar overlay
+            Box(
+                modifier = Modifier
+                    .background(
+                        MaterialTheme.colorScheme.background.copy(alpha = topBarAlpha)
+                    )
+            ) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = artist?.name ?: "Unknown Artist",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = topBarAlpha)
+                        )
+                    },
+                    navigationIcon = {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(40.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    windowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+                )
+            }
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = "Artist not found", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
