@@ -194,7 +194,11 @@ class UpnpManager(private val context: Context) {
 
         // Try HTTPS first (newer WiiM firmware), then HTTP
         val endpoints = listOf(
+            "https://$ip:443/httpapi.asp?command=getPlayerStatusEx",
+            "https://$ip:4443/httpapi.asp?command=getPlayerStatusEx",
+            "http://$ip/httpapi.asp?command=getPlayerStatusEx",
             "https://$ip:443/httpapi.asp?command=getStatusEx",
+            "https://$ip:4443/httpapi.asp?command=getStatusEx",
             "http://$ip/httpapi.asp?command=getStatusEx",
             "http://$ip/httpapi.asp?command=getStatus",
         )
