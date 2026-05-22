@@ -20,10 +20,11 @@ import java.net.URL
 
 class UpnpManager(
     private val context: Context,
-    private val fetchJson: (String) -> JSONObject? = { url -> fetchLinkPlayJson(url) }
+    fetchJson: ((String) -> JSONObject?)? = null
 ) {
 
     private val TAG = "UpnpManager"
+    private val fetchJsonConfigured: (String) -> JSONObject? = fetchJson ?: { url -> fetchLinkPlayJson(url) }
 
     private val _isDiscovering = MutableStateFlow(false)
     val isDiscovering: StateFlow<Boolean> = _isDiscovering.asStateFlow()
@@ -48,48 +49,48 @@ class UpnpManager(
             "MX: $SSDP_MX\r\n" +
             "ST: $SEARCH_TARGET\r\n" +
             "\r\n"
+    }
 
-        internal fun fetchLinkPlayJson(url: String): JSONObject? {
-            return try {
-                val conn = openTrustAllConnection(url)
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    JSONObject(body)
-                } else {
-                    conn.disconnect()
-                    null
-                }
-            } catch (e: Exception) {
-                Log.d("UpnpManager", "fetchLinkPlayJson $url: ${e.message}")
+    private fun fetchLinkPlayJson(url: String): JSONObject? {
+        return try {
+            val conn = openTrustAllConnection(url)
+            if (conn.responseCode == 200) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                JSONObject(body)
+            } else {
+                conn.disconnect()
                 null
             }
+        } catch (e: Exception) {
+            Log.d(TAG, "fetchLinkPlayJson $url: ${e.message}")
+            null
         }
+    }
 
-        @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
-        internal fun openTrustAllConnection(url: String): java.net.HttpURLConnection {
-            val conn = URL(url).openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 2_000
-            conn.readTimeout = 2_000
-            conn.instanceFollowRedirects = true
+    @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+    private fun openTrustAllConnection(url: String): java.net.HttpURLConnection {
+        val conn = URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 2_000
+        conn.readTimeout = 2_000
+        conn.instanceFollowRedirects = true
 
-            // Accept self-signed certs for HTTPS endpoints
-            if (conn is javax.net.ssl.HttpsURLConnection) {
-                val trustAll = arrayOf<javax.net.ssl.TrustManager>(
-                    @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
-                    object : javax.net.ssl.X509TrustManager {
-                        override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                        override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
-                    }
-                )
-                val sc = javax.net.ssl.SSLContext.getInstance("TLS")
-                sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                conn.sslSocketFactory = sc.socketFactory
-                conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
-            }
-            return conn
+        // Accept self-signed certs for HTTPS endpoints
+        if (conn is javax.net.ssl.HttpsURLConnection) {
+            val trustAll = arrayOf<javax.net.ssl.TrustManager>(
+                @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+                object : javax.net.ssl.X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                    override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                }
+            )
+            val sc = javax.net.ssl.SSLContext.getInstance("TLS")
+            sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+            conn.sslSocketFactory = sc.socketFactory
+            conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
         }
+        return conn
     }
 
     fun start() {
@@ -239,8 +240,8 @@ class UpnpManager(
         )
 
         for (baseUrl in baseUrls) {
-            val playerJson = fetchJson("$baseUrl/httpapi.asp?command=getPlayerStatusEx")
-            val statusJson = fetchJson("$baseUrl/httpapi.asp?command=getStatusEx")
+            val playerJson = fetchJsonConfigured("$baseUrl/httpapi.asp?command=getPlayerStatusEx")
+            val statusJson = fetchJsonConfigured("$baseUrl/httpapi.asp?command=getStatusEx")
 
             val device = mergeDeviceJson(playerJson, statusJson, ip, baseUrl)
             if (device != null) return device
