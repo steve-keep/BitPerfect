@@ -3,26 +3,20 @@ package com.bitperfect.app.output
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.jupnp.UpnpService
-import org.jupnp.UpnpServiceImpl
-import org.jupnp.android.AndroidUpnpServiceConfiguration
-import org.jupnp.model.meta.Device
-import org.jupnp.model.meta.LocalDevice
-import org.jupnp.model.meta.RemoteDevice
-import org.jupnp.model.meta.RemoteService
-import org.jupnp.model.types.UDAServiceType
-import org.jupnp.registry.DefaultRegistryListener
-import org.jupnp.registry.Registry
-import java.net.URL
-import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.MulticastSocket
+import java.net.URL
 
 class UpnpManager(private val context: Context) {
 
@@ -34,222 +28,243 @@ class UpnpManager(private val context: Context) {
     private val _devices = MutableStateFlow<List<OutputDevice.Upnp>>(emptyList())
     val devices: StateFlow<List<OutputDevice.Upnp>> = _devices.asStateFlow()
 
-    private var upnpService: UpnpService? = null
-
-    private val discoveredDevices = ConcurrentHashMap<String, OutputDevice.Upnp>()
-
     private var multicastLock: WifiManager.MulticastLock? = null
-
     private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val registryListener = object : DefaultRegistryListener() {
-        override fun remoteDeviceAdded(registry: Registry?, device: RemoteDevice?) {
-            if (device == null) return
-            // We use wildcard generics to handle the complex signatures
-            val d = device as Device<*, *, *>
-            Log.d(TAG, "RemoteDevice discovered: ${d.displayString}")
-            // Check for MediaRenderer
-            if (d.isMediaRenderer()) {
-                Log.d(TAG, "Discovered renderer: ${d.details?.friendlyName} (${d.identity?.udn?.identifierString})")
-                d.toOutputDevice()?.let {
-                    discoveredDevices[it.udn] = it
-                    updateState()
-                }
-            }
-        }
-
-        override fun remoteDeviceRemoved(registry: Registry?, device: RemoteDevice?) {
-            if (device == null) return
-            val d = device as Device<*, *, *>
-            Log.d(TAG, "RemoteDevice removed: ${d.displayString}")
-            if (d.isMediaRenderer()) {
-                val udn = d.identity?.udn?.identifierString
-                if (udn != null) {
-                    discoveredDevices.remove(udn)
-                    updateState()
-                    Log.d(TAG, "Removed renderer: ${d.details?.friendlyName} ($udn)")
-                }
-            }
-        }
-
-        override fun localDeviceAdded(registry: Registry?, device: LocalDevice?) {
-            if (device == null) return
-            val d = device as Device<*, *, *>
-            if (d.isMediaRenderer()) {
-                Log.d(TAG, "LocalDevice discovered: ${d.displayString}")
-                d.toOutputDevice()?.let {
-                    discoveredDevices[it.udn] = it
-                    updateState()
-                }
-            }
-        }
-
-        override fun localDeviceRemoved(registry: Registry?, device: LocalDevice?) {
-            if (device == null) return
-            val d = device as Device<*, *, *>
-            if (d.isMediaRenderer()) {
-                val udn = d.identity?.udn?.identifierString
-                if (udn != null) {
-                    discoveredDevices.remove(udn)
-                    updateState()
-                    Log.d(TAG, "Removed local renderer: ${d.details?.friendlyName} ($udn)")
-                }
-            }
-        }
-    }
-
-
-    private fun Device<*, *, *>.hasService(serviceType: String): Boolean {
-        return this.services?.any { it.serviceType?.type == serviceType } == true
-    }
-
-    private fun Device<*, *, *>.isMediaRenderer(): Boolean {
-        return this.hasService("AVTransport") || this.hasService("RenderingControl")
+    companion object {
+        private const val SSDP_ADDRESS = "239.255.255.250"
+        private const val SSDP_PORT = 1900
+        private const val SSDP_MX = 3
+        private const val SEARCH_TARGET = "urn:schemas-upnp-org:device:MediaRenderer:1"
+        private const val DISCOVERY_TIMEOUT_MS = 5_000L
+        private const val SOCKET_TIMEOUT_MS = 5_000
+        private val SSDP_M_SEARCH =
+            "M-SEARCH * HTTP/1.1\r\n" +
+            "HOST: $SSDP_ADDRESS:$SSDP_PORT\r\n" +
+            "MAN: \"ssdp:discover\"\r\n" +
+            "MX: $SSDP_MX\r\n" +
+            "ST: $SEARCH_TARGET\r\n" +
+            "\r\n"
     }
 
     fun start() {
-        Log.d(TAG, "UPnP Manager start() called")
-        if (upnpService != null) {
-            Log.d(TAG, "UPnP Manager already started")
+        Log.d(TAG, "start() called")
+        if (_isDiscovering.value) {
+            Log.d(TAG, "Already discovering, skipping")
             return
         }
-        Log.d(TAG, "Starting UPnP Manager")
+
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         _isDiscovering.value = true
+        _devices.value = emptyList()
 
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val wifiManager =
+            context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicastLock = wifiManager.createMulticastLock("WiimDiscoveryLock")
         multicastLock?.setReferenceCounted(false)
 
-        scope.launch(Dispatchers.Main) {
+        scope.launch {
             try {
                 multicastLock?.acquire()
                 Log.d(TAG, "MulticastLock held: ${multicastLock?.isHeld}")
-
-                upnpService = object : UpnpServiceImpl(AndroidUpnpServiceConfiguration()) {
-                    override fun createRouter(
-                        protocolFactory: org.jupnp.protocol.ProtocolFactory,
-                        registry: org.jupnp.registry.Registry
-                    ): org.jupnp.transport.Router {
-                        return org.jupnp.android.AndroidRouter(
-                            configuration,
-                            protocolFactory,
-                            context.applicationContext
-                        )
-                    }
-                }
-                Log.d(TAG, "Attaching RegistryListener")
-                upnpService?.registry?.addListener(registryListener)
-
-                Log.d(TAG, "Triggering explicit UPnP search")
-                kotlinx.coroutines.delay(1000)
-                upnpService?.controlPoint?.search()
-
-                launch {
-                    kotlinx.coroutines.delay(15_000)
-                    _isDiscovering.value = false
-                }
-            } catch(e: Exception) {
-                Log.e(TAG, "Error starting UPnP Service", e)
+                discoverDevices()
+            } catch (e: Exception) {
+                Log.e(TAG, "Discovery error", e)
+            } finally {
                 _isDiscovering.value = false
-            } catch (e: Error) {
-                Log.e(TAG, "Critical error starting UPnP Service", e)
-                _isDiscovering.value = false
+                if (multicastLock?.isHeld == true) multicastLock?.release()
+                Log.d(TAG, "Discovery complete, found ${_devices.value.size} device(s)")
             }
         }
     }
 
     fun stop() {
-        Log.d(TAG, "Stopping UPnP Manager")
-
-        try {
-            upnpService?.registry?.removeListener(registryListener)
-            upnpService?.shutdown()
-        } catch(e: Exception) {
-            Log.e(TAG, "Error stopping UPnP Service", e)
-        } finally {
-            upnpService = null
-
-            if (multicastLock?.isHeld == true) {
-                Log.d(TAG, "Releasing Multicast Lock")
-                multicastLock?.release()
-            }
-
-            scope.cancel()
-        }
+        Log.d(TAG, "stop() called")
+        scope.cancel()
+        if (multicastLock?.isHeld == true) multicastLock?.release()
+        _isDiscovering.value = false
     }
 
-    private fun Device<*, *, *>.toOutputDevice(): OutputDevice.Upnp? {
-        val identity = this.identity
-        val udn = identity?.udn?.identifierString ?: return null
-
-        val details = this.details
-        val friendlyName = details?.friendlyName ?: "Unknown Device"
-        val manufacturer = details?.manufacturerDetails?.manufacturer
-        val modelName = details?.modelDetails?.modelName
-
-        var ipAddress: String? = null
-        var deviceDescriptionUrl = ""
-
-        if (this is RemoteDevice) {
-            val urlObj = this.identity?.descriptorURL
-            if (urlObj != null) {
-                ipAddress = urlObj.host
-                deviceDescriptionUrl = urlObj.toString()
-            }
-        } else if (this is LocalDevice) {
-            ipAddress = "127.0.0.1"
-        }
-
-        var avTransportControlUrl: String? = null
-        var renderingControlUrl: String? = null
+    private suspend fun discoverDevices() = withContext(Dispatchers.IO) {
+        val foundIps = mutableSetOf<String>()
+        val devices = mutableListOf<OutputDevice.Upnp>()
 
         try {
-            val avTransportService = this.services?.firstOrNull { it.serviceType?.type == "AVTransport" }
-            val renderingControlService = this.services?.firstOrNull { it.serviceType?.type == "RenderingControl" }
+            val socket = MulticastSocket()
+            socket.soTimeout = SOCKET_TIMEOUT_MS
+            socket.timeToLive = 4
 
-            Log.d(TAG, "Services for $friendlyName: AVTransport=${avTransportService != null}, RenderingControl=${renderingControlService != null}")
+            val group = InetAddress.getByName(SSDP_ADDRESS)
 
-            if (avTransportService is RemoteService) {
-                val controlUri = avTransportService.controlURI?.toString()
-                if (!controlUri.isNullOrEmpty()) {
-                    val urlObj = (this as? RemoteDevice)?.identity?.descriptorURL
-                    if (urlObj != null) {
-                        avTransportControlUrl = URL(urlObj, controlUri).toString()
+            // Bind to the WiFi interface so multicast traffic stays on the local network
+            try {
+                val wifiManager =
+                    context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                @Suppress("DEPRECATION")
+                val wifiIpInt = wifiManager.connectionInfo.ipAddress
+                val wifiAddress = java.net.InetAddress.getByAddress(
+                    byteArrayOf(
+                        (wifiIpInt and 0xff).toByte(),
+                        (wifiIpInt shr 8 and 0xff).toByte(),
+                        (wifiIpInt shr 16 and 0xff).toByte(),
+                        (wifiIpInt shr 24 and 0xff).toByte()
+                    )
+                )
+                val wifiInterface = java.net.NetworkInterface.getByInetAddress(wifiAddress)
+                if (wifiInterface != null) {
+                    socket.joinGroup(java.net.InetSocketAddress(group, SSDP_PORT), wifiInterface)
+                    Log.d(TAG, "Joined multicast group on interface: ${wifiInterface.name}")
+                } else {
+                    Log.w(TAG, "Could not find WiFi network interface, proceeding without joinGroup")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "joinGroup failed, proceeding anyway: ${e.message}")
+            }
+            val requestBytes = SSDP_M_SEARCH.toByteArray(Charsets.UTF_8)
+            val request = DatagramPacket(requestBytes, requestBytes.size, group, SSDP_PORT)
+
+            Log.d(TAG, "Sending M-SEARCH for $SEARCH_TARGET")
+            socket.send(request)
+
+            val deadline = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS
+            val buffer = ByteArray(4096)
+
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    val response = DatagramPacket(buffer, buffer.size)
+                    socket.receive(response)
+
+                    val text = String(response.data, 0, response.length, Charsets.UTF_8)
+                    val ip = extractLocation(text) ?: response.address.hostAddress ?: continue
+
+                    if (ip in foundIps) continue
+                    foundIps.add(ip)
+
+                    Log.d(TAG, "SSDP response from $ip, probing LinkPlay API...")
+
+                    val device = probeWiimDevice(ip)
+                    if (device != null) {
+                        devices.add(device)
+                        _devices.value = devices.toList()
+                        Log.d(TAG, "WiiM device confirmed: ${device.friendlyName} @ $ip")
+                    } else {
+                        Log.d(TAG, "Device at $ip did not respond to LinkPlay API, skipping")
                     }
+                } catch (e: java.net.SocketTimeoutException) {
+                    // No more responses in this window — normal, exit loop
+                    break
                 }
             }
 
-            if (renderingControlService is RemoteService) {
-                val controlUri = renderingControlService.controlURI?.toString()
-                if (!controlUri.isNullOrEmpty()) {
-                    val urlObj = (this as? RemoteDevice)?.identity?.descriptorURL
-                    if (urlObj != null) {
-                        renderingControlUrl = URL(urlObj, controlUri).toString()
-                    }
-                }
-            }
+            socket.close()
+
         } catch (e: Exception) {
-             Log.w(TAG, "Could not extract Service URIs", e)
+            Log.e(TAG, "SSDP socket error", e)
         }
-
-        return OutputDevice.Upnp(
-            udn = udn,
-            friendlyName = friendlyName,
-            manufacturer = manufacturer,
-            modelName = modelName,
-            deviceDescriptionUrl = deviceDescriptionUrl,
-            avTransportControlUrl = avTransportControlUrl,
-            renderingControlUrl = renderingControlUrl,
-            ipAddress = ipAddress
-        )
     }
 
-    private fun updateState() {
-        _devices.value = discoveredDevices.values
-            .distinctBy { it.udn }
-            .sortedBy { it.friendlyName }
-        Log.d(TAG, "Renderer count: ${_devices.value.size}")
-        Log.d(TAG, "Publishing UPnP devices: ${_devices.value.map { it.friendlyName }}")
+    /**
+     * Extract the IP address from the LOCATION header in an SSDP response.
+     * e.g. "LOCATION: http://192.168.1.42:49152/description.xml" -> "192.168.1.42"
+     */
+    private fun extractLocation(response: String): String? {
+        val line = response.lines()
+            .firstOrNull { it.trim().startsWith("LOCATION", ignoreCase = true) }
+            ?: return null
+        // Line is like "LOCATION: http://192.168.1.42:49152/description.xml"
+        // Strip the header name and colon, keeping the full URL including scheme
+        val url = line.substringAfter("LOCATION:").trim()
+            .let { if (it.startsWith("LOCATION:", ignoreCase = true)) it.substringAfter(":").trim() else it }
+        return try {
+            java.net.URL(url).host.takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Confirm a discovered IP is a WiiM/LinkPlay device by hitting its HTTP API.
+     * Returns an OutputDevice.Upnp built from the API response, or null if not a WiiM.
+     */
+    @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+    private fun probeWiimDevice(ip: String): OutputDevice.Upnp? {
+        // Standard WiiM AVTransport control URL — fixed path on all WiiM devices
+        val avTransportControlUrl = "http://$ip:49152/upnp/control/rendertransport1"
+        val renderingControlUrl = "http://$ip:49152/upnp/control/rendercontrol1"
+
+        // Try HTTPS first (newer WiiM firmware), then HTTP
+        val endpoints = listOf(
+            "https://$ip:443/httpapi.asp?command=getPlayerStatusEx",
+            "https://$ip:4443/httpapi.asp?command=getPlayerStatusEx",
+            "http://$ip/httpapi.asp?command=getPlayerStatusEx",
+            "https://$ip:443/httpapi.asp?command=getStatusEx",
+            "https://$ip:4443/httpapi.asp?command=getStatusEx",
+            "http://$ip/httpapi.asp?command=getStatusEx",
+            "http://$ip/httpapi.asp?command=getStatus",
+        )
+
+        for (endpoint in endpoints) {
+            try {
+                val conn = URL(endpoint).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 2_000
+                conn.readTimeout = 2_000
+                conn.instanceFollowRedirects = true
+
+                // Accept self-signed certs for HTTPS endpoints
+                if (conn is javax.net.ssl.HttpsURLConnection) {
+                    val trustAll = arrayOf<javax.net.ssl.TrustManager>(
+                        @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+                        object : javax.net.ssl.X509TrustManager {
+                            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                        }
+                    )
+                    val sc = javax.net.ssl.SSLContext.getInstance("TLS")
+                    sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                    conn.sslSocketFactory = sc.socketFactory
+                    conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                }
+
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+
+                    val json = JSONObject(body)
+
+                    // A valid WiiM/LinkPlay response always contains DeviceName or device_name
+                    val friendlyName = json.optString("DeviceName")
+                        .takeIf { it.isNotEmpty() }
+                        ?: json.optString("device_name")
+                            .takeIf { it.isNotEmpty() }
+                        ?: "WiiM Speaker"
+
+                    val modelName = json.optString("hardware")
+                        .takeIf { it.isNotEmpty() }
+                        ?: json.optString("project")
+                            .takeIf { it.isNotEmpty() }
+
+                    val udn = json.optString("uuid")
+                        .takeIf { it.isNotEmpty() }
+                        ?: ip // fallback to IP as unique key
+
+                    return OutputDevice.Upnp(
+                        udn = udn,
+                        friendlyName = friendlyName,
+                        manufacturer = "WiiM",
+                        modelName = modelName,
+                        deviceDescriptionUrl = endpoint,
+                        avTransportControlUrl = avTransportControlUrl,
+                        renderingControlUrl = renderingControlUrl,
+                        ipAddress = ip
+                    )
+                }
+                conn.disconnect()
+
+            } catch (e: Exception) {
+                Log.d(TAG, "Probe failed for $endpoint: ${e.message}")
+            }
+        }
+        return null
     }
 }
