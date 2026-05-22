@@ -69,6 +69,7 @@ class UpnpManager(
     }
 
     @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+    @SuppressWarnings("kotlin:S4830")
     private fun openTrustAllConnection(url: String): java.net.HttpURLConnection {
         val conn = URL(url).openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 2_000
