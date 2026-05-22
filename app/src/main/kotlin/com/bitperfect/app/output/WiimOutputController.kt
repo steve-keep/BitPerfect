@@ -120,24 +120,13 @@ class WiimOutputController(
 
     override suspend fun play() {
         withContext(Dispatchers.IO) {
-            sendSoapAction(
-                "Play",
-                """
-                <InstanceID>0</InstanceID>
-                <Speed>1</Speed>
-                """.trimIndent()
-            )
+            sendLinkPlayCommand("setPlayerCmd:resume")
         }
     }
 
     override suspend fun pause() {
         withContext(Dispatchers.IO) {
-            sendSoapAction(
-                "Pause",
-                """
-                <InstanceID>0</InstanceID>
-                """.trimIndent()
-            )
+            sendLinkPlayCommand("setPlayerCmd:pause")
         }
     }
 
@@ -187,12 +176,7 @@ class WiimOutputController(
 
     override suspend fun release() {
         withContext(Dispatchers.IO) {
-            sendSoapAction(
-                "Stop",
-                """
-                <InstanceID>0</InstanceID>
-                """.trimIndent()
-            )
+            sendLinkPlayCommand("setPlayerCmd:stop")
             httpServer?.stop()
         }
     }
@@ -223,6 +207,21 @@ class WiimOutputController(
         return sendSoapActionWithResponse(action, body) != null
     }
 
+    private fun sendLinkPlayCommand(command: String): Boolean {
+        return try {
+            val url = URL("http://${target.ipAddress}/httpapi.asp?command=$command")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (e: Exception) {
+            Log.e("WiimOutputController", "LinkPlay command failed: $command", e)
+            false
+        }
+    }
+
     private fun sendSoapActionWithResponse(action: String, body: String): String? {
         if (target.avTransportControlUrl.isNullOrEmpty()) return null
         try {
@@ -233,13 +232,13 @@ class WiimOutputController(
             connection.readTimeout = 5000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "text/xml; charset=\"utf-8\"")
-            connection.setRequestProperty("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#$action\"")
+            connection.setRequestProperty("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:3#$action\"")
 
             val envelope = """
                 <?xml version="1.0" encoding="utf-8"?>
                 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                     <s:Body>
-                        <u:$action xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                        <u:$action xmlns:u="urn:schemas-upnp-org:service:AVTransport:3">
                             $body
                         </u:$action>
                     </s:Body>

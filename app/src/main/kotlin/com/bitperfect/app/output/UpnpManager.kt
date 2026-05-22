@@ -229,6 +229,7 @@ class UpnpManager(private val context: Context) {
                 if (conn.responseCode == 200) {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
                     conn.disconnect()
+                    Log.d(TAG, "LinkPlay probe response from $ip: $body")
 
                     val json = JSONObject(body)
 
