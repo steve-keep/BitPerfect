@@ -18,7 +18,10 @@ import java.net.InetAddress
 import java.net.MulticastSocket
 import java.net.URL
 
-class UpnpManager(private val context: Context) {
+class UpnpManager(
+    private val context: Context,
+    private val fetchJson: (String) -> JSONObject? = { url -> fetchLinkPlayJson(url) }
+) {
 
     private val TAG = "UpnpManager"
 
@@ -45,6 +48,48 @@ class UpnpManager(private val context: Context) {
             "MX: $SSDP_MX\r\n" +
             "ST: $SEARCH_TARGET\r\n" +
             "\r\n"
+
+        internal fun fetchLinkPlayJson(url: String): JSONObject? {
+            return try {
+                val conn = openTrustAllConnection(url)
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    JSONObject(body)
+                } else {
+                    conn.disconnect()
+                    null
+                }
+            } catch (e: Exception) {
+                Log.d("UpnpManager", "fetchLinkPlayJson $url: ${e.message}")
+                null
+            }
+        }
+
+        @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+        internal fun openTrustAllConnection(url: String): java.net.HttpURLConnection {
+            val conn = URL(url).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 2_000
+            conn.readTimeout = 2_000
+            conn.instanceFollowRedirects = true
+
+            // Accept self-signed certs for HTTPS endpoints
+            if (conn is javax.net.ssl.HttpsURLConnection) {
+                val trustAll = arrayOf<javax.net.ssl.TrustManager>(
+                    @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+                    object : javax.net.ssl.X509TrustManager {
+                        override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                        override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                    }
+                )
+                val sc = javax.net.ssl.SSLContext.getInstance("TLS")
+                sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                conn.sslSocketFactory = sc.socketFactory
+                conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+            }
+            return conn
+        }
     }
 
     fun start() {
@@ -186,86 +231,61 @@ class UpnpManager(private val context: Context) {
      * Confirm a discovered IP is a WiiM/LinkPlay device by hitting its HTTP API.
      * Returns an OutputDevice.Upnp built from the API response, or null if not a WiiM.
      */
-    @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
     private fun probeWiimDevice(ip: String): OutputDevice.Upnp? {
-        // Standard WiiM AVTransport control URL — fixed path on all WiiM devices
-        val avTransportControlUrl = "http://$ip:49152/upnp/control/rendertransport1"
-        val renderingControlUrl = "http://$ip:49152/upnp/control/rendercontrol1"
-
-        // Try HTTPS first (newer WiiM firmware), then HTTP
-        val endpoints = listOf(
-            "https://$ip:443/httpapi.asp?command=getPlayerStatusEx",
-            "https://$ip:4443/httpapi.asp?command=getPlayerStatusEx",
-            "http://$ip/httpapi.asp?command=getPlayerStatusEx",
-            "https://$ip:443/httpapi.asp?command=getStatusEx",
-            "https://$ip:4443/httpapi.asp?command=getStatusEx",
-            "http://$ip/httpapi.asp?command=getStatusEx",
-            "http://$ip/httpapi.asp?command=getStatus",
+        val baseUrls = listOf(
+            "https://$ip:443",
+            "https://$ip:4443",
+            "http://$ip",
         )
 
-        for (endpoint in endpoints) {
-            try {
-                val conn = URL(endpoint).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 2_000
-                conn.readTimeout = 2_000
-                conn.instanceFollowRedirects = true
+        for (baseUrl in baseUrls) {
+            val playerJson = fetchJson("$baseUrl/httpapi.asp?command=getPlayerStatusEx")
+            val statusJson = fetchJson("$baseUrl/httpapi.asp?command=getStatusEx")
 
-                // Accept self-signed certs for HTTPS endpoints
-                if (conn is javax.net.ssl.HttpsURLConnection) {
-                    val trustAll = arrayOf<javax.net.ssl.TrustManager>(
-                        @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
-                        object : javax.net.ssl.X509TrustManager {
-                            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
-                        }
-                    )
-                    val sc = javax.net.ssl.SSLContext.getInstance("TLS")
-                    sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                    conn.sslSocketFactory = sc.socketFactory
-                    conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
-                }
-
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    Log.d(TAG, "LinkPlay probe response from $ip: $body")
-
-                    val json = JSONObject(body)
-
-                    // A valid WiiM/LinkPlay response always contains DeviceName or device_name
-                    val friendlyName = json.optString("DeviceName")
-                        .takeIf { it.isNotEmpty() }
-                        ?: json.optString("device_name")
-                            .takeIf { it.isNotEmpty() }
-                        ?: "WiiM Speaker"
-
-                    val modelName = json.optString("hardware")
-                        .takeIf { it.isNotEmpty() }
-                        ?: json.optString("project")
-                            .takeIf { it.isNotEmpty() }
-
-                    val udn = json.optString("uuid")
-                        .takeIf { it.isNotEmpty() }
-                        ?: ip // fallback to IP as unique key
-
-                    return OutputDevice.Upnp(
-                        udn = udn,
-                        friendlyName = friendlyName,
-                        manufacturer = "WiiM",
-                        modelName = modelName,
-                        deviceDescriptionUrl = endpoint,
-                        avTransportControlUrl = avTransportControlUrl,
-                        renderingControlUrl = renderingControlUrl,
-                        ipAddress = ip
-                    )
-                }
-                conn.disconnect()
-
-            } catch (e: Exception) {
-                Log.d(TAG, "Probe failed for $endpoint: ${e.message}")
-            }
+            val device = mergeDeviceJson(playerJson, statusJson, ip, baseUrl)
+            if (device != null) return device
         }
         return null
     }
+
+    internal fun mergeDeviceJson(
+        playerJson: JSONObject?,
+        statusJson: JSONObject?,
+        ip: String,
+        baseUrl: String
+    ): OutputDevice.Upnp? {
+        // Need at least one to succeed to confirm this is a LinkPlay device
+        if (playerJson == null && statusJson == null) return null
+
+        val avTransportControlUrl = "http://$ip:49152/upnp/control/rendertransport1"
+        val renderingControlUrl = "http://$ip:49152/upnp/control/rendercontrol1"
+
+        // Merge: getStatusEx wins for identity fields, getPlayerStatusEx for everything else
+        val friendlyName = statusJson?.optString("DeviceName")?.takeIf { it.isNotEmpty() }
+            ?: statusJson?.optString("device_name")?.takeIf { it.isNotEmpty() }
+            ?: playerJson?.optString("DeviceName")?.takeIf { it.isNotEmpty() }
+            ?: playerJson?.optString("device_name")?.takeIf { it.isNotEmpty() }
+            ?: "WiiM @ $ip"
+
+        val modelName = statusJson?.optString("hardware")?.takeIf { it.isNotEmpty() }
+            ?: statusJson?.optString("project")?.takeIf { it.isNotEmpty() }
+
+        val udn = statusJson?.optString("uuid")?.takeIf { it.isNotEmpty() }
+            ?: playerJson?.optString("uuid")?.takeIf { it.isNotEmpty() }
+            ?: ip
+
+        Log.d(TAG, "WiiM confirmed at $baseUrl — name=$friendlyName model=$modelName")
+
+        return OutputDevice.Upnp(
+            udn = udn,
+            friendlyName = friendlyName,
+            manufacturer = "WiiM",
+            modelName = modelName,
+            deviceDescriptionUrl = "$baseUrl/httpapi.asp?command=getStatusEx",
+            avTransportControlUrl = avTransportControlUrl,
+            renderingControlUrl = renderingControlUrl,
+            ipAddress = ip
+        )
+    }
+
 }
