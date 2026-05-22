@@ -83,12 +83,12 @@ class UpnpManager(
                 object : javax.net.ssl.X509TrustManager {
                     override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                     override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf() // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                 }
             )
             val sc = javax.net.ssl.SSLContext.getInstance("TLS")
             sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
-            conn.sslSocketFactory = sc.socketFactory
+            conn.sslSocketFactory = sc.socketFactory // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
             conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
         }
         return conn
