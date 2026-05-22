@@ -34,6 +34,7 @@ data class ItunesAlbumResult(
     val artworkUrl100: String? = null,
     val wrapperType: String? = null,
     val collectionType: String? = null,
+    val kind: String? = null,
     val trackCount: Int? = null,
     val releaseDate: String? = null
 )
@@ -242,6 +243,10 @@ class ItunesArtworkRepository(private val context: Context) {
             penaltiesApplied.add("Content penalty (-100)")
         }
 
+        if (result.wrapperType == "collection") {
+            score += 100
+        }
+
         // 6. Levenshtein tie-breakers
         val levenshteinCost = levenshtein(expectedSimplifiedAlbum, candidateSimplifiedAlbum)
         score -= levenshteinCost
@@ -290,8 +295,21 @@ class ItunesArtworkRepository(private val context: Context) {
                     continue
                 }
 
-                val validCandidates = response.results.filter {
-                    it.artworkUrl100 != null && it.wrapperType == "collection" && it.collectionType == "Album"
+                val validCandidates = response.results.filter { result ->
+                    val hasRequiredFields =
+                        result.artistName != null &&
+                        result.collectionName != null &&
+                        result.artworkUrl100 != null
+
+                    val isAlbumCollection =
+                        result.wrapperType == "collection" &&
+                        result.collectionType == "Album"
+
+                    val isTrackFallback =
+                        result.wrapperType == "track" &&
+                        result.kind == "song"
+
+                    hasRequiredFields && (isAlbumCollection || isTrackFallback)
                 }
 
                 // Deduplicate within the current stage using collectionId, falling back to artistName + collectionName
@@ -312,6 +330,7 @@ class ItunesArtworkRepository(private val context: Context) {
                     val candidateSimplifiedAlbum = candidate.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
 
                     AppLogger.d("ItunesArtworkRepository", "[$stageName] Evaluating Candidate:")
+                    AppLogger.d("ItunesArtworkRepository", "  - Candidate Type: wrapper=${candidate.wrapperType} kind=${candidate.kind}")
                     AppLogger.d("ItunesArtworkRepository", "  - Expected Artist: '$expectedNormalisedArtist' | Candidate: '$candidateArtist'")
                     AppLogger.d("ItunesArtworkRepository", "  - Exact Artist Match: ${candidateScore.exactArtistMatch} | Overlap Ratio: ${candidateScore.artistOverlapRatio}")
                     AppLogger.d("ItunesArtworkRepository", "  - Expected Album: '$expectedSimplifiedAlbum' | Candidate: '$candidateSimplifiedAlbum'")
