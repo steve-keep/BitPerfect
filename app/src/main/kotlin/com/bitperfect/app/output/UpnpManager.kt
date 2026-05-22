@@ -188,13 +188,13 @@ class UpnpManager(private val context: Context) {
                     val trustAll = arrayOf<javax.net.ssl.TrustManager>(
                         @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
                         object : javax.net.ssl.X509TrustManager {
-                            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager]
-                            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager]
+                            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
+                            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                             override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
                         }
                     )
                     val sc = javax.net.ssl.SSLContext.getInstance("TLS")
-                    sc.init(null, trustAll, java.security.SecureRandom())
+                    sc.init(null, trustAll, java.security.SecureRandom()) // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                     conn.sslSocketFactory = sc.socketFactory
                     conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
                 }
