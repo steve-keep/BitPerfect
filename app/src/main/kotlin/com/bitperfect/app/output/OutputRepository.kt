@@ -11,6 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -39,11 +42,23 @@ open class OutputRepository(
     private val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
+    private val _wiimIsPlaying = MutableStateFlow(false)
+
+    open val isPlaying: StateFlow<Boolean> = combine(
+        _activeDevice,
+        _wiimIsPlaying,
+        playerRepository.isPlaying
+    ) { device, wiimPlaying, localPlaying ->
+        if (device is OutputDevice.Upnp) wiimPlaying else localPlaying
+    }.stateIn(scope, SharingStarted.Eagerly, false)
+
     private val upnpManager = UpnpManager(context)
     open val isDiscovering: StateFlow<Boolean> = upnpManager.isDiscovering
 
     private val switchMutex = kotlinx.coroutines.sync.Mutex()
     @Volatile private var activeController: OutputController = LocalOutputController(context, playerRepository)
+
+    private var wiimCollectionJob: kotlinx.coroutines.Job? = null
 
     private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -93,7 +108,12 @@ open class OutputRepository(
     open suspend fun play() = activeController.play()
     open suspend fun pause() = activeController.pause()
     open suspend fun togglePlayPause(isPlaying: Boolean) {
-        if (isPlaying) activeController.pause() else activeController.play()
+        val controller = activeController
+        if (controller is WiimOutputController) {
+            controller.togglePlayPause()
+        } else {
+            if (isPlaying) controller.pause() else controller.play()
+        }
     }
     open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
 
@@ -110,6 +130,10 @@ open class OutputRepository(
         scope.launch(Dispatchers.Main) {
             switchMutex.withLock {
                 val positionMs = activeController.getPositionMs()
+
+                wiimCollectionJob?.cancel()
+                _wiimIsPlaying.value = false
+
                 activeController.release()
 
                 val newController: OutputController = when (target) {
@@ -117,8 +141,13 @@ open class OutputRepository(
                         LocalOutputController(context, playerRepository)
                     is OutputDevice.Bluetooth ->
                         BluetoothOutputController(context, playerRepository, target)
-                    is OutputDevice.Upnp ->
-                        WiimOutputController(context, target)
+                    is OutputDevice.Upnp -> {
+                        val controller = WiimOutputController(context, target)
+                        wiimCollectionJob = scope.launch {
+                            controller.isPlaying.collect { _wiimIsPlaying.value = it }
+                        }
+                        controller
+                    }
                 }
 
                 newController.takeOver(currentTracks, currentIndex, positionMs)

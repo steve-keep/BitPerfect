@@ -161,6 +161,7 @@ class AppViewModelTest {
         val application = ApplicationProvider.getApplicationContext<Application>()
         try {
             val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+            org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
             AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
         } catch (e: Exception) {
             // Ignore NPE or other initialization errors from real PlayerRepository in tests
@@ -333,6 +334,7 @@ class AppViewModelTest {
     fun testRipBannerState_HiddenByDefault() {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val bannerState = vm.ripBannerState.value
@@ -352,6 +354,7 @@ class AppViewModelTest {
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
@@ -389,6 +392,7 @@ class AppViewModelTest {
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -423,6 +427,7 @@ class AppViewModelTest {
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -450,6 +455,7 @@ class AppViewModelTest {
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val discMetadataField = AppViewModel::class.java.getDeclaredField("_discMetadata")
@@ -505,6 +511,7 @@ class AppViewModelTest {
         (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
