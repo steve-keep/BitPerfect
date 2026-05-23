@@ -11,8 +11,6 @@ import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.app.library.AiMix
 import com.bitperfect.app.library.AiMixTrack
 import com.bitperfect.app.library.AiMixRepository
-import com.bitperfect.app.library.AiMixGenerator
-import com.bitperfect.app.library.NanoStatus
 import androidx.media3.common.MediaItem
 import com.bitperfect.core.utils.SettingsManager
 import kotlinx.coroutines.Dispatchers
@@ -94,29 +92,13 @@ open class AppViewModel(
     private val fetchItunesArtwork: suspend (String, String, Int?) -> ItunesArtwork? = { artist, album, trackCount ->
         ItunesArtworkRepository(application).fetchItunesArtwork(artist, album, trackCount)
     },
-    private val aiMixRepository: AiMixRepository = AiMixRepository(),
-    private val aiMixGenerator: AiMixGenerator = AiMixGenerator()
+    private val aiMixRepository: AiMixRepository = AiMixRepository()
 ) : AndroidViewModel(application) {
 
     private val settingsManager = SettingsManager(application)
 
     private val _aiMixes = MutableStateFlow<List<AiMix>>(emptyList())
     val aiMixes: StateFlow<List<AiMix>> = _aiMixes.asStateFlow()
-
-    private val _aiMixesLoading = MutableStateFlow(false)
-    val aiMixesLoading: StateFlow<Boolean> = _aiMixesLoading.asStateFlow()
-
-    private val _aiMixError = MutableStateFlow<String?>(null)
-    val aiMixError: StateFlow<String?> = _aiMixError.asStateFlow()
-
-    private val _aiNanoUnsupported = MutableStateFlow(false)
-    val aiNanoUnsupported: StateFlow<Boolean> = _aiNanoUnsupported.asStateFlow()
-
-    private val _nanoDebugStatus = MutableStateFlow<String>("Checking...")
-    val nanoDebugStatus: StateFlow<String> = _nanoDebugStatus.asStateFlow()
-
-    private val _nanoDownloadProgress = MutableStateFlow<Long?>(null)
-    val nanoDownloadProgress: StateFlow<Long?> = _nanoDownloadProgress.asStateFlow()
 
     private val accurateRipService = AccurateRipService()
 
@@ -508,117 +490,12 @@ open class AppViewModel(
 
 
 
+
     private fun loadAiMixes() {
-        viewModelScope.launch(ioDispatcher) {
+        viewModelScope.launch(Dispatchers.IO) {
             val outputUri = settingsManager.outputFolderUri
-            val mixes = aiMixRepository.getLatestMixes(getApplication(), outputUri)
+            val mixes = aiMixRepository.refreshMixes(getApplication(), outputUri)
             _aiMixes.value = mixes
-            checkAndRegenerateMixes(outputUri)
-        }
-    }
-
-    fun retryAiMixes() {
-        viewModelScope.launch(ioDispatcher) {
-            _aiMixError.value = null
-            checkAndRegenerateMixes(settingsManager.outputFolderUri, forceRegenerate = true)
-        }
-    }
-
-    private suspend fun checkAndRegenerateMixes(outputUri: String?, forceRegenerate: Boolean = false) {
-        try {
-            val lastGeneratedAt = aiMixRepository.getLastGeneratedAt(getApplication(), outputUri)
-            val now = System.currentTimeMillis()
-
-            if (forceRegenerate || lastGeneratedAt == null || (now - lastGeneratedAt > 7 * 24 * 60 * 60 * 1000L)) {
-                val debugStatus = aiMixGenerator.getDebugStatus()
-                _nanoDebugStatus.value = debugStatus
-                println("AiMixGenerator debug: $debugStatus")
-
-                when (aiMixGenerator.checkNanoStatus()) {
-                    NanoStatus.AVAILABLE -> {
-                        // proceed with generation as normal
-                        _aiNanoUnsupported.value = false
-                    }
-                    NanoStatus.DOWNLOADABLE -> {
-                        // trigger download, show progress in UI
-                        _aiNanoUnsupported.value = false
-                        _aiMixesLoading.value = false
-                        println("AiMixGenerator: status DOWNLOADABLE — triggering download")
-                        val success = aiMixGenerator.downloadNano { bytesDownloaded ->
-                            _nanoDownloadProgress.value = bytesDownloaded
-                        }
-                        _nanoDownloadProgress.value = null
-                        if (success) {
-                            // model is now downloaded — re-enter to generate
-                            checkAndRegenerateMixes(outputUri, forceRegenerate = true)
-                        } else {
-                            _aiMixError.value = "Gemini Nano download failed. Please try again."
-                        }
-                        return
-                    }
-                    NanoStatus.DOWNLOADING -> {
-                        // already downloading in background — just show a waiting message
-                        _aiNanoUnsupported.value = false
-                        _aiMixError.value = "Gemini Nano is downloading. Mixes will appear when ready."
-                        return
-                    }
-                    NanoStatus.UNAVAILABLE -> {
-                        _aiNanoUnsupported.value = true
-                        // nanoDebugStatus already set above
-                        return
-                    }
-                }
-
-                _aiMixesLoading.value = true
-
-                val summary = aiMixRepository.buildLibrarySummary(getApplication(), outputUri)
-                println("AiMixGenerator: summary blank=${summary.isBlank()}, length=${summary.length}")
-                if (summary.isBlank()) {
-                    println("AiMixGenerator: no tracks in JSONL files — skipping generation")
-                    _aiMixesLoading.value = false
-                    return
-                }
-
-                // Get available tracks to resolve tracks later
-                val availableTracks = mutableListOf<AiMixTrack>()
-                val artistsList = _artists.value
-                for (artist in artistsList) {
-                    for (album in artist.albums) {
-                        val tracks = libraryRepository.getTracksForAlbum(album.id, outputUri)
-                        for (track in tracks) {
-                            availableTracks.add(
-                                AiMixTrack(
-                                    trackId = track.id,
-                                    artist = track.artist,
-                                    title = track.title,
-                                    albumTitle = track.albumTitle,
-                                    albumId = album.id
-                                )
-                            )
-                        }
-                    }
-                }
-
-                try {
-                    val result = aiMixGenerator.generateMixes(getApplication(), summary, availableTracks)
-                    if (result.isNotEmpty()) {
-                        aiMixRepository.appendMixes(getApplication(), outputUri, result)
-                        _aiMixes.value = aiMixRepository.getLatestMixes(getApplication(), outputUri)
-                    } else {
-                        if (_aiMixes.value.isEmpty()) {
-                            _aiMixError.value = "Nano couldn't generate mixes for this library. Try playing more tracks first."
-                        }
-                    }
-                } catch (e: Exception) {
-                    _aiMixError.value = e.message ?: "Failed to generate mixes"
-                } finally {
-                    _aiMixesLoading.value = false
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            _aiMixError.value = e.message ?: "Failed to generate mixes"
-            _aiMixesLoading.value = false
         }
     }
 

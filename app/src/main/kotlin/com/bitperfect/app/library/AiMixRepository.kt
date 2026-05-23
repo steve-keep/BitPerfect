@@ -7,6 +7,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import com.bitperfect.app.library.TrackCandidate
+import com.bitperfect.app.library.BlueprintLoader
+import com.bitperfect.app.library.MixEngine
 
 data class AiMixTrack(
     val trackId: Long,
@@ -116,69 +119,16 @@ class AiMixRepository {
         return lastGeneratedAt
     }
 
-    fun appendMixes(context: Context, outputFolderUriString: String?, mixes: List<AiMix>) {
-        if (outputFolderUriString.isNullOrBlank()) return
+    fun refreshMixes(context: Context, outputFolderUriString: String?): List<AiMix> {
+        if (outputFolderUriString.isNullOrBlank()) return emptyList()
 
         val parentDir = try {
             DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
-        } catch (e: Exception) { null } ?: return
+        } catch (e: Exception) { null } ?: return emptyList()
 
-        if (!parentDir.exists() || !parentDir.isDirectory) return
+        if (!parentDir.exists() || !parentDir.isDirectory) return emptyList()
 
-        val mixesFile = parentDir.findFile("ai-mixes.jsonl") ?: parentDir.createFile("application/x-ndjson", "ai-mixes.jsonl")
-        if (mixesFile == null) return
-
-        try {
-            context.contentResolver.openOutputStream(mixesFile.uri, "wa")?.use { out ->
-                for (mix in mixes) {
-                    val json = JSONObject().apply {
-                        put("generatedAt", mix.generatedAt)
-                        put("name", mix.name)
-                        put("description", mix.description)
-                        val tracksArray = JSONArray()
-                        for (track in mix.tracks) {
-                            val trackObj = JSONObject().apply {
-                                put("trackId", track.trackId)
-                                put("artist", track.artist)
-                                put("title", track.title)
-                                put("albumTitle", track.albumTitle)
-                                put("albumId", track.albumId)
-                            }
-                            tracksArray.put(trackObj)
-                        }
-                        put("tracks", tracksArray)
-                    }
-                    out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private data class LibraryEntry(
-        val timestamp: Long,
-        val artist: String,
-        val albumTitle: String,
-        val trackTitle: String,
-        val year: String?,
-        val genre: String?,
-        val bpm: Double?,
-        val initialKey: String?,
-        val energy: Double?,
-        val accurateRipVerified: Boolean
-    )
-
-    fun buildLibrarySummary(context: Context, outputFolderUriString: String?): String {
-        if (outputFolderUriString.isNullOrBlank()) return ""
-
-        val parentDir = try {
-            DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
-        } catch (e: Exception) { null } ?: return ""
-
-        if (!parentDir.exists() || !parentDir.isDirectory) return ""
-
-        val entries = mutableMapOf<String, LibraryEntry>()
+        val entries = mutableMapOf<String, Pair<Long, com.bitperfect.app.library.TrackCandidate>>()
 
         val processFile = { filename: String ->
             try {
@@ -204,19 +154,31 @@ class AiMixRepository {
                                     val timestamp = json.optLong("timestamp", 0)
 
                                     val existing = entries[key]
-                                    if (existing == null || existing.timestamp < timestamp) {
-                                        entries[key] = LibraryEntry(
-                                            timestamp = timestamp,
+                                    if (existing == null || existing.first < timestamp) {
+                                        val tagsList = mutableListOf<String>()
+                                        val tagsArray = json.optJSONArray("tags")
+                                        if (tagsArray != null) {
+                                            val len = tagsArray?.length() ?: 0
+                                        for (i in 0 until len) {
+                                                tagsList.add(tagsArray.getString(i))
+                                            }
+                                        }
+
+                                        val candidate = com.bitperfect.app.library.TrackCandidate(
+                                            trackId = json.optLong("trackId", 0L),
                                             artist = artist,
                                             albumTitle = albumTitle,
+                                            albumId = json.optLong("albumId", 0L),
                                             trackTitle = trackTitle,
-                                            year = json.optString("year", null),
-                                            genre = json.optString("genre", null),
-                                            bpm = if (json.has("bpm")) json.getDouble("bpm") else null,
-                                            initialKey = json.optString("initialKey", null),
-                                            energy = if (json.has("energy")) json.getDouble("energy") else null,
-                                            accurateRipVerified = json.optBoolean("accurateRipVerified", false)
+                                            bpm = if (json.has("bpm")) json.getDouble("bpm").toFloat() else null,
+                                            initialKey = json.optString("initialKey", null).takeIf { it != "null" && it.isNotBlank() },
+                                            energy = if (json.has("energy")) json.getDouble("energy").toFloat() else null,
+                                            accurateRipVerified = json.optBoolean("accurateRipVerified", false),
+                                            genre = json.optString("genre", null).takeIf { it != "null" && it.isNotBlank() },
+                                            year = json.optString("year", null).takeIf { it != "null" && it.isNotBlank() },
+                                            tags = tagsList
                                         )
+                                        entries[key] = Pair(timestamp, candidate)
                                     }
 
                                 } catch (e: Exception) {
@@ -234,34 +196,48 @@ class AiMixRepository {
         processFile("recently-played.jsonl")
         processFile("new-releases.jsonl")
 
-        var trackList = entries.values.toList()
+        val candidates = entries.values.map { it.second }
+        val weekSeed = System.currentTimeMillis() / (7L * 24 * 60 * 60 * 1000)
+        val blueprints = com.bitperfect.app.library.BlueprintLoader.load(context)
 
-        if (trackList.isEmpty()) return ""
+        val mixes = com.bitperfect.app.library.MixEngine().generate(candidates, blueprints, weekSeed)
 
-        if (trackList.size > 80) {
-            val sortedList = trackList.sortedBy { it.energy ?: 0.5 }
-            val step = sortedList.size.toDouble() / 80
-            val selected = mutableListOf<LibraryEntry>()
-            for (i in 0 until 80) {
-                val index = (i * step).toInt().coerceIn(0, sortedList.size - 1)
-                selected.add(sortedList[index])
+        // Truncate and overwrite ai-mixes.jsonl
+        try {
+            var mixesFile = parentDir.findFile("ai-mixes.jsonl")
+            if (mixesFile != null) {
+                mixesFile.delete()
             }
-            trackList = selected
+            mixesFile = parentDir.createFile("application/x-ndjson", "ai-mixes.jsonl")
+
+            if (mixesFile != null) {
+                context.contentResolver.openOutputStream(mixesFile.uri, "w")?.use { out ->
+                    mixes.forEach { mix ->
+                        val json = JSONObject().apply {
+                            put("generatedAt", mix.generatedAt as Any)
+                            put("name", mix.name as Any)
+                            put("description", mix.description as Any)
+                            val tracksArray = JSONArray()
+                            mix.tracks.forEach { track ->
+                                val trackObj = JSONObject().apply {
+                                    put("trackId", track.trackId as Any)
+                                    put("artist", track.artist as Any)
+                                    put("title", track.title as Any)
+                                    put("albumTitle", track.albumTitle as Any)
+                                    put("albumId", track.albumId as Any)
+                                }
+                                tracksArray.put(trackObj)
+                            }
+                            put("tracks", tracksArray)
+                        }
+                        out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
-        val builder = java.lang.StringBuilder()
-        builder.appendLine("Library summary (${trackList.size} tracks):")
-        for (track in trackList) {
-            val yearStr = if (track.year != null && track.year != "null") ", ${track.year}" else ""
-            val genreStr = if (track.genre != null && track.genre != "null") " | Genre: ${track.genre}" else ""
-            val bpmStr = if (track.bpm != null) " | BPM: ${track.bpm}" else ""
-            val keyStr = if (track.initialKey != null && track.initialKey != "null") " | Key: ${track.initialKey}" else ""
-            val energyStr = if (track.energy != null) " | Energy: ${track.energy}" else ""
-            val verifiedStr = if (track.accurateRipVerified) " | Verified: yes" else ""
-
-            builder.appendLine("- \"${track.trackTitle}\" by ${track.artist} (${track.albumTitle}$yearStr)$genreStr$bpmStr$keyStr$energyStr$verifiedStr")
-        }
-
-        return builder.toString().trim()
+        return mixes
     }
 }

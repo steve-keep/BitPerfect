@@ -1,0 +1,26 @@
+[
+  {
+    "id": "bp_0042",
+    "name": "Late Night Jazz",
+    "description": "Quiet hours and Jazz — perfect for unwinding.",
+    "moods": ["melancholic", "serene", "introspective"],
+    "genres": ["Jazz"],
+    "bpmMin": 50,
+    "bpmMax": 85,
+    "energyMin": 0.05,
+    "energyMax": 0.38,
+    "verified_only": true,
+    "decade": "1980s"
+  },
+  {
+    "id": "bp_0043",
+    "name": "Energetic Rock",
+    "description": "High energy rock for a workout.",
+    "moods": ["energetic", "focused"],
+    "genres": ["Rock"],
+    "bpmMin": 120,
+    "bpmMax": 180,
+    "energyMin": 0.7,
+    "energyMax": 1.0
+  }
+]
