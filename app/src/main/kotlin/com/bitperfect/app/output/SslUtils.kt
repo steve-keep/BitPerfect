@@ -1,6 +1,8 @@
 package com.bitperfect.app.output
 
 import java.net.URL
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
 @SuppressWarnings("kotlin:S4830")
@@ -12,9 +14,9 @@ internal fun openTrustAllConnection(url: String): java.net.HttpURLConnection {
 
     // Accept self-signed certs for HTTPS endpoints
     if (conn is javax.net.ssl.HttpsURLConnection) {
-        val trustAll = arrayOf<javax.net.ssl.TrustManager>(
+        val trustAll = arrayOf<TrustManager>(
             @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
-            object : javax.net.ssl.X509TrustManager {
+            object : X509TrustManager {
                 override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                 override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                 override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf() // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
