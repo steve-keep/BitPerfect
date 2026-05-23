@@ -235,7 +235,7 @@ open class AppViewModel(
     private var hasHandledRipCompletion = false
 
     val isControllerReady: StateFlow<Boolean> = playerRepository.isControllerReady
-    val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
+    val isPlaying: StateFlow<Boolean> = outputRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
     val positionMs: StateFlow<Long> = playerRepository.positionMs
 

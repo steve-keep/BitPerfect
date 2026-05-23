@@ -8,8 +8,14 @@ import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
 import java.net.HttpURLConnection
@@ -24,6 +30,39 @@ class WiimOutputController(
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var httpServer: FlacHttpServer? = null
     private var wifiIp: String? = null
+
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private var pollingJob: Job? = null
+
+    private fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = scope.launch {
+            while (isActive) {
+                try {
+                    val url = URL("https://${target.ipAddress}/httpapi.asp?command=getPlayerStatus")
+                    val conn = openTrustAllConnection(url.toString())
+                    conn.connectTimeout = 2000
+                    conn.readTimeout = 2000
+                    if (conn.responseCode == 200) {
+                        val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                        _isPlaying.value = json.optString("status") == "play"
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.d("WiimOutputController", "Polling error: ${e.message}")
+                }
+                delay(1000)
+            }
+        }
+    }
+
+    private fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
+        _isPlaying.value = false
+    }
 
     private fun getWifiIpAddress(): String? {
         // Primary path: Use NetworkInterfaces (modern, robust approach)
@@ -116,6 +155,8 @@ class WiimOutputController(
                 )
             }
         }
+
+        startPolling()
     }
 
     override suspend fun play() {
@@ -127,6 +168,12 @@ class WiimOutputController(
     override suspend fun pause() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:pause")
+        }
+    }
+
+    suspend fun togglePlayPause() {
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:onepause")
         }
     }
 
@@ -175,6 +222,7 @@ class WiimOutputController(
     }
 
     override suspend fun release() {
+        stopPolling()
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:stop")
             httpServer?.stop()
