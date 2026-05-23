@@ -377,10 +377,23 @@ class MainActivity : ComponentActivity() {
                                         onMixClick = { mix ->
                                             appViewModel.playMix(mix)
                                             navController.navigate(AppRoutes.TrackList)
+                                        },
+                                        onNavigateToMixes = {
+                                            navController.navigate(AppRoutes.Mixes)
                                         }
                                     )
                                 }
                             }
+                        }
+                        composable(AppRoutes.Mixes) {
+                            com.bitperfect.app.ui.MixesScreen(
+                                viewModel = appViewModel,
+                                onMixClick = { mix ->
+                                    appViewModel.playMix(mix)
+                                    navController.navigate(AppRoutes.TrackList)
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
                         }
                         composable(AppRoutes.Settings) {
                             Scaffold(

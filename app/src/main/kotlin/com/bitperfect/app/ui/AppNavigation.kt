@@ -7,4 +7,5 @@ object AppRoutes {
     const val About = "about"
     const val Calibration = "calibration"
     const val Artist = "artist"
+    const val Mixes = "mixes"
 }
