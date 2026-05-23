@@ -244,7 +244,7 @@ class RipManager(
 
                 val analyser = AudioAnalyser()
 
-                val chunkSize = 8 // read ~8 sectors at a time
+                val chunkSize = 64 // read ~64 sectors at a time (~150 KB per USB transaction)
                 val lbaStart = entry.lba + tocOffset
 
                 val (firstLba, lastReadableLba) = ripLbaRange(
