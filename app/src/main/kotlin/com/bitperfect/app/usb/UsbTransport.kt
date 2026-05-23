@@ -10,15 +10,16 @@ interface UsbTransport {
     fun nextTag(): Int
 
     fun bulkTransferFully(endpoint: UsbEndpoint, buffer: ByteArray, maxLength: Int, timeout: Int): Int {
-        val n = bulkTransfer(endpoint, buffer, 0, maxLength, timeout)
-        if (n == maxLength || n < 0) return n
-
-        var totalRead = n
+        var totalRead = 0
         while (totalRead < maxLength) {
-            val toRead = minOf(endpoint.maxPacketSize, maxLength - totalRead)
-            val m = bulkTransfer(endpoint, buffer, totalRead, toRead, timeout)
-            if (m <= 0) break
-            totalRead += m
+            val n = bulkTransfer(endpoint, buffer, totalRead, maxLength - totalRead, timeout)
+            if (n < 0) {
+                return if (totalRead == 0) n else -1
+            }
+            if (n == 0) {
+                break
+            }
+            totalRead += n
         }
         return totalRead
     }

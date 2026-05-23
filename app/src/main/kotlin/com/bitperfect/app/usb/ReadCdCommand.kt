@@ -89,8 +89,8 @@ class ReadCdCommand(
 
         val sectorsActuallyRead = totalRead / 2352
         if (sectorsActuallyRead < sectorCount) {
-            AppLogger.w(TAG, "Short read: got $sectorsActuallyRead of $sectorCount sectors")
-            return audioData.copyOf(sectorsActuallyRead * 2352)
+            AppLogger.e(TAG, "Short read: got $sectorsActuallyRead of $sectorCount sectors. Truncated CDDA reads are rejected.")
+            return null
         }
 
         return audioData
