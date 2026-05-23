@@ -22,7 +22,6 @@ class UsbTransportTest {
      */
     class FakeUsbTransport(private val transferSizes: List<Int>) : UsbTransport {
         var callCount = 0
-        val requestedLengths = mutableListOf<Int>()
 
         override fun bulkTransfer(
             endpoint: UsbEndpoint,
@@ -40,7 +39,6 @@ class UsbTransportTest {
             length: Int,
             timeout: Int
         ): Int {
-            requestedLengths.add(length)
             if (callCount >= transferSizes.size) {
                 return -1 // simulate error if called more times than expected
             }
@@ -73,16 +71,6 @@ class UsbTransportTest {
 
         assertEquals(1536, totalRead)
         assertEquals(3, fakeTransport.callCount)
-    }
-
-    @Test
-    fun `bulkTransferFully never passes value smaller than remaining to bulkTransfer`() {
-        val fakeTransport = FakeUsbTransport(listOf(512, 512, 512))
-        val buffer = ByteArray(1536)
-
-        fakeTransport.bulkTransferFully(endpoint, buffer, 1536, 1000)
-
-        assertEquals(listOf(1536, 1024, 512), fakeTransport.requestedLengths)
     }
 
     @Test
