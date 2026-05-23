@@ -85,15 +85,7 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 
 @OptIn(ExperimentalFoundationApi::class)
 
-private val MixAccentColors = listOf(
-    androidx.compose.ui.graphics.Color(0xFF264653), // Deep teal
-    androidx.compose.ui.graphics.Color(0xFFE9C46A), // Warm amber
-    androidx.compose.ui.graphics.Color(0xFFE76F51), // Burnt orange
-    androidx.compose.ui.graphics.Color(0xFF2A9D8F), // Forest green
-    androidx.compose.ui.graphics.Color(0xFF8AB17D), // Muted green
-    androidx.compose.ui.graphics.Color(0xFFC08497)  // Dusty rose
-)
-
+private
 @Composable
 fun <T> Sliderow(
     items: List<T>,
@@ -552,7 +544,8 @@ fun LibrarySection(
     viewModel: AppViewModel,
     modifier: Modifier = Modifier,
     onAlbumClick: (AlbumInfo) -> Unit = {},
-    onMixClick: (AiMix) -> Unit = {}
+    onMixClick: (AiMix) -> Unit = {},
+    onNavigateToMixes: () -> Unit = {}
 ) {
     val isConfigured by viewModel.isOutputFolderConfigured.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -560,11 +553,6 @@ fun LibrarySection(
     val recentlyPlayedAlbums by viewModel.recentlyPlayedAlbums.collectAsState()
     val latestRippedAlbums by viewModel.latestRippedAlbums.collectAsState()
     val aiMixes by viewModel.aiMixes.collectAsState()
-    val aiMixesLoading by viewModel.aiMixesLoading.collectAsState()
-    val aiMixError by viewModel.aiMixError.collectAsState()
-    val aiNanoUnsupported by viewModel.aiNanoUnsupported.collectAsState()
-    val nanoDownloadProgress by viewModel.nanoDownloadProgress.collectAsState()
-    val nanoDebugStatus by viewModel.nanoDebugStatus.collectAsState()
 
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -742,8 +730,7 @@ fun LibrarySection(
                     }
 
 
-                    /* Mixes section temporarily disabled
-                    if (searchQuery.isBlank() && (aiMixes.isNotEmpty() || aiMixesLoading || aiMixError != null || aiNanoUnsupported || nanoDownloadProgress != null)) {
+                    if (searchQuery.isBlank() && aiMixes.isNotEmpty()) {
                         stickyHeader(key = "mixes_header") {
                             Box(
                                 modifier = Modifier
@@ -751,195 +738,95 @@ fun LibrarySection(
                                     .background(MaterialTheme.colorScheme.background)
                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                             ) {
-                                Text(
-                                    "Mixes",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Your Mixes",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Text(
+                                        text = "See all mixes →",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.clickable { onNavigateToMixes() }
+                                    )
+                                }
                             }
                         }
                         item {
-                            when {
-                                aiNanoUnsupported && aiMixes.isEmpty() -> {
-                                    Column(
+                            val mixCardWidth = (screenWidth - 72.dp) / 2.2f
+
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                            ) {
+                                itemsIndexed(aiMixes.take(5)) { index, mix ->
+                                    val accentColor = com.bitperfect.app.ui.MixAccentColors[index % com.bitperfect.app.ui.MixAccentColors.size]
+                                    Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                            .width(mixCardWidth)
+                                            .aspectRatio(1f / 1.4f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF1A1A1A))
+                                            .clickable { onMixClick(mix) }
                                     ) {
-                                        Text(
-                                            text = "AI Mixes require a supported device (Pixel 8+, Galaxy S24+)",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.5f)
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        // Debug info box — shows raw status so we can diagnose issues
-                                        Surface(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = Color(0xFF1A1A1A)
-                                        ) {
-                                            SelectionContainer {
-                                                Text(
-                                                    text = nanoDebugStatus,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White.copy(alpha = 0.6f),
-                                                    modifier = Modifier.padding(8.dp),
-                                                    fontFamily = FontFamily.Monospace
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                nanoDownloadProgress != null && aiMixes.isEmpty() -> {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 16.dp)
-                                    ) {
-                                        Text(
-                                            text = "Downloading AI model...",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.7f)
-                                        )
-                                        val mb = (nanoDownloadProgress ?: 0L) / (1024 * 1024)
-                                        Text(
-                                            text = "${mb} MB downloaded",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White.copy(alpha = 0.4f),
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
-                                        androidx.compose.material3.LinearProgressIndicator(
+                                        Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(top = 8.dp)
-                                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)),
-                                            color = MaterialTheme.colorScheme.primary,
-                                            trackColor = Color.White.copy(alpha = 0.1f)
+                                                .fillMaxHeight(0.5f)
+                                                .background(
+                                                    brush = Brush.verticalGradient(
+                                                        colors = listOf(accentColor, Color.Transparent)
+                                                    )
+                                                )
                                         )
-                                    }
-                                }
-                                aiMixError != null && aiMixes.isEmpty() -> {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = "Couldn't generate mixes",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.7f)
-                                        )
-                                        Text(
-                                            text = aiMixError ?: "",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White.copy(alpha = 0.4f),
-                                            maxLines = 3,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
-                                        TextButton(onClick = { viewModel.retryAiMixes() }) {
-                                            Text("Retry", color = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                }
-                                aiMixesLoading && aiMixes.isEmpty() -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(150.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            CircularProgressIndicator(color = Color.White)
-                                            Spacer(modifier = Modifier.height(8.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(16.dp),
+                                            verticalArrangement = Arrangement.Bottom
+                                        ) {
                                             Text(
-                                                text = "Generating mixes...",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White.copy(alpha = 0.5f)
+                                                text = mix.name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                        }
-                                    }
-                                }
-                                aiMixes.isNotEmpty() -> {
-                                    val configuration = LocalConfiguration.current
-                                    val screenWidth = configuration.screenWidthDp.dp
-                                    val mixCardWidth = (screenWidth - 72.dp) / 2.2f
-
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                        contentPadding = PaddingValues(horizontal = 16.dp),
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                                    ) {
-                                        itemsIndexed(aiMixes) { index, mix ->
-                                            val accentColor = MixAccentColors[index % MixAccentColors.size]
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = mix.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color.White.copy(alpha = 0.7f),
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
                                             Box(
                                                 modifier = Modifier
-                                                    .width(mixCardWidth)
-                                                    .aspectRatio(1f / 1.4f)
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(Color(0xFF1A1A1A))
-                                                    .clickable { onMixClick(mix) }
+                                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .fillMaxHeight(0.5f)
-                                                        .background(
-                                                            brush = Brush.verticalGradient(
-                                                                colors = listOf(accentColor, Color.Transparent)
-                                                            )
-                                                        )
+                                                Text(
+                                                    text = "${mix.tracks.size} tracks",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White.copy(alpha = 0.7f)
                                                 )
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .padding(16.dp),
-                                                    verticalArrangement = Arrangement.Bottom
-                                                ) {
-                                                    Text(
-                                                        text = mix.name,
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White,
-                                                        maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    Spacer(modifier = Modifier.height(4.dp))
-                                                    Text(
-                                                        text = mix.description,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = Color.White.copy(alpha = 0.7f),
-                                                        maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    Text(
-                                                        text = "${mix.tracks.size} tracks",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color.White.copy(alpha = 0.5f)
-                                                    )
-                                                }
                                             }
                                         }
-                                    }
-                                }
-                                else -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 16.dp)
-                                    ) {
-                                        Text(
-                                            text = "Mixes will appear here after your library is analysed",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.4f)
-                                        )
                                     }
                                 }
                             }
                         }
                     }
-                    */
+
 
                     if (searchQuery.isBlank() && recentlyPlayedAlbums.isNotEmpty()) {
                         stickyHeader(key = "recently_played_header") {
