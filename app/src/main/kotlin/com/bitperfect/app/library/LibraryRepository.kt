@@ -180,6 +180,7 @@ open class LibraryRepository(private val context: Context) {
                 put("artist", artist)
 
                 if (trackId != null) {
+                    put("trackId", trackId)
                     val tags = getTrackFlacTags(trackId)
                     tags["GENRE"]?.let { put("genre", it) }
                     tags["DATE"]?.let { put("year", it) }
