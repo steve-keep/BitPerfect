@@ -69,7 +69,8 @@ open class LibraryRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        return recentAlbumsMap.values.toList().takeLast(limit).reversed()
+        val validAlbumIds = getLibrary(outputFolderUriString).flatMap { it.albums }.map { it.id }.toSet()
+        return recentAlbumsMap.values.filter { validAlbumIds.contains(it.second.id) }.takeLast(limit).reversed()
     }
 
     open fun getLatestRippedAlbums(outputFolderUriString: String?, limit: Int = 10): List<Pair<ArtistInfo, AlbumInfo>> {
@@ -123,7 +124,8 @@ open class LibraryRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        return recentAlbumsMap.values.toList().takeLast(limit).reversed()
+        val validAlbumIds = getLibrary(outputFolderUriString).flatMap { it.albums }.map { it.id }.toSet()
+        return recentAlbumsMap.values.filter { validAlbumIds.contains(it.second.id) }.takeLast(limit).reversed()
     }
 
     private fun readFlacTags(filePath: String): Map<String, String> {
