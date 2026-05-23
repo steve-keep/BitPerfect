@@ -295,11 +295,10 @@ open class AppViewModel(
                 _ripStates.value = states
 
                 // Check if all tracks are done ripping
+                // If there are any warnings or errors, we do not consider it "done" so the UI stays open
                 val isDone = states.values.all {
                     it.status == RipStatus.SUCCESS ||
-                    it.status == RipStatus.UNVERIFIED ||
-                    it.status == RipStatus.WARNING ||
-                    it.status == RipStatus.ERROR
+                    it.status == RipStatus.UNVERIFIED
                 }
 
                 if (states.isNotEmpty() && isDone && !hasHandledRipCompletion) {
