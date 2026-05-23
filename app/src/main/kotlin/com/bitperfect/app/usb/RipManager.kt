@@ -244,7 +244,7 @@ class RipManager(
 
                 val analyser = AudioAnalyser()
 
-                val chunkSize = 8 // read ~8 sectors at a time
+                val chunkSize = 16 // read ~16 sectors at a time
                 val lbaStart = entry.lba + tocOffset
 
                 val (firstLba, lastReadableLba) = ripLbaRange(

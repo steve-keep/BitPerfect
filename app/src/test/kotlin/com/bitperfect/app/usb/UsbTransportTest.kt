@@ -100,14 +100,14 @@ class UsbTransportTest {
     }
 
     @Test
-    fun `bulkTransferFully returns totalRead when error occurs mid-transfer`() {
+    fun `bulkTransferFully returns error when error occurs mid-transfer`() {
         // The transport returns 512, then error (-1)
         val fakeTransport = FakeUsbTransport(listOf(512, -1))
         val buffer = ByteArray(1536)
 
         val totalRead = fakeTransport.bulkTransferFully(endpoint, buffer, 1536, 1000)
 
-        assertEquals(512, totalRead)
+        assertEquals(-1, totalRead)
         assertEquals(2, fakeTransport.callCount)
     }
 
