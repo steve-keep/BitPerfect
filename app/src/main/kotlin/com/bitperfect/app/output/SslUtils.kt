@@ -14,8 +14,9 @@ internal fun openTrustAllConnection(url: String): java.net.HttpURLConnection {
 
     // Accept self-signed certs for HTTPS endpoints
     if (conn is javax.net.ssl.HttpsURLConnection) {
+        @SuppressWarnings("kotlin:S4830")
         val trustAll = arrayOf<TrustManager>(
-            @android.annotation.SuppressLint("TrustAllX509TrustManager", "CustomX509TrustManager")
+            @android.annotation.SuppressLint("CustomX509TrustManager")
             object : X509TrustManager {
                 override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
                 override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {} // lgtm[java/insecure-trustmanager] lgtm[kt/insecure-trustmanager]
