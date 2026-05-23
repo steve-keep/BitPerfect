@@ -57,7 +57,7 @@ class UsbDriveDetector(
                         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
                     }
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        device?.let { Thread { interrogateDevice(it) }.start() }
+                        device?.let { scope.launch { interrogateDevice(it) } }
                     } else {
                         AppLogger.d(TAG, "permission denied for device $device")
                         _driveStatus.value = DriveStatus.PermissionDenied
@@ -159,7 +159,7 @@ class UsbDriveDetector(
         if (!isMassStorageDevice(device)) return
 
         if (usbManager.hasPermission(device)) {
-            Thread { interrogateDevice(device) }.start()
+            scope.launch { interrogateDevice(device) }
         } else {
             _driveStatus.value = DriveStatus.Connecting()
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -176,7 +176,7 @@ class UsbDriveDetector(
         }
     }
 
-    private fun interrogateDevice(device: UsbDevice) {
+    private suspend fun interrogateDevice(device: UsbDevice) {
         pollingJob?.cancel()
         pollingJob = null
         cleanupConnection()
@@ -255,8 +255,10 @@ class UsbDriveDetector(
                 devicePath = device.deviceName
             )
 
-            // TEST UNIT READY
-            val turResult = executeTestUnitReady(transportLocal, outEndpoint, inEndpoint)
+            // Single TUR during interrogation — just establish initial state.
+            // The polling loop handles spin-up → DiscReady from here.
+            val cbwTag = 1
+            val turResult = executeSingleTestUnitReady(transportLocal, outEndpoint, inEndpoint, cbwTag)
             when (turResult) {
                 TurResult.READY -> {
                     val tocResult = readTocWithRetry(transportLocal, outEndpoint, inEndpoint)
@@ -303,7 +305,8 @@ class UsbDriveDetector(
             try {
                 var cbwTag = 100 // Start from a reasonably high tag to avoid overlap with interrogate
                 while (isActive) {
-                    delay(2000)
+                    val pollInterval = if (_driveStatus.value is DriveStatus.SpinningUp) 500L else 2000L
+                    delay(pollInterval)
 
                     val currentTransport = transport
                     val currentOutEndpoint = outEndpoint
@@ -340,27 +343,6 @@ class UsbDriveDetector(
                 AppLogger.e(TAG, "Error in polling loop", e)
             }
         }
-    }
-
-    private fun executeTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): TurResult {
-        for (attempt in 1..10) {
-            val result = executeSingleTestUnitReady(transport, outEndpoint, inEndpoint, attempt * 2)
-            if (result == TurResult.READY) {
-                return TurResult.READY
-            } else if (result == TurResult.SPINNING_UP) {
-                // If spinning up, we can still wait and retry, but we want to potentially return this state
-                // We'll return NOT_READY for now to keep retrying, unless we decide we want to bubble up the SPINNING_UP state immediately
-                // However, the original code retried TUR multiple times during interrogate. If we want it to bubble up SPINNING_UP immediately during interrogate, we can return it.
-                // Or we can return it after retries exhaust, or wait.
-                // The task asks to transition to SpinningUp state. We can bubble it up so the caller can handle it.
-                return TurResult.SPINNING_UP
-            }
-            if (attempt < 10) {
-                Thread.sleep(1000)
-            }
-        }
-        AppLogger.w(TAG, "TUR: Exhausted all attempts, drive not ready")
-        return TurResult.NOT_READY
     }
 
     private fun executeSingleTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): TurResult {
@@ -416,14 +398,14 @@ class UsbDriveDetector(
         return TurResult.READY
     }
 
-    private fun readTocWithRetry(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): Pair<com.bitperfect.core.models.DiscToc, ByteArray>? {
+    private suspend fun readTocWithRetry(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint): Pair<com.bitperfect.core.models.DiscToc, ByteArray>? {
         val tocCommand = ReadTocCommand(transport, outEndpoint, inEndpoint)
         var tocResult: Pair<com.bitperfect.core.models.DiscToc, ByteArray>? = null
         for (attempt in 1..3) {
             tocResult = tocCommand.execute()
             if (tocResult != null) break
             if (attempt < 3) {
-                Thread.sleep(500)
+                delay(500)
             }
         }
         if (tocResult == null) {
