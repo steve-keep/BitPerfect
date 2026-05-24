@@ -101,8 +101,8 @@ open class AppViewModel(
     private val _totalTracks = MutableStateFlow(0)
     val totalTracks: StateFlow<Int> = _totalTracks.asStateFlow()
 
-    private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.AlbumInfo>>(emptyList())
-    val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.AlbumInfo>> = _recentlyPlayedAlbums
+    private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>>(emptyList())
+    val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>> = _recentlyPlayedAlbums
 
     private val _latestRippedAlbums = MutableStateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>>(emptyList())
     val latestRippedAlbums: StateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>> = _latestRippedAlbums
@@ -502,8 +502,35 @@ open class AppViewModel(
 
             _totalTracks.value = libraryRepository.getTotalTracks(uriString)
 
-            val recent = libraryRepository.getRecentlyPlayedAlbums(uriString)
-            _recentlyPlayedAlbums.value = recent.map { it.second }
+            val recent = libraryRepository.getRecentlyPlayedAlbums(uriString, 50)
+            val artistCounts = mutableMapOf<String, Int>()
+            for ((artistInfo, _) in recent) {
+                artistCounts[artistInfo.name] = artistCounts.getOrDefault(artistInfo.name, 0) + 1
+            }
+
+            val processedArtists = mutableSetOf<String>()
+            val recentlyPlayedItems = mutableListOf<com.bitperfect.app.library.RecentlyPlayedItem>()
+
+            for ((artistInfo, albumInfo) in recent) {
+                if (recentlyPlayedItems.size >= 10) break
+
+                val count = artistCounts.getOrDefault(artistInfo.name, 0)
+                if (count > 1) {
+                    if (processedArtists.contains(artistInfo.name)) {
+                        continue
+                    }
+                    val thumbnailUrl = libraryRepository.getArtistThumbnailUrl(artistInfo.name, uriString)
+                    if (thumbnailUrl != null) {
+                        recentlyPlayedItems.add(com.bitperfect.app.library.RecentlyPlayedItem.ArtistGroupItem(artistInfo.name, thumbnailUrl))
+                        processedArtists.add(artistInfo.name)
+                    } else {
+                        recentlyPlayedItems.add(com.bitperfect.app.library.RecentlyPlayedItem.AlbumItem(albumInfo))
+                    }
+                } else {
+                    recentlyPlayedItems.add(com.bitperfect.app.library.RecentlyPlayedItem.AlbumItem(albumInfo))
+                }
+            }
+            _recentlyPlayedAlbums.value = recentlyPlayedItems
 
             val latest = libraryRepository.getLatestRippedAlbums(uriString)
             _latestRippedAlbums.value = latest

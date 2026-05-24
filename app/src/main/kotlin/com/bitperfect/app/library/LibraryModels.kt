@@ -4,6 +4,11 @@ import android.net.Uri
 
 data class AlbumInfo(val id: Long, val title: String, val artUri: Uri?)
 data class ArtistInfo(val id: Long, val name: String, val albums: List<AlbumInfo>)
+
+sealed interface RecentlyPlayedItem {
+    data class AlbumItem(val album: AlbumInfo) : RecentlyPlayedItem
+    data class ArtistGroupItem(val artistName: String, val thumbnailUrl: String) : RecentlyPlayedItem
+}
 data class TrackInfo(
     val id: Long,
     val title: String,
