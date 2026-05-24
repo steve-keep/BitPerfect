@@ -41,13 +41,13 @@ class WiimOutputController(
         pollingJob = scope.launch {
             while (isActive) {
                 try {
-                    val url = URL("https://${target.ipAddress}/httpapi.asp?command=getPlayerStatus")
+                    val url = URL("https://${target.ipAddress}/httpapi.asp?command=getPlayerStatusEx")
                     val conn = openTrustAllConnection(url.toString())
                     conn.connectTimeout = 2000
                     conn.readTimeout = 2000
                     if (conn.responseCode == 200) {
                         val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                        _isPlaying.value = json.optString("status") == "play"
+                        _isPlaying.value = json.optString("play_status") == "play"
                     }
                     conn.disconnect()
                 } catch (e: Exception) {
