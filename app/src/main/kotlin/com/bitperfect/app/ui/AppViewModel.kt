@@ -230,7 +230,8 @@ open class AppViewModel(
     val isControllerReady: StateFlow<Boolean> = playerRepository.isControllerReady
     val isPlaying: StateFlow<Boolean> = outputRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
-    val positionMs: StateFlow<Long> = playerRepository.positionMs
+    private val _positionMs = MutableStateFlow(0L)
+    val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
     val lrcLines: StateFlow<List<com.bitperfect.app.player.LrcLine>> = playerRepository.syncedLyrics
         .map { raw -> if (raw != null) com.bitperfect.app.player.parseLrc(raw) else emptyList() }
@@ -282,6 +283,14 @@ open class AppViewModel(
 
     init {
         loadLibrary()
+
+        viewModelScope.launch {
+            playerRepository.positionMs.collect {
+                if (activeDevice.value !is OutputDevice.Upnp) {
+                    _positionMs.value = it
+                }
+            }
+        }
 
         viewModelScope.launch {
             ripSession.ripStates.collect { states ->
@@ -726,7 +735,13 @@ open class AppViewModel(
     }
 
     fun pollPosition() {
-        playerRepository.pollPosition()
+        viewModelScope.launch {
+            if (activeDevice.value is OutputDevice.Upnp) {
+                _positionMs.value = outputRepository.getPositionMs()
+            } else {
+                playerRepository.pollPosition()
+            }
+        }
     }
 
     fun shareRipInfo(trackNumber: Int) {

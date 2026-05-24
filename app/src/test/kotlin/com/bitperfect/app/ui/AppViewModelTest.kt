@@ -162,6 +162,7 @@ class AppViewModelTest {
         try {
             val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
             org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
             AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
         } catch (e: Exception) {
             // Ignore NPE or other initialization errors from real PlayerRepository in tests
@@ -335,6 +336,8 @@ class AppViewModelTest {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val bannerState = vm.ripBannerState.value
@@ -355,6 +358,7 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
@@ -393,6 +397,7 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -428,6 +433,7 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -456,6 +462,7 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val discMetadataField = AppViewModel::class.java.getDeclaredField("_discMetadata")
@@ -512,6 +519,7 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
