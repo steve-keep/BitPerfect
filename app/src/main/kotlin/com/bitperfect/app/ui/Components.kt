@@ -541,7 +541,8 @@ fun DeviceList(
 fun LibrarySection(
     viewModel: AppViewModel,
     modifier: Modifier = Modifier,
-    onAlbumClick: (AlbumInfo) -> Unit = {}
+    onAlbumClick: (AlbumInfo) -> Unit = {},
+    onArtistClick: (String) -> Unit = {}
 ) {
     val isConfigured by viewModel.isOutputFolderConfigured.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -750,34 +751,68 @@ fun LibrarySection(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(horizontal = 16.dp)
                             ) {
-                                items(recentlyPlayedAlbums) { album ->
-                                    Column(
-                                        modifier = Modifier
-                                            .width(itemWidth)
-                                            .clickable { onAlbumClick(album) },
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        AsyncImage(
-                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                                .data(album.artUri)
-                                                .crossfade(true)
-                                                .diskCachePolicy(CachePolicy.ENABLED)
-                                                .build(),
-                                            contentDescription = album.title,
-                                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            placeholder = ColorPainter(Color(0xFF141414)),
-                                            error = ColorPainter(Color(0xFF141414))
-                                        )
-                                        Text(
-                                            text = album.title,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = TextSecondary,
-                                            minLines = 2,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
+                                items(recentlyPlayedAlbums) { item ->
+                                    when (item) {
+                                        is com.bitperfect.app.library.RecentlyPlayedItem.AlbumItem -> {
+                                            Column(
+                                                modifier = Modifier
+                                                    .width(itemWidth)
+                                                    .clickable { onAlbumClick(item.album) },
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                AsyncImage(
+                                                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                        .data(item.album.artUri)
+                                                        .crossfade(true)
+                                                        .diskCachePolicy(CachePolicy.ENABLED)
+                                                        .build(),
+                                                    contentDescription = item.album.title,
+                                                    modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    placeholder = ColorPainter(Color(0xFF141414)),
+                                                    error = ColorPainter(Color(0xFF141414))
+                                                )
+                                                Text(
+                                                    text = item.album.title,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = TextSecondary,
+                                                    minLines = 2,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(top = 4.dp)
+                                                )
+                                            }
+                                        }
+                                        is com.bitperfect.app.library.RecentlyPlayedItem.ArtistGroupItem -> {
+                                            Column(
+                                                modifier = Modifier
+                                                    .width(itemWidth)
+                                                    .clickable { onArtistClick(item.artistName) },
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                AsyncImage(
+                                                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                        .data(item.thumbnailUrl)
+                                                        .crossfade(true)
+                                                        .diskCachePolicy(CachePolicy.ENABLED)
+                                                        .build(),
+                                                    contentDescription = item.artistName,
+                                                    modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(androidx.compose.foundation.shape.CircleShape),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    placeholder = ColorPainter(Color(0xFF141414)),
+                                                    error = ColorPainter(Color(0xFF141414))
+                                                )
+                                                Text(
+                                                    text = item.artistName,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = TextSecondary,
+                                                    minLines = 2,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(top = 4.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

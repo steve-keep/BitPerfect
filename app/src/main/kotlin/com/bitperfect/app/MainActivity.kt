@@ -373,6 +373,10 @@ class MainActivity : ComponentActivity() {
                                         onAlbumClick = { album ->
                                             appViewModel.selectAlbum(album.id, album.title)
                                             navController.navigate(AppRoutes.TrackList)
+                                        },
+                                        onArtistClick = { artistName ->
+                                            appViewModel.selectArtist(artistName)
+                                            navController.navigate(AppRoutes.Artist)
                                         }
                                     )
                                 }
