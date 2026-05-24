@@ -475,6 +475,15 @@ class RipManager(
         if (!isCancelled) {
             writeRipLog(albumDir, driveOffset, _trackStates.value)
         }
+        // Eject drive upon successful completion if not cancelled
+        if (!isCancelled) {
+            val allSuccessful = _trackStates.value.values.all {
+                it.status == RipStatus.SUCCESS || it.status == RipStatus.UNVERIFIED
+            }
+            if (allSuccessful) {
+                DeviceStateManager.ejectDrive()
+            }
+        }
     }
 
     private fun normalizeMeta(input: String): String =

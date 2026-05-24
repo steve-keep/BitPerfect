@@ -34,6 +34,20 @@ object DeviceStateManager {
         usbDriveDetector?.resumePolling()
     }
 
+    fun ejectDrive(): Boolean {
+        val transport = getTransport() ?: return false
+        val outEndpoint = getOutEndpoint() ?: return false
+        val inEndpoint = getInEndpoint() ?: return false
+        pausePolling()
+        var result = false
+        try {
+            result = EjectCommand(transport, outEndpoint, inEndpoint).execute()
+        } finally {
+            resumePolling()
+        }
+        return result
+    }
+
     fun getTransport(): UsbTransport? = usbDriveDetector?.transport
     fun getInEndpoint(): UsbEndpoint? = usbDriveDetector?.inEndpoint
     fun getOutEndpoint(): UsbEndpoint? = usbDriveDetector?.outEndpoint
