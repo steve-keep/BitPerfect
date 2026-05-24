@@ -171,7 +171,7 @@ class WiimOutputController(
         }
     }
 
-    suspend fun togglePlayPause() {
+    override suspend fun togglePlayPause() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:onepause")
         }

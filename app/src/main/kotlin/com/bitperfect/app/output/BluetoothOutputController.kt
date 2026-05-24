@@ -26,6 +26,10 @@ class BluetoothOutputController(
         playerRepository.pause()
     }
 
+    override suspend fun togglePlayPause() {
+        playerRepository.togglePlayPause()
+    }
+
     override suspend fun seekTo(positionMs: Long) {
         playerRepository.seekTo(positionMs)
     }

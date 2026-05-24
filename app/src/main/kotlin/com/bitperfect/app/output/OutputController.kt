@@ -15,6 +15,7 @@ interface OutputController {
 
     suspend fun play()
     suspend fun pause()
+    suspend fun togglePlayPause()
     suspend fun seekTo(positionMs: Long)
 
     /**

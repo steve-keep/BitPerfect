@@ -107,13 +107,8 @@ open class OutputRepository(
 
     open suspend fun play() = activeController.play()
     open suspend fun pause() = activeController.pause()
-    open suspend fun togglePlayPause(isPlaying: Boolean) {
-        val controller = activeController
-        if (controller is WiimOutputController) {
-            controller.togglePlayPause()
-        } else {
-            if (isPlaying) controller.pause() else controller.play()
-        }
+    open suspend fun togglePlayPause() {
+        activeController.togglePlayPause()
     }
     open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
 
