@@ -8,9 +8,6 @@ import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.library.LibraryRepository
 
-import com.bitperfect.app.library.AiMix
-import com.bitperfect.app.library.AiMixTrack
-import com.bitperfect.app.library.AiMixRepository
 import androidx.media3.common.MediaItem
 import com.bitperfect.core.utils.SettingsManager
 import kotlinx.coroutines.Dispatchers
@@ -91,14 +88,10 @@ open class AppViewModel(
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
     private val fetchItunesArtwork: suspend (String, String, Int?) -> ItunesArtwork? = { artist, album, trackCount ->
         ItunesArtworkRepository(application).fetchItunesArtwork(artist, album, trackCount)
-    },
-    private val aiMixRepository: AiMixRepository = AiMixRepository()
+    }
 ) : AndroidViewModel(application) {
 
     private val settingsManager = SettingsManager(application)
-
-    private val _aiMixes = MutableStateFlow<List<AiMix>>(emptyList())
-    val aiMixes: StateFlow<List<AiMix>> = _aiMixes.asStateFlow()
 
     private val accurateRipService = AccurateRipService()
 
@@ -490,36 +483,6 @@ open class AppViewModel(
 
 
 
-    private fun loadAiMixes() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val outputUri = settingsManager.outputFolderUri
-            val mixes = aiMixRepository.refreshMixes(getApplication(), outputUri)
-            _aiMixes.value = mixes
-        }
-    }
-
-    fun playMix(mix: AiMix) {
-        val outputUri = settingsManager.outputFolderUri
-        viewModelScope.launch(ioDispatcher) {
-            val resolvedTracks = mix.tracks.mapNotNull {
-                libraryRepository.getTrack(it.trackId, outputUri)
-            }
-            if (resolvedTracks.isNotEmpty()) {
-                _trackListViewState.value = TrackListViewState(
-                    title = mix.name,
-                    artistName = mix.description,
-                    coverArtUrl = null,
-                    tracks = resolvedTracks,
-                    isCdMode = false,
-                    otherAlbums = emptyList()
-                )
-                withContext(Dispatchers.Main) {
-                    playAlbum(resolvedTracks)
-                }
-            }
-        }
-    }
-
     fun loadLibrary() {
         val uriString = settingsManager.outputFolderUri
         _isOutputFolderConfigured.value = !uriString.isNullOrBlank()
@@ -535,8 +498,6 @@ open class AppViewModel(
 
             val latest = libraryRepository.getLatestRippedAlbums(uriString)
             _latestRippedAlbums.value = latest
-
-            loadAiMixes()
 
             // Rehydrate the track list if an album was selected but data was lost
             // (e.g. after returning from background or process recreation).

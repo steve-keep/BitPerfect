@@ -35,8 +35,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 
-import com.bitperfect.app.library.AiMix
-
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -543,16 +541,13 @@ fun DeviceList(
 fun LibrarySection(
     viewModel: AppViewModel,
     modifier: Modifier = Modifier,
-    onAlbumClick: (AlbumInfo) -> Unit = {},
-    onMixClick: (AiMix) -> Unit = {},
-    onNavigateToMixes: () -> Unit = {}
+    onAlbumClick: (AlbumInfo) -> Unit = {}
 ) {
     val isConfigured by viewModel.isOutputFolderConfigured.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredArtists by viewModel.filteredArtists.collectAsState()
     val recentlyPlayedAlbums by viewModel.recentlyPlayedAlbums.collectAsState()
     val latestRippedAlbums by viewModel.latestRippedAlbums.collectAsState()
-    val aiMixes by viewModel.aiMixes.collectAsState()
 
     val focusManager = LocalFocusManager.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -722,104 +717,6 @@ fun LibrarySection(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-
-                    if (searchQuery.isBlank() && aiMixes.isNotEmpty()) {
-                        stickyHeader(key = "mixes_header") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.background)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Your Mixes",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                    Text(
-                                        text = "See all mixes →",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.clickable { onNavigateToMixes() }
-                                    )
-                                }
-                            }
-                        }
-                        item {
-                            val mixCardWidth = (screenWidth - 72.dp) / 2.2f
-
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                            ) {
-                                itemsIndexed(aiMixes.take(5)) { index, mix ->
-                                    val accentColor = com.bitperfect.app.ui.MixAccentColors[index % com.bitperfect.app.ui.MixAccentColors.size]
-                                    Box(
-                                        modifier = Modifier
-                                            .width(mixCardWidth)
-                                            .aspectRatio(1f / 1.4f)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color(0xFF1A1A1A))
-                                            .clickable { onMixClick(mix) }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .fillMaxHeight(0.5f)
-                                                .background(
-                                                    brush = Brush.verticalGradient(
-                                                        colors = listOf(accentColor, Color.Transparent)
-                                                    )
-                                                )
-                                        )
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(16.dp),
-                                            verticalArrangement = Arrangement.Bottom
-                                        ) {
-                                            Text(
-                                                text = mix.name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = mix.description,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = Color.White.copy(alpha = 0.7f),
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                                            ) {
-                                                Text(
-                                                    text = "${mix.tracks.size} tracks",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White.copy(alpha = 0.7f)
-                                                )
-                                            }
                                         }
                                     }
                                 }
