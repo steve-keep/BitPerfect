@@ -111,6 +111,7 @@ open class OutputRepository(
         activeController.togglePlayPause()
     }
     open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
+    open suspend fun getPositionMs(): Long = activeController.getPositionMs()
 
     // --- Device switching ---
 

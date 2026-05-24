@@ -16,6 +16,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import android.content.ContentUris
+import android.net.Uri
 import java.io.File
 import java.io.FileInputStream
 import java.net.HttpURLConnection
@@ -112,13 +114,17 @@ class WiimOutputController(
         }
 
         httpServer?.stop()
-        httpServer = FlacHttpServer(wifiIp!!, trackList)
+        httpServer = FlacHttpServer(context, wifiIp!!, trackList)
         httpServer?.start(5000, false)
 
         val track = trackList.getOrNull(index) ?: return
         val url = "http://$wifiIp:${httpServer?.listeningPort}/track/${track.id}.flac"
 
-        val didl = buildDidl(track, url)
+        val artUrl = if (track.albumId != -1L)
+            "http://$wifiIp:${httpServer?.listeningPort}/art/${track.albumId}.jpg"
+        else null
+
+        val didl = buildDidl(track, url, artUrl)
 
         withContext(Dispatchers.IO) {
             val success = sendSoapAction(
@@ -229,14 +235,18 @@ class WiimOutputController(
         }
     }
 
-    private fun buildDidl(track: TrackInfo, url: String): String {
+    private fun buildDidl(track: TrackInfo, url: String, artUrl: String?): String {
+        val artNode = if (artUrl != null) """
+                    <upnp:albumArtURI dlna:profileID="JPEG_TN"
+                        xmlns:dlna="urn:schemas-dlna-org:metadata-1-0/">${escapeXml(artUrl)}</upnp:albumArtURI>"""
+        else ""
         return """
             <DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
                 <item id="${track.id}" parentID="0" restricted="1">
                     <dc:title>${escapeXml(track.title)}</dc:title>
                     <dc:creator>${escapeXml(track.artist)}</dc:creator>
                     <upnp:album>${escapeXml(track.albumTitle)}</upnp:album>
-                    <upnp:class>object.item.audioItem.musicTrack</upnp:class>
+                    <upnp:class>object.item.audioItem.musicTrack</upnp:class>$artNode
                     <res protocolInfo="http-get:*:audio/flac:*">$url</res>
                 </item>
             </DIDL-Lite>
@@ -311,9 +321,25 @@ class WiimOutputController(
         return null
     }
 
-    private inner class FlacHttpServer(val ip: String, val trackList: List<TrackInfo>) : NanoHTTPD(ip, 0) {
+    private inner class FlacHttpServer(val context: Context, val ip: String, val trackList: List<TrackInfo>) : NanoHTTPD(ip, 0) {
         override fun serve(session: IHTTPSession): Response {
             val uri = session.uri
+
+            if (uri.startsWith("/art/") && uri.endsWith(".jpg")) {
+                val albumIdStr = uri.substringAfter("/art/").substringBefore(".jpg")
+                val albumId = albumIdStr.toLongOrNull() ?: -1L
+                if (albumId < 0) return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
+                val artUri = ContentUris.withAppendedId(
+                    Uri.parse("content://media/external/audio/albumart"), albumId
+                )
+                val stream = try {
+                    context.contentResolver.openInputStream(artUri)
+                } catch (e: Exception) {
+                    null
+                } ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
+                return newChunkedResponse(Response.Status.OK, "image/jpeg", stream)
+            }
+
             if (!uri.startsWith("/track/") || !uri.endsWith(".flac")) {
                 return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
             }
@@ -326,6 +352,9 @@ class WiimOutputController(
             }
 
             val filePath = track.filePath ?: track.dataPath
+            if (filePath == null) {
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Path Not Found")
+            }
             val file = File(filePath)
             if (!file.exists()) {
                 return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Not Found")

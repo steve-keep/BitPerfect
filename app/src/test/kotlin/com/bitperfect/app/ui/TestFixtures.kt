@@ -25,5 +25,6 @@ fun fakeOutputRepository(application: Application, playerRepository: PlayerRepos
             playerRepository.togglePlayPause()
         }
         override suspend fun seekTo(positionMs: Long) { playerRepository.seekTo(positionMs) }
+        override suspend fun getPositionMs(): Long = playerRepository.positionMs.value
     }
 }
