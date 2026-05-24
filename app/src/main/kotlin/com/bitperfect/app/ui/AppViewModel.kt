@@ -746,7 +746,7 @@ open class AppViewModel(
 
     fun togglePlayPause() {
         viewModelScope.launch {
-            outputRepository.togglePlayPause(isPlaying.value)
+            outputRepository.togglePlayPause()
         }
     }
 

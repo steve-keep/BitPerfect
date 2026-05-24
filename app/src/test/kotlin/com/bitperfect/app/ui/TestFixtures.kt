@@ -21,8 +21,8 @@ fun fakeOutputRepository(application: Application, playerRepository: PlayerRepos
 
         override suspend fun play() { playerRepository.play() }
         override suspend fun pause() { playerRepository.pause() }
-        override suspend fun togglePlayPause(isPlaying: Boolean) {
-            if (isPlaying) playerRepository.pause() else playerRepository.play()
+        override suspend fun togglePlayPause() {
+            playerRepository.togglePlayPause()
         }
         override suspend fun seekTo(positionMs: Long) { playerRepository.seekTo(positionMs) }
     }
