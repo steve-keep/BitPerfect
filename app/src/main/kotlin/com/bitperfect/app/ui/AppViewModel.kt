@@ -628,6 +628,12 @@ open class AppViewModel(
         }
     }
 
+    fun ejectDrive() {
+        viewModelScope.launch(Dispatchers.IO) {
+            DeviceStateManager.ejectDrive()
+        }
+    }
+
     fun viewCdTracks() {
         val currentDriveStatus = driveStatus.value
         if (currentDriveStatus is DriveStatus.DiscReady && currentDriveStatus.toc != null) {
