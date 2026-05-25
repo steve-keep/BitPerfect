@@ -279,8 +279,7 @@ class WiimOutputController(
 
     private fun sendLinkPlayCommand(command: String): Boolean {
         return try {
-            val url = URL("http://${target.ipAddress}/httpapi.asp?command=$command")
-            val conn = url.openConnection() as HttpURLConnection
+            val conn = openTrustAllConnection("https://${target.ipAddress}/httpapi.asp?command=$command")
             conn.connectTimeout = 3000
             conn.readTimeout = 3000
             val code = conn.responseCode
@@ -295,8 +294,7 @@ class WiimOutputController(
     private fun sendSoapActionWithResponse(action: String, body: String): String? {
         if (target.avTransportControlUrl.isNullOrEmpty()) return null
         try {
-            val url = URL(target.avTransportControlUrl!!)
-            val connection = url.openConnection() as HttpURLConnection
+            val connection = openTrustAllConnection(target.avTransportControlUrl!!)
             connection.requestMethod = "POST"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
