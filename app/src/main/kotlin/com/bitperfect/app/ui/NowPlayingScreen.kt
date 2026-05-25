@@ -166,13 +166,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                             val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { dismissValue ->
-                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                                        val actualIndex = currentItemIndex + currentQueueIndex + 1
-                                        viewModel.removeQueueItem(actualIndex)
-                                        false
-                                    } else {
-                                        false
-                                    }
+                                    dismissValue == SwipeToDismissBoxValue.EndToStart
                                 },
                                 positionalThreshold = { with(density) { 100.dp.toPx() } }
                             )
@@ -186,7 +180,11 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .padding(vertical = 8.dp)
-                                                .background(Color.Red, RoundedCornerShape(8.dp)),
+                                                .background(Color.Red, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    val actualIndex = currentItemIndex + currentQueueIndex + 1
+                                                    viewModel.removeQueueItem(actualIndex)
+                                                },
                                             contentAlignment = Alignment.CenterEnd
                                         ) {
                                             Text(
