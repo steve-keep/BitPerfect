@@ -17,7 +17,6 @@ class RereadEngineTest {
             pcm = pcm,
             overlapHead = overlapHeadBytes,
             overlapTail = overlapTailBytes,
-            confidence = RipConfidence.HIGH,
             rereadCount = 0
         )
     }
@@ -60,9 +59,9 @@ class RereadEngineTest {
         ) { lba, count ->
             readCount++
             when (readCount) {
-                1 -> VerifiedChunk(lba, lba + count, attempt1Pcm, verifier.extractOverlapHead(attempt1Pcm), verifier.extractOverlapTail(attempt1Pcm), RipConfidence.LOW, readCount)
-                2 -> VerifiedChunk(lba, lba + count, attempt2Pcm, verifier.extractOverlapHead(attempt2Pcm), verifier.extractOverlapTail(attempt2Pcm), RipConfidence.LOW, readCount)
-                3 -> VerifiedChunk(lba, lba + count, attempt3Pcm, verifier.extractOverlapHead(attempt3Pcm), verifier.extractOverlapTail(attempt3Pcm), RipConfidence.LOW, readCount)
+                1 -> VerifiedChunk(lba, lba + count, attempt1Pcm, verifier.extractOverlapHead(attempt1Pcm), verifier.extractOverlapTail(attempt1Pcm), readCount)
+                2 -> VerifiedChunk(lba, lba + count, attempt2Pcm, verifier.extractOverlapHead(attempt2Pcm), verifier.extractOverlapTail(attempt2Pcm), readCount)
+                3 -> VerifiedChunk(lba, lba + count, attempt3Pcm, verifier.extractOverlapHead(attempt3Pcm), verifier.extractOverlapTail(attempt3Pcm), readCount)
                 else -> null
             }
         }
@@ -71,7 +70,6 @@ class RereadEngineTest {
         val recoveredChunk = (result as RereadRecoveryResult.Recovered).chunk
         assertEquals(3, readCount)
         assertEquals(3, recoveredChunk.rereadCount)
-        assertEquals(RipConfidence.HIGH, recoveredChunk.confidence)
     }
 
     @Test
@@ -87,14 +85,13 @@ class RereadEngineTest {
         val result = engine.recover(prevChunk, failedChunk) { lba, count ->
             readCount++
             val pcm = ByteArray(sectorSize * 2) { readCount.toByte() } // Never matches previous attempt
-            VerifiedChunk(lba, lba + count, pcm, verifier.extractOverlapHead(pcm), verifier.extractOverlapTail(pcm), RipConfidence.LOW, readCount)
+            VerifiedChunk(lba, lba + count, pcm, verifier.extractOverlapHead(pcm), verifier.extractOverlapTail(pcm), readCount)
         }
 
         assertTrue(result is RereadRecoveryResult.Failed)
         val failedResultChunk = (result as RereadRecoveryResult.Failed).chunk
         assertEquals(3, readCount) // Should stop exactly at maxRereads
         assertEquals(3, failedResultChunk.rereadCount)
-        assertEquals(RipConfidence.LOW, failedResultChunk.confidence)
         assertEquals(3.toByte(), failedResultChunk.pcm[0]) // Selects latest reread candidate
     }
 }

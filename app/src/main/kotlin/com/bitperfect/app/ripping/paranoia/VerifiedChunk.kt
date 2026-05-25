@@ -6,7 +6,6 @@ data class VerifiedChunk(
     val pcm: ByteArray,
     val overlapHead: ByteArray,
     val overlapTail: ByteArray,
-    val confidence: RipConfidence,
     val rereadCount: Int
 ) {
     override fun equals(other: Any?): Boolean {
@@ -20,7 +19,6 @@ data class VerifiedChunk(
         if (!pcm.contentEquals(other.pcm)) return false
         if (!overlapHead.contentEquals(other.overlapHead)) return false
         if (!overlapTail.contentEquals(other.overlapTail)) return false
-        if (confidence != other.confidence) return false
         if (rereadCount != other.rereadCount) return false
 
         return true
@@ -32,7 +30,6 @@ data class VerifiedChunk(
         result = 31 * result + pcm.contentHashCode()
         result = 31 * result + overlapHead.contentHashCode()
         result = 31 * result + overlapTail.contentHashCode()
-        result = 31 * result + confidence.hashCode()
         result = 31 * result + rereadCount
         return result
     }

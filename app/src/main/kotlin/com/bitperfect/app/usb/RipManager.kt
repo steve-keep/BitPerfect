@@ -18,6 +18,8 @@ import com.bitperfect.app.ripping.paranoia.RereadEngine
 import com.bitperfect.app.ripping.paranoia.VerifiedChunk
 import com.bitperfect.app.ripping.paranoia.RereadRecoveryResult
 import com.bitperfect.app.ripping.paranoia.RipConfidence
+import com.bitperfect.app.ripping.paranoia.RipConfidenceEvaluator
+import com.bitperfect.app.ripping.paranoia.SuspiciousRead
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -59,7 +61,9 @@ data class TrackRipState(
     val totalSectors: Int = 0,
     val sectorsRead: Int = 0,
     val totalSamples: Long = 0L,
-    val durationSeconds: Double = 0.0
+    val durationSeconds: Double = 0.0,
+    val confidence: RipConfidence = RipConfidence.HIGH,
+    val suspiciousRegions: List<com.bitperfect.app.ripping.paranoia.SuspiciousRead> = emptyList()
 )
 
 class RipManager(
@@ -93,6 +97,7 @@ class RipManager(
 
     private var isCancelled = false
     private val verifier = AccurateRipVerifier()
+    private val confidenceEvaluator = RipConfidenceEvaluator()
 
     private var albumDir: DocumentFile? = null
 
@@ -321,9 +326,10 @@ class RipManager(
                             pcm = pcmData,
                             overlapHead = overlapVerifier.extractOverlapHead(pcmData),
                             overlapTail = overlapVerifier.extractOverlapTail(pcmData),
-                            confidence = RipConfidence.HIGH,
                             rereadCount = 0
                         )
+
+                        var currentChunkConfidence = RipConfidence.HIGH
 
                         var committedPcm: ByteArray? = null
 
@@ -349,11 +355,26 @@ class RipManager(
                                                 pcm = newPcm,
                                                 overlapHead = overlapVerifier.extractOverlapHead(newPcm),
                                                 overlapTail = overlapVerifier.extractOverlapTail(newPcm),
-                                                confidence = RipConfidence.LOW, // To be potentially updated by engine
                                                 rereadCount = 0
                                             )
                                         } else null
                                     }
+                                )
+
+                                val suspiciousRead = SuspiciousRead(
+                                    startLba = currentChunk.startLba,
+                                    endLba = currentChunk.endLba,
+                                    rereadAttempts = when (recoveryResult) {
+                                        is RereadRecoveryResult.Recovered -> recoveryResult.chunk.rereadCount
+                                        is RereadRecoveryResult.Failed -> recoveryResult.chunk.rereadCount
+                                    },
+                                    recovered = recoveryResult is RereadRecoveryResult.Recovered
+                                )
+
+                                currentChunkConfidence = confidenceEvaluator.evaluateChunkConfidence(
+                                    overlapMatchedImmediately = false,
+                                    rereadsPerformed = suspiciousRead.rereadAttempts,
+                                    recoverySucceeded = suspiciousRead.recovered
                                 )
 
                                 currentChunk = when (recoveryResult) {
@@ -361,8 +382,30 @@ class RipManager(
                                     is RereadRecoveryResult.Failed -> recoveryResult.chunk
                                 }
 
+                                val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
+                                val currentSuspiciousRegions = state.suspiciousRegions.toMutableList()
+                                currentSuspiciousRegions.add(suspiciousRead)
+
+                                updateTrackState(
+                                    trackNumber = trackNumber,
+                                    status = state.status,
+                                    progress = state.progress,
+                                    suspiciousRegions = currentSuspiciousRegions
+                                )
+
                                 committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
                             }
+                        }
+
+                        val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
+                        val newConfidence = confidenceEvaluator.aggregateTrackConfidence(state.confidence, currentChunkConfidence)
+                        if (newConfidence != state.confidence) {
+                            updateTrackState(
+                                trackNumber = trackNumber,
+                                status = state.status,
+                                progress = state.progress,
+                                confidence = newConfidence
+                            )
                         }
 
                         pendingChunk = currentChunk
@@ -377,7 +420,7 @@ class RipManager(
 
                         if (isFinalChunk) {
                             if (pendingChunk != null) {
-                                val finalCommitted = overlapVerifier.commitVerifiedAudio(pendingChunk, isFinal = true)
+                                val finalCommitted = overlapVerifier.commitVerifiedAudio(pendingChunk!!, isFinal = true)
                                 if (finalCommitted.isNotEmpty()) {
                                     val trimmed = if (isFirstSector && skipBytes > 0) finalCommitted.copyOfRange(skipBytes, finalCommitted.size) else finalCommitted
                                     encoder.encode(trimmed)
@@ -396,6 +439,29 @@ class RipManager(
                             isCancelled = true
                             throw java.io.IOException("Disc removed or drive not ready during rip")
                         }
+
+                        val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
+                        val newConfidence = confidenceEvaluator.aggregateTrackConfidence(state.confidence, RipConfidence.DAMAGED)
+
+                        val suspiciousRead = SuspiciousRead(
+                            startLba = firstLba + sectorsRead,
+                            endLba = firstLba + effectiveTotalSectors,
+                            rereadAttempts = 3, // UsbReadSession.MAX_RETRIES
+                            recovered = false
+                        )
+                        val currentSuspiciousRegions = state.suspiciousRegions.toMutableList()
+                        currentSuspiciousRegions.add(suspiciousRead)
+
+                        if (newConfidence != state.confidence || state.suspiciousRegions.size != currentSuspiciousRegions.size) {
+                            updateTrackState(
+                                trackNumber = trackNumber,
+                                status = state.status,
+                                progress = state.progress,
+                                confidence = newConfidence,
+                                suspiciousRegions = currentSuspiciousRegions
+                            )
+                        }
+
                         throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after 3 attempts") // see UsbReadSession.MAX_RETRIES
                     }
 
@@ -672,7 +738,9 @@ class RipManager(
         totalSectors: Int? = null,
         sectorsRead: Int? = null,
         totalSamples: Long? = null,
-        durationSeconds: Double? = null
+        durationSeconds: Double? = null,
+        confidence: RipConfidence? = null,
+        suspiciousRegions: List<com.bitperfect.app.ripping.paranoia.SuspiciousRead>? = null
     ) {
         val currentStates = _trackStates.value.toMutableMap()
         val existingState = currentStates[trackNumber] ?: TrackRipState(trackNumber = trackNumber, discNumber = metadata.discNumber ?: 1)
@@ -689,7 +757,9 @@ class RipManager(
             totalSectors = totalSectors ?: existingState.totalSectors,
             sectorsRead = sectorsRead ?: existingState.sectorsRead,
             totalSamples = totalSamples ?: existingState.totalSamples,
-            durationSeconds = durationSeconds ?: existingState.durationSeconds
+            durationSeconds = durationSeconds ?: existingState.durationSeconds,
+            confidence = confidence ?: existingState.confidence,
+            suspiciousRegions = suspiciousRegions ?: existingState.suspiciousRegions
         )
         _trackStates.value = currentStates
     }

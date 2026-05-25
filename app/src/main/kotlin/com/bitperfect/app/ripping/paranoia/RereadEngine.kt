@@ -48,7 +48,7 @@ class RereadEngine(
 
                 if (overlapsProperly && isStable) {
                      AppLogger.d("RereadEngine", "reread_recovered lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=HIGH")
-                     return RereadRecoveryResult.Recovered(currentAttempt.copy(confidence = RipConfidence.HIGH, rereadCount = attempt))
+                     return RereadRecoveryResult.Recovered(currentAttempt.copy(rereadCount = attempt))
                 }
 
                 lastAttempt = currentAttempt
@@ -59,7 +59,7 @@ class RereadEngine(
         }
 
         AppLogger.w("RereadEngine", "reread_failed lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=LOW")
-        return RereadRecoveryResult.Failed(lastAttempt.copy(confidence = RipConfidence.LOW, rereadCount = maxRereads))
+        return RereadRecoveryResult.Failed(lastAttempt.copy(rereadCount = maxRereads))
     }
 
     private fun isStableCandidate(
