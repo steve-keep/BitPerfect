@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.BluetoothAudio
+import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.CircleShape
@@ -148,7 +148,7 @@ fun NowPlayingBar(
                             modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.BluetoothAudio,
+                                imageVector = Icons.Default.Speaker,
                                 contentDescription = "Output Device",
                                 tint = if (isExternalOutput) VerificationGreen else Color.White.copy(alpha = 0.85f),
                                 modifier = Modifier.size(22.dp)

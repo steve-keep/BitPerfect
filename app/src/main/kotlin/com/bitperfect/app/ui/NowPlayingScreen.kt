@@ -60,6 +60,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.bitperfect.app.ui.theme.VerificationGreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -87,7 +90,13 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
+fun NowPlayingScreen(
+    viewModel: AppViewModel,
+    enabled: Boolean,
+    isExternalOutput: Boolean,
+    onOutputDeviceClick: () -> Unit,
+    onCollapse: () -> Unit = {}
+) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val positionMs by viewModel.positionMs.collectAsState()
     val lrcLines by viewModel.lrcLines.collectAsState()
@@ -530,29 +539,38 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
+                    .padding(vertical = 16.dp, horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onOutputDeviceClick,
+                    enabled = enabled,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Speaker,
+                        contentDescription = "Output Device",
+                        tint = if (isExternalOutput) VerificationGreen else Color.White.copy(alpha = if (enabled) 0.85f else 0.4f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
                         coroutineScope.launch {
                             bottomSheetScaffoldState.bottomSheetState.expand()
                         }
-                    }
-                    .padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val nextItemTitle = if (currentQueueIndex + 1 < upNextQueue.size) {
-                    val nextItem = upNextQueue[currentQueueIndex + 1]
-                    "\"${nextItem.mediaMetadata.title}\" by ${nextItem.mediaMetadata.artist}"
-                } else {
-                    "Nothing playing next"
+                    },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        contentDescription = "Queue",
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
-
-                Text(
-                    text = "Next: $nextItemTitle",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }

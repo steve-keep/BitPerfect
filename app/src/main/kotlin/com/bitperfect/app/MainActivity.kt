@@ -267,6 +267,9 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     NowPlayingScreen(
                                         viewModel = appViewModel,
+                                        enabled = isControllerReady,
+                                        isExternalOutput = isExternalOutput,
+                                        onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
                                         onCollapse = {
                                             coroutineScope.launch {
                                                 bottomSheetScaffoldState.bottomSheetState.partialExpand()
