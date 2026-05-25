@@ -489,6 +489,21 @@ open class AppViewModel(
         }
     }
 
+    fun shuffleAndPlayArtist() {
+        val artist = _selectedArtist.value ?: return
+        viewModelScope.launch {
+            val allTracks = mutableListOf<TrackInfo>()
+            for (album in artist.albums) {
+                allTracks.addAll(libraryRepository.getTracksForAlbum(album.id, settingsManager.outputFolderUri))
+            }
+            if (allTracks.isNotEmpty()) {
+                val shuffledTracks = allTracks.shuffled()
+                _playingTracks.value = shuffledTracks
+                outputRepository.takeOverAndPlay(shuffledTracks, 0)
+            }
+        }
+    }
+
 
 
 
