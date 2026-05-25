@@ -325,4 +325,35 @@ class ItunesArtworkRepositoryTest {
         assertEquals("https://example.com/exact.jpg/600x600bb.jpg", result?.previewUrl)
         assertEquals("https://example.com/exact.jpg/3000x3000bb.jpg", result?.highResUrl)
     }
+
+    @Test
+    fun `fetchItunesArtwork handles bonus track version variant`() = runBlocking {
+        val mockEngine = MockEngine { _ ->
+            val jsonResponse = """
+                {
+                    "resultCount": 1,
+                    "results": [
+                        {
+                            "artistName": "The Kooks",
+                            "collectionName": "Inside In / Inside Out (Bonus Track Version)",
+                            "artworkUrl100": "https://example.com/inside.jpg/100x100bb.jpg",
+                            "wrapperType": "collection",
+                            "collectionType": "Album"
+                        }
+                    ]
+                }
+            """.trimIndent()
+
+            respond(
+                content = jsonResponse,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = ItunesArtworkRepository(mockContext, mockEngine)
+        val result = repository.fetchItunesArtwork("The Kooks", "Inside In / Inside Out")
+
+        assertEquals("https://example.com/inside.jpg/600x600bb.jpg", result?.previewUrl)
+    }
 }

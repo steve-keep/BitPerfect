@@ -54,6 +54,8 @@ private val editionPatterns = listOf(
     "anniversary edition",
     "remastered",
     "remaster",
+    "bonus track version",
+    "bonus track",
     "bonus edition"
 )
 
