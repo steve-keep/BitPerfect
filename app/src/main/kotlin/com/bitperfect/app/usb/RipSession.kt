@@ -70,6 +70,7 @@ class RipSession(private val context: Context) {
         // Synchronously copy the initial states from RipManager so that it is instantly available
         _ripStates.value = manager.trackStates.value
 
+        // Start service FIRST so wake lock is held before any USB I/O
         val intent = android.content.Intent(context, RipService::class.java).apply {
             putExtra(RipService.EXTRA_ARTIST, metadata.artistName)
             putExtra(RipService.EXTRA_ALBUM, metadata.albumTitle)
@@ -93,6 +94,9 @@ class RipSession(private val context: Context) {
                 com.bitperfect.core.utils.AppLogger.e("RipSession", "Failed to open USB session", e)
             } finally {
                 _isRipping.value = false
+                if (manager.isCancelled == false) {
+                    DeviceStateManager.rescan()
+                }
             }
         }
     }

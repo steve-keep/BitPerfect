@@ -270,6 +270,12 @@ class UsbDriveDetector(
                 TurResult.NOT_READY -> {
                     _driveStatus.value = DriveStatus.Empty(info)
                 }
+                TurResult.CONNECTION_DEAD -> {
+                    AppLogger.w(TAG, "Interrogation: USB connection dead")
+                    _driveStatus.value = DriveStatus.Error("USB connection dead during interrogation", info)
+                    cleanupConnection()
+                    return
+                }
             }
 
             // Start polling loop which takes ownership of cleaning up the connection
@@ -284,7 +290,7 @@ class UsbDriveDetector(
     }
 
     enum class TurResult {
-        READY, SPINNING_UP, NOT_READY
+        READY, SPINNING_UP, NOT_READY, CONNECTION_DEAD
     }
 
     fun pausePolling() {
@@ -337,6 +343,16 @@ class UsbDriveDetector(
                                 _driveStatus.value = DriveStatus.Empty(info)
                             }
                         }
+                        TurResult.CONNECTION_DEAD -> {
+                            AppLogger.w(TAG, "USB connection dead, cleaning up and rescanning")
+                            cleanupConnection()
+                            _driveStatus.value = DriveStatus.Connecting()
+                            scope.launch {
+                                delay(500)
+                                scanForDevices()
+                            }
+                            break
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -367,8 +383,8 @@ class UsbDriveDetector(
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
         if (transferred < 0) {
-            AppLogger.e(TAG, "TUR: Failed to send CBW on tag $tag")
-            return TurResult.NOT_READY
+            AppLogger.e(TAG, "TUR: Failed to send CBW — connection may be dead, triggering rescan")
+            return TurResult.CONNECTION_DEAD
         }
 
         // No Data phase for TUR
@@ -377,8 +393,8 @@ class UsbDriveDetector(
         val csw = ByteArray(13)
         transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
         if (transferred < 0) {
-            AppLogger.e(TAG, "TUR: Failed to read CSW on tag $tag")
-            return TurResult.NOT_READY
+            AppLogger.e(TAG, "TUR: Failed to read CSW — connection may be dead, triggering rescan")
+            return TurResult.CONNECTION_DEAD
         }
 
         // Validate CSW

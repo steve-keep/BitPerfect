@@ -95,7 +95,8 @@ class RipManager(
     )
     val trackStates: StateFlow<Map<Int, TrackRipState>> = _trackStates
 
-    private var isCancelled = false
+    var isCancelled = false
+        private set
     private val verifier = AccurateRipVerifier()
     private val confidenceEvaluator = RipConfidenceEvaluator()
 
