@@ -740,6 +740,13 @@ open class AppViewModel(
         }
     }
 
+    fun playAlbumNext(tracks: List<TrackInfo>) {
+        playerRepository.playAlbumNext(tracks)
+        viewModelScope.launch {
+            _uiEvent.emit("Added to play next")
+        }
+    }
+
     fun addAlbumToQueue(tracks: List<TrackInfo>) {
         playerRepository.addAlbumToQueue(tracks)
     }
