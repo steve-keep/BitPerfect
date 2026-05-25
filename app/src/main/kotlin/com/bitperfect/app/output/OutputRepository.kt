@@ -43,6 +43,8 @@ open class OutputRepository(
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
     private val _wiimIsPlaying = MutableStateFlow(false)
+    private val _wiimPositionMs = MutableStateFlow(0L)
+    open val wiimPositionMs: StateFlow<Long> = _wiimPositionMs.asStateFlow()
 
     open val isPlaying: StateFlow<Boolean> = combine(
         _activeDevice,
@@ -129,6 +131,7 @@ open class OutputRepository(
 
                 wiimCollectionJob?.cancel()
                 _wiimIsPlaying.value = false
+                _wiimPositionMs.value = 0L
 
                 activeController.release()
 
@@ -140,7 +143,8 @@ open class OutputRepository(
                     is OutputDevice.Upnp -> {
                         val controller = WiimOutputController(context, target)
                         wiimCollectionJob = scope.launch {
-                            controller.isPlaying.collect { _wiimIsPlaying.value = it }
+                            launch { controller.isPlaying.collect { _wiimIsPlaying.value = it } }
+                            launch { controller.positionMs.collect { _wiimPositionMs.value = it } }
                         }
                         controller
                     }
