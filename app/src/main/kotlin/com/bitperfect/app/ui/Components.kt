@@ -315,6 +315,7 @@ fun AlbumHeader(
 @Composable
 private fun RipProgressContent(
     bannerState: RipBannerState,
+    onStopRipClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -379,6 +380,16 @@ private fun RipProgressContent(
                 text = bannerState.totalTracksLabel,
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0x66FFFFFF)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        IconButton(onClick = onStopRipClick) {
+            Icon(
+                imageVector = Icons.Default.Clear,
+                contentDescription = "Stop Rip",
+                tint = Color.White
             )
         }
     }
@@ -493,7 +504,11 @@ fun DeviceList(
                     }
                 ) {
                     RipProgressContent(
-                        bannerState = bannerState
+                        bannerState = bannerState,
+                        onStopRipClick = {
+                            viewModel.cancelRip(true)
+                            viewModel.ejectDrive()
+                        }
                     )
                 }
             } else {
