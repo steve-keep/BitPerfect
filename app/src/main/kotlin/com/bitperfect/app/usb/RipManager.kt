@@ -17,6 +17,8 @@ import com.bitperfect.app.ripping.paranoia.OverlapVerifier
 import com.bitperfect.app.ripping.paranoia.RereadEngine
 import com.bitperfect.app.ripping.paranoia.VerifiedChunk
 import com.bitperfect.app.ripping.paranoia.RereadRecoveryResult
+import com.bitperfect.app.ripping.paranoia.strategy.OverlapRecoveryStrategy
+import com.bitperfect.app.ripping.paranoia.strategy.FullChunkRecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.RipConfidence
 import com.bitperfect.app.ripping.paranoia.RipConfidenceEvaluator
 import com.bitperfect.app.ripping.paranoia.SuspiciousRead
@@ -273,7 +275,11 @@ class RipManager(
                 val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
                     overlapSizeSectors = overlapSize
                 )
-                val rereadEngine = RereadEngine(verifier = overlapVerifier, maxRereads = 6)
+                val rereadStrategies = listOf(
+                    OverlapRecoveryStrategy(overlapVerifier),
+                    FullChunkRecoveryStrategy()
+                )
+                val rereadEngine = RereadEngine(strategies = rereadStrategies, verifier = overlapVerifier, maxRereads = 6)
 
                 var pendingChunk: VerifiedChunk? = null
 
@@ -361,15 +367,51 @@ class RipManager(
                                     }
                                 )
 
-                                val suspiciousRead = SuspiciousRead(
-                                    startLba = currentChunk.startLba,
-                                    endLba = currentChunk.endLba,
-                                    rereadAttempts = when (recoveryResult) {
-                                        is RereadRecoveryResult.Recovered -> recoveryResult.chunk.rereadCount
-                                        is RereadRecoveryResult.Failed -> recoveryResult.chunk.rereadCount
-                                    },
-                                    recovered = recoveryResult is RereadRecoveryResult.Recovered
-                                )
+                                val metadataHistory = when (recoveryResult) {
+                                    is RereadRecoveryResult.Recovered -> recoveryResult.metadataHistory
+                                    is RereadRecoveryResult.Failed -> recoveryResult.metadataHistory
+                                }
+
+                                AppLogger.d("RipManager", "targeted_recovery_started track=$trackNumber lba=${currentChunk.startLba}")
+
+                                var finalMetadata = metadataHistory.lastOrNull()
+                                var totalAttempts = 0
+
+                                for (metadata in metadataHistory) {
+                                    totalAttempts += metadata.rereadAttempts
+                                    if (metadata.strategy == "overlap_recovery") {
+                                        AppLogger.d("RipManager", "overlap_recovery_attempt track=$trackNumber recoveryWindowStartLba=${metadata.recoveryWindowStartLba} recoveryWindowEndLba=${metadata.recoveryWindowEndLba} rereadAttempts=${metadata.rereadAttempts} confidence=${if(metadata.recovered) "MEDIUM" else "LOW"}")
+                                        if (metadata.recovered) {
+                                            AppLogger.d("RipManager", "overlap_recovery_succeeded track=$trackNumber recoveryWindowStartLba=${metadata.recoveryWindowStartLba} recoveryWindowEndLba=${metadata.recoveryWindowEndLba} rereadAttempts=${metadata.rereadAttempts} confidence=MEDIUM")
+                                        } else {
+                                            AppLogger.w("RipManager", "overlap_recovery_failed track=$trackNumber recoveryWindowStartLba=${metadata.recoveryWindowStartLba} recoveryWindowEndLba=${metadata.recoveryWindowEndLba} rereadAttempts=${metadata.rereadAttempts} confidence=LOW")
+                                        }
+                                    } else if (metadata.strategy == "full_chunk_recovery") {
+                                        AppLogger.w("RipManager", "escalation_to_full_reread track=$trackNumber recoveryWindowStartLba=${metadata.recoveryWindowStartLba} recoveryWindowEndLba=${metadata.recoveryWindowEndLba} rereadAttempts=${metadata.rereadAttempts} confidence=${if(metadata.recovered) "MEDIUM" else "LOW"}")
+                                    }
+                                }
+
+                                val suspiciousRead = if (finalMetadata != null) {
+                                    SuspiciousRead(
+                                        startLba = currentChunk.startLba,
+                                        endLba = currentChunk.endLba,
+                                        recoveryWindowStartLba = finalMetadata.recoveryWindowStartLba,
+                                        recoveryWindowEndLba = finalMetadata.recoveryWindowEndLba,
+                                        strategy = finalMetadata.strategy,
+                                        rereadAttempts = totalAttempts,
+                                        recovered = finalMetadata.recovered
+                                    )
+                                } else {
+                                    SuspiciousRead(
+                                        startLba = currentChunk.startLba,
+                                        endLba = currentChunk.endLba,
+                                        recoveryWindowStartLba = null,
+                                        recoveryWindowEndLba = null,
+                                        strategy = null,
+                                        rereadAttempts = 0,
+                                        recovered = false
+                                    )
+                                }
 
                                 currentChunkConfidence = confidenceEvaluator.evaluateChunkConfidence(
                                     overlapMatchedImmediately = false,
@@ -446,6 +488,9 @@ class RipManager(
                         val suspiciousRead = SuspiciousRead(
                             startLba = firstLba + sectorsRead,
                             endLba = firstLba + effectiveTotalSectors,
+                            recoveryWindowStartLba = null,
+                            recoveryWindowEndLba = null,
+                            strategy = null,
                             rereadAttempts = 3, // UsbReadSession.MAX_RETRIES
                             recovered = false
                         )

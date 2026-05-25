@@ -1,6 +1,8 @@
 package com.bitperfect.app.ripping.paranoia
 
 import kotlinx.coroutines.runBlocking
+import com.bitperfect.app.ripping.paranoia.strategy.OverlapRecoveryStrategy
+import com.bitperfect.app.ripping.paranoia.strategy.FullChunkRecoveryStrategy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,7 +26,11 @@ class RereadEngineTest {
     @Test
     fun testStableRereadsRecoverEarly() = runBlocking {
         val verifier = OverlapVerifier(overlapSizeSectors = 1)
-        val engine = RereadEngine(verifier, maxRereads = 6)
+        val strategies = listOf(
+            OverlapRecoveryStrategy(verifier),
+            FullChunkRecoveryStrategy()
+        )
+        val engine = RereadEngine(strategies, verifier, maxRereads = 6)
 
         val previousTail = ByteArray(sectorSize) { 0 }
 
@@ -59,14 +65,20 @@ class RereadEngineTest {
         ) { lba, count ->
             readCount++
             when (readCount) {
-                1 -> VerifiedChunk(lba, lba + count, attempt1Pcm, verifier.extractOverlapHead(attempt1Pcm), verifier.extractOverlapTail(attempt1Pcm), readCount)
-                2 -> VerifiedChunk(lba, lba + count, attempt2Pcm, verifier.extractOverlapHead(attempt2Pcm), verifier.extractOverlapTail(attempt2Pcm), readCount)
-                3 -> VerifiedChunk(lba, lba + count, attempt3Pcm, verifier.extractOverlapHead(attempt3Pcm), verifier.extractOverlapTail(attempt3Pcm), readCount)
+                // Overlap Strategy reads only the overlap (1 sector)
+                1 -> VerifiedChunk(lba, lba + count, attempt1Pcm.copyOfRange(0, sectorSize), verifier.extractOverlapHead(attempt1Pcm.copyOfRange(0, sectorSize)), verifier.extractOverlapTail(attempt1Pcm.copyOfRange(0, sectorSize)), readCount)
+                2 -> VerifiedChunk(lba, lba + count, attempt2Pcm.copyOfRange(0, sectorSize), verifier.extractOverlapHead(attempt2Pcm.copyOfRange(0, sectorSize)), verifier.extractOverlapTail(attempt2Pcm.copyOfRange(0, sectorSize)), readCount)
+                3 -> VerifiedChunk(lba, lba + count, attempt3Pcm.copyOfRange(0, sectorSize), verifier.extractOverlapHead(attempt3Pcm.copyOfRange(0, sectorSize)), verifier.extractOverlapTail(attempt3Pcm.copyOfRange(0, sectorSize)), readCount)
+                // If it falls back to full chunk
+                4 -> VerifiedChunk(lba, lba + count, attempt1Pcm, verifier.extractOverlapHead(attempt1Pcm), verifier.extractOverlapTail(attempt1Pcm), readCount)
+                5 -> VerifiedChunk(lba, lba + count, attempt2Pcm, verifier.extractOverlapHead(attempt2Pcm), verifier.extractOverlapTail(attempt2Pcm), readCount)
+                6 -> VerifiedChunk(lba, lba + count, attempt3Pcm, verifier.extractOverlapHead(attempt3Pcm), verifier.extractOverlapTail(attempt3Pcm), readCount)
+
                 else -> null
             }
         }
 
-        assertTrue(result is RereadRecoveryResult.Recovered)
+        assertTrue("Expected Recovered but was: $result", result is RereadRecoveryResult.Recovered)
         val recoveredChunk = (result as RereadRecoveryResult.Recovered).chunk
         assertEquals(3, readCount)
         assertEquals(3, recoveredChunk.rereadCount)
@@ -75,7 +87,11 @@ class RereadEngineTest {
     @Test
     fun testMaxRetriesEnforcedAndReturnsFailed() = runBlocking {
         val verifier = OverlapVerifier(overlapSizeSectors = 1)
-        val engine = RereadEngine(verifier, maxRereads = 3)
+        val strategies = listOf(
+            OverlapRecoveryStrategy(verifier),
+            FullChunkRecoveryStrategy()
+        )
+        val engine = RereadEngine(strategies, verifier, maxRereads = 3)
 
         val previousTail = ByteArray(sectorSize) { 0 }
         val prevChunk = createChunk(0, 2, ByteArray(sectorSize) { 0 }, previousTail, 0)
@@ -84,14 +100,14 @@ class RereadEngineTest {
         var readCount = 0
         val result = engine.recover(prevChunk, failedChunk) { lba, count ->
             readCount++
-            val pcm = ByteArray(sectorSize * 2) { readCount.toByte() } // Never matches previous attempt
+            val pcm = ByteArray(sectorSize * count) { readCount.toByte() } // Never matches previous attempt
             VerifiedChunk(lba, lba + count, pcm, verifier.extractOverlapHead(pcm), verifier.extractOverlapTail(pcm), readCount)
         }
 
         assertTrue(result is RereadRecoveryResult.Failed)
         val failedResultChunk = (result as RereadRecoveryResult.Failed).chunk
-        assertEquals(3, readCount) // Should stop exactly at maxRereads
-        assertEquals(3, failedResultChunk.rereadCount)
-        assertEquals(3.toByte(), failedResultChunk.pcm[0]) // Selects latest reread candidate
+        assertEquals(6, readCount) // 3 retries for Overlap, 3 for FullChunk
+        assertEquals(3, failedResultChunk.rereadCount) // Metadata history tracks retries per strategy, but maxRereads is the bound
+        assertEquals(6.toByte(), failedResultChunk.pcm[0]) // Selects latest reread candidate from the last strategy
     }
 }
