@@ -175,27 +175,89 @@ class PlaybackService : MediaLibraryService() {
                     }
                 }
                 "recent_albums" -> {
-                    val recentAlbums = libraryRepository.getRecentlyPlayedAlbums(outputFolderUri)
-                    recentAlbums.map { (artist, album) ->
-                        val albumExtras = Bundle().apply {
-                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
-                            putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
-                        }
-                        MediaItem.Builder()
-                            .setMediaId("album_${album.id}")
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(album.title)
-                                    .setSubtitle(artist.name)
-                                    .setArtist(artist.name)
-                                    .setArtworkUri(album.artUri)
-                                    .setIsBrowsable(true)
-                                    .setIsPlayable(true)
-                                    .setExtras(albumExtras)
+                    val recent = libraryRepository.getRecentlyPlayedAlbums(outputFolderUri, 50)
+                    val artistCounts = mutableMapOf<String, Int>()
+                    for ((artistInfo, _) in recent) {
+                        artistCounts[artistInfo.name] = artistCounts.getOrDefault(artistInfo.name, 0) + 1
+                    }
+
+                    val processedArtists = mutableSetOf<String>()
+                    val recentlyPlayedItems = mutableListOf<MediaItem>()
+
+                    for ((artistInfo, albumInfo) in recent) {
+                        if (recentlyPlayedItems.size >= 10) break
+
+                        val count = artistCounts.getOrDefault(artistInfo.name, 0)
+                        if (count > 1) {
+                            if (processedArtists.contains(artistInfo.name)) {
+                                continue
+                            }
+                            val thumbnailUrl = libraryRepository.getArtistThumbnailUrl(artistInfo.name, outputFolderUri)
+                            if (thumbnailUrl != null) {
+                                val artistExtras = Bundle().apply {
+                                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                }
+                                val artistItem = MediaItem.Builder()
+                                    .setMediaId("artist_${artistInfo.name}")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle(artistInfo.name)
+                                            .setArtworkUri(android.net.Uri.parse(thumbnailUrl))
+                                            .setIsBrowsable(true)
+                                            .setIsPlayable(false)
+                                            .setExtras(artistExtras)
+                                            .build()
+                                    )
+                                    .build()
+                                recentlyPlayedItems.add(artistItem)
+                                processedArtists.add(artistInfo.name)
+                            } else {
+                                val albumExtras = Bundle().apply {
+                                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                }
+                                recentlyPlayedItems.add(
+                                    MediaItem.Builder()
+                                        .setMediaId("album_${albumInfo.id}")
+                                        .setMediaMetadata(
+                                            MediaMetadata.Builder()
+                                                .setTitle(albumInfo.title)
+                                                .setSubtitle(artistInfo.name)
+                                                .setArtist(artistInfo.name)
+                                                .setArtworkUri(albumInfo.artUri)
+                                                .setIsBrowsable(true)
+                                                .setIsPlayable(true)
+                                                .setExtras(albumExtras)
+                                                .build()
+                                        )
+                                        .build()
+                                )
+                            }
+                        } else {
+                            val albumExtras = Bundle().apply {
+                                putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                            }
+                            recentlyPlayedItems.add(
+                                MediaItem.Builder()
+                                    .setMediaId("album_${albumInfo.id}")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle(albumInfo.title)
+                                            .setSubtitle(artistInfo.name)
+                                            .setArtist(artistInfo.name)
+                                            .setArtworkUri(albumInfo.artUri)
+                                            .setIsBrowsable(true)
+                                            .setIsPlayable(true)
+                                            .setExtras(albumExtras)
+                                            .build()
+                                    )
                                     .build()
                             )
-                            .build()
+                        }
                     }
+                    recentlyPlayedItems
                 }
                 "all_albums" -> {
                     val artists = libraryRepository.getLibrary(outputFolderUri)
@@ -231,10 +293,42 @@ class PlaybackService : MediaLibraryService() {
                             .build()
                     }
                 }
-                else -> emptyList()
+                else -> {
+                    if (parentId.startsWith("artist_")) {
+                        val artistName = parentId.removePrefix("artist_")
+                        val artists = libraryRepository.getLibrary(outputFolderUri)
+                        val artistInfo = artists.find { it.name == artistName }
+                        if (artistInfo != null) {
+                            artistInfo.albums.map { album ->
+                                val albumExtras = Bundle().apply {
+                                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                    putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
+                                }
+                                MediaItem.Builder()
+                                    .setMediaId("album_${album.id}")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setTitle(album.title)
+                                            .setSubtitle(artistInfo.name)
+                                            .setArtist(artistInfo.name)
+                                            .setArtworkUri(album.artUri)
+                                            .setIsBrowsable(true)
+                                            .setIsPlayable(true)
+                                            .setExtras(albumExtras)
+                                            .build()
+                                    )
+                                    .build()
+                            }
+                        } else {
+                            emptyList()
+                        }
+                    } else {
+                        emptyList()
+                    }
+                }
             }
 
-            val resultParams = if (parentId == "root" || parentId == "recent_added" || parentId == "recent_albums" || parentId == "all_albums") {
+            val resultParams = if (parentId == "root" || parentId == "recent_added" || parentId == "recent_albums" || parentId == "all_albums" || parentId.startsWith("artist_")) {
                 val styleExtras = Bundle().apply {
                     putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
                     putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_GRID_ITEM)
