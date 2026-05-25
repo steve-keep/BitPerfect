@@ -84,6 +84,7 @@ class RipSession(private val context: Context) {
         }
 
         scope.launch {
+            var unexpectedError = false
             try {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     UsbReadSession.open().use { session ->
@@ -91,10 +92,11 @@ class RipSession(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
+                unexpectedError = true
                 com.bitperfect.core.utils.AppLogger.e("RipSession", "Failed to open USB session", e)
             } finally {
                 _isRipping.value = false
-                if (manager.isCancelled == false) {
+                if (unexpectedError && manager.isCancelled == false) {
                     DeviceStateManager.rescan()
                 }
             }
