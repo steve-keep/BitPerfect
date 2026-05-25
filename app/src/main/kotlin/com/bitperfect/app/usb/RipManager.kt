@@ -13,6 +13,11 @@ import com.bitperfect.core.services.AccurateRipVerifier
 import com.bitperfect.core.services.AccurateRipTrackMetadata
 import com.bitperfect.core.services.DriveOffsetRepository
 import com.bitperfect.core.utils.AppLogger
+import com.bitperfect.app.ripping.paranoia.OverlapVerifier
+import com.bitperfect.app.ripping.paranoia.RereadEngine
+import com.bitperfect.app.ripping.paranoia.VerifiedChunk
+import com.bitperfect.app.ripping.paranoia.RereadRecoveryResult
+import com.bitperfect.app.ripping.paranoia.RipConfidence
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -249,10 +254,11 @@ class RipManager(
                 val advanceSize = chunkSize - overlapSize
 
                 val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
-                    overlapSizeSectors = overlapSize,
-                    maxRereads = 6,
-                    trackNumber = trackNumber
+                    overlapSizeSectors = overlapSize
                 )
+                val rereadEngine = RereadEngine(verifier = overlapVerifier, maxRereads = 6)
+
+                var pendingChunk: VerifiedChunk? = null
 
                 val lbaStart = entry.lba + tocOffset
 
@@ -297,13 +303,57 @@ class RipManager(
 
                         val currentLba = firstLba + sectorsRead
 
-                        val committedPcm = overlapVerifier.processChunk(
-                            pcm = pcmData,
+                        var currentChunk = VerifiedChunk(
                             startLba = currentLba,
                             endLba = currentLba + sectorsActuallyRead,
-                            isFinal = isFinalChunk,
-                            readExecutor = { lba, count -> session.readSectors(lba, count) }
+                            pcm = pcmData,
+                            overlapHead = overlapVerifier.extractOverlapHead(pcmData),
+                            overlapTail = overlapVerifier.extractOverlapTail(pcmData),
+                            confidence = RipConfidence.HIGH,
+                            rereadCount = 0
                         )
+
+                        var committedPcm: ByteArray? = null
+
+                        if (pendingChunk != null) {
+                            val pChunk = pendingChunk!!
+                            val match = overlapVerifier.verifyOverlap(pChunk.overlapTail, currentChunk.overlapHead)
+
+                            if (match) {
+                                AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize} confidence=HIGH")
+                                committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
+                            } else {
+                                AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
+
+                                val recoveryResult = rereadEngine.recover(
+                                    previousVerifiedChunk = pChunk,
+                                    failedChunk = currentChunk,
+                                    readChunk = { lba, count ->
+                                        val newPcm = session.readSectors(lba, count)
+                                        if (newPcm != null) {
+                                            VerifiedChunk(
+                                                startLba = lba,
+                                                endLba = lba + (newPcm.size / 2352),
+                                                pcm = newPcm,
+                                                overlapHead = overlapVerifier.extractOverlapHead(newPcm),
+                                                overlapTail = overlapVerifier.extractOverlapTail(newPcm),
+                                                confidence = RipConfidence.LOW, // To be potentially updated by engine
+                                                rereadCount = 0
+                                            )
+                                        } else null
+                                    }
+                                )
+
+                                currentChunk = when (recoveryResult) {
+                                    is RereadRecoveryResult.Recovered -> recoveryResult.chunk
+                                    is RereadRecoveryResult.Failed -> recoveryResult.chunk
+                                }
+
+                                committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
+                            }
+                        }
+
+                        pendingChunk = currentChunk
 
                         if (committedPcm != null && committedPcm.isNotEmpty()) {
                             val trimmed = if (isFirstSector && skipBytes > 0) committedPcm.copyOfRange(skipBytes, committedPcm.size) else committedPcm
@@ -314,13 +364,16 @@ class RipManager(
                         }
 
                         if (isFinalChunk) {
-                            val finalCommitted = overlapVerifier.finalize()
-                            if (finalCommitted != null && finalCommitted.isNotEmpty()) {
-                                val trimmed = if (isFirstSector && skipBytes > 0) finalCommitted.copyOfRange(skipBytes, finalCommitted.size) else finalCommitted
-                                encoder.encode(trimmed)
-                                checksumAccumulator.accumulate(trimmed)
-                                analyser.feed(trimmed)
-                                isFirstSector = false
+                            if (pendingChunk != null) {
+                                val finalCommitted = overlapVerifier.commitVerifiedAudio(pendingChunk, isFinal = true)
+                                if (finalCommitted.isNotEmpty()) {
+                                    val trimmed = if (isFirstSector && skipBytes > 0) finalCommitted.copyOfRange(skipBytes, finalCommitted.size) else finalCommitted
+                                    encoder.encode(trimmed)
+                                    checksumAccumulator.accumulate(trimmed)
+                                    analyser.feed(trimmed)
+                                    isFirstSector = false
+                                }
+                                pendingChunk = null
                             }
                             sectorsRead += sectorsActuallyRead
                         } else {
