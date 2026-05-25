@@ -1,0 +1,144 @@
+<<<<<<< SEARCH
+                val analyser = AudioAnalyser()
+
+                val chunkSize = 16 // read ~16 sectors at a time
+                val lbaStart = entry.lba + tocOffset
+
+                val (firstLba, lastReadableLba) = ripLbaRange(
+                    trackLba      = entry.lba,
+                    nextLba       = nextLba,
+                    tocOffset     = tocOffset,
+                    pregapOffset  = toc.pregapOffset,
+                    isLastTrack   = isLastTrack
+                )
+
+                var isFirstSector = true
+
+                if (overreadBuffer != null) {
+                    encoder.encode(overreadBuffer!!)
+                    checksumAccumulator.accumulate(overreadBuffer!!)
+                    analyser.feed(overreadBuffer!!)
+                    sectorsRead = 1
+                    isFirstSector = false
+                }
+
+                val effectiveTotalSectors = lastReadableLba - firstLba + 1
+
+                while (sectorsRead < effectiveTotalSectors && !isCancelled) {
+                    val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
+                    val pcmData = session.readSectors(firstLba + sectorsRead, sectorsToRead)
+
+                    if (pcmData != null) {
+                        val sectorsActuallyRead = pcmData.size / 2352
+                        if (sectorsActuallyRead < sectorsToRead) {
+                            AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
+                                "got $sectorsActuallyRead of $sectorsToRead sectors")
+                        }
+
+                        val trimmed = if (isFirstSector && skipBytes > 0) pcmData.copyOfRange(skipBytes, pcmData.size) else pcmData
+                        encoder.encode(trimmed)
+                        checksumAccumulator.accumulate(trimmed)
+                        analyser.feed(trimmed)
+                        isFirstSector = false
+
+                        sectorsRead += sectorsActuallyRead
+                    } else {
+                        if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
+                            isCancelled = true
+                            throw java.io.IOException("Disc removed or drive not ready during rip")
+                        }
+                        throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after 3 attempts") // see UsbReadSession.MAX_RETRIES
+                    }
+
+                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors)
+                }
+=======
+                val analyser = AudioAnalyser()
+
+                val chunkSize = 16 // read ~16 sectors at a time
+                val overlapSize = 6
+                val advanceSize = chunkSize - overlapSize
+
+                val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
+                    overlapSizeSectors = overlapSize,
+                    maxRereads = 6,
+                    trackNumber = trackNumber
+                )
+
+                val lbaStart = entry.lba + tocOffset
+
+                val (firstLba, lastReadableLba) = ripLbaRange(
+                    trackLba      = entry.lba,
+                    nextLba       = nextLba,
+                    tocOffset     = tocOffset,
+                    pregapOffset  = toc.pregapOffset,
+                    isLastTrack   = isLastTrack
+                )
+
+                var isFirstSector = true
+
+                if (overreadBuffer != null) {
+                    encoder.encode(overreadBuffer!!)
+                    checksumAccumulator.accumulate(overreadBuffer!!)
+                    analyser.feed(overreadBuffer!!)
+                    sectorsRead = 1
+                    isFirstSector = false
+                }
+
+                val effectiveTotalSectors = lastReadableLba - firstLba + 1
+
+                while (sectorsRead < effectiveTotalSectors && !isCancelled) {
+                    val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
+
+                    val pcmData = session.readSectors(firstLba + sectorsRead, sectorsToRead)
+
+                    if (pcmData != null) {
+                        val sectorsActuallyRead = pcmData.size / 2352
+                        if (sectorsActuallyRead < sectorsToRead) {
+                            AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
+                                "got $sectorsActuallyRead of $sectorsToRead sectors")
+                        }
+
+                        val isFinalChunk = (sectorsRead + advanceSize) >= effectiveTotalSectors
+                        val currentLba = firstLba + sectorsRead
+
+                        val committedPcm = overlapVerifier.processChunk(
+                            pcm = pcmData,
+                            startLba = currentLba,
+                            endLba = currentLba + sectorsActuallyRead,
+                            isFinal = isFinalChunk,
+                            readExecutor = { lba, count -> session.readSectors(lba, count) }
+                        )
+
+                        if (committedPcm != null && committedPcm.isNotEmpty()) {
+                            val trimmed = if (isFirstSector && skipBytes > 0) committedPcm.copyOfRange(skipBytes, committedPcm.size) else committedPcm
+                            encoder.encode(trimmed)
+                            checksumAccumulator.accumulate(trimmed)
+                            analyser.feed(trimmed)
+                            isFirstSector = false
+                        }
+
+                        if (isFinalChunk) {
+                            val finalCommitted = overlapVerifier.finalize()
+                            if (finalCommitted != null && finalCommitted.isNotEmpty()) {
+                                val trimmed = if (isFirstSector && skipBytes > 0) finalCommitted.copyOfRange(skipBytes, finalCommitted.size) else finalCommitted
+                                encoder.encode(trimmed)
+                                checksumAccumulator.accumulate(trimmed)
+                                analyser.feed(trimmed)
+                                isFirstSector = false
+                            }
+                            sectorsRead += sectorsActuallyRead
+                        } else {
+                            sectorsRead += advanceSize
+                        }
+                    } else {
+                        if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
+                            isCancelled = true
+                            throw java.io.IOException("Disc removed or drive not ready during rip")
+                        }
+                        throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after 3 attempts") // see UsbReadSession.MAX_RETRIES
+                    }
+
+                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors)
+                }
+>>>>>>> REPLACE
