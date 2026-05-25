@@ -30,6 +30,11 @@ local.properties
 *~
 *.bak
 *.log
+*screenshot*.png
+Screenshot*.png
+current_nowplaying.txt
+fix_build.sh
+patch_file
 
 # Explicitly include debug keystore for stable signing
 !app/debug.keystore
