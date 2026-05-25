@@ -245,6 +245,15 @@ class RipManager(
                 val analyser = AudioAnalyser()
 
                 val chunkSize = 16 // read ~16 sectors at a time
+                val overlapSize = 6
+                val advanceSize = chunkSize - overlapSize
+
+                val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
+                    overlapSizeSectors = overlapSize,
+                    maxRereads = 6,
+                    trackNumber = trackNumber
+                )
+
                 val lbaStart = entry.lba + tocOffset
 
                 val (firstLba, lastReadableLba) = ripLbaRange(
@@ -269,6 +278,7 @@ class RipManager(
 
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
+
                     val pcmData = session.readSectors(firstLba + sectorsRead, sectorsToRead)
 
                     if (pcmData != null) {
@@ -278,13 +288,44 @@ class RipManager(
                                 "got $sectorsActuallyRead of $sectorsToRead sectors")
                         }
 
-                        val trimmed = if (isFirstSector && skipBytes > 0) pcmData.copyOfRange(skipBytes, pcmData.size) else pcmData
-                        encoder.encode(trimmed)
-                        checksumAccumulator.accumulate(trimmed)
-                        analyser.feed(trimmed)
-                        isFirstSector = false
+                        // Determine if this is the final read
+                        // advanceSize is the stride. If reading advanceSize puts us past or at the end, it's final.
+                        val remainingAfterAdvance = effectiveTotalSectors - (sectorsRead + advanceSize)
+                        // Actually, if we read sectorsToRead, and that completes or exceeds effectiveTotalSectors, it's final
+                        // But we advance by advanceSize. If advancing puts us at or past the end, next read won't happen.
+                        val isFinalChunk = (sectorsRead + advanceSize) >= effectiveTotalSectors || sectorsActuallyRead < chunkSize
 
-                        sectorsRead += sectorsActuallyRead
+                        val currentLba = firstLba + sectorsRead
+
+                        val committedPcm = overlapVerifier.processChunk(
+                            pcm = pcmData,
+                            startLba = currentLba,
+                            endLba = currentLba + sectorsActuallyRead,
+                            isFinal = isFinalChunk,
+                            readExecutor = { lba, count -> session.readSectors(lba, count) }
+                        )
+
+                        if (committedPcm != null && committedPcm.isNotEmpty()) {
+                            val trimmed = if (isFirstSector && skipBytes > 0) committedPcm.copyOfRange(skipBytes, committedPcm.size) else committedPcm
+                            encoder.encode(trimmed)
+                            checksumAccumulator.accumulate(trimmed)
+                            analyser.feed(trimmed)
+                            isFirstSector = false
+                        }
+
+                        if (isFinalChunk) {
+                            val finalCommitted = overlapVerifier.finalize()
+                            if (finalCommitted != null && finalCommitted.isNotEmpty()) {
+                                val trimmed = if (isFirstSector && skipBytes > 0) finalCommitted.copyOfRange(skipBytes, finalCommitted.size) else finalCommitted
+                                encoder.encode(trimmed)
+                                checksumAccumulator.accumulate(trimmed)
+                                analyser.feed(trimmed)
+                                isFirstSector = false
+                            }
+                            sectorsRead += sectorsActuallyRead
+                        } else {
+                            sectorsRead += advanceSize
+                        }
                     } else {
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
