@@ -36,6 +36,9 @@ class WiimOutputController(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    private val _positionMs = MutableStateFlow(0L)
+    val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
+
     private var pollingJob: Job? = null
 
     private fun startPolling() {
@@ -49,7 +52,15 @@ class WiimOutputController(
                     conn.readTimeout = 2000
                     if (conn.responseCode == 200) {
                         val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                        _isPlaying.value = json.optString("play_status") == "play"
+                        val isNowPlaying = json.optString("play_status") == "play"
+                        _isPlaying.value = isNowPlaying
+
+                        if (isNowPlaying) {
+                            val curpos = json.optLong("curpos", -1L)
+                            if (curpos >= 0L) {
+                                _positionMs.value = curpos
+                            }
+                        }
                     }
                     conn.disconnect()
                 } catch (e: Exception) {
@@ -64,6 +75,7 @@ class WiimOutputController(
         pollingJob?.cancel()
         pollingJob = null
         _isPlaying.value = false
+        _positionMs.value = 0L
     }
 
     private fun getWifiIpAddress(): String? {

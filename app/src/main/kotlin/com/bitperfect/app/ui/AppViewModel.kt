@@ -293,6 +293,14 @@ open class AppViewModel(
         }
 
         viewModelScope.launch {
+            outputRepository.wiimPositionMs.collect {
+                if (activeDevice.value is OutputDevice.Upnp) {
+                    _positionMs.value = it
+                }
+            }
+        }
+
+        viewModelScope.launch {
             ripSession.ripStates.collect { states ->
                 _ripStates.value = states
 
