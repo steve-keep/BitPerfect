@@ -67,10 +67,22 @@ class RipManager(
     private val lyricsMap: Map<Int, LyricsFetchResult> = emptyMap(),
     private val driveVendor: String,
     private val driveProduct: String,
-    initialTracks: List<Int>
+    initialTracks: List<Int>,
+    previousStates: Map<Int, TrackRipState>? = null
 ) {
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
-        toc.tracks.associate { it.trackNumber to TrackRipState(trackNumber = it.trackNumber, discNumber = metadata.discNumber ?: 1) }
+        toc.tracks.associate { track ->
+            val prevState = previousStates?.get(track.trackNumber)
+            val isBeingRescanned = initialTracks.contains(track.trackNumber)
+
+            val initialState = if (prevState != null && !isBeingRescanned) {
+                prevState
+            } else {
+                TrackRipState(trackNumber = track.trackNumber, discNumber = metadata.discNumber ?: 1)
+            }
+
+            track.trackNumber to initialState
+        }
     )
     val trackStates: StateFlow<Map<Int, TrackRipState>> = _trackStates
 
