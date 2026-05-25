@@ -71,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Eject
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.blur
@@ -389,7 +390,8 @@ private fun DiscReadyCard(
     discMetadata: DiscMetadata?,
     coverArtUrl: String?,
     isKeyDisc: Boolean = false,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onEjectClick: () -> Unit = {}
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
@@ -398,7 +400,7 @@ private fun DiscReadyCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SubcomposeAsyncImage(
@@ -420,13 +422,15 @@ private fun DiscReadyCard(
                 }
             )
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = discMetadata?.albumTitle ?: "Disc Ready",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (isKeyDisc) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -441,13 +445,22 @@ private fun DiscReadyCard(
                 Text(
                     text = discMetadata?.artistName ?: "Looking up metadata…",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0x99FFFFFF)
+                    color = Color(0x99FFFFFF),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = toc?.let { "${it.trackCount} tracks" } ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0x66FFFFFF)
+                )
+            }
+            IconButton(onClick = onEjectClick) {
+                Icon(
+                    imageVector = Icons.Default.Eject,
+                    contentDescription = "Eject Disc",
+                    tint = Color.White
                 )
             }
         }
@@ -522,6 +535,9 @@ fun DeviceList(
                         onClick = {
                             viewModel.viewCdTracks()
                             onViewCd()
+                        },
+                        onEjectClick = {
+                            viewModel.ejectDrive()
                         }
                     )
                 }
