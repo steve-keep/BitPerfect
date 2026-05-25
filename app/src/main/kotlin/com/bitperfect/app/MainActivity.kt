@@ -495,7 +495,11 @@ class MainActivity : ComponentActivity() {
                                 viewModel = appViewModel,
                                 onNavigateToAlbum = { albumId ->
                                     appViewModel.loadTracks(albumId)
-                                    navController.popBackStack() // Pop back to TrackList view
+                                    if (navController.previousBackStackEntry?.destination?.route == AppRoutes.TrackList) {
+                                        navController.popBackStack() // Pop back to TrackList view
+                                    } else {
+                                        navController.navigate(AppRoutes.TrackList)
+                                    }
                                 },
                                 onNavigateBack = { navController.popBackStack() }
                             )
