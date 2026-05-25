@@ -294,19 +294,20 @@ class WiimOutputController(
     private fun sendSoapActionWithResponse(action: String, body: String): String? {
         if (target.avTransportControlUrl.isNullOrEmpty()) return null
         try {
-            val connection = openTrustAllConnection(target.avTransportControlUrl!!)
+            val url = URL(target.avTransportControlUrl!!)
+            val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "text/xml; charset=\"utf-8\"")
-            connection.setRequestProperty("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:3#$action\"")
+            connection.setRequestProperty("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#$action\"")
 
             val envelope = """
                 <?xml version="1.0" encoding="utf-8"?>
                 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                     <s:Body>
-                        <u:$action xmlns:u="urn:schemas-upnp-org:service:AVTransport:3">
+                        <u:$action xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
                             $body
                         </u:$action>
                     </s:Body>
