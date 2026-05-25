@@ -80,8 +80,6 @@ fun TrackListScreen(
         }
     }
 
-    var showStopDialog by remember { mutableStateOf(false) }
-
     Box(modifier = Modifier.fillMaxSize()) {
         val state = viewState
         if (state == null || state.tracks.isEmpty()) {
@@ -186,7 +184,8 @@ fun TrackListScreen(
                                 if (isAlbumPlaying) viewModel.togglePlayPause() else viewModel.playAlbum(state.tracks)
                             },
                             onStopRipClick = {
-                                showStopDialog = true
+                                viewModel.cancelRip(true)
+                                viewModel.ejectDrive()
                             },
                             dominantColor = dominantColor,
                             onColorExtracted = { extractedColor -> dominantColor = extractedColor }
@@ -636,32 +635,6 @@ fun TrackListScreen(
         } // Close Box here
     } // Close if statement here
     } // Close Box modifier fillMaxSize here
-
-    if (showStopDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showStopDialog = false
-            },
-            title = { Text("Delete Rip Files?") },
-            text = { Text("Do you want to delete the files created during this rip?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.cancelRip(true)
-                    showStopDialog = false
-                }) {
-                    Text("Yes")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    viewModel.cancelRip(false)
-                    showStopDialog = false
-                }) {
-                    Text("No")
-                }
-            }
-        )
-    }
 
     if (tagsViewState != null) {
         val tagsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
