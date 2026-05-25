@@ -100,6 +100,12 @@ open class OutputRepository(
         } catch (e: Exception) {}
     }
 
+    fun optimisticallyFlipWiimPlaying() {
+        if (_activeDevice.value is OutputDevice.Upnp) {
+            _wiimIsPlaying.value = !_wiimIsPlaying.value
+        }
+    }
+
     // --- Playback delegation ---
     // AppViewModel calls these instead of PlayerRepository directly.
 

@@ -28,7 +28,7 @@ class NowPlayingBarTest {
     fun verifyNowPlayingBarHiddenWhenNoTitle() {
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = null,
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
@@ -47,7 +47,7 @@ class NowPlayingBarTest {
     fun verifyNowPlayingBarVisibleWithTitle() {
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = "The Band",
                 currentAlbumArtUri = null,
@@ -71,7 +71,7 @@ class NowPlayingBarTest {
     fun verifyNowPlayingBarWithArtUri() {
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = true,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(true),
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = "The Band",
                 currentAlbumArtUri = android.net.Uri.parse("content://media/external/audio/albumart/1"),
@@ -92,7 +92,7 @@ class NowPlayingBarTest {
     fun verifyNowPlayingBarWithoutArtist() {
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
@@ -114,7 +114,7 @@ class NowPlayingBarTest {
     fun verifyNowPlayingBarWithEmptyArtist() {
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = "My Favorite Song",
                 currentTrackArtist = "",
                 currentAlbumArtUri = null,
@@ -138,7 +138,7 @@ class NowPlayingBarTest {
 
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = "Test Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
@@ -159,7 +159,7 @@ class NowPlayingBarTest {
         var clicked = false
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = "Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
@@ -181,7 +181,7 @@ class NowPlayingBarTest {
         // Pause icon shown when playing
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = true,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(true),
                 currentTrackTitle = "Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
@@ -204,7 +204,7 @@ class NowPlayingBarTest {
         // Play icon shown when paused
         composeTestRule.setContent {
             NowPlayingBar(
-                isPlaying = false,
+                isPlayingFlow = kotlinx.coroutines.flow.MutableStateFlow(false),
                 currentTrackTitle = "Song",
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
