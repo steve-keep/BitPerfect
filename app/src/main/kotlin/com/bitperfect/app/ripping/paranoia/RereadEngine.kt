@@ -1,8 +1,11 @@
 package com.bitperfect.app.ripping.paranoia
 
 import com.bitperfect.core.utils.AppLogger
+import com.bitperfect.app.ripping.paranoia.strategy.RecoveryStrategy
+import com.bitperfect.app.ripping.paranoia.strategy.RecoveryMetadata
 
 class RereadEngine(
+    private val strategies: List<RecoveryStrategy>,
     private val verifier: OverlapVerifier,
     private val maxRereads: Int = 6
 ) {
@@ -13,53 +16,62 @@ class RereadEngine(
         readChunk: suspend (lba: Int, sectors: Int) -> VerifiedChunk?
     ): RereadRecoveryResult {
         var lastAttempt = failedChunk
-        var previousRereadCandidate: VerifiedChunk? = null
-
-        val sectorsToRead = failedChunk.endLba - failedChunk.startLba
 
         AppLogger.w("RereadEngine", "suspicious_region lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)}")
 
-        for (attempt in 1..maxRereads) {
-            AppLogger.d("RereadEngine", "reread_attempt lba=${failedChunk.startLba} attempt=$attempt")
+        val metadataHistory = mutableListOf<RecoveryMetadata>()
 
-            val currentAttempt = readChunk(failedChunk.startLba, sectorsToRead)
-            if (currentAttempt != null) {
+        for (strategy in strategies) {
+            val window = strategy.getRecoveryWindow(failedChunk)
+            var previousRereadCandidate: VerifiedChunk? = null
 
-                // 1. Verify overlap against previous verified chunk
-                val overlapsProperly = verifier.verifyOverlap(
-                    tail = previousVerifiedChunk.overlapTail,
-                    head = currentAttempt.overlapHead
-                )
+            for (attempt in 1..maxRereads) {
+                AppLogger.d("RereadEngine", "reread_attempt strategy=${strategy.strategyName} lba=${failedChunk.startLba} attempt=$attempt")
 
-                if (overlapsProperly) {
-                    AppLogger.d("RereadEngine", "reread_match overlap check passed for attempt=$attempt lba=${failedChunk.startLba}")
+                val currentAttempt = strategy.performAttempt(failedChunk, readChunk)
+                if (currentAttempt != null) {
+
+                    // 1. Verify overlap against previous verified chunk
+                    val overlapsProperly = verifier.verifyOverlap(
+                        tail = previousVerifiedChunk.overlapTail,
+                        head = currentAttempt.overlapHead
+                    )
+
+                    if (overlapsProperly) {
+                        AppLogger.d("RereadEngine", "reread_match overlap check passed for strategy=${strategy.strategyName} attempt=$attempt lba=${failedChunk.startLba}")
+                    } else {
+                        AppLogger.d("RereadEngine", "reread_mismatch overlap check failed for strategy=${strategy.strategyName} attempt=$attempt lba=${failedChunk.startLba}")
+                    }
+
+                    // 2. Check stability if we have a previous attempt
+                    var isStable = false
+                    if (previousRereadCandidate != null) {
+                        isStable = isStableCandidate(previousRereadCandidate, currentAttempt)
+                    } else if (attempt == 1) {
+                         // Check if attempt 1 is stable against attempt 0 (failedChunk)
+                         isStable = isStableCandidate(failedChunk, currentAttempt)
+                    }
+
+                    if (overlapsProperly && isStable) {
+                         AppLogger.d("RereadEngine", "reread_recovered strategy=${strategy.strategyName} lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=HIGH")
+                         val successAttempt = currentAttempt.copy(rereadCount = attempt)
+                         metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, attempt, true))
+                         return RereadRecoveryResult.Recovered(successAttempt, metadataHistory)
+                    }
+
+                    lastAttempt = currentAttempt
+                    previousRereadCandidate = currentAttempt
                 } else {
-                    AppLogger.d("RereadEngine", "reread_mismatch overlap check failed for attempt=$attempt lba=${failedChunk.startLba}")
+                    AppLogger.w("RereadEngine", "reread_attempt failed to read data strategy=${strategy.strategyName} lba=${failedChunk.startLba} attempt=$attempt")
                 }
-
-                // 2. Check stability if we have a previous attempt
-                var isStable = false
-                if (previousRereadCandidate != null) {
-                    isStable = isStableCandidate(previousRereadCandidate, currentAttempt)
-                } else if (attempt == 1) {
-                     // Check if attempt 1 is stable against attempt 0 (failedChunk)
-                     isStable = isStableCandidate(failedChunk, currentAttempt)
-                }
-
-                if (overlapsProperly && isStable) {
-                     AppLogger.d("RereadEngine", "reread_recovered lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=HIGH")
-                     return RereadRecoveryResult.Recovered(currentAttempt.copy(rereadCount = attempt))
-                }
-
-                lastAttempt = currentAttempt
-                previousRereadCandidate = currentAttempt
-            } else {
-                AppLogger.w("RereadEngine", "reread_attempt failed to read data lba=${failedChunk.startLba} attempt=$attempt")
             }
+
+            // If this strategy failed after all retries, record it and move to the next strategy
+            metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, maxRereads, false))
         }
 
         AppLogger.w("RereadEngine", "reread_failed lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=LOW")
-        return RereadRecoveryResult.Failed(lastAttempt.copy(rereadCount = maxRereads))
+        return RereadRecoveryResult.Failed(lastAttempt.copy(rereadCount = maxRereads), metadataHistory)
     }
 
     private fun isStableCandidate(
