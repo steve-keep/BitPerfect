@@ -318,7 +318,7 @@ fun SettingsScreen(
                             .clickable {
                                 val discReady = driveStatus as? DriveStatus.DiscReady
                                 val offset = driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset
-                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset, coverArtUrl, viewModel.ripStates.value)
+                                sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset, coverArtUrl, viewModel.ripStates.value, viewModel.discMetadata.value)
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -424,7 +424,7 @@ fun SettingsScreen(
     }
 }
 
-private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?, coverArtUrl: String?, ripStates: Map<Int, com.bitperfect.app.usb.TrackRipState>) {
+private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?, coverArtUrl: String?, ripStates: Map<Int, com.bitperfect.app.usb.TrackRipState>, discMetadata: com.bitperfect.core.models.DiscMetadata?) {
     val sb = java.lang.StringBuilder()
     sb.appendLine("# BitPerfect Debug Report")
     sb.appendLine()
@@ -524,6 +524,18 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         if (coverArtUrl != null) {
             sb.appendLine("### Cover Art")
             sb.appendLine("URL: `$coverArtUrl`")
+            sb.appendLine()
+        }
+
+        if (discMetadata != null) {
+            val encodedArtist = java.net.URLEncoder.encode(discMetadata.artistName, "UTF-8")
+            val encodedAlbum = java.net.URLEncoder.encode(discMetadata.albumTitle, "UTF-8")
+
+            sb.appendLine("### iTunes Search URLs")
+            sb.appendLine("Stage 1 (Primary strict): `https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&attribute=albumTerm&limit=25`")
+            sb.appendLine("Stage 2 (Relaxed text): `https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&limit=25`")
+            sb.appendLine("Stage 3 (Album only): `https://itunes.apple.com/search?term=$encodedAlbum&media=music&entity=album&limit=25`")
+            sb.appendLine("Stage 4 (Broad media): `https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&limit=25`")
             sb.appendLine()
         }
     }
