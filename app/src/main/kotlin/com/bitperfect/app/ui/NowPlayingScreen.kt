@@ -157,6 +157,7 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                     }
 
                     val density = LocalDensity.current
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
                     LazyColumn(
                         state = lazyListState,
                         modifier = Modifier.fillMaxSize(),
@@ -179,19 +180,25 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .padding(vertical = 8.dp)
-                                                .background(Color.Red, RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    val actualIndex = currentItemIndex + currentQueueIndex + 1
-                                                    viewModel.removeQueueItem(actualIndex)
-                                                },
+                                                .padding(vertical = 8.dp),
                                             contentAlignment = Alignment.CenterEnd
                                         ) {
-                                            Text(
-                                                text = "Delete",
-                                                color = Color.White,
-                                                modifier = Modifier.padding(end = 16.dp)
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxHeight()
+                                                    .background(Color.Red, RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        val actualIndex = currentItemIndex + currentQueueIndex + 1
+                                                        viewModel.removeQueueItem(actualIndex)
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "Delete",
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                                )
+                                            }
                                         }
                                     },
                                     content = {
@@ -199,6 +206,11 @@ fun NowPlayingScreen(viewModel: AppViewModel, onCollapse: () -> Unit = {}) {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .background(if (isDragging) Color(0xFF2A2A2A) else MaterialTheme.colorScheme.surfaceContainerLow)
+                                                .clickable {
+                                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                                                        scope.launch { dismissState.reset() }
+                                                    }
+                                                }
                                                 .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
