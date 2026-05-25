@@ -233,8 +233,9 @@ class UpnpManager(
         // Need at least one to succeed to confirm this is a LinkPlay device
         if (playerJson == null && statusJson == null) return null
 
-        val avTransportControlUrl = "http://$ip:49152/upnp/control/rendertransport1"
-        val renderingControlUrl = "http://$ip:49152/upnp/control/rendercontrol1"
+        val scheme = try { java.net.URL(baseUrl).protocol } catch (e: Exception) { "http" }
+        val avTransportControlUrl = "$scheme://$ip:49152/upnp/control/rendertransport1"
+        val renderingControlUrl = "$scheme://$ip:49152/upnp/control/rendercontrol1"
 
         // Merge: getStatusEx wins for identity fields, getPlayerStatusEx for everything else
         val friendlyName = statusJson?.optString("DeviceName")?.takeIf { it.isNotEmpty() }
