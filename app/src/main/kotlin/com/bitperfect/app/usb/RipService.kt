@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import com.bitperfect.app.R // Assume R is accessible
 
 import androidx.core.app.ServiceCompat
+import android.content.pm.ServiceInfo
 
 class RipService : Service() {
 
@@ -61,9 +62,11 @@ class RipService : Service() {
         }
 
         val startingText = getString(R.string.notif_starting)
-        startForeground(
+        ServiceCompat.startForeground(
+            this,
             notificationId,
-            buildNotification(title, startingText, "", 0, 0, indeterminate = true)
+            buildNotification(title, startingText, "", 0, 0, indeterminate = true),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
         )
 
         scope.launch {
