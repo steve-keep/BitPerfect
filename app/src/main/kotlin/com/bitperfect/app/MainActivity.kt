@@ -145,7 +145,6 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
 
             val isControllerReady by appViewModel.isControllerReady.collectAsState()
-            val isPlaying by appViewModel.isPlaying.collectAsState()
             val currentTrackTitle by appViewModel.currentTrackTitle.collectAsState()
             val currentTrackArtist by appViewModel.currentTrackArtist.collectAsState()
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
@@ -540,7 +539,7 @@ class MainActivity : ComponentActivity() {
                                     .graphicsLayer { alpha = 1f - progressProvider() }
                             ) {
                             NowPlayingBar(
-                                isPlaying = isPlaying,
+                                isPlayingFlow = appViewModel.isPlaying,
                                 currentTrackTitle = currentTrackTitle,
                                 currentTrackArtist = currentTrackArtist,
                                 currentAlbumArtUri = currentAlbumArtUri,
