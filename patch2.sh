@@ -1,0 +1,1 @@
+sed -i '25i import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly\nimport com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnalyzer' app/src/main/kotlin/com/bitperfect/app/usb/RipManager.kt
