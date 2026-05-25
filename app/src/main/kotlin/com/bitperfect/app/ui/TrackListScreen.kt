@@ -609,6 +609,13 @@ fun TrackListScreen(
                                     onDismissRequest = { showMenu = false }
                                 ) {
                                     DropdownMenuItem(
+                                        text = { Text("Play Next") },
+                                        onClick = {
+                                            viewModel.playAlbumNext(state.tracks)
+                                            showMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text("Add to Queue") },
                                         onClick = {
                                             viewModel.addAlbumToQueue(state.tracks)

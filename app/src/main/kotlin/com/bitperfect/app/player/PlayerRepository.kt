@@ -380,6 +380,18 @@ open class PlayerRepository(
         }
     }
 
+    open fun playAlbumNext(tracks: List<TrackInfo>) {
+        controller?.let {
+            val mediaItems = tracks.map { track -> trackToMediaItem(track) }
+            val insertIndex = if (it.mediaItemCount > 0) it.currentMediaItemIndex + 1 else 0
+            it.addMediaItems(insertIndex, mediaItems)
+            if (!it.isPlaying && it.playbackState == Player.STATE_IDLE) {
+                it.prepare()
+                it.play()
+            }
+        }
+    }
+
     open fun addToQueue(track: TrackInfo) {
         controller?.let {
             val item = trackToMediaItem(track)
