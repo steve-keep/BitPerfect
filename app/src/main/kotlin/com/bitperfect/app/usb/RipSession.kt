@@ -49,6 +49,8 @@ class RipSession(private val context: Context) {
         val driveVendor = info?.vendorId ?: ""
         val driveProduct = info?.productId ?: ""
 
+        val previousStates = if (_ripStates.value.isNotEmpty()) _ripStates.value else null
+
         val manager = RipManager(
             context = context,
             outputFolderUriString = outputFolderUriString,
@@ -59,7 +61,8 @@ class RipSession(private val context: Context) {
             lyricsMap = lyricsMap,
             driveVendor = driveVendor,
             driveProduct = driveProduct,
-            initialTracks = tracksToRip ?: toc.tracks.map { it.trackNumber }
+            initialTracks = tracksToRip ?: toc.tracks.map { it.trackNumber },
+            previousStates = previousStates
         )
         ripManager = manager
         _isRipping.value = true
