@@ -678,6 +678,8 @@ class RipManager(
                 }
             }
 
+            MediaScannerHelper.scanSafUri(context, destFile.uri)
+
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
 
             // Verify checksum
@@ -799,6 +801,7 @@ class RipManager(
                     outputStream.write((obj.toString() + "\n").toByteArray(Charsets.UTF_8))
                 }
             }
+            MediaScannerHelper.scanSafUri(context, file.uri)
         } catch (e: Exception) {
             AppLogger.e("RipManager", "Failed to write BitPerfect.jsonl", e)
         }
@@ -1148,6 +1151,7 @@ class RipManager(
                 context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
                     out.write(sb.toString().toByteArray(Charsets.UTF_8))
                 }
+                MediaScannerHelper.scanSafUri(context, destFile.uri)
             }
         } catch (e: Exception) {
             AppLogger.w("RipManager", "Failed to write rip.txt: ${e.message}")
