@@ -121,7 +121,7 @@ fun ArtistScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "${totalAlbumsCount} Albums",
+                                    text = "${artist!!.albums.size} Albums",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.White.copy(alpha = 0.8f)
                                 )
@@ -171,7 +171,7 @@ fun ArtistScreen(
                                     text = if (isExpanded) "Read less" else "Read more",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .padding(top = 4.dp)
                                         .clickable { isExpanded = !isExpanded }
