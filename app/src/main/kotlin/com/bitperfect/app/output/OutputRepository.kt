@@ -46,6 +46,9 @@ open class OutputRepository(
     private val _wiimPositionMs = MutableStateFlow(0L)
     open val wiimPositionMs: StateFlow<Long> = _wiimPositionMs.asStateFlow()
 
+    private val _wiimVolume = MutableStateFlow(50)
+    open val wiimVolume: StateFlow<Int> = _wiimVolume.asStateFlow()
+
     open val isPlaying: StateFlow<Boolean> = combine(
         _activeDevice,
         _wiimIsPlaying,
@@ -121,6 +124,14 @@ open class OutputRepository(
     open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
     open suspend fun getPositionMs(): Long = activeController.getPositionMs()
 
+    open suspend fun setVolume(volume: Int) {
+        val controller = activeController
+        if (controller is WiimOutputController) {
+            controller.setVolume(volume)
+            _wiimVolume.value = volume.coerceIn(0, 100)
+        }
+    }
+
     // --- Device switching ---
 
     /**
@@ -138,6 +149,7 @@ open class OutputRepository(
                 wiimCollectionJob?.cancel()
                 _wiimIsPlaying.value = false
                 _wiimPositionMs.value = 0L
+                _wiimVolume.value = 50
 
                 activeController.release()
 
@@ -151,6 +163,7 @@ open class OutputRepository(
                         wiimCollectionJob = scope.launch {
                             launch { controller.isPlaying.collect { _wiimIsPlaying.value = it } }
                             launch { controller.positionMs.collect { _wiimPositionMs.value = it } }
+                            launch { controller.volume.collect { _wiimVolume.value = it } }
                         }
                         controller
                     }

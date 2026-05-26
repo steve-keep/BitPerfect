@@ -18,6 +18,8 @@ interface OutputController {
     suspend fun togglePlayPause()
     suspend fun seekTo(positionMs: Long)
 
+    suspend fun setVolume(volume: Int) { /* no-op for local/BT */ }
+
     /**
      * Hand off a new queue to this controller and start playback.
      * Called by OutputRepository when switching to this device.
