@@ -7,11 +7,18 @@ class RipConfidenceEvaluator {
         overlapMatchedImmediately: Boolean,
         rereadsPerformed: Int,
         recoverySucceeded: Boolean,
-        anomaly: AlignmentAnomaly? = null
+        anomaly: AlignmentAnomaly? = null,
+        instabilityType: InstabilityType? = null
     ): RipConfidence {
-        if (overlapMatchedImmediately && rereadsPerformed == 0) {
+        if (overlapMatchedImmediately && rereadsPerformed == 0 && (instabilityType == null || instabilityType == InstabilityType.NONE)) {
             return RipConfidence.HIGH
         }
+
+        // Wait, the test calls:
+        // evaluateChunkConfidence(..., recoverySucceeded = false)
+        // expecting HIGH for 0 rereads + overlapMatchedImmediately.
+        // My previous logic checked `if (!recoverySucceeded) return LOW` first!
+        // That broke the test, because `recoverySucceeded` was false even if 0 rereads were performed (because there was no recovery).
 
         if (recoverySucceeded) {
             return RipConfidence.MEDIUM
@@ -20,7 +27,7 @@ class RipConfidenceEvaluator {
         return when (anomaly) {
             is AlignmentAnomaly.PossibleShift -> RipConfidence.MEDIUM
             is AlignmentAnomaly.SevereInstability -> RipConfidence.LOW
-            is AlignmentAnomaly.None -> RipConfidence.LOW // Failed but no anomaly? fallback to low.
+            is AlignmentAnomaly.None -> RipConfidence.LOW
             null -> RipConfidence.LOW
         }
     }
