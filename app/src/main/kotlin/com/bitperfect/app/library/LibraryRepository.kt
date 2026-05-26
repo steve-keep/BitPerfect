@@ -357,6 +357,38 @@ open class LibraryRepository(private val context: Context) {
         return null
     }
 
+
+    open fun getArtistBio(artistName: String, outputFolderUriString: String?): String? {
+        if (outputFolderUriString.isNullOrBlank()) {
+            return null
+        }
+
+        val parentDir = try {
+            val rootUri = Uri.parse(outputFolderUriString)
+            androidx.documentfile.provider.DocumentFile.fromTreeUri(context, rootUri)
+        } catch (e: Exception) { null } ?: return null
+
+        val safeArtist = artistName.replace("/", "_")
+        val artistDir = parentDir.findFile(safeArtist) ?: return null
+        val artistJsonFile = artistDir.findFile("artist.json") ?: return null
+
+        try {
+            context.contentResolver.openInputStream(artistJsonFile.uri)?.use { inputStream ->
+                val jsonString = java.io.BufferedReader(java.io.InputStreamReader(inputStream, Charsets.UTF_8)).use { it.readText() }
+                val jsonObject = org.json.JSONObject(jsonString)
+                val artistsArray = jsonObject.optJSONArray("artists")
+                if (artistsArray != null && artistsArray.length() > 0) {
+                    val firstArtist = artistsArray.getJSONObject(0)
+                    return firstArtist.optString("strBiography", null)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return null
+    }
+
     open fun getTracksForAlbum(albumId: Long, outputFolderUriString: String?): List<TrackInfo> {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
