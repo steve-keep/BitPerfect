@@ -492,8 +492,8 @@ class MainActivity : ComponentActivity() {
                         composable(AppRoutes.Artist) {
                             com.bitperfect.app.ui.ArtistScreen(
                                 viewModel = appViewModel,
-                                onNavigateToAlbum = { albumId ->
-                                    appViewModel.loadTracks(albumId)
+                                onNavigateToAlbum = { albumId, albumTitle ->
+                                    appViewModel.selectAlbum(albumId, albumTitle)
                                     if (navController.previousBackStackEntry?.destination?.route == AppRoutes.TrackList) {
                                         navController.popBackStack() // Pop back to TrackList view
                                     } else {
