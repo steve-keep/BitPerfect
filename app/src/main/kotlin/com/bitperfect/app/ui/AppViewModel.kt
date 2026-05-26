@@ -285,6 +285,18 @@ open class AppViewModel(
         loadLibrary()
 
         viewModelScope.launch {
+            libraryRepository.onLibraryUpdated.collect {
+                loadLibraryLists()
+            }
+        }
+
+        viewModelScope.launch {
+            playerRepository.onRecentlyPlayedUpdated.collect {
+                loadLibraryLists()
+            }
+        }
+
+        viewModelScope.launch {
             playerRepository.positionMs.collect {
                 if (activeDevice.value !is OutputDevice.Upnp) {
                     _positionMs.value = it
@@ -339,7 +351,8 @@ open class AppViewModel(
                                     artist = foundArtist?.name ?: safeArtist,
                                     trackId = firstTrack?.id
                                 )
-                                loadLibrary() // Reload after appending to reflect latest rips
+                                // reload of lists is handled by flow, just update library structure
+                                loadLibrary()
                                 withContext(Dispatchers.Main) {
                                     selectAlbum(foundAlbum.id, foundAlbum.title)
                                 }
@@ -515,16 +528,10 @@ open class AppViewModel(
 
 
 
-    fun loadLibrary() {
+    fun loadLibraryLists() {
         val uriString = settingsManager.outputFolderUri
-        _isOutputFolderConfigured.value = !uriString.isNullOrBlank()
 
         viewModelScope.launch(ioDispatcher) {
-            val loadedArtists = libraryRepository.getLibrary(uriString)
-            _artists.value = loadedArtists
-
-            _totalTracks.value = libraryRepository.getTotalTracks(uriString)
-
             val recent = libraryRepository.getRecentlyPlayedAlbums(uriString, 50)
             val artistCounts = mutableMapOf<String, Int>()
             for ((artistInfo, _) in recent) {
@@ -557,6 +564,20 @@ open class AppViewModel(
 
             val latest = libraryRepository.getLatestRippedAlbums(uriString)
             _latestRippedAlbums.value = latest
+        }
+    }
+
+    fun loadLibrary() {
+        val uriString = settingsManager.outputFolderUri
+        _isOutputFolderConfigured.value = !uriString.isNullOrBlank()
+
+        viewModelScope.launch(ioDispatcher) {
+            val loadedArtists = libraryRepository.getLibrary(uriString)
+            _artists.value = loadedArtists
+
+            _totalTracks.value = libraryRepository.getTotalTracks(uriString)
+
+            loadLibraryLists()
 
             // Rehydrate the track list if an album was selected but data was lost
             // (e.g. after returning from background or process recreation).
