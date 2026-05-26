@@ -854,4 +854,28 @@ class UsbDriveDetectorTest {
         assertTrue("Expected DriveStatus.Empty due to failed fast but was $state", state is DriveStatus.Empty)
     }
 
+    @Test
+    fun `setEjectingState sets driveStatus to Ejecting`() {
+        val mockContext = mock(android.content.Context::class.java)
+        val mockContextApp = mock(android.content.Context::class.java)
+        org.mockito.Mockito.`when`(mockContext.applicationContext).thenReturn(mockContextApp)
+        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
+        org.mockito.Mockito.`when`(mockContextApp.getSystemService(android.content.Context.USB_SERVICE)).thenReturn(mockUsbManager)
+
+        val detector = UsbDriveDetector(
+            context = mockContextApp,
+            transportFactory = { mock(UsbTransport::class.java) }
+        )
+
+        // Inject info via reflection since we need it to not return early
+        val field = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
+        field.isAccessible = true
+        val statusFlow = field.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
+        statusFlow.value = DriveStatus.DiscReady(DriveInfo("ven", "prod", true))
+
+        detector.setEjectingState()
+
+        val status = detector.driveStatus.value
+        assertTrue(status is DriveStatus.Ejecting)
+    }
 }

@@ -38,6 +38,7 @@ object DeviceStateManager {
         val transport = getTransport() ?: return false
         val outEndpoint = getOutEndpoint() ?: return false
         val inEndpoint = getInEndpoint() ?: return false
+        usbDriveDetector?.setEjectingState()
         pausePolling()
         var result = false
         try {

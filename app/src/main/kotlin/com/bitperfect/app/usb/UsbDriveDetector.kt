@@ -305,6 +305,12 @@ class UsbDriveDetector(
         startPollingLoop(info)
     }
 
+    fun setEjectingState() {
+        val currentStatus = _driveStatus.value
+        val info = currentStatus.info ?: return
+        _driveStatus.value = DriveStatus.Ejecting(info)
+    }
+
     private fun startPollingLoop(info: DriveInfo) {
         pollingJob?.cancel()
         pollingJob = scope.launch {
@@ -339,7 +345,7 @@ class UsbDriveDetector(
                             }
                         }
                         TurResult.NOT_READY -> {
-                            if (currentStatus is DriveStatus.DiscReady) {
+                            if (currentStatus !is DriveStatus.Empty) {
                                 _driveStatus.value = DriveStatus.Empty(info)
                             }
                         }

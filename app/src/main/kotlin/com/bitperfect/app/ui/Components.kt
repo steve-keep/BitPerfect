@@ -541,6 +541,12 @@ fun DeviceList(
                     subtitle = "Reading disc information",
                     showSpinner = true
                 )
+                is DriveStatus.Ejecting -> DriveStatusCard(
+                    icon = Icons.Default.Eject,
+                    headline = "Ejecting…",
+                    subtitle = "Opening disc tray",
+                    showSpinner = true
+                )
                 is DriveStatus.DiscReady -> {
                     DiscReadyCard(
                         toc = currentStatus.toc,
