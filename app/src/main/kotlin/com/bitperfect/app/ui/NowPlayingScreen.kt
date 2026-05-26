@@ -82,11 +82,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -174,55 +173,78 @@ fun NowPlayingScreen(
                     ) {
                         itemsIndexed(upcomingItems, key = { _, item -> item.mediaId }) { index, item ->
                             val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                confirmValueChange = { dismissValue ->
-                                    dismissValue == SwipeToDismissBoxValue.EndToStart
-                                },
-                                positionalThreshold = { with(density) { 100.dp.toPx() } }
-                            )
+                            val buttonWidthDp = 88.dp
+                            val buttonWidthPx = with(density) { buttonWidthDp.toPx() }
+                            val offsetX = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
 
                             ReorderableItem(reorderState, key = item.mediaId) { isDragging ->
-                                SwipeToDismissBox(
-                                    state = dismissState,
-                                    enableDismissFromStartToEnd = false,
-                                    backgroundContent = {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.CenterEnd
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxHeight()
-                                                    .background(Color.Red, RoundedCornerShape(8.dp))
-                                                    .clickable {
-                                                        val actualIndex = currentItemIndex + currentQueueIndex + 1
-                                                        viewModel.removeQueueItem(actualIndex)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    // Background Layer (Delete Button)
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .width(buttonWidthDp)
+                                            .height(48.dp) // Match Album Art
+                                            .background(Color.Red, RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                val actualIndex = currentItemIndex + currentQueueIndex + 1
+                                                viewModel.removeQueueItem(actualIndex)
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "Delete",
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
+
+                                    // Foreground Layer
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .graphicsLayer {
+                                                translationX = offsetX.value
+                                            }
+                                            .background(if (isDragging) Color(0xFF2A2A2A) else MaterialTheme.colorScheme.surfaceContainerLow)
+                                            .pointerInput(Unit) {
+                                                detectHorizontalDragGestures(
+                                                    onDragEnd = {
+                                                        scope.launch {
+                                                            if (offsetX.value < -buttonWidthPx / 2) {
+                                                                offsetX.animateTo(-buttonWidthPx, animationSpec = tween(200))
+                                                            } else {
+                                                                offsetX.animateTo(0f, animationSpec = tween(200))
+                                                            }
+                                                        }
                                                     },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "Delete",
-                                                    color = Color.White,
-                                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                                    onDragCancel = {
+                                                        scope.launch {
+                                                            offsetX.animateTo(0f, animationSpec = tween(200))
+                                                        }
+                                                    },
+                                                    onHorizontalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        scope.launch {
+                                                            val newOffset = (offsetX.value + dragAmount).coerceIn(-buttonWidthPx, 0f)
+                                                            offsetX.snapTo(newOffset)
+                                                        }
+                                                    }
                                                 )
                                             }
-                                        }
-                                    },
-                                    content = {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(if (isDragging) Color(0xFF2A2A2A) else MaterialTheme.colorScheme.surfaceContainerLow)
-                                                .clickable {
-                                                    if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                                                        scope.launch { dismissState.reset() }
+                                            .clickable {
+                                                if (offsetX.value < 0f) {
+                                                    scope.launch {
+                                                        offsetX.animateTo(0f, animationSpec = tween(200))
                                                     }
                                                 }
-                                                .padding(vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
+                                            },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                             val artworkUri = item.mediaMetadata.artworkUri
                                             if (artworkUri != null) {
                                                 AsyncImage(
@@ -284,7 +306,6 @@ fun NowPlayingScreen(
                                             }
                                         }
                                     }
-                                )
                             }
                         }
                         item {
