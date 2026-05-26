@@ -280,12 +280,12 @@ class PlaybackServiceTest {
         assertEquals(3, items?.size)
 
         assertEquals("recent_added", items?.get(0)?.mediaId)
-        assertEquals("Recently Added", items?.get(0)?.mediaMetadata?.title)
+        assertEquals("New", items?.get(0)?.mediaMetadata?.title)
         assertEquals(true, items?.get(0)?.mediaMetadata?.isBrowsable)
         assertEquals(false, items?.get(0)?.mediaMetadata?.isPlayable)
 
         assertEquals("recent_albums", items?.get(1)?.mediaId)
-        assertEquals("Recently Played", items?.get(1)?.mediaMetadata?.title)
+        assertEquals("Recent", items?.get(1)?.mediaMetadata?.title)
         assertEquals(true, items?.get(1)?.mediaMetadata?.isBrowsable)
         assertEquals(false, items?.get(1)?.mediaMetadata?.isPlayable)
 

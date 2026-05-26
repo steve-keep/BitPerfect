@@ -117,7 +117,7 @@ class PlaybackService : MediaLibraryService() {
                         .setMediaId("recent_added")
                         .setMediaMetadata(
                             MediaMetadata.Builder()
-                                .setTitle("Recently Added")
+                                .setTitle("New")
                                 .setIsBrowsable(true)
                                 .setIsPlayable(false)
                                 .setExtras(folderExtras)
@@ -129,7 +129,7 @@ class PlaybackService : MediaLibraryService() {
                         .setMediaId("recent_albums")
                         .setMediaMetadata(
                             MediaMetadata.Builder()
-                                .setTitle("Recently Played")
+                                .setTitle("Recent")
                                 .setIsBrowsable(true)
                                 .setIsPlayable(false)
                                 .setExtras(folderExtras)
