@@ -866,7 +866,12 @@ fun LibrarySection(
                             }
                         }
                         item {
-                            val itemWidth = (screenWidth - 72.dp) / 3.5f
+                            val defaultWidth = (screenWidth - 72.dp) / 3.5f
+                            val itemWidth = if (artist.albums.size < 3) {
+                                (defaultWidth * 2) + 16.dp
+                            } else {
+                                defaultWidth
+                            }
 
                             androidx.compose.foundation.lazy.LazyRow(
                                 modifier = Modifier
