@@ -29,7 +29,8 @@ class UsbDriveDetectorTest {
         private val failTurTransferOnAttempt: Int? = null,
         private val senseKeyOverride: Byte? = null,
         private val ascOverride: Byte? = null,
-        private val ascqOverride: Byte? = null
+        private val ascqOverride: Byte? = null,
+        private val senseSequence: List<Triple<Byte, Byte, Byte>>? = null
     ) : UsbTransport {
         var transferCount = 0
         var currentTurAttempt = 1
@@ -104,9 +105,16 @@ class UsbDriveDetectorTest {
                 }
                 "REQ_SENSE_DATA" -> {
                     java.util.Arrays.fill(buffer, 0, 18, 0.toByte())
-                    if (senseKeyOverride != null) buffer[2] = senseKeyOverride
-                    if (ascOverride != null) buffer[12] = ascOverride
-                    if (ascqOverride != null) buffer[13] = ascqOverride
+                    val seqSense = senseSequence?.getOrNull(currentTurAttempt - 1)
+                    if (seqSense != null) {
+                        buffer[2] = seqSense.first
+                        buffer[12] = seqSense.second
+                        buffer[13] = seqSense.third
+                    } else {
+                        if (senseKeyOverride != null) buffer[2] = senseKeyOverride
+                        if (ascOverride != null) buffer[12] = ascOverride
+                        if (ascqOverride != null) buffer[13] = ascqOverride
+                    }
                     state = "REQ_SENSE_CSW"
                     return 18
                 }
@@ -203,7 +211,7 @@ class UsbDriveDetectorTest {
         System.arraycopy(vendorId.toByteArray(Charsets.US_ASCII), 0, inquiryData, 8, 8)
         System.arraycopy(productId.toByteArray(Charsets.US_ASCII), 0, inquiryData, 16, 16)
 
-        val fakeTransport = FakeUsbTransport(inquiryData)
+        val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData)
         val outEndpoint = mock(UsbEndpoint::class.java)
         val inEndpoint = mock(UsbEndpoint::class.java)
 
@@ -554,7 +562,7 @@ class UsbDriveDetectorTest {
         "TEST_VEND".toByteArray().copyInto(inquiryData, 8)
         "TEST_PROD".toByteArray().copyInto(inquiryData, 16)
 
-        val fakeTransport = FakeUsbTransport(inquiryData, 0, createSyntheticTocResponse(), 0)
+        val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData, turCswStatus = 0, tocResponse = createSyntheticTocResponse(), tocCswStatus = 0)
         val detector = UsbDriveDetector(context) { _ ->
             fakeTransport
         }
@@ -636,6 +644,145 @@ class UsbDriveDetectorTest {
         assertTrue("Expected isMassStorageDevice to return true for Class 8, Subclass 2", result)
     }
 
+    @Test
+    fun testSpinningUpToDetectingDiscToDiscReady() {
+        val inquiryData = ByteArray(36)
+        inquiryData[0] = 0x05 // Optical
+
+        // Sequence of events:
+        // Attempt 1: Returns NOT_READY with SPINNING_UP sense data (0x02, 0x04, 0x01) -> State becomes SpinningUp
+        // Attempt 2: Returns NOT_READY with non-spinning sense data (0x02, 0x3A, 0x00 - medium not present) -> State becomes DetectingDisc
+        // Attempt 3: Returns READY -> State becomes DiscReady
+        val fakeTransport = FakeUsbTransport(
+            inquiryResponse = inquiryData,
+            turCswStatus = 0, // Eventually ready
+            turRetriesRequired = 2,
+            senseSequence = listOf(
+                Triple(0x02.toByte(), 0x04.toByte(), 0x01.toByte()), // Spinning up
+                Triple(0x02.toByte(), 0x3A.toByte(), 0x00.toByte())  // Non-spinning (Medium not present)
+            ),
+            tocResponse = createSyntheticTocResponse()
+        )
+
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
+
+        val device = mock(android.hardware.usb.UsbDevice::class.java)
+        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
+        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
+        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
+        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
+
+        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
+        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
+        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
+        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
+        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
+
+        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
+        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
+        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
+        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
+
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
+        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
+
+        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
+        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
+
+        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
+        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
+
+        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
+        managerField.isAccessible = true
+        managerField.set(detector, mockUsbManager)
+
+        val intent = android.content.Intent("com.bitperfect.app.USB_PERMISSION")
+        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE, device)
+        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_PERMISSION_GRANTED, true)
+
+        val field = UsbDriveDetector::class.java.getDeclaredField("usbReceiver")
+        field.isAccessible = true
+        val receiver = field.get(detector) as android.content.BroadcastReceiver
+        receiver.onReceive(context, intent)
+
+        var attempts = 0
+        var sawSpinningUp = false
+        var sawDetectingDisc = false
+        while (detector.driveStatus.value !is DriveStatus.DiscReady && attempts < 100) {
+            val currentState = detector.driveStatus.value
+            if (currentState is DriveStatus.SpinningUp) {
+                sawSpinningUp = true
+            } else if (currentState is DriveStatus.DetectingDisc) {
+                sawDetectingDisc = true
+            }
+            if (fakeTransport.state == "DONE") {
+                fakeTransport.state = "TUR_CBW"
+            }
+            Thread.sleep(50)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+            attempts++
+        }
+        val state = detector.driveStatus.value
+        assertTrue("Expected to see SpinningUp state", sawSpinningUp)
+        assertTrue("Expected to see DetectingDisc state", sawDetectingDisc)
+        assertTrue("Expected DriveStatus.DiscReady after polling but was $state", state is DriveStatus.DiscReady)
+    }
+
+    @Test
+    fun testNotReadyFromEmptyDoesNotEnterDetectingDisc() {
+        val inquiryData = ByteArray(36)
+        inquiryData[0] = 0x05 // Optical
+
+        // This will fail the first TUR and return non-spinning sense data, leading to Empty
+        val fakeTransport = FakeUsbTransport(
+            inquiryResponse = inquiryData,
+            turCswStatus = 1, // Stay not ready
+            turRetriesRequired = 1, // Only 1 attempt before returning the turCswStatus
+            senseSequence = listOf(
+                Triple(0x02.toByte(), 0x3A.toByte(), 0x00.toByte())  // Non-spinning
+            )
+        )
+
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
+
+        // Start directly in Empty state
+        val statusField = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
+        statusField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
+        val info = DriveInfo("VENDOR", "PRODUCT", true)
+        stateFlow.value = DriveStatus.Empty(info)
+
+        // Run the polling loop to simulate one TUR check
+        val startPollingMethod = UsbDriveDetector::class.java.getDeclaredMethod("startPollingLoop", DriveInfo::class.java)
+        startPollingMethod.isAccessible = true
+        startPollingMethod.invoke(detector, info)
+
+        var attempts = 0
+        var sawDetectingDisc = false
+        while (attempts < 20) { // Wait long enough for a poll
+            if (detector.driveStatus.value is DriveStatus.DetectingDisc) {
+                sawDetectingDisc = true
+            }
+            if (fakeTransport.state == "DONE") {
+                fakeTransport.state = "TUR_CBW"
+            }
+            Thread.sleep(50)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+            attempts++
+        }
+
+        assertTrue("Expected state to remain Empty, never DetectingDisc", !sawDetectingDisc)
+        assertTrue("Expected final state to be Empty", detector.driveStatus.value is DriveStatus.Empty)
+    }
+
     @Ignore("Flaky test")
     @Test
     fun testExecuteTestUnitReadyDetectsSpinningUp() {
@@ -645,7 +792,7 @@ class UsbDriveDetectorTest {
         // This will fail the first TUR, run REQUEST SENSE returning spinning up status (0x02, 0x04, 0x01),
         // which makes TUR return SPINNING_UP immediately.
         val fakeTransport = FakeUsbTransport(
-            inquiryData,
+            inquiryResponse = inquiryData,
             turCswStatus = 1,
             turRetriesRequired = 1,
             tocResponse = createSyntheticTocResponse(),
@@ -719,7 +866,7 @@ class UsbDriveDetectorTest {
 
         // This will fail the first TUR, putting it in Empty initially. The polling loop runs
         // the subsequent TUR, which succeeds, leading to DiscReady.
-        val fakeTransport = FakeUsbTransport(inquiryData, turCswStatus = 0, turRetriesRequired = 1, tocResponse = createSyntheticTocResponse())
+        val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData, turCswStatus = 0, turRetriesRequired = 1, tocResponse = createSyntheticTocResponse())
 
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         val detector = UsbDriveDetector(context) { _ -> fakeTransport }
@@ -794,7 +941,7 @@ class UsbDriveDetectorTest {
         inquiryData[0] = 0x05 // Optical
 
         // This will fail the CBW transfer for TUR on the first attempt
-        val fakeTransport = FakeUsbTransport(inquiryData, turCswStatus = 0, failTurTransferOnAttempt = 1)
+        val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData, turCswStatus = 0, failTurTransferOnAttempt = 1)
 
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         val detector = UsbDriveDetector(context) { _ -> fakeTransport }

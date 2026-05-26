@@ -541,6 +541,12 @@ fun DeviceList(
                     subtitle = "Reading disc information",
                     showSpinner = true
                 )
+                is DriveStatus.DetectingDisc -> DriveStatusCard(
+                    icon = Icons.Outlined.HourglassBottom,
+                    headline = "Detecting Disc…",
+                    subtitle = "Reading disc information",
+                    showSpinner = true
+                )
                 is DriveStatus.Ejecting -> DriveStatusCard(
                     icon = Icons.Default.Eject,
                     headline = "Ejecting…",
