@@ -107,6 +107,9 @@ open class AppViewModel(
     private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>>(emptyList())
     val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>> = _recentlyPlayedAlbums
 
+    private val _rediscoverAlbums = MutableStateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>>(emptyList())
+    val rediscoverAlbums: StateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>> = _rediscoverAlbums
+
     private val _latestRippedAlbums = MutableStateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>>(emptyList())
     val latestRippedAlbums: StateFlow<List<Pair<com.bitperfect.app.library.ArtistInfo, com.bitperfect.app.library.AlbumInfo>>> = _latestRippedAlbums
 
@@ -564,6 +567,19 @@ open class AppViewModel(
                 }
             }
             _recentlyPlayedAlbums.value = recentlyPlayedItems
+
+            // Calculate rediscover albums
+            val recentAlbumIds = recent.map { it.second.id }.toSet()
+            val allAlbums = loadedArtists.flatMap { artist ->
+                artist.albums.map { Pair(artist, it) }
+            }
+            val rediscoverPool = allAlbums.filter { !recentAlbumIds.contains(it.second.id) }
+
+            if (rediscoverPool.isEmpty()) {
+                _rediscoverAlbums.value = emptyList()
+            } else {
+                _rediscoverAlbums.value = rediscoverPool.shuffled().take(10)
+            }
 
             val latest = libraryRepository.getLatestRippedAlbums(uriString)
             _latestRippedAlbums.value = latest

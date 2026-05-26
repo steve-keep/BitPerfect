@@ -579,6 +579,7 @@ fun LibrarySection(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredArtists by viewModel.filteredArtists.collectAsState()
     val recentlyPlayedAlbums by viewModel.recentlyPlayedAlbums.collectAsState()
+    val rediscoverAlbums by viewModel.rediscoverAlbums.collectAsState()
     val latestRippedAlbums by viewModel.latestRippedAlbums.collectAsState()
 
     val focusManager = LocalFocusManager.current
@@ -844,6 +845,67 @@ fun LibrarySection(
                                                 )
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                    if (searchQuery.isBlank() && rediscoverAlbums.isNotEmpty()) {
+                        stickyHeader(key = "rediscover_header") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Rediscover",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                            }
+                        }
+                        item {
+                            val itemWidth = (screenWidth - 72.dp) / 3.5f
+
+                            androidx.compose.foundation.lazy.LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp)
+                            ) {
+                                items(rediscoverAlbums) { pair ->
+                                    val album = pair.second
+                                    Column(
+                                        modifier = Modifier
+                                            .width(itemWidth)
+                                            .clickable { onAlbumClick(album) },
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        AsyncImage(
+                                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                                .data(album.artUri)
+                                                .crossfade(true)
+                                                .diskCachePolicy(CachePolicy.ENABLED)
+                                                .build(),
+                                            contentDescription = album.title,
+                                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp)),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            placeholder = ColorPainter(Color(0xFF141414)),
+                                            error = ColorPainter(Color(0xFF141414))
+                                        )
+                                        Text(
+                                            text = album.title,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
+                                            minLines = 2,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
                                     }
                                 }
                             }
