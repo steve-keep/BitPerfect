@@ -19,6 +19,7 @@ class RipSession(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var ripManager: RipManager? = null
+    private var stateCollectionJob: kotlinx.coroutines.Job? = null
 
     private val _ripStates = MutableStateFlow<Map<Int, TrackRipState>>(emptyMap())
     val ripStates: StateFlow<Map<Int, TrackRipState>> = _ripStates.asStateFlow()
@@ -77,7 +78,8 @@ class RipSession(private val context: Context) {
         }
         androidx.core.content.ContextCompat.startForegroundService(context, intent)
 
-        scope.launch {
+        stateCollectionJob?.cancel()
+        stateCollectionJob = scope.launch {
             manager.trackStates.collect { states ->
                 _ripStates.value = states
             }
@@ -110,12 +112,14 @@ class RipSession(private val context: Context) {
             manager?.deleteRipFiles()
         }
         _isRipping.value = false
+        stateCollectionJob?.cancel()
         _ripStates.value = emptyMap()
     }
 
     fun clearResults() {
         if (_isRipping.value) return  // don't clear while ripping
         ripManager = null
+        stateCollectionJob?.cancel()
         _ripStates.value = emptyMap()
     }
 
