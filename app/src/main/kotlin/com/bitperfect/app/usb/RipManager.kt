@@ -418,11 +418,25 @@ class RipManager(
                                     )
                                 }
 
+                                val comparisonHistory = when (recoveryResult) {
+                                    is RereadRecoveryResult.Recovered -> recoveryResult.comparisonHistory
+                                    is RereadRecoveryResult.Failed -> recoveryResult.comparisonHistory
+                                }
+
+                                if (comparisonHistory != null && comparisonHistory.uniqueCandidates > 1) {
+                                    AppLogger.d("RipManager", "[US-003] Track $trackNumber overlap instability detected")
+                                    AppLogger.d("RipManager", "[US-003] Candidate count=${comparisonHistory.totalAttempts} unique=${comparisonHistory.uniqueCandidates} type=${comparisonHistory.instabilityType.name}")
+                                    if (comparisonHistory.stableCandidate != null) {
+                                        AppLogger.d("RipManager", "[US-003] Stable candidate converged after attempt ${comparisonHistory.stableCandidate.firstSeenAttempt}")
+                                    }
+                                }
+
                                 currentChunkConfidence = confidenceEvaluator.evaluateChunkConfidence(
                                     overlapMatchedImmediately = false,
                                     rereadsPerformed = suspiciousRead.rereadAttempts,
                                     recoverySucceeded = suspiciousRead.recovered,
-                                    anomaly = suspiciousRead.anomaly
+                                    anomaly = suspiciousRead.anomaly,
+                                    instabilityType = comparisonHistory?.instabilityType
                                 )
 
                                 currentChunk = when (recoveryResult) {

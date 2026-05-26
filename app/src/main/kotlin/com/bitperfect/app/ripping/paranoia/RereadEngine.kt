@@ -10,7 +10,8 @@ class RereadEngine(
     private val strategies: List<RecoveryStrategy>,
     private val verifier: OverlapVerifier,
     private val analyzer: AlignmentAnalyzer = AlignmentAnalyzer(),
-    private val maxRereads: Int = 6
+    private val maxRereads: Int = 6,
+    private val multiPassComparator: MultiPassComparator = MultiPassComparator()
 ) {
 
     suspend fun recover(
@@ -23,6 +24,10 @@ class RereadEngine(
         AppLogger.w("RereadEngine", "suspicious_region lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)}")
 
         val metadataHistory = mutableListOf<RecoveryMetadata>()
+        val candidateOverlaps = mutableListOf<ByteArray>()
+
+        // Add the initial failed chunk's overlap to the candidate overlaps
+        candidateOverlaps.add(failedChunk.overlapHead)
 
         for (strategy in strategies) {
             val window = strategy.getRecoveryWindow(failedChunk)
@@ -34,6 +39,8 @@ class RereadEngine(
 
                 val currentAttempt = strategy.performAttempt(failedChunk, readChunk)
                 if (currentAttempt != null) {
+                    // Accumulate overlap candidate for US-003 multi-pass comparison
+                    candidateOverlaps.add(currentAttempt.overlapHead)
 
                     // 1. Verify overlap against previous verified chunk
                     val overlapsProperly = verifier.verifyOverlap(
@@ -60,7 +67,9 @@ class RereadEngine(
                          AppLogger.d("RereadEngine", "reread_recovered strategy=${strategy.strategyName} lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=HIGH")
                          val successAttempt = currentAttempt.copy(rereadCount = attempt)
                          metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, attempt, true))
-                         return RereadRecoveryResult.Recovered(successAttempt, metadataHistory)
+
+                         val history = multiPassComparator.analyze(candidateOverlaps)
+                         return RereadRecoveryResult.Recovered(successAttempt, metadataHistory, history)
                     } else if (!overlapsProperly && isStable) {
                         // Rereads are internally stable, but overlap verification failed. Check for drift.
                         val anomaly = analyzer.analyze(
@@ -82,7 +91,8 @@ class RereadEngine(
         }
 
         AppLogger.w("RereadEngine", "reread_failed lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=LOW")
-        return RereadRecoveryResult.Failed(lastAttempt.copy(rereadCount = maxRereads), metadataHistory)
+        val history = multiPassComparator.analyze(candidateOverlaps)
+        return RereadRecoveryResult.Failed(lastAttempt.copy(rereadCount = maxRereads), metadataHistory, history)
     }
 
     private fun isStableCandidate(
