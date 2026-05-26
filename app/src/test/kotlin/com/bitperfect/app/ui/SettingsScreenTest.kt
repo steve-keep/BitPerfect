@@ -36,13 +36,11 @@ class SettingsScreenTest {
                 settingsManager = settingsManager,
                 driveOffsetRepository = driveOffsetRepository,
                 viewModel = mockViewModel,
-                onNavigateToAbout = {},
                 onCalibrateOffsetClick = {}
             )
         }
 
         composeTestRule.onNodeWithText("Send Debug Info").assertDoesNotExist()
-        composeTestRule.onNodeWithText("About").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -80,7 +78,6 @@ class SettingsScreenTest {
                 settingsManager = settingsManager,
                 driveOffsetRepository = driveOffsetRepository,
                 viewModel = mockViewModel,
-                onNavigateToAbout = {},
                 onCalibrateOffsetClick = {}
             )
         }
