@@ -22,6 +22,8 @@ import com.bitperfect.app.ripping.paranoia.strategy.FullChunkRecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.RipConfidence
 import com.bitperfect.app.ripping.paranoia.RipConfidenceEvaluator
 import com.bitperfect.app.ripping.paranoia.SuspiciousRead
+import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
+import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnalyzer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -400,7 +402,8 @@ class RipManager(
                                         recoveryWindowEndLba = finalMetadata.recoveryWindowEndLba,
                                         strategy = finalMetadata.strategy,
                                         rereadAttempts = totalAttempts,
-                                        recovered = finalMetadata.recovered
+                                        recovered = finalMetadata.recovered,
+                                        anomaly = finalMetadata.anomaly
                                     )
                                 } else {
                                     SuspiciousRead(
@@ -410,14 +413,16 @@ class RipManager(
                                         recoveryWindowEndLba = null,
                                         strategy = null,
                                         rereadAttempts = 0,
-                                        recovered = false
+                                        recovered = false,
+                                        anomaly = null
                                     )
                                 }
 
                                 currentChunkConfidence = confidenceEvaluator.evaluateChunkConfidence(
                                     overlapMatchedImmediately = false,
                                     rereadsPerformed = suspiciousRead.rereadAttempts,
-                                    recoverySucceeded = suspiciousRead.recovered
+                                    recoverySucceeded = suspiciousRead.recovered,
+                                    anomaly = suspiciousRead.anomaly
                                 )
 
                                 currentChunk = when (recoveryResult) {
@@ -428,6 +433,20 @@ class RipManager(
                                 val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
                                 val currentSuspiciousRegions = state.suspiciousRegions.toMutableList()
                                 currentSuspiciousRegions.add(suspiciousRead)
+
+                                suspiciousRead.anomaly?.let { anomaly ->
+                                    when (anomaly) {
+                                        is AlignmentAnomaly.PossibleShift -> {
+                                            AppLogger.w("RipManager", "drift_suspicion track=$trackNumber lba=${suspiciousRead.startLba} shift=${anomaly.sampleDelta} confidence=${anomaly.confidence}")
+                                        }
+                                        is AlignmentAnomaly.SevereInstability -> {
+                                            AppLogger.w("RipManager", "severe_instability track=$trackNumber lba=${suspiciousRead.startLba} mismatches=${anomaly.mismatchCount}")
+                                        }
+                                        is AlignmentAnomaly.None -> {
+                                            // No-op
+                                        }
+                                    }
+                                }
 
                                 updateTrackState(
                                     trackNumber = trackNumber,

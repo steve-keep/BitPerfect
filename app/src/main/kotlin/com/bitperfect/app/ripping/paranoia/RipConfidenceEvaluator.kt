@@ -1,17 +1,27 @@
 package com.bitperfect.app.ripping.paranoia
 
+import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
+
 class RipConfidenceEvaluator {
     fun evaluateChunkConfidence(
         overlapMatchedImmediately: Boolean,
         rereadsPerformed: Int,
-        recoverySucceeded: Boolean
+        recoverySucceeded: Boolean,
+        anomaly: AlignmentAnomaly? = null
     ): RipConfidence {
-        return if (overlapMatchedImmediately && rereadsPerformed == 0) {
-            RipConfidence.HIGH
-        } else if (recoverySucceeded) {
-            RipConfidence.MEDIUM
-        } else {
-            RipConfidence.LOW
+        if (overlapMatchedImmediately && rereadsPerformed == 0) {
+            return RipConfidence.HIGH
+        }
+
+        if (recoverySucceeded) {
+            return RipConfidence.MEDIUM
+        }
+
+        return when (anomaly) {
+            is AlignmentAnomaly.PossibleShift -> RipConfidence.MEDIUM
+            is AlignmentAnomaly.SevereInstability -> RipConfidence.LOW
+            is AlignmentAnomaly.None -> RipConfidence.LOW // Failed but no anomaly? fallback to low.
+            null -> RipConfidence.LOW
         }
     }
 

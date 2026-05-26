@@ -3,10 +3,13 @@ package com.bitperfect.app.ripping.paranoia
 import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.app.ripping.paranoia.strategy.RecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.strategy.RecoveryMetadata
+import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnalyzer
+import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
 
 class RereadEngine(
     private val strategies: List<RecoveryStrategy>,
     private val verifier: OverlapVerifier,
+    private val analyzer: AlignmentAnalyzer = AlignmentAnalyzer(),
     private val maxRereads: Int = 6
 ) {
 
@@ -24,6 +27,7 @@ class RereadEngine(
         for (strategy in strategies) {
             val window = strategy.getRecoveryWindow(failedChunk)
             var previousRereadCandidate: VerifiedChunk? = null
+            var finalAnomaly: AlignmentAnomaly? = null
 
             for (attempt in 1..maxRereads) {
                 AppLogger.d("RereadEngine", "reread_attempt strategy=${strategy.strategyName} lba=${failedChunk.startLba} attempt=$attempt")
@@ -57,6 +61,13 @@ class RereadEngine(
                          val successAttempt = currentAttempt.copy(rereadCount = attempt)
                          metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, attempt, true))
                          return RereadRecoveryResult.Recovered(successAttempt, metadataHistory)
+                    } else if (!overlapsProperly && isStable) {
+                        // Rereads are internally stable, but overlap verification failed. Check for drift.
+                        val anomaly = analyzer.analyze(
+                            expectedOverlap = previousVerifiedChunk.overlapTail,
+                            actualOverlap = currentAttempt.overlapHead
+                        )
+                        finalAnomaly = anomaly
                     }
 
                     lastAttempt = currentAttempt
@@ -67,7 +78,7 @@ class RereadEngine(
             }
 
             // If this strategy failed after all retries, record it and move to the next strategy
-            metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, maxRereads, false))
+            metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, maxRereads, false, finalAnomaly))
         }
 
         AppLogger.w("RereadEngine", "reread_failed lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=LOW")

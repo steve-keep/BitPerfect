@@ -1,5 +1,7 @@
 package com.bitperfect.app.ripping.paranoia
 
+import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
+
 data class SuspiciousRead(
     val startLba: Int,
     val endLba: Int,
@@ -7,5 +9,6 @@ data class SuspiciousRead(
     val recoveryWindowEndLba: Int?,
     val strategy: String?,
     val rereadAttempts: Int,
-    val recovered: Boolean
+    val recovered: Boolean,
+    val anomaly: AlignmentAnomaly? = null
 )
