@@ -7,6 +7,7 @@ sealed class DriveStatus(open val info: DriveInfo?) {
     object NotOptical : DriveStatus(null)
     data class Empty(override val info: DriveInfo) : DriveStatus(info)
     data class SpinningUp(override val info: DriveInfo) : DriveStatus(info)
+    data class DetectingDisc(override val info: DriveInfo) : DriveStatus(info)
     data class Ejecting(override val info: DriveInfo) : DriveStatus(info)
     @Suppress("ArrayInDataClass")
     data class DiscReady(override val info: DriveInfo, val toc: com.bitperfect.core.models.DiscToc? = null, val rawToc: ByteArray? = null) : DriveStatus(info)

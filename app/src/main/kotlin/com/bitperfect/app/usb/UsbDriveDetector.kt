@@ -317,7 +317,11 @@ class UsbDriveDetector(
             try {
                 var cbwTag = 100 // Start from a reasonably high tag to avoid overlap with interrogate
                 while (isActive) {
-                    val pollInterval = if (_driveStatus.value is DriveStatus.SpinningUp) 500L else 2000L
+                    val pollInterval = when (_driveStatus.value) {
+                        is DriveStatus.SpinningUp    -> 500L
+                        is DriveStatus.DetectingDisc -> 250L
+                        else                         -> 2000L
+                    }
                     delay(pollInterval)
 
                     val currentTransport = transport
@@ -345,8 +349,20 @@ class UsbDriveDetector(
                             }
                         }
                         TurResult.NOT_READY -> {
-                            if (currentStatus !is DriveStatus.Empty) {
-                                _driveStatus.value = DriveStatus.Empty(info)
+                            when (currentStatus) {
+                                is DriveStatus.SpinningUp, is DriveStatus.DetectingDisc -> {
+                                    // Drive has finished mechanical spin-up but is not yet ready to read.
+                                    // Hold in DetectingDisc and keep fast-polling at 250 ms rather than
+                                    // dropping to Empty.
+                                    if (currentStatus !is DriveStatus.DetectingDisc) {
+                                        _driveStatus.value = DriveStatus.DetectingDisc(info)
+                                    }
+                                }
+                                else -> {
+                                    if (currentStatus !is DriveStatus.Empty) {
+                                        _driveStatus.value = DriveStatus.Empty(info)
+                                    }
+                                }
                             }
                         }
                         TurResult.CONNECTION_DEAD -> {
