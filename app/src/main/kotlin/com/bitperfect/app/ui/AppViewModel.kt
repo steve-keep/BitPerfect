@@ -325,15 +325,22 @@ open class AppViewModel(
                 _ripStates.value = states
 
                 // Check if all tracks are done ripping
-                // If there are any warnings or errors, we do not consider it "done" so the UI stays open
                 val isDone = states.values.all {
                     it.status == RipStatus.SUCCESS ||
-                    it.status == RipStatus.UNVERIFIED
+                    it.status == RipStatus.UNVERIFIED ||
+                    it.status == RipStatus.WARNING ||
+                    it.status == RipStatus.ERROR ||
+                    it.status == RipStatus.CANCELLED
                 }
 
-                if (states.isNotEmpty() && isDone && !hasHandledRipCompletion) {
+                val hasErrors = states.values.any {
+                    it.status == RipStatus.ERROR ||
+                    it.status == RipStatus.CANCELLED
+                }
+
+                if (states.isNotEmpty() && isDone && !hasErrors && !hasHandledRipCompletion) {
                     hasHandledRipCompletion = true
-                    // Give it a moment to settle, then rescan media and switch to library view
+                    // Give it a moment to settle, then rescan media
                     withContext(Dispatchers.Main) {
                         loadLibrary()
 
@@ -361,15 +368,6 @@ open class AppViewModel(
                                 )
                                 // reload of lists is handled by flow, just update library structure
                                 loadLibrary()
-                                withContext(Dispatchers.Main) {
-                                    selectAlbum(foundAlbum.id, foundAlbum.title)
-                                }
-                            } else {
-                                // Fallback, just switch out of CD mode if we can't find it
-                                val currentState = _trackListViewState.value
-                                if (currentState != null) {
-                                    _trackListViewState.value = currentState.copy(isCdMode = false)
-                                }
                             }
                         }
                     }
