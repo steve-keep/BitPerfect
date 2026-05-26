@@ -151,7 +151,14 @@ open class OutputRepository(
                 _wiimPositionMs.value = 0L
                 _wiimVolume.value = 50
 
-                activeController.release()
+                val isLocalToLocal = (activeController is LocalOutputController || activeController is BluetoothOutputController) &&
+                                     (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth)
+
+                if (!isLocalToLocal) {
+                    activeController.release()
+                } else if (activeController is LocalOutputController) {
+                    (activeController as LocalOutputController).clearCommunicationDeviceOnly()
+                }
 
                 val newController: OutputController = when (target) {
                     is OutputDevice.ThisPhone ->
@@ -169,7 +176,12 @@ open class OutputRepository(
                     }
                 }
 
-                newController.takeOver(currentTracks, currentIndex, positionMs)
+                if (!isLocalToLocal) {
+                    newController.takeOver(currentTracks, currentIndex, positionMs)
+                } else if (newController is LocalOutputController) {
+                    newController.applyCommunicationDeviceOnly()
+                }
+
                 activeController = newController
                 _activeDevice.value = target
             }
@@ -200,7 +212,11 @@ open class OutputRepository(
                 // Don't take over if we're just initializing to avoid wiping state
                 switchMutex.withLock {
                     val positionMs = activeController.getPositionMs()
-                    activeController.release()
+                    if (activeController is LocalOutputController) {
+                        (activeController as LocalOutputController).clearCommunicationDeviceOnly()
+                    } else {
+                        activeController.release()
+                    }
                     val newController = BluetoothOutputController(context, playerRepository, btDevices.first())
                     // Wait, if it's just initialized, takeOver doesn't need to do anything if tracks are empty
                     // BUT we don't have tracks. Actually, just changing the controller is enough for future playback.

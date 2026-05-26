@@ -34,7 +34,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -53,7 +53,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -77,7 +77,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = android.net.Uri.parse("content://media/external/audio/albumart/1"),
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -98,7 +98,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -120,7 +120,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -144,7 +144,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = { playPauseClicked = true },
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -164,7 +164,7 @@ class NowPlayingBarTest {
                 currentTrackArtist = null,
                 currentAlbumArtUri = null,
                 enabled = false,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {},
                 onPlayPause = { clicked = true }
@@ -187,7 +187,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
@@ -210,7 +210,7 @@ class NowPlayingBarTest {
                 currentAlbumArtUri = null,
                 onPlayPause = {},
                 enabled = true,
-                isExternalOutput = false,
+                isExternalOutput = false, hasExternalVolume = false,
                 onOutputDeviceClick = {},
                 onExpand = {}
             )
