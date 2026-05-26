@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +39,8 @@ fun ArtistScreen(
 ) {
     val artist by viewModel.selectedArtist.collectAsState()
     val thumbnailUrl by viewModel.selectedArtistThumbnail.collectAsState()
+    val bio by viewModel.selectedArtistBio.collectAsState()
+    val totalAlbumsCount by viewModel.totalAlbumsCount.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (artist != null) {
@@ -117,7 +121,7 @@ fun ArtistScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "${artist!!.albums.size} Albums",
+                                    text = "${totalAlbumsCount} Albums",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.White.copy(alpha = 0.8f)
                                 )
@@ -143,6 +147,39 @@ fun ArtistScreen(
                     }
                 }
 
+
+                if (!bio.isNullOrEmpty()) {
+                    item {
+                        var isExpanded by remember { mutableStateOf(false) }
+                        var hasOverflow by remember { mutableStateOf(false) }
+
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = bio!!,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                                overflow = TextOverflow.Ellipsis,
+                                onTextLayout = { textLayoutResult ->
+                                    if (!isExpanded && textLayoutResult.hasVisualOverflow) {
+                                        hasOverflow = true
+                                    }
+                                }
+                            )
+                            if (hasOverflow || isExpanded) {
+                                Text(
+                                    text = if (isExpanded) "Read less" else "Read more",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .clickable { isExpanded = !isExpanded }
+                                )
+                            }
+                        }
+                    }
+                }
                 items(artist!!.albums) { album ->
                     Row(
                         modifier = Modifier

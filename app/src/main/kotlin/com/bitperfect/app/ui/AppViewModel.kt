@@ -101,6 +101,9 @@ open class AppViewModel(
     private val _totalTracks = MutableStateFlow(0)
     val totalTracks: StateFlow<Int> = _totalTracks.asStateFlow()
 
+
+    private val _totalAlbumsCount = MutableStateFlow(0)
+    val totalAlbumsCount: StateFlow<Int> = _totalAlbumsCount
     private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>>(emptyList())
     val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>> = _recentlyPlayedAlbums
 
@@ -121,6 +124,9 @@ open class AppViewModel(
     private val _selectedArtist = MutableStateFlow<com.bitperfect.app.library.ArtistInfo?>(null)
     val selectedArtist: StateFlow<com.bitperfect.app.library.ArtistInfo?> = _selectedArtist
 
+
+    private val _selectedArtistBio = MutableStateFlow<String?>(null)
+    val selectedArtistBio: StateFlow<String?> = _selectedArtistBio
     private val _selectedArtistThumbnail = MutableStateFlow<String?>(null)
     val selectedArtistThumbnail: StateFlow<String?> = _selectedArtistThumbnail
 
@@ -523,6 +529,12 @@ open class AppViewModel(
         val uriString = settingsManager.outputFolderUri
 
         viewModelScope.launch(ioDispatcher) {
+            val loadedArtists = libraryRepository.getLibrary(uriString)
+            _artists.value = loadedArtists
+
+            _totalTracks.value = libraryRepository.getTotalTracks(uriString)
+            _totalAlbumsCount.value = loadedArtists.sumOf { it.albums.size }
+
             val recent = libraryRepository.getRecentlyPlayedAlbums(uriString, 50)
             val artistCounts = mutableMapOf<String, Int>()
             for ((artistInfo, _) in recent) {
@@ -590,10 +602,13 @@ open class AppViewModel(
         val artist = _artists.value.find { it.name.equals(artistName, ignoreCase = true) }
         _selectedArtist.value = artist
         _selectedArtistThumbnail.value = null
+        _selectedArtistBio.value = null
         if (artist != null) {
             viewModelScope.launch(ioDispatcher) {
                 val thumbnailUrl = libraryRepository.getArtistThumbnailUrl(artist.name, settingsManager.outputFolderUri)
                 _selectedArtistThumbnail.value = thumbnailUrl
+                val bio = libraryRepository.getArtistBio(artist.name, settingsManager.outputFolderUri)
+                _selectedArtistBio.value = bio
             }
         }
     }
