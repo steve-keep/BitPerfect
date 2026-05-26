@@ -37,6 +37,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
@@ -334,7 +336,13 @@ class MainActivity : ComponentActivity() {
                                                 Image(
                                                     painter = painterResource(id = R.drawable.app_logo),
                                                     contentDescription = null,
-                                                    modifier = Modifier.fillMaxSize()
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clickable(
+                                                            interactionSource = remember { MutableInteractionSource() },
+                                                            indication = null,
+                                                            onClick = { navController.navigate(AppRoutes.About) }
+                                                        )
                                                 )
                                             }
                                         },
@@ -418,9 +426,6 @@ class MainActivity : ComponentActivity() {
                                         driveOffsetRepository = driveOffsetRepository,
                                         settingsManager = settingsManager,
                                         viewModel = appViewModel,
-                                        onNavigateToAbout = {
-                                            navController.navigate(AppRoutes.About)
-                                        },
                                         onCalibrateOffsetClick = {
                                             navController.navigate(AppRoutes.Calibration)
                                         }

@@ -164,8 +164,7 @@ open class AppViewModel(
     private val _artworkBytes = MutableStateFlow<ByteArray?>(null)
 
     private data class LyricsFetchKey(
-        val mbReleaseId: String,
-        val embedLyrics: Boolean
+        val mbReleaseId: String
     )
 
     private val lyricsRepository = LyricsRepository(application)
@@ -437,18 +436,10 @@ open class AppViewModel(
                 }
 
                 val currentKey = LyricsFetchKey(
-                    mbReleaseId = metadata.mbReleaseId,
-                    embedLyrics = settingsManager.embedLyrics
+                    mbReleaseId = metadata.mbReleaseId
                 )
 
                 if (currentKey == lastLyricsFetchKey && currentKey.mbReleaseId.isNotBlank()) {
-                    return@collect
-                }
-
-                if (!settingsManager.embedLyrics) {
-                    _lyricsMap.value = emptyMap()
-                    lastLyricsFetchKey = currentKey
-                    lyricsFetchJob?.cancel()
                     return@collect
                 }
 

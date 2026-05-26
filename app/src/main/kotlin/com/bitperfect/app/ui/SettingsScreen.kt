@@ -38,7 +38,6 @@ fun SettingsScreen(
     settingsManager: SettingsManager,
     driveOffsetRepository: DriveOffsetRepository,
     viewModel: AppViewModel,
-    onNavigateToAbout: () -> Unit = {},
     onCalibrateOffsetClick: () -> Unit = {}
 ) {
     val driveStatus by viewModel.driveStatus.collectAsState()
@@ -75,44 +74,6 @@ fun SettingsScreen(
             .background(MaterialTheme.colorScheme.background),
         verticalArrangement = Arrangement.spacedBy(1.dp) // Minimal spacing for the "slabs" feel
     ) {
-        item {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-                ) {
-                    var embedLyrics by remember { mutableStateOf(settingsManager.embedLyrics) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Embed lyrics",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Fetch and embed lyrics from lrclib.net",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = embedLyrics,
-                            onCheckedChange = {
-                                embedLyrics = it
-                                settingsManager.embedLyrics = it
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
         item {
             Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
                 Text(
@@ -388,34 +349,6 @@ fun SettingsScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToAbout() }
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = "About",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "About",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
