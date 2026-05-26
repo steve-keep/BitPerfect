@@ -9,4 +9,9 @@
     <string name="notif_ripping_text">Track %1$d of %2$d · %3$d%%</string>
     <string name="notif_verifying_text">Verifying track %1$d…</string>
     <string name="notif_subtext">%1$d / %2$d tracks</string>
+
+    <plurals name="albums_count">
+        <item quantity="one">%1$d Album</item>
+        <item quantity="other">%1$d Albums</item>
+    </plurals>
 </resources>
