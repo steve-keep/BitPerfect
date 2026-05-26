@@ -32,7 +32,7 @@ import coil.compose.AsyncImage
 @Composable
 fun ArtistScreen(
     viewModel: AppViewModel,
-    onNavigateToAlbum: (Long) -> Unit,
+    onNavigateToAlbum: (Long, String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val artist by viewModel.selectedArtist.collectAsState()
@@ -147,7 +147,7 @@ fun ArtistScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onNavigateToAlbum(album.id) }
+                            .clickable { onNavigateToAlbum(album.id, album.title) }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
