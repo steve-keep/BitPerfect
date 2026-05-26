@@ -53,13 +53,30 @@ class LocalOutputController(
     }
 
     override suspend fun release() {
+        clearCommunicationDeviceOnly()
+        // Local controller is never fully released — just pause
+        playerRepository.pause()
+    }
+
+    fun clearCommunicationDeviceOnly() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             audioManager.clearCommunicationDevice()
         } else {
             @Suppress("DEPRECATION")
             audioManager.isSpeakerphoneOn = false
         }
-        // Local controller is never fully released — just pause
-        playerRepository.pause()
+    }
+
+    fun applyCommunicationDeviceOnly() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val devices = audioManager.availableCommunicationDevices
+            val speaker = devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            if (speaker != null) {
+                audioManager.setCommunicationDevice(speaker)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = true
+        }
     }
 }

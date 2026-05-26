@@ -186,6 +186,7 @@ class MainActivity : ComponentActivity() {
             val availableDevices by appViewModel.availableDevices.collectAsState()
             val showOutputSheet by appViewModel.showOutputSheet.collectAsState()
             val isExternalOutput = activeDevice !is OutputDevice.ThisPhone
+            val hasExternalVolume = activeDevice is OutputDevice.Upnp
 
             LaunchedEffect(driveStatus) {
                 if (driveStatus !is DriveStatus.NoDrive && driveStatus !is DriveStatus.NotOptical) {
@@ -291,6 +292,7 @@ class MainActivity : ComponentActivity() {
                                         viewModel = appViewModel,
                                         enabled = isControllerReady,
                                         isExternalOutput = isExternalOutput,
+                                        hasExternalVolume = hasExternalVolume,
                                         onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
                                         onCollapse = {
                                             coroutineScope.launch {
@@ -577,6 +579,7 @@ class MainActivity : ComponentActivity() {
                                 currentAlbumArtUri = currentAlbumArtUri,
                                 enabled = isControllerReady,
                                 isExternalOutput = isExternalOutput,
+                                        hasExternalVolume = hasExternalVolume,
                                 onPlayPause = { appViewModel.togglePlayPause() },
                                 onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
                                 onExpand = {

@@ -102,6 +102,7 @@ fun NowPlayingScreen(
     viewModel: AppViewModel,
     enabled: Boolean,
     isExternalOutput: Boolean,
+    hasExternalVolume: Boolean,
     onOutputDeviceClick: () -> Unit,
     onCollapse: () -> Unit = {}
 ) {
@@ -536,7 +537,7 @@ fun NowPlayingScreen(
             )
         }
 
-        if (isExternalOutput) {
+        if (hasExternalVolume) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
