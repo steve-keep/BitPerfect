@@ -52,7 +52,8 @@ class WiimOutputController(
                     conn.readTimeout = 2000
                     if (conn.responseCode == 200) {
                         val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                        val isNowPlaying = json.optString("play_status") == "play"
+                        // LinkPlay API typically uses "status", but check "play_status" just in case.
+                        val isNowPlaying = json.optString("status") == "play" || json.optString("play_status") == "play"
                         _isPlaying.value = isNowPlaying
 
                         if (isNowPlaying) {
