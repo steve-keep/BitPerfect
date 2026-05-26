@@ -142,6 +142,19 @@ open class AppViewModel(
     private val _showOutputSheet = MutableStateFlow(false)
     val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
 
+    val wiimVolume: StateFlow<Int> = outputRepository.wiimVolume
+
+    fun setWiimVolume(volume: Int) {
+        viewModelScope.launch {
+            outputRepository.setVolume(volume)
+        }
+    }
+
+    fun adjustWiimVolume(delta: Int) {
+        val current = outputRepository.wiimVolume.value
+        setWiimVolume((current + delta).coerceIn(0, 100))
+    }
+
     fun openOutputDeviceSheet() {
         outputRepository.refreshDevices()
         _showOutputSheet.value = true

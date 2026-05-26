@@ -39,6 +39,9 @@ class WiimOutputController(
     private val _positionMs = MutableStateFlow(0L)
     val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
+    private val _volume = MutableStateFlow(50)
+    val volume: StateFlow<Int> = _volume.asStateFlow()
+
     private var pollingJob: Job? = null
 
     private fun startPolling() {
@@ -62,6 +65,9 @@ class WiimOutputController(
                                 _positionMs.value = curpos
                             }
                         }
+
+                        val vol = json.optInt("vol", -1)
+                        if (vol in 0..100) _volume.value = vol
                     }
                     conn.disconnect()
                 } catch (e: Exception) {
@@ -245,6 +251,12 @@ class WiimOutputController(
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:stop")
             httpServer?.stop()
+        }
+    }
+
+    override suspend fun setVolume(volume: Int) {
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:vol:${volume.coerceIn(0, 100)}")
         }
     }
 

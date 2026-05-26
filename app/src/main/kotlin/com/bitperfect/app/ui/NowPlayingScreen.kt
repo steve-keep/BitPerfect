@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -66,6 +68,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,6 +90,11 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import kotlin.math.roundToInt
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -109,6 +118,16 @@ fun NowPlayingScreen(
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val currentTrackState = viewModel.currentTrack.collectAsState()
     val currentTrack = currentTrackState.value
+
+    val wiimVolume by viewModel.wiimVolume.collectAsStateWithLifecycle()
+    var sliderPosition by androidx.compose.runtime.remember { mutableFloatStateOf(wiimVolume / 100f) }
+    var isDraggingVolume by androidx.compose.runtime.remember { mutableStateOf(false) }
+
+    LaunchedEffect(wiimVolume) {
+        if (!isDraggingVolume) {
+            sliderPosition = wiimVolume / 100f
+        }
+    }
 
     var showLyrics by rememberSaveable { mutableStateOf(false) }
 
@@ -515,6 +534,69 @@ fun NowPlayingScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        if (isExternalOutput) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.VolumeDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Slider(
+                    value = sliderPosition,
+                    onValueChange = {
+                        isDraggingVolume = true
+                        sliderPosition = it
+                    },
+                    onValueChangeFinished = {
+                        isDraggingVolume = false
+                        viewModel.setWiimVolume((sliderPosition * 100).roundToInt())
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                        .semantics {
+                            contentDescription = "WiiM volume, ${(sliderPosition * 100).roundToInt()}%"
+                        },
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    ),
+                    thumb = {
+                        androidx.compose.material3.SliderDefaults.Thumb(
+                            interactionSource = remember { MutableInteractionSource() },
+                            modifier = Modifier.size(12.dp),
+                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                thumbColor = Color.White
+                            )
+                        )
+                    },
+                    track = { sliderState ->
+                        androidx.compose.material3.SliderDefaults.Track(
+                            sliderState = sliderState,
+                            modifier = Modifier.height(2.dp),
+                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                activeTrackColor = Color.White,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                )
+                Icon(
+                    imageVector = Icons.Default.VolumeUp,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
