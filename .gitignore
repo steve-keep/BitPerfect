@@ -43,3 +43,7 @@ kotlinc/
 *.jar
 Test*
 *.py
+
+# Bash scripts
+*.sh
+!scripts/*.sh
