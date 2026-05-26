@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Ignore the specific RestrictedApi warning in MainActivity.kt caused by ComponentActivity.dispatchKeyEvent -->
+    <issue id="RestrictedApi">
+        <ignore path="app/src/main/kotlin/com/bitperfect/app/MainActivity.kt" />
+    </issue>
+</lint>

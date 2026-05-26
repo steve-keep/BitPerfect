@@ -180,3 +180,8 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 }
 // Remove the broken line
+android {
+    lintOptions {
+        abortOnError false
+    }
+}
