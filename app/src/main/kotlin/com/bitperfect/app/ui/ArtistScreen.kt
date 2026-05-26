@@ -25,10 +25,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.bitperfect.app.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,11 +122,13 @@ fun ArtistScreen(
                                     color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${artist!!.albums.size} Albums",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White.copy(alpha = 0.8f)
-                                )
+                                if (artist!!.albums.isNotEmpty()) {
+                                    Text(
+                                        text = pluralStringResource(id = R.plurals.albums_count, count = artist!!.albums.size, artist!!.albums.size),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                }
                             }
                             IconButton(
                                 onClick = { viewModel.shuffleAndPlayArtist() },
