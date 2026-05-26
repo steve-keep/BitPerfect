@@ -70,6 +70,7 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentTrackTitle).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockRepository.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockRepository.positionMs).thenReturn(MutableStateFlow(0L))
+        org.mockito.Mockito.`when`(mockRepository.onRecentlyPlayedUpdated).thenReturn(kotlinx.coroutines.flow.MutableSharedFlow())
 
         mockLookupMusicBrainz = { null } // default stub
 
@@ -89,8 +90,15 @@ class AppViewModelTest {
         detectorField.isAccessible = true
         detectorField.set(DeviceStateManager, null)
 
+        val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(kotlinx.coroutines.flow.MutableSharedFlow())
+        org.mockito.Mockito.`when`(mockLibraryRepository.getLibrary(org.mockito.Mockito.any())).thenReturn(emptyList())
+        org.mockito.Mockito.`when`(mockLibraryRepository.getTotalTracks(org.mockito.Mockito.any())).thenReturn(0)
+        org.mockito.Mockito.`when`(mockLibraryRepository.getRecentlyPlayedAlbums(org.mockito.Mockito.any(), org.mockito.Mockito.anyInt())).thenReturn(emptyList())
+        org.mockito.Mockito.`when`(mockLibraryRepository.getLatestRippedAlbums(org.mockito.Mockito.any(), org.mockito.Mockito.anyInt())).thenReturn(emptyList())
+
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
-        viewModel = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), testDispatcher, { mockLookupMusicBrainz(it) })
+        viewModel = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), mockLibraryRepository, testDispatcher, { mockLookupMusicBrainz(it) })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -163,7 +171,14 @@ class AppViewModelTest {
             val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
             org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-            AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+            AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java).apply {
+                val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+                try {
+                    org.mockito.Mockito.`when`(this.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+                } catch(e: Exception) {
+                    org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(this).onLibraryUpdated
+                }
+            }, testDispatcher)
         } catch (e: Exception) {
             // Ignore NPE or other initialization errors from real PlayerRepository in tests
         }
@@ -251,7 +266,14 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockRepository.currentAlbumArtUri).thenReturn(mutableCurrentAlbumArtUri)
 
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val vm = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java), kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
+        val mockLibraryRepo = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepo.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepo).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), mockLibraryRepo, kotlinx.coroutines.Dispatchers.IO, { mockLookupMusicBrainz(it) })
 
         // Start collecting the currentTrackTitle stateflow so that it activates and stays alive
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -338,7 +360,20 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+        val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
 
         val bannerState = vm.ripBannerState.value
         assertEquals(false, bannerState.isVisible)
@@ -359,7 +394,20 @@ class AppViewModelTest {
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+        val mockLibraryRepository = mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
 
         // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
         // to call ripSession.cancel(), which immediately sets _isRipping back to false.
@@ -398,7 +446,20 @@ class AppViewModelTest {
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+        val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
@@ -434,7 +495,20 @@ class AppViewModelTest {
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+        val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
@@ -463,7 +537,20 @@ class AppViewModelTest {
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+        val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
 
         val discMetadataField = AppViewModel::class.java.getDeclaredField("_discMetadata")
         discMetadataField.isAccessible = true
@@ -520,7 +607,20 @@ class AppViewModelTest {
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+        val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
+        }
+        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
 
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}

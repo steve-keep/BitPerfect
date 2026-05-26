@@ -14,7 +14,12 @@ import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
 import java.io.File
 
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
+
 open class LibraryRepository(private val context: Context) {
+
+    open val onLibraryUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     open fun getRecentlyPlayedAlbums(outputFolderUriString: String?, limit: Int = 10): List<Pair<ArtistInfo, AlbumInfo>> {
         if (outputFolderUriString.isNullOrBlank()) {
@@ -205,6 +210,7 @@ open class LibraryRepository(private val context: Context) {
             context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->
                 out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
             }
+            onLibraryUpdated.tryEmit(Unit)
         } catch (e: Exception) {
             e.printStackTrace()
         }

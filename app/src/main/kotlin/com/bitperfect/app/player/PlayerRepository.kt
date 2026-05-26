@@ -25,11 +25,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.guava.await
 import com.bitperfect.app.output.SpeakerTypeProvider
 
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
+
 open class PlayerRepository(
     private val context: Context,
     private val factory: MediaControllerFactory = DefaultMediaControllerFactory(),
     private var speakerTypeProvider: SpeakerTypeProvider? = null
 ) {
+    open val onRecentlyPlayedUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     fun interface MediaControllerFactory {
         fun build(context: Context, token: SessionToken): ListenableFuture<MediaController>
@@ -223,6 +227,7 @@ open class PlayerRepository(
                     context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->
                         out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
                     }
+                    onRecentlyPlayedUpdated.tryEmit(Unit)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
