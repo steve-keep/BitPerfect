@@ -350,12 +350,12 @@ class UsbDriveDetector(
                             }
                         }
                         TurResult.CONNECTION_DEAD -> {
-                            AppLogger.w(TAG, "USB connection dead, cleaning up and rescanning")
+                            AppLogger.w(TAG, "USB connection dead, attempting silent reconnect")
                             cleanupConnection()
                             _driveStatus.value = DriveStatus.Connecting()
                             scope.launch {
                                 delay(500)
-                                scanForDevices()
+                                reconnectWithoutPermissionRequest()
                             }
                             break
                         }
@@ -364,6 +364,15 @@ class UsbDriveDetector(
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error in polling loop", e)
             }
+        }
+    }
+
+    private fun reconnectWithoutPermissionRequest() {
+        val device = usbManager.deviceList.values.firstOrNull { usbManager.hasPermission(it) }
+        if (device != null) {
+            scope.launch { interrogateDevice(device) }
+        } else {
+            scanForDevices()
         }
     }
 

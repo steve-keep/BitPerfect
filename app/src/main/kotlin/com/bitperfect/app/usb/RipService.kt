@@ -62,11 +62,20 @@ class RipService : Service() {
         }
 
         val startingText = getString(R.string.notif_starting)
+
+        var foregroundServiceType = 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            foregroundServiceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34
+            foregroundServiceType = foregroundServiceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        }
+
         ServiceCompat.startForeground(
             this,
             notificationId,
             buildNotification(title, startingText, "", 0, 0, indeterminate = true),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
+            foregroundServiceType
         )
 
         scope.launch {
