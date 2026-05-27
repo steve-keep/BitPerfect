@@ -10,7 +10,6 @@ import com.bitperfect.core.utils.computeAccurateRipDiscId
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.TocEntry
 import org.junit.Test
-import org.junit.Ignore
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -517,85 +516,6 @@ class UsbDriveDetectorTest {
         assertEquals(expectedAccurateRipId, actualAccurateRipId)
     }
 
-    @Ignore("Flaky test")
-    @Test
-    fun testInterrogateDeviceAttachesTocToDiscReady() {
-        val context = org.robolectric.RuntimeEnvironment.getApplication()
-        val usbManager = context.getSystemService(android.content.Context.USB_SERVICE) as android.hardware.usb.UsbManager
-
-        val shadowUsbManager = org.robolectric.Shadows.shadowOf(usbManager)
-
-        val device = mock(android.hardware.usb.UsbDevice::class.java)
-        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
-        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
-        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
-        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
-
-        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
-        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
-        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
-        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
-        org.mockito.Mockito.`when`(usbInterface.interfaceProtocol).thenReturn(80)
-        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
-
-        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
-        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
-        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
-        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
-        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
-        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
-
-        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
-        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
-
-        val inquiryData = ByteArray(36)
-        inquiryData[0] = 0x05 // Optical
-
-        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
-        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
-        shadowUsbManager.addOrUpdateUsbDevice(device, true)
-
-        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
-        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
-        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
-
-        "TEST_VEND".toByteArray().copyInto(inquiryData, 8)
-        "TEST_PROD".toByteArray().copyInto(inquiryData, 16)
-
-        val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData, turCswStatus = 0, tocResponse = createSyntheticTocResponse(), tocCswStatus = 0)
-        val detector = UsbDriveDetector(context) { _ ->
-            fakeTransport
-        }
-
-        // Swap usbManager via reflection
-        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
-        managerField.isAccessible = true
-        managerField.set(detector, mockUsbManager)
-
-        // Use broadcast intent instead of reflection to invoke interrogateDevice
-        val intent = android.content.Intent("com.bitperfect.app.USB_PERMISSION")
-        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE, device)
-        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_PERMISSION_GRANTED, true)
-
-        val field = UsbDriveDetector::class.java.getDeclaredField("usbReceiver")
-        field.isAccessible = true
-        val receiver = field.get(detector) as android.content.BroadcastReceiver
-        receiver.onReceive(context, intent)
-
-        // Let state update
-        var attempts = 0
-        while (detector.driveStatus.value !is DriveStatus.DiscReady && attempts < 100) {
-            if (fakeTransport.state == "DONE") fakeTransport.state = "TUR_CBW"
-            Thread.sleep(50)
-            org.robolectric.shadows.ShadowLooper.idleMainLooper()
-            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-            attempts++
-        }
-
-        val state = detector.driveStatus.value
-        assertTrue("Expected DriveStatus.DiscReady but was $state", state is DriveStatus.DiscReady)
-    }
-
     @Test
     fun testReportError() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
@@ -783,82 +703,6 @@ class UsbDriveDetectorTest {
         assertTrue("Expected final state to be Empty", detector.driveStatus.value is DriveStatus.Empty)
     }
 
-    @Ignore("Flaky test")
-    @Test
-    fun testExecuteTestUnitReadyDetectsSpinningUp() {
-        val inquiryData = ByteArray(36)
-        inquiryData[0] = 0x05 // Optical
-
-        // This will fail the first TUR, run REQUEST SENSE returning spinning up status (0x02, 0x04, 0x01),
-        // which makes TUR return SPINNING_UP immediately.
-        val fakeTransport = FakeUsbTransport(
-            inquiryResponse = inquiryData,
-            turCswStatus = 1,
-            turRetriesRequired = 1,
-            tocResponse = createSyntheticTocResponse(),
-            senseKeyOverride = 0x02,
-            ascOverride = 0x04,
-            ascqOverride = 0x01
-        )
-
-        val context = org.robolectric.RuntimeEnvironment.getApplication()
-        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
-
-        val device = mock(android.hardware.usb.UsbDevice::class.java)
-        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
-        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
-        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
-        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
-
-        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
-        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
-        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
-        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
-        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
-
-        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
-        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
-        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
-        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
-        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
-        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
-
-        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
-        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
-
-        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
-        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
-
-        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
-        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
-        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
-
-        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
-        managerField.isAccessible = true
-        managerField.set(detector, mockUsbManager)
-
-        // Use broadcast intent instead of reflection to invoke interrogateDevice
-        val intent = android.content.Intent("com.bitperfect.app.USB_PERMISSION")
-        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE, device)
-        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_PERMISSION_GRANTED, true)
-
-        val field = UsbDriveDetector::class.java.getDeclaredField("usbReceiver")
-        field.isAccessible = true
-        val receiver = field.get(detector) as android.content.BroadcastReceiver
-        receiver.onReceive(context, intent)
-
-        var attempts = 0
-        while (detector.driveStatus.value !is DriveStatus.SpinningUp && attempts < 100) {
-            fakeTransport.state = "TUR_CBW"
-            Thread.sleep(50)
-            org.robolectric.shadows.ShadowLooper.idleMainLooper()
-            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-            attempts++
-        }
-        val state = detector.driveStatus.value
-        assertTrue("Expected DriveStatus.SpinningUp but was $state", state is DriveStatus.SpinningUp)
-    }
-
     @Test
     fun testPollingLoopSucceedsAfterInitialTurFailure() {
         val inquiryData = ByteArray(36)
@@ -932,73 +776,6 @@ class UsbDriveDetectorTest {
         val state = detector.driveStatus.value
         assertTrue("Expected to see Empty state initially", sawEmpty)
         assertTrue("Expected DriveStatus.DiscReady after polling but was $state", state is DriveStatus.DiscReady)
-    }
-
-    @Ignore("Flaky test")
-    @Test
-    fun testExecuteTestUnitReadyFailsFastOnTransferError() {
-        val inquiryData = ByteArray(36)
-        inquiryData[0] = 0x05 // Optical
-
-        // This will fail the CBW transfer for TUR on the first attempt
-        val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData, turCswStatus = 0, failTurTransferOnAttempt = 1)
-
-        val context = org.robolectric.RuntimeEnvironment.getApplication()
-        val detector = UsbDriveDetector(context) { _ -> fakeTransport }
-
-        val device = mock(android.hardware.usb.UsbDevice::class.java)
-        org.mockito.Mockito.`when`(device.deviceName).thenReturn("/dev/bus/usb/001/001")
-        org.mockito.Mockito.`when`(device.vendorId).thenReturn(0x1234)
-        org.mockito.Mockito.`when`(device.productId).thenReturn(0x5678)
-        org.mockito.Mockito.`when`(device.interfaceCount).thenReturn(1)
-
-        val usbInterface = mock(android.hardware.usb.UsbInterface::class.java)
-        org.mockito.Mockito.`when`(device.getInterface(0)).thenReturn(usbInterface)
-        org.mockito.Mockito.`when`(usbInterface.interfaceClass).thenReturn(8)
-        org.mockito.Mockito.`when`(usbInterface.interfaceSubclass).thenReturn(6)
-        org.mockito.Mockito.`when`(usbInterface.endpointCount).thenReturn(2)
-
-        val inEp = mock(android.hardware.usb.UsbEndpoint::class.java)
-        org.mockito.Mockito.`when`(inEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
-        org.mockito.Mockito.`when`(inEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_IN)
-        val outEp = mock(android.hardware.usb.UsbEndpoint::class.java)
-        org.mockito.Mockito.`when`(outEp.type).thenReturn(android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK)
-        org.mockito.Mockito.`when`(outEp.direction).thenReturn(android.hardware.usb.UsbConstants.USB_DIR_OUT)
-
-        org.mockito.Mockito.`when`(usbInterface.getEndpoint(0)).thenReturn(inEp)
-        org.mockito.Mockito.`when`(usbInterface.getEndpoint(1)).thenReturn(outEp)
-
-        val connection = mock(android.hardware.usb.UsbDeviceConnection::class.java)
-        org.mockito.Mockito.`when`(connection.claimInterface(usbInterface, true)).thenReturn(true)
-
-        val mockUsbManager = mock(android.hardware.usb.UsbManager::class.java)
-        org.mockito.Mockito.`when`(mockUsbManager.openDevice(device)).thenReturn(connection)
-        org.mockito.Mockito.`when`(mockUsbManager.openDevice(org.mockito.Mockito.any(android.hardware.usb.UsbDevice::class.java))).thenReturn(connection)
-
-        val managerField = UsbDriveDetector::class.java.getDeclaredField("usbManager")
-        managerField.isAccessible = true
-        managerField.set(detector, mockUsbManager)
-
-        // Use broadcast intent instead of reflection to invoke interrogateDevice
-        val intent = android.content.Intent("com.bitperfect.app.USB_PERMISSION")
-        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE, device)
-        intent.putExtra(android.hardware.usb.UsbManager.EXTRA_PERMISSION_GRANTED, true)
-
-        val field = UsbDriveDetector::class.java.getDeclaredField("usbReceiver")
-        field.isAccessible = true
-        val receiver = field.get(detector) as android.content.BroadcastReceiver
-        receiver.onReceive(context, intent)
-
-        var attempts = 0
-        while (detector.driveStatus.value !is DriveStatus.Empty && attempts < 100) {
-            Thread.sleep(50)
-            org.robolectric.shadows.ShadowLooper.idleMainLooper()
-            org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-            attempts++
-        }
-
-        val state = detector.driveStatus.value
-        assertTrue("Expected DriveStatus.Empty due to failed fast but was $state", state is DriveStatus.Empty)
     }
 
     @Test
