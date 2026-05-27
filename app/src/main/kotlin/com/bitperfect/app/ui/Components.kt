@@ -144,7 +144,8 @@ fun AlbumHeader(
     onPlayClick: () -> Unit = {},
     onStopRipClick: () -> Unit = {},
     dominantColor: Color = Color(0xFF141414),
-    onColorExtracted: (Color) -> Unit = {}
+    onColorExtracted: (Color) -> Unit = {},
+    primaryColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Box(
         modifier = modifier
@@ -245,7 +246,7 @@ fun AlbumHeader(
             Text(
                 text = artistName,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = primaryColor,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.clickable { onArtistClick() }
             )
@@ -269,7 +270,7 @@ fun AlbumHeader(
                             .weight(1f)
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
-                        color = MaterialTheme.colorScheme.primary,
+                        color = primaryColor,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Spacer(modifier = Modifier.width(16.dp))
@@ -292,7 +293,7 @@ fun AlbumHeader(
                         modifier = Modifier
                             .size(56.dp)
                             .background(
-                                color = MaterialTheme.colorScheme.primary,
+                                color = primaryColor,
                                 shape = androidx.compose.foundation.shape.CircleShape
                             )
                     ) {
