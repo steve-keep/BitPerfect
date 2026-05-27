@@ -1,33 +1,25 @@
 package com.bitperfect.app.ripping.paranoia
 
-import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
-
 class RipConfidenceEvaluator {
     fun evaluateChunkConfidence(
         overlapMatchedImmediately: Boolean,
         rereadsPerformed: Int,
         recoverySucceeded: Boolean,
-        anomaly: AlignmentAnomaly? = null,
+        driftEvent: DriftEvent? = null,
         instabilityType: InstabilityType? = null
     ): RipConfidence {
         if (overlapMatchedImmediately && rereadsPerformed == 0 && (instabilityType == null || instabilityType == InstabilityType.NONE)) {
             return RipConfidence.HIGH
         }
 
-        // Wait, the test calls:
-        // evaluateChunkConfidence(..., recoverySucceeded = false)
-        // expecting HIGH for 0 rereads + overlapMatchedImmediately.
-        // My previous logic checked `if (!recoverySucceeded) return LOW` first!
-        // That broke the test, because `recoverySucceeded` was false even if 0 rereads were performed (because there was no recovery).
-
         if (recoverySucceeded) {
             return RipConfidence.MEDIUM
         }
 
-        return when (anomaly) {
-            is AlignmentAnomaly.PossibleShift -> RipConfidence.MEDIUM
-            is AlignmentAnomaly.SevereInstability -> RipConfidence.LOW
-            is AlignmentAnomaly.None -> RipConfidence.LOW
+        return when (driftEvent?.confidence) {
+            DriftConfidence.HIGH -> RipConfidence.MEDIUM
+            DriftConfidence.MEDIUM -> RipConfidence.MEDIUM
+            DriftConfidence.LOW -> RipConfidence.LOW
             null -> RipConfidence.LOW
         }
     }

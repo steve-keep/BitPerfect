@@ -3,13 +3,12 @@ package com.bitperfect.app.ripping.paranoia
 import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.app.ripping.paranoia.strategy.RecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.strategy.RecoveryMetadata
-import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnalyzer
-import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
+
 
 class RereadEngine(
     private val strategies: List<RecoveryStrategy>,
     private val verifier: OverlapVerifier,
-    private val analyzer: AlignmentAnalyzer = AlignmentAnalyzer(),
+    private val driftDetector: DriftDetector = DriftDetector(),
     private val maxRereads: Int = 6,
     private val multiPassComparator: MultiPassComparator = MultiPassComparator()
 ) {
@@ -32,7 +31,8 @@ class RereadEngine(
         for (strategy in strategies) {
             val window = strategy.getRecoveryWindow(failedChunk)
             var previousRereadCandidate: VerifiedChunk? = null
-            var finalAnomaly: AlignmentAnomaly? = null
+
+            var finalDriftEvent: DriftEvent? = null
 
             for (attempt in 1..maxRereads) {
                 AppLogger.d("RereadEngine", "reread_attempt strategy=${strategy.strategyName} lba=${failedChunk.startLba} attempt=$attempt")
@@ -72,11 +72,15 @@ class RereadEngine(
                          return RereadRecoveryResult.Recovered(successAttempt, metadataHistory, history)
                     } else if (!overlapsProperly && isStable) {
                         // Rereads are internally stable, but overlap verification failed. Check for drift.
-                        val anomaly = analyzer.analyze(
+                        val driftEvent = driftDetector.analyze(
                             expectedOverlap = previousVerifiedChunk.overlapTail,
-                            actualOverlap = currentAttempt.overlapHead
+                            observedOverlap = currentAttempt.overlapHead
                         )
-                        finalAnomaly = anomaly
+                        if (driftEvent != null) {
+                            val matchPercentage = (driftEvent.overlapMatchLength.toFloat() / (previousVerifiedChunk.overlapTail.size / 2 - Math.abs(driftEvent.shiftSamples)) * 100).toInt()
+                            AppLogger.i("RereadEngine", "[US-005] Drift detected Shift=${driftEvent.shiftSamples} samples MatchLength=${matchPercentage}% Confidence=${driftEvent.confidence}")
+                        }
+                        finalDriftEvent = driftEvent
                     }
 
                     lastAttempt = currentAttempt
@@ -87,7 +91,7 @@ class RereadEngine(
             }
 
             // If this strategy failed after all retries, record it and move to the next strategy
-            metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, maxRereads, false, finalAnomaly))
+            metadataHistory.add(RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, maxRereads, false, finalDriftEvent))
         }
 
         AppLogger.w("RereadEngine", "reread_failed lba=${failedChunk.startLba} overlapStartLba=${previousVerifiedChunk.endLba - (verifier.overlapSizeBytes / 2352)} confidence=LOW")
