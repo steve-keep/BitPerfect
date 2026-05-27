@@ -85,7 +85,7 @@ fun TrackListScreen(
         if (state == null || state.tracks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary // No dominant color available yet
                 )
             }
 
@@ -111,6 +111,8 @@ fun TrackListScreen(
             }
 
             var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
+            val fallbackColor = MaterialTheme.colorScheme.primary
+            val displayColor = if (dominantColor == Color(0xFF141414)) fallbackColor else dominantColor
             val listState = rememberLazyListState()
 
             val density = androidx.compose.ui.platform.LocalDensity.current
@@ -188,7 +190,8 @@ fun TrackListScreen(
                                 viewModel.ejectDrive()
                             },
                             dominantColor = dominantColor,
-                            onColorExtracted = { extractedColor -> dominantColor = extractedColor }
+                            onColorExtracted = { extractedColor -> dominantColor = extractedColor },
+                            primaryColor = displayColor
                         )
                     }
                 }
@@ -214,8 +217,8 @@ fun TrackListScreen(
                     itemsIndexed(discTracks, key = { _, track -> track.id }) { _, track ->
                         val globalIndex = trackIndices[track.id] ?: 0
                         val isCurrentTrack = track.id.toString() == currentMediaId
-                        val tintColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        val titleColor = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        val tintColor = if (isCurrentTrack) displayColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        val titleColor = if (isCurrentTrack) displayColor else MaterialTheme.colorScheme.onSurface
                         val ripState = ripStates[track.trackNumber]
                         var showRipDetailSheet by remember { mutableStateOf(false) }
 
@@ -239,7 +242,7 @@ fun TrackListScreen(
                                                 CircularProgressIndicator(
                                                     progress = { ripState.progress },
                                                     modifier = Modifier.size(24.dp),
-                                                    color = MaterialTheme.colorScheme.primary,
+                                                    color = displayColor,
                                                     trackColor = Color.DarkGray,
                                                     strokeWidth = 2.dp
                                                 )
@@ -253,7 +256,7 @@ fun TrackListScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.CheckCircle,
                                                     contentDescription = "Success - tap for details",
-                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    tint = displayColor,
                                                     modifier = Modifier.size(32.dp)
                                                 )
                                             }
@@ -322,7 +325,7 @@ fun TrackListScreen(
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         val statusColor = when (ripState.status) {
-                                            RipStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+                                            RipStatus.SUCCESS -> displayColor
                                             RipStatus.WARNING -> Color(0xFFFFC107)
                                             RipStatus.UNVERIFIED -> Color.White.copy(alpha = 0.5f)
                                             RipStatus.ERROR -> Color(0xFFF44336)
