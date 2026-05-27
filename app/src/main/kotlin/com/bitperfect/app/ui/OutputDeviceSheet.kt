@@ -7,33 +7,60 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothAudio
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.bitperfect.app.output.OutputDevice
 import com.bitperfect.app.ui.theme.VerificationGreen
+import androidx.compose.material3.ExperimentalMaterial3Api
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OutputDeviceSheet(
     devices: List<OutputDevice>,
     activeDevice: OutputDevice,
     isDiscovering: Boolean = false,
+    wiimVolume: Int = 50,
+    onWiimVolumeChanged: (Int) -> Unit = {},
     onDeviceSelected: (OutputDevice) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var sliderPosition by remember { mutableFloatStateOf(wiimVolume / 100f) }
+    var isDraggingVolume by remember { mutableStateOf(false) }
+
+    LaunchedEffect(wiimVolume) {
+        if (!isDraggingVolume) {
+            sliderPosition = wiimVolume / 100f
+        }
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 16.dp, end = 24.dp),
@@ -132,7 +159,73 @@ fun OutputDeviceSheet(
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
-                    rowContent()
+                    Column {
+                        rowContent()
+
+                        val hasExternalVolume = device is OutputDevice.Upnp
+                        if (hasExternalVolume) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 24.dp, end = 24.dp, bottom = 14.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Slider(
+                                    value = sliderPosition,
+                                    onValueChange = {
+                                        isDraggingVolume = true
+                                        sliderPosition = it
+                                    },
+                                    onValueChangeFinished = {
+                                        isDraggingVolume = false
+                                        onWiimVolumeChanged((sliderPosition * 100).roundToInt())
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 8.dp)
+                                        .semantics {
+                                            contentDescription = "WiiM volume, ${(sliderPosition * 100).roundToInt()}%"
+                                        },
+                                    colors = androidx.compose.material3.SliderDefaults.colors(
+                                        thumbColor = MaterialTheme.colorScheme.primary,
+                                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                    ),
+                                    thumb = {
+                                        androidx.compose.material3.SliderDefaults.Thumb(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            modifier = Modifier.size(12.dp),
+                                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                                thumbColor = MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    },
+                                    track = { sliderState ->
+                                        androidx.compose.material3.SliderDefaults.Track(
+                                            sliderState = sliderState,
+                                            modifier = Modifier.height(2.dp),
+                                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                            )
+                                        )
+                                    }
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             } else {
                 rowContent()

@@ -59,7 +59,6 @@ fun NowPlayingBar(
     currentAlbumArtUri: Uri?,
     enabled: Boolean,
     isExternalOutput: Boolean,
-    hasExternalVolume: Boolean,
     onPlayPause: () -> Unit,
     onOutputDeviceClick: () -> Unit,
     onExpand: () -> Unit,
