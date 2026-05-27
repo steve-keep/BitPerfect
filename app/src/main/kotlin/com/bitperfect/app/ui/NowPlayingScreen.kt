@@ -103,7 +103,8 @@ fun NowPlayingScreen(
     enabled: Boolean,
     isExternalOutput: Boolean,
     onOutputDeviceClick: () -> Unit,
-    onCollapse: () -> Unit = {}
+    onCollapse: () -> Unit = {},
+    primaryColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val positionMs by viewModel.positionMs.collectAsState()
@@ -466,7 +467,7 @@ fun NowPlayingScreen(
         Text(
             text = "$artistName · $albumTitle",
             style = MaterialTheme.typography.bodyLarge,
-            color = Color(0xFF1DB954), // Bright green matching image
+            color = primaryColor, // Dynamic or fallback color
             textAlign = TextAlign.Center
         )
 
@@ -549,7 +550,7 @@ fun NowPlayingScreen(
                 onClick = { viewModel.togglePlayPause() },
                 modifier = Modifier.size(72.dp),
                 shape = CircleShape,
-                color = Color(0xFF1DB954), // Bright green
+                color = primaryColor, // Dynamic or fallback color
                 contentColor = Color.Black
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -593,7 +594,7 @@ fun NowPlayingScreen(
                     Icon(
                         imageVector = Icons.Default.Speaker,
                         contentDescription = "Output Device",
-                        tint = if (isExternalOutput) VerificationGreen else Color.White.copy(alpha = if (enabled) 0.85f else 0.4f),
+                        tint = if (isExternalOutput) primaryColor else Color.White.copy(alpha = if (enabled) 0.85f else 0.4f),
                         modifier = Modifier.size(24.dp)
                     )
                 }

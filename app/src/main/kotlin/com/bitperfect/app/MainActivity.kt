@@ -23,6 +23,8 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.palette.graphics.Palette
+import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
@@ -171,6 +173,13 @@ class MainActivity : ComponentActivity() {
             val currentTrackArtist by appViewModel.currentTrackArtist.collectAsState()
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
 
+            var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
+            LaunchedEffect(currentAlbumArtUri) {
+                dominantColor = Color(0xFF141414)
+            }
+            val fallbackColor = MaterialTheme.colorScheme.primary
+            val displayColor = if (dominantColor == Color(0xFF141414)) fallbackColor else dominantColor
+
             val snackbarHostState = remember { SnackbarHostState() }
             val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
                 bottomSheetState = rememberStandardBottomSheetState(
@@ -260,13 +269,30 @@ class MainActivity : ComponentActivity() {
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(currentAlbumArtUri)
+                                        .allowHardware(false)
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .blur(50.dp)
+                                        .blur(50.dp),
+                                    onSuccess = { success ->
+                                        val bitmap = success.result.drawable.toBitmap()
+                                        Palette.from(bitmap)
+                                            .addFilter { _, hsl -> hsl[2] in 0.2f..0.85f }
+                                            .generate { palette ->
+                                                palette?.let { p ->
+                                                    val swatch = p.vibrantSwatch
+                                                        ?: p.dominantSwatch
+                                                        ?: p.mutedSwatch
+                                                        ?: p.lightMutedSwatch
+                                                    swatch?.rgb?.let { colorValue ->
+                                                        dominantColor = Color(colorValue)
+                                                    }
+                                                }
+                                            }
+                                    }
                                 )
                                 // Dark overlay
                                 Box(
@@ -297,7 +323,8 @@ class MainActivity : ComponentActivity() {
                                             coroutineScope.launch {
                                                 bottomSheetScaffoldState.bottomSheetState.partialExpand()
                                             }
-                                        }
+                                        },
+                                        primaryColor = displayColor
                                     )
                                 }
                             }
@@ -584,7 +611,8 @@ class MainActivity : ComponentActivity() {
                                     coroutineScope.launch {
                                         bottomSheetScaffoldState.bottomSheetState.expand()
                                     }
-                                }
+                                },
+                                primaryColor = displayColor
                             )
                             }
                         }
