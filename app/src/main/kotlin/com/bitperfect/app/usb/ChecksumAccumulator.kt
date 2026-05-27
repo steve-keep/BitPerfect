@@ -13,6 +13,10 @@ internal class ChecksumAccumulator(
     var samplePosition: Long = 1L
         private set
 
+    fun getTotalProcessedBytes(): Long {
+        return (samplePosition - 1L) * 4L
+    }
+
     fun accumulate(pcmData: ByteArray) {
         val result = verifier.computeChecksumChunk(
             pcmData,
