@@ -102,7 +102,6 @@ fun NowPlayingScreen(
     viewModel: AppViewModel,
     enabled: Boolean,
     isExternalOutput: Boolean,
-    hasExternalVolume: Boolean,
     onOutputDeviceClick: () -> Unit,
     onCollapse: () -> Unit = {}
 ) {
@@ -119,16 +118,6 @@ fun NowPlayingScreen(
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val currentTrackState = viewModel.currentTrack.collectAsState()
     val currentTrack = currentTrackState.value
-
-    val wiimVolume by viewModel.wiimVolume.collectAsStateWithLifecycle()
-    var sliderPosition by androidx.compose.runtime.remember { mutableFloatStateOf(wiimVolume / 100f) }
-    var isDraggingVolume by androidx.compose.runtime.remember { mutableStateOf(false) }
-
-    LaunchedEffect(wiimVolume) {
-        if (!isDraggingVolume) {
-            sliderPosition = wiimVolume / 100f
-        }
-    }
 
     var showLyrics by rememberSaveable { mutableStateOf(false) }
 
@@ -535,69 +524,6 @@ fun NowPlayingScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-
-        if (hasExternalVolume) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.VolumeDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
-                Slider(
-                    value = sliderPosition,
-                    onValueChange = {
-                        isDraggingVolume = true
-                        sliderPosition = it
-                    },
-                    onValueChangeFinished = {
-                        isDraggingVolume = false
-                        viewModel.setWiimVolume((sliderPosition * 100).roundToInt())
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                        .semantics {
-                            contentDescription = "WiiM volume, ${(sliderPosition * 100).roundToInt()}%"
-                        },
-                    colors = androidx.compose.material3.SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                    ),
-                    thumb = {
-                        androidx.compose.material3.SliderDefaults.Thumb(
-                            interactionSource = remember { MutableInteractionSource() },
-                            modifier = Modifier.size(12.dp),
-                            colors = androidx.compose.material3.SliderDefaults.colors(
-                                thumbColor = Color.White
-                            )
-                        )
-                    },
-                    track = { sliderState ->
-                        androidx.compose.material3.SliderDefaults.Track(
-                            sliderState = sliderState,
-                            modifier = Modifier.height(2.dp),
-                            colors = androidx.compose.material3.SliderDefaults.colors(
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-                )
-                Icon(
-                    imageVector = Icons.Default.VolumeUp,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

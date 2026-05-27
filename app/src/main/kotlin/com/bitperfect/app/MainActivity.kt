@@ -292,7 +292,6 @@ class MainActivity : ComponentActivity() {
                                         viewModel = appViewModel,
                                         enabled = isControllerReady,
                                         isExternalOutput = isExternalOutput,
-                                        hasExternalVolume = hasExternalVolume,
                                         onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
                                         onCollapse = {
                                             coroutineScope.launch {
@@ -579,7 +578,6 @@ class MainActivity : ComponentActivity() {
                                 currentAlbumArtUri = currentAlbumArtUri,
                                 enabled = isControllerReady,
                                 isExternalOutput = isExternalOutput,
-                                        hasExternalVolume = hasExternalVolume,
                                 onPlayPause = { appViewModel.togglePlayPause() },
                                 onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
                                 onExpand = {
@@ -602,10 +600,13 @@ class MainActivity : ComponentActivity() {
                     dragHandle = null
                 ) {
                     val isDiscovering by appViewModel.isDiscovering.collectAsState()
+                    val wiimVolume by appViewModel.wiimVolume.collectAsState()
                     OutputDeviceSheet(
                         devices = availableDevices,
                         activeDevice = activeDevice,
                         isDiscovering = isDiscovering,
+                        wiimVolume = wiimVolume,
+                        onWiimVolumeChanged = { appViewModel.setWiimVolume(it) },
                         onDeviceSelected = { appViewModel.selectOutputDevice(it) }
                     )
                 }
