@@ -359,28 +359,33 @@ open class AppViewModel(
 
                         // Find the newly ripped album in the library
                         viewModelScope.launch(ioDispatcher) {
-                            kotlinx.coroutines.delay(1000) // Wait for MediaStore
                             val meta = discMetadata.value ?: return@launch
                             val outputUri = settingsManager.outputFolderUri
                             val safeArtist = meta.artistName
                             val safeAlbum = meta.albumTitle
 
-                            val newArtists = libraryRepository.getLibrary(outputUri)
-                            val foundArtist = newArtists.find { it.name.equals(safeArtist, ignoreCase = true) }
-                            val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
+                            // Poll for up to 10 seconds (10 * 1000ms) for MediaStore to index the files
+                            for (i in 1..10) {
+                                kotlinx.coroutines.delay(1000) // Wait for MediaStore
 
-                            if (foundAlbum != null) {
-                                val firstTrack = libraryRepository.getTracksForAlbum(foundAlbum.id, outputUri).firstOrNull()
+                                val newArtists = libraryRepository.getLibrary(outputUri)
+                                val foundArtist = newArtists.find { it.name.equals(safeArtist, ignoreCase = true) }
+                                val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
 
-                                libraryRepository.appendNewRelease(
-                                    outputFolderUriString = outputUri,
-                                    albumId = foundAlbum.id,
-                                    albumTitle = foundAlbum.title,
-                                    artist = foundArtist?.name ?: safeArtist,
-                                    trackId = firstTrack?.id
-                                )
-                                // reload of lists is handled by flow, just update library structure
-                                loadLibrary()
+                                if (foundAlbum != null) {
+                                    val firstTrack = libraryRepository.getTracksForAlbum(foundAlbum.id, outputUri).firstOrNull()
+
+                                    libraryRepository.appendNewRelease(
+                                        outputFolderUriString = outputUri,
+                                        albumId = foundAlbum.id,
+                                        albumTitle = foundAlbum.title,
+                                        artist = foundArtist?.name ?: safeArtist,
+                                        trackId = firstTrack?.id
+                                    )
+                                    // reload of lists is handled by flow, just update library structure
+                                    loadLibrary()
+                                    break // Exit the polling loop once found
+                                }
                             }
                         }
                     }
@@ -679,6 +684,7 @@ open class AppViewModel(
         _trackListViewState.value = null
         if (!ripSession.isRipping.value) {
             ripSession.clearResults()
+            hasHandledRipCompletion = false
         }
     }
 
@@ -730,6 +736,8 @@ open class AppViewModel(
         if (currentDriveStatus is DriveStatus.DiscReady && currentDriveStatus.toc != null) {
             val toc = currentDriveStatus.toc
             val meta = discMetadata.value ?: return
+
+            hasHandledRipCompletion = false
 
             viewModelScope.launch(ioDispatcher) {
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)

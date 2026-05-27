@@ -16,6 +16,7 @@ import java.io.File
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.channels.BufferOverflow
+import com.bitperfect.app.usb.MediaScannerHelper
 
 open class LibraryRepository(private val context: Context) {
 
@@ -210,6 +211,7 @@ open class LibraryRepository(private val context: Context) {
             context.contentResolver.openOutputStream(recentFile.uri, "wa")?.use { out ->
                 out.write((json.toString() + "\n").toByteArray(Charsets.UTF_8))
             }
+            MediaScannerHelper.scanSafUri(context, recentFile.uri)
             onLibraryUpdated.tryEmit(Unit)
         } catch (e: Exception) {
             e.printStackTrace()
