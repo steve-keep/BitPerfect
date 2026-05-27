@@ -180,10 +180,16 @@ fun AlbumHeader(
                 onSuccess = { success ->
                     val bitmap = success.result.drawable.toBitmap()
                     Palette.from(bitmap)
-                        .addFilter { _, hsl -> hsl[2] >= 0.2f }
+                        .addFilter { _, hsl -> hsl[2] in 0.2f..0.85f }
                         .generate { palette ->
-                            palette?.dominantSwatch?.rgb?.let { colorValue ->
-                                onColorExtracted(Color(colorValue))
+                            palette?.let { p ->
+                                val swatch = p.vibrantSwatch
+                                    ?: p.dominantSwatch
+                                    ?: p.mutedSwatch
+                                    ?: p.lightMutedSwatch
+                                swatch?.rgb?.let { colorValue ->
+                                    onColorExtracted(Color(colorValue))
+                                }
                             }
                         }
                 }
