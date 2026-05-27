@@ -22,8 +22,8 @@ import com.bitperfect.app.ripping.paranoia.strategy.FullChunkRecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.RipConfidence
 import com.bitperfect.app.ripping.paranoia.RipConfidenceEvaluator
 import com.bitperfect.app.ripping.paranoia.SuspiciousRead
-import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnomaly
-import com.bitperfect.app.ripping.paranoia.anomaly.AlignmentAnalyzer
+
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -403,7 +403,7 @@ class RipManager(
                                         strategy = finalMetadata.strategy,
                                         rereadAttempts = totalAttempts,
                                         recovered = finalMetadata.recovered,
-                                        anomaly = finalMetadata.anomaly
+                                        driftEvent = finalMetadata.driftEvent
                                     )
                                 } else {
                                     SuspiciousRead(
@@ -414,7 +414,7 @@ class RipManager(
                                         strategy = null,
                                         rereadAttempts = 0,
                                         recovered = false,
-                                        anomaly = null
+                                        driftEvent = null
                                     )
                                 }
 
@@ -435,7 +435,7 @@ class RipManager(
                                     overlapMatchedImmediately = false,
                                     rereadsPerformed = suspiciousRead.rereadAttempts,
                                     recoverySucceeded = suspiciousRead.recovered,
-                                    anomaly = suspiciousRead.anomaly,
+                                    driftEvent = suspiciousRead.driftEvent,
                                     instabilityType = comparisonHistory?.instabilityType
                                 )
 
@@ -448,19 +448,7 @@ class RipManager(
                                 val currentSuspiciousRegions = state.suspiciousRegions.toMutableList()
                                 currentSuspiciousRegions.add(suspiciousRead)
 
-                                suspiciousRead.anomaly?.let { anomaly ->
-                                    when (anomaly) {
-                                        is AlignmentAnomaly.PossibleShift -> {
-                                            AppLogger.w("RipManager", "drift_suspicion track=$trackNumber lba=${suspiciousRead.startLba} shift=${anomaly.sampleDelta} confidence=${anomaly.confidence}")
-                                        }
-                                        is AlignmentAnomaly.SevereInstability -> {
-                                            AppLogger.w("RipManager", "severe_instability track=$trackNumber lba=${suspiciousRead.startLba} mismatches=${anomaly.mismatchCount}")
-                                        }
-                                        is AlignmentAnomaly.None -> {
-                                            // No-op
-                                        }
-                                    }
-                                }
+                                // Logging for driftEvent is handled directly in RereadEngine
 
                                 updateTrackState(
                                     trackNumber = trackNumber,
