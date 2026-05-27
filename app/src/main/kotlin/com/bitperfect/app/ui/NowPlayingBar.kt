@@ -62,7 +62,8 @@ fun NowPlayingBar(
     onPlayPause: () -> Unit,
     onOutputDeviceClick: () -> Unit,
     onExpand: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    primaryColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val isPlaying by isPlayingFlow.collectAsState()
 
@@ -150,7 +151,7 @@ fun NowPlayingBar(
                             Icon(
                                 imageVector = Icons.Default.Speaker,
                                 contentDescription = "Output Device",
-                                tint = if (isExternalOutput) VerificationGreen else Color.White.copy(alpha = 0.85f),
+                                tint = if (isExternalOutput) primaryColor else Color.White.copy(alpha = 0.85f),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
