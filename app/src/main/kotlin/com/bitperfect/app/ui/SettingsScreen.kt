@@ -75,22 +75,6 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(1.dp) // Minimal spacing for the "slabs" feel
     ) {
         item {
-            Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
-                Text(
-                    text = "Storage & Paths",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Configure where and how your rips are saved.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-
-        item {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.fillMaxWidth()
