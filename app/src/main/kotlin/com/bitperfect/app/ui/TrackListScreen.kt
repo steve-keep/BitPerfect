@@ -214,7 +214,7 @@ fun TrackListScreen(
                         }
                     }
 
-                    itemsIndexed(discTracks, key = { _, track -> track.id }) { _, track ->
+                    itemsIndexed(discTracks, key = { index, track -> "track_${track.id}_$index" }) { _, track ->
                         val globalIndex = trackIndices[track.id] ?: 0
                         val isCurrentTrack = track.id.toString() == currentMediaId
                         val tintColor = if (isCurrentTrack) displayColor else MaterialTheme.colorScheme.onSurfaceVariant

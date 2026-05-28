@@ -932,7 +932,7 @@ fun LibrarySection(
                     }
 
                     filteredArtists.forEach { artist ->
-                        stickyHeader(key = artist.id) {
+                        stickyHeader(key = "artist_${artist.id}") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()

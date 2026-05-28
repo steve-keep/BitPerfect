@@ -5,6 +5,8 @@ import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
+import java.util.UUID
+import android.os.Bundle
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -342,7 +344,8 @@ open class PlayerRepository(
                         .setAlbumTitle(track.albumTitle)
                         .setTrackNumber(track.trackNumber)
                         .setArtworkUri(albumArtUri)
-                        .build()
+                    .setExtras(Bundle().apply { putString("queue_uid", UUID.randomUUID().toString()) })
+                    .build()
                 )
                 .build()
         }
@@ -368,6 +371,7 @@ open class PlayerRepository(
                     .setAlbumTitle(track.albumTitle)
                     .setTrackNumber(track.trackNumber)
                     .setArtworkUri(albumArtUri)
+                    .setExtras(Bundle().apply { putString("queue_uid", UUID.randomUUID().toString()) })
                     .build()
             )
             .build()
@@ -437,7 +441,7 @@ open class PlayerRepository(
             val c = controller ?: return@withContext
             val mediaItems = mediaIds.map { id ->
                 val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toLong())
-                MediaItem.Builder().setUri(uri).setMediaId(id).build()
+                MediaItem.Builder().setUri(uri).setMediaId(id).setMediaMetadata(MediaMetadata.Builder().setExtras(Bundle().apply { putString("queue_uid", UUID.randomUUID().toString()) }).build()).build()
             }
             c.stop()
             c.setMediaItems(mediaItems, startIndex, startPositionMs)
