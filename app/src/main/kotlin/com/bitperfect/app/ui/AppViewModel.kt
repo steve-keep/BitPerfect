@@ -353,16 +353,20 @@ open class AppViewModel(
 
                 if (states.isNotEmpty() && isDone && !hasErrors && !hasHandledRipCompletion) {
                     hasHandledRipCompletion = true
+                    val capturedMeta = discMetadata.value
+                    val capturedOutputUri = settingsManager.outputFolderUri
                     // Give it a moment to settle, then rescan media
                     withContext(Dispatchers.Main) {
                         loadLibrary()
 
                         // Find the newly ripped album in the library
                         viewModelScope.launch(ioDispatcher) {
-                            val meta = discMetadata.value ?: return@launch
-                            val outputUri = settingsManager.outputFolderUri
+                            val meta = capturedMeta ?: return@launch
+                            val outputUri = capturedOutputUri
                             val safeArtist = meta.artistName
                             val safeAlbum = meta.albumTitle
+
+                            var albumFound = false
 
                             // Poll for up to 10 seconds (10 * 1000ms) for MediaStore to index the files
                             for (i in 1..10) {
@@ -384,7 +388,20 @@ open class AppViewModel(
                                     )
                                     // reload of lists is handled by flow, just update library structure
                                     loadLibrary()
+
+                                    _selectedAlbumId.value = foundAlbum.id
+                                    _selectedAlbumTitle.value = foundAlbum.title
+                                    withContext(Dispatchers.Main) {
+                                        reloadTracksInternal(foundAlbum.id, newArtists)
+                                    }
+                                    albumFound = true
                                     break // Exit the polling loop once found
+                                }
+                            }
+
+                            if (!albumFound && _trackListViewState.value?.isCdMode == true) {
+                                withContext(Dispatchers.Main) {
+                                    _trackListViewState.value = _trackListViewState.value?.copy(isCdMode = false)
                                 }
                             }
                         }
