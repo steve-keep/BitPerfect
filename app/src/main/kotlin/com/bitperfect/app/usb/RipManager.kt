@@ -286,11 +286,12 @@ class RipManager(
                 val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
                     overlapSizeSectors = overlapSize
                 )
-                                val rereadEngine = RereadEngine(verifier = overlapVerifier, maxRereads = 6)
+                val rereadEngine = com.bitperfect.app.ripping.paranoia.RereadEngine(verifier = overlapVerifier, maxRereads = 6)
                 val recoveryCoordinator = com.bitperfect.app.ripping.paranoia.RecoveryCoordinator(
                     rereadEngine = rereadEngine,
                     verifier = overlapVerifier
                 )
+                val fastPathEvaluator = com.bitperfect.app.ripping.paranoia.fastpath.FastPathEvaluator()
 
                 var pendingChunk: VerifiedChunk? = null
 
@@ -353,6 +354,7 @@ class RipManager(
 
                             if (match) {
                                 AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize} confidence=HIGH")
+                                fastPathEvaluator.reportMatch(currentChunkConfidence)
                                 committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
 
                                 val trimmedSamples = (pChunk.pcm.size - committedPcm.size) / 4
@@ -360,6 +362,7 @@ class RipManager(
                                 expectedTotalOverlapTrimmedSamples += overlapVerifier.overlapSizeBytes / 4
                             } else {
                                 AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
+                                fastPathEvaluator.reportMismatch()
 
                                 val recoveryResult = recoveryCoordinator.recover(
                                     previousVerifiedChunk = pChunk,
@@ -487,7 +490,16 @@ class RipManager(
                                 expectedTrimSamples = overlapVerifier.overlapSizeBytes / 4,
                                 actualTrimSamples = (pendingChunk!!.pcm.size - committedPcm.size) / 4
                             )
+
+                            val preAlignmentConfidence = trackConfidence
                             trackConfidence = confidenceEvaluator.evaluateAlignmentConfidence(trackConfidence, alignmentResult)
+
+                            if (trackConfidence != preAlignmentConfidence) {
+                                fastPathEvaluator.reportConfidenceDowngrade()
+                            }
+                            if (alignmentResult.anomalies.isNotEmpty()) {
+                                fastPathEvaluator.reportAnomaly()
+                            }
 
                             for (anomaly in alignmentResult.anomalies) {
                                 when (anomaly) {
