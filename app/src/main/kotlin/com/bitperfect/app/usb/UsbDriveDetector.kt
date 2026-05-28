@@ -246,8 +246,18 @@ class UsbDriveDetector(
         try {
             val inquiryCommand = ScsiInquiryCommand(transportLocal, outEndpoint, inEndpoint)
 
-            val baseInfo = inquiryCommand.execute()
+            var baseInfo: DriveInfo? = null
+            for (attempt in 1..5) {
+                baseInfo = inquiryCommand.execute()
+                if (baseInfo != null) break
+                if (attempt < 5) {
+                    AppLogger.w(TAG, "INQUIRY command failed on attempt $attempt, retrying...")
+                    delay(500)
+                }
+            }
+
             if (baseInfo == null) {
+                AppLogger.e(TAG, "INQUIRY command failed after all retries")
                 _driveStatus.value = DriveStatus.Error("INQUIRY command failed")
                 cleanupConnection()
                 return
