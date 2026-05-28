@@ -181,13 +181,13 @@ fun NowPlayingScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        itemsIndexed(upcomingItems, key = { _, item -> item.mediaId }) { index, item ->
+                        itemsIndexed(upcomingItems, key = { _, item -> item.mediaMetadata.extras?.getString("queue_uid") ?: System.identityHashCode(item) }) { index, item ->
                             val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
                             val buttonWidthDp = 88.dp
                             val buttonWidthPx = with(density) { buttonWidthDp.toPx() }
                             val offsetX = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
 
-                            ReorderableItem(reorderState, key = item.mediaId) { isDragging ->
+                            ReorderableItem(reorderState, key = item.mediaMetadata.extras?.getString("queue_uid") ?: System.identityHashCode(item)) { isDragging ->
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
