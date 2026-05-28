@@ -1,4 +1,5 @@
 package com.bitperfect.app.ripping.paranoia
+import com.bitperfect.app.ripping.paranoia.cache.CacheProbeResult
 
 data class SuspiciousRead(
     val startLba: Int,
@@ -8,5 +9,6 @@ data class SuspiciousRead(
     val strategy: String?,
     val rereadAttempts: Int,
     val recovered: Boolean,
-    val driftEvent: DriftEvent? = null
+    val driftEvent: DriftEvent? = null,
+    val cacheProbeResult: CacheProbeResult? = null
 )
