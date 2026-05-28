@@ -22,6 +22,8 @@ import com.bitperfect.app.ripping.paranoia.strategy.FullChunkRecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.RipConfidence
 import com.bitperfect.app.ripping.paranoia.RipConfidenceEvaluator
 import com.bitperfect.app.ripping.paranoia.SuspiciousRead
+import com.bitperfect.app.ripping.paranoia.SampleAlignmentValidator
+import com.bitperfect.app.ripping.paranoia.AlignmentIssue
 
 
 import kotlinx.coroutines.CoroutineScope
@@ -103,6 +105,7 @@ class RipManager(
         private set
     private val verifier = AccurateRipVerifier()
     private val confidenceEvaluator = RipConfidenceEvaluator()
+    private val alignmentValidator = SampleAlignmentValidator()
 
     private var albumDir: DocumentFile? = null
 
@@ -252,6 +255,10 @@ class RipManager(
             var finalChecksum = 0L
             var sectorsRead = 0
 
+            var lastCommittedPcm: ByteArray? = null
+            var totalOverlapTrimmedSamples = 0L
+            var expectedTotalOverlapTrimmedSamples = 0L
+
             val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
             try {
                 val tempOutputStream = BufferedOutputStream(java.io.FileOutputStream(tempFile), 1024 * 1024)
@@ -349,6 +356,10 @@ class RipManager(
                             if (match) {
                                 AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize} confidence=HIGH")
                                 committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
+
+                                val trimmedSamples = (pChunk.pcm.size - committedPcm.size) / 4
+                                totalOverlapTrimmedSamples += trimmedSamples
+                                expectedTotalOverlapTrimmedSamples += overlapVerifier.overlapSizeBytes / 4
                             } else {
                                 AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
 
@@ -458,17 +469,56 @@ class RipManager(
                                 )
 
                                 committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
+
+                                val trimmedSamples = (pChunk.pcm.size - committedPcm.size) / 4
+                                totalOverlapTrimmedSamples += trimmedSamples
+                                expectedTotalOverlapTrimmedSamples += overlapVerifier.overlapSizeBytes / 4
                             }
                         }
 
                         val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
-                        val newConfidence = confidenceEvaluator.aggregateTrackConfidence(state.confidence, currentChunkConfidence)
-                        if (newConfidence != state.confidence) {
+                        var trackConfidence = confidenceEvaluator.aggregateTrackConfidence(state.confidence, currentChunkConfidence)
+
+                        if (committedPcm != null && lastCommittedPcm != null) {
+                            val alignmentResult = alignmentValidator.validateBoundary(
+                                previousCommittedPcm = lastCommittedPcm,
+                                nextCommittedPcm = committedPcm,
+                                expectedTrimSamples = overlapVerifier.overlapSizeBytes / 4,
+                                actualTrimSamples = (pendingChunk!!.pcm.size - committedPcm.size) / 4
+                            )
+                            trackConfidence = confidenceEvaluator.evaluateAlignmentConfidence(trackConfidence, alignmentResult)
+
+                            for (anomaly in alignmentResult.anomalies) {
+                                when (anomaly) {
+                                    is AlignmentIssue.DuplicateSamples -> {
+                                        AppLogger.w("RipManager", "[US-018] Duplicate samples detected")
+                                        AppLogger.w("RipManager", "[US-018] SampleCount=${anomaly.sampleCount}")
+                                        AppLogger.w("RipManager", "[US-018] BoundaryOffset=${anomaly.boundaryOffset}")
+                                    }
+                                    is AlignmentIssue.DroppedSamples -> {
+                                        AppLogger.w("RipManager", "[US-018] Dropped samples detected")
+                                        AppLogger.w("RipManager", "[US-018] SampleCount=${anomaly.sampleCount}")
+                                        AppLogger.w("RipManager", "[US-018] BoundaryOffset=${anomaly.boundaryOffset}")
+                                    }
+                                    is AlignmentIssue.InvalidOverlapTrim -> {
+                                        AppLogger.w("RipManager", "[US-018] Invalid overlap trim")
+                                        AppLogger.w("RipManager", "[US-018] ExpectedTrim=${anomaly.expectedTrimSamples}")
+                                        AppLogger.w("RipManager", "[US-018] ActualTrim=${anomaly.actualTrimSamples}")
+                                    }
+                                    is AlignmentIssue.BoundaryDiscontinuity -> {
+                                        AppLogger.w("RipManager", "[US-018] Boundary discontinuity")
+                                        AppLogger.w("RipManager", "[US-018] MismatchOffset=${anomaly.mismatchSampleOffset}")
+                                    }
+                                }
+                            }
+                        }
+
+                        if (trackConfidence != state.confidence) {
                             updateTrackState(
                                 trackNumber = trackNumber,
                                 status = state.status,
                                 progress = state.progress,
-                                confidence = newConfidence
+                                confidence = trackConfidence
                             )
                         }
 
@@ -479,6 +529,7 @@ class RipManager(
                             encoder.encode(trimmed)
                             checksumAccumulator.accumulate(trimmed)
                             analyser.feed(trimmed)
+                            lastCommittedPcm = committedPcm
                             isFirstSector = false
                         }
 
@@ -490,6 +541,7 @@ class RipManager(
                                     encoder.encode(trimmed)
                                     checksumAccumulator.accumulate(trimmed)
                                     analyser.feed(trimmed)
+                                    lastCommittedPcm = finalCommitted
                                     isFirstSector = false
                                 }
                                 pendingChunk = null
@@ -566,6 +618,41 @@ class RipManager(
                     encoder.encode(silence)
                     checksumAccumulator.accumulate(silence)
                     analyser.feed(silence)
+                }
+
+                val finalTrackValidation = alignmentValidator.validateFinalTrack(
+                    finalPcmSizeBytes = checksumAccumulator.getTotalProcessedBytes(),
+                    expectedSamples = totalSamples,
+                    totalOverlapTrimmedSamples = totalOverlapTrimmedSamples,
+                    expectedTotalOverlapTrimmedSamples = expectedTotalOverlapTrimmedSamples
+                )
+
+                val currentState = _trackStates.value[trackNumber]
+                if (currentState != null) {
+                    val finalConfidence = confidenceEvaluator.evaluateAlignmentConfidence(currentState.confidence, finalTrackValidation)
+                    if (finalConfidence != currentState.confidence) {
+                        updateTrackState(
+                            trackNumber = trackNumber,
+                            status = currentState.status,
+                            progress = currentState.progress,
+                            confidence = finalConfidence
+                        )
+                    }
+                }
+
+                for (anomaly in finalTrackValidation.anomalies) {
+                    when (anomaly) {
+                        is AlignmentIssue.InvalidOverlapTrim -> {
+                            AppLogger.w("RipManager", "[US-018] Final Invalid overlap trim")
+                            AppLogger.w("RipManager", "[US-018] ExpectedTrim=${anomaly.expectedTrimSamples}")
+                            AppLogger.w("RipManager", "[US-018] ActualTrim=${anomaly.actualTrimSamples}")
+                        }
+                        is AlignmentIssue.BoundaryDiscontinuity -> {
+                            AppLogger.w("RipManager", "[US-018] Final Boundary discontinuity")
+                            AppLogger.w("RipManager", "[US-018] MismatchOffset=${anomaly.mismatchSampleOffset}")
+                        }
+                        else -> {}
+                    }
                 }
 
                 encoder.stop()
