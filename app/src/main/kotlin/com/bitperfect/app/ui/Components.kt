@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -139,6 +140,8 @@ fun AlbumHeader(
     overallProgress: Float = 0f,
     isFullyVerified: Boolean = false,
     isAlbumPlaying: Boolean = false,
+    isAwaitingEject: Boolean = false,
+    onEjectClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     onArtistClick: () -> Unit = {},
     onPlayClick: () -> Unit = {},
@@ -278,6 +281,34 @@ fun AlbumHeader(
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Stop Rip",
+                            tint = Color.White
+                        )
+                    }
+                }
+            } else if (isAwaitingEject) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Eject disc to save to library",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFFFC107)
+                        )
+                    }
+                    IconButton(onClick = onEjectClick) {
+                        Icon(
+                            imageVector = Icons.Default.Eject,
+                            contentDescription = "Eject disc",
                             tint = Color.White
                         )
                     }
