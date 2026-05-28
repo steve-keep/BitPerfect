@@ -124,6 +124,9 @@ open class OutputRepository(
     open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
     open suspend fun getPositionMs(): Long = activeController.getPositionMs()
 
+    open suspend fun skipNext() = activeController.skipNext()
+    open suspend fun skipPrev() = activeController.skipPrev()
+
     open suspend fun setVolume(volume: Int) {
         val controller = activeController
         if (controller is WiimOutputController) {

@@ -146,6 +146,16 @@ class WiimOutputController(
         val didl = buildDidl(track, url, artUrl)
 
         withContext(Dispatchers.IO) {
+            // 1. Clear the WiiM queue
+            val clearSuccess = sendSoapAction(
+                "RemoveAllTracksFromQueue",
+                """<InstanceID>0</InstanceID>"""
+            )
+            if (!clearSuccess) {
+                Log.w("WiimOutputController", "RemoveAllTracksFromQueue failed or returned non-2xx")
+            }
+
+            // 2. Load the first track
             val success = sendSoapAction(
                 "SetAVTransportURI",
                 """
@@ -156,6 +166,44 @@ class WiimOutputController(
             )
 
             if (success) {
+                // 3. Enqueue remaining tracks
+                val limit = minOf(trackList.size, 200)
+                if (trackList.size > 200) {
+                    Log.w("WiimOutputController", "Queue size truncated to 200 tracks")
+                }
+                for (i in 1 until limit) {
+                    val nextTrack = trackList[i]
+                    val nextUrl = "http://$wifiIp:${httpServer?.listeningPort}/track/${nextTrack.id}.flac"
+                    val nextArtUrl = if (nextTrack.albumId != -1L)
+                        "http://$wifiIp:${httpServer?.listeningPort}/art/${nextTrack.albumId}.jpg"
+                    else null
+                    val nextDidl = buildDidl(nextTrack, nextUrl, nextArtUrl)
+
+                    sendSoapAction(
+                        "AddURIToQueue",
+                        """
+                        <InstanceID>0</InstanceID>
+                        <EnqueuedURI>$nextUrl</EnqueuedURI>
+                        <EnqueuedURIMetaData>${escapeXml(nextDidl)}</EnqueuedURIMetaData>
+                        <DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued>
+                        <EnqueueAsNext>0</EnqueueAsNext>
+                        """.trimIndent()
+                    )
+                }
+
+                // 4. Jump to startIndex
+                if (startIndex > 0) {
+                    sendSoapAction(
+                        "Seek",
+                        """
+                        <InstanceID>0</InstanceID>
+                        <Unit>TRACK_NR</Unit>
+                        <Target>${startIndex + 1}</Target>
+                        """.trimIndent()
+                    )
+                }
+
+                // 5. Seek within track
                 if (startPositionMs > 0) {
                     val h = startPositionMs / 3600000
                     val m = (startPositionMs % 3600000) / 60000
@@ -171,6 +219,7 @@ class WiimOutputController(
                     )
                 }
 
+                // 6. Play
                 sendSoapAction(
                     "Play",
                     """
@@ -182,6 +231,18 @@ class WiimOutputController(
         }
 
         startPolling()
+    }
+
+    override suspend fun skipNext() {
+        withContext(Dispatchers.IO) {
+            sendSoapAction("Next", "<InstanceID>0</InstanceID>")
+        }
+    }
+
+    override suspend fun skipPrev() {
+        withContext(Dispatchers.IO) {
+            sendSoapAction("Previous", "<InstanceID>0</InstanceID>")
+        }
     }
 
     override suspend fun play() {

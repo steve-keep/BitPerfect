@@ -925,11 +925,23 @@ open class AppViewModel(
     }
 
     fun skipNext() {
-        playerRepository.skipNext()
+        viewModelScope.launch {
+            if (activeDevice.value is OutputDevice.Upnp) {
+                outputRepository.skipNext()
+            } else {
+                playerRepository.skipNext()
+            }
+        }
     }
 
     fun skipPrev() {
-        playerRepository.skipPrev()
+        viewModelScope.launch {
+            if (activeDevice.value is OutputDevice.Upnp) {
+                outputRepository.skipPrev()
+            } else {
+                playerRepository.skipPrev()
+            }
+        }
     }
 
     fun pollPosition() {

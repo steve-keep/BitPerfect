@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 fun fakeOutputRepository(application: Application, playerRepository: PlayerRepository): OutputRepository {
     return object : OutputRepository(application, playerRepository, CoroutineScope(Dispatchers.Unconfined)) {
-        override val activeDevice: StateFlow<OutputDevice> = MutableStateFlow(OutputDevice.ThisPhone).asStateFlow()
+        val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
+        override val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
         override val availableDevices: StateFlow<List<OutputDevice>> = MutableStateFlow(listOf<OutputDevice>()).asStateFlow()
         override val wiimPositionMs: StateFlow<Long> = MutableStateFlow(0L).asStateFlow()
 
@@ -27,5 +28,7 @@ fun fakeOutputRepository(application: Application, playerRepository: PlayerRepos
         }
         override suspend fun seekTo(positionMs: Long) { playerRepository.seekTo(positionMs) }
         override suspend fun getPositionMs(): Long = playerRepository.positionMs.value
+        override suspend fun skipNext() {}
+        override suspend fun skipPrev() {}
     }
 }
