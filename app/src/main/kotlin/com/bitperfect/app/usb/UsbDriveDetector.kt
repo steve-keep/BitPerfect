@@ -224,6 +224,16 @@ class UsbDriveDetector(
             return
         }
 
+        // Prevent USB selective suspend when screen goes off.
+        // setConfiguration() is available from API 21 (minSdk is 28 so no version guard needed).
+        // Non-fatal if the OEM rejects it — rip continues but may be less resilient.
+        try {
+            connection.setConfiguration(device.getConfiguration(0))
+            AppLogger.d(TAG, "USB configuration set to prevent selective suspend")
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Could not set USB configuration (selective suspend prevention): ${e.message}")
+        }
+
         // Keep local references that will be assigned to class properties
         val transportLocal = transportFactory?.invoke(connection) ?: DefaultUsbTransport(connection)
 
