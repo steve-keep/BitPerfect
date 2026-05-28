@@ -173,7 +173,7 @@ fun OutputDeviceSheet(
                                 Icon(
                                     imageVector = Icons.Default.VolumeDown,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = VerificationGreen,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Slider(
@@ -193,16 +193,16 @@ fun OutputDeviceSheet(
                                             contentDescription = "WiiM volume, ${(sliderPosition * 100).roundToInt()}%"
                                         },
                                     colors = androidx.compose.material3.SliderDefaults.colors(
-                                        thumbColor = MaterialTheme.colorScheme.primary,
-                                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                        thumbColor = VerificationGreen,
+                                        activeTrackColor = VerificationGreen,
+                                        inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
                                     ),
                                     thumb = {
                                         androidx.compose.material3.SliderDefaults.Thumb(
                                             interactionSource = remember { MutableInteractionSource() },
                                             modifier = Modifier.size(12.dp),
                                             colors = androidx.compose.material3.SliderDefaults.colors(
-                                                thumbColor = MaterialTheme.colorScheme.primary
+                                                thumbColor = VerificationGreen
                                             )
                                         )
                                     },
@@ -211,8 +211,8 @@ fun OutputDeviceSheet(
                                             sliderState = sliderState,
                                             modifier = Modifier.height(2.dp),
                                             colors = androidx.compose.material3.SliderDefaults.colors(
-                                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                                activeTrackColor = VerificationGreen,
+                                                inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
                                             )
                                         )
                                     }
@@ -220,7 +220,7 @@ fun OutputDeviceSheet(
                                 Icon(
                                     imageVector = Icons.Default.VolumeUp,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = VerificationGreen,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
