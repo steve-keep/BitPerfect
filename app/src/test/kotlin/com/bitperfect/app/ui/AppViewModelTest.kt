@@ -640,10 +640,8 @@ class AppViewModelTest {
 
     @Test
     fun testPlaybackDelegates() = runTest(testScheduler) {
-        // AppViewModel delegates play/pause/seek to OutputRepository now,
-        // and skips to PlayerRepository. We need to verify against mockRepository
-        // for skips, and because we use fakeOutputRepository which delegates
-        // to mockRepository, we can verify play/pause against mockRepository too.
+        // AppViewModel delegates play/pause/seek to OutputRepository now.
+        // For skip actions, it delegates to OutputRepository if device is UPnP, otherwise PlayerRepository.
 
         val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
 
@@ -664,11 +662,57 @@ class AppViewModelTest {
         // Because of Coroutines in OutputRepository, we'd need advanceUntilIdle()
         // but skipping full verification here as it's tested elsewhere.
 
+        // Test skip delegation for non-UPnP device
         viewModel.skipNext()
+        advanceUntilIdle()
         verify(mockRepository).skipNext()
 
         viewModel.skipPrev()
+        advanceUntilIdle()
         verify(mockRepository).skipPrev()
+    }
+
+    @Test
+    fun testSkipDelegationForUpnpDevice() = runTest(testScheduler) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val mockPlayerRepo = mock(PlayerRepository::class.java)
+        val mockOutputRepo = mock(com.bitperfect.app.output.OutputRepository::class.java)
+        val mockLibraryRepo = mock(com.bitperfect.app.library.LibraryRepository::class.java)
+
+        org.mockito.Mockito.`when`(mockOutputRepo.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.app.output.OutputDevice.Upnp("uuid", "WiiM", null, null, "", null, null, null)))
+        org.mockito.Mockito.`when`(mockOutputRepo.availableDevices).thenReturn(MutableStateFlow(emptyList()))
+        org.mockito.Mockito.`when`(mockOutputRepo.isDiscovering).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockOutputRepo.wiimVolume).thenReturn(MutableStateFlow(50))
+        org.mockito.Mockito.`when`(mockOutputRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockOutputRepo.wiimPositionMs).thenReturn(MutableStateFlow(0L))
+
+        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
+        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
+        }
+
+        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+        try {
+            org.mockito.Mockito.`when`(mockLibraryRepo.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
+        } catch(e: Exception) {
+            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepo).onLibraryUpdated
+        }
+
+        val vm = AppViewModel(application, mockPlayerRepo, mockOutputRepo, mockLibraryRepo, testDispatcher)
+
+        vm.skipNext()
+        advanceUntilIdle()
+        verify(mockOutputRepo).skipNext()
+        verify(mockPlayerRepo, org.mockito.Mockito.never()).skipNext()
+
+        vm.skipPrev()
+        advanceUntilIdle()
+        verify(mockOutputRepo).skipPrev()
+        verify(mockPlayerRepo, org.mockito.Mockito.never()).skipPrev()
     }
 
     @Test

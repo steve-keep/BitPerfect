@@ -35,4 +35,7 @@ interface OutputController {
      * Called by OutputRepository when switching away from this controller.
      */
     suspend fun release()
+
+    suspend fun skipNext() { /* no-op for local/BT */ }
+    suspend fun skipPrev() { /* no-op for local/BT */ }
 }
