@@ -73,9 +73,10 @@ fun TrackListScreen(
     }
 
     val driveStatus by viewModel.driveStatus.collectAsState()
+    val awaitingEjectToCommit by viewModel.awaitingEjectToCommit.collectAsState()
 
-    LaunchedEffect(driveStatus) {
-        if (driveStatus is DriveStatus.NoDrive && !isRipping && isCdMode) {
+    LaunchedEffect(driveStatus, awaitingEjectToCommit) {
+        if (driveStatus is DriveStatus.NoDrive && !isRipping && !awaitingEjectToCommit && isCdMode) {
             onNavigateBack()
         }
     }
@@ -180,6 +181,8 @@ fun TrackListScreen(
                             overallProgress = overallProgress,
                             isFullyVerified = isFullyVerified,
                             isAlbumPlaying = isAlbumPlaying,
+                            isAwaitingEject = awaitingEjectToCommit,
+                            onEjectClick = { viewModel.ejectDrive() },
                             onArtistClick = { onNavigateToArtist(state.artistName) },
                             onSaveClick = { viewModel.startRip() },
                             onPlayClick = {
