@@ -14,6 +14,7 @@ class FullChunkRecoveryStrategy : RecoveryStrategy {
     }
 
     override suspend fun performAttempt(
+        context: RecoveryContext,
         failedChunk: VerifiedChunk,
         readChunk: suspend (lba: Int, sectors: Int) -> VerifiedChunk?
     ): VerifiedChunk? {

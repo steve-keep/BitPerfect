@@ -8,6 +8,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.bitperfect.app.ripping.paranoia.RipConfidence
+import com.bitperfect.app.ripping.paranoia.strategy.RecoveryContext
 
 class OverlapRecoveryStrategyTest {
 
@@ -46,7 +48,7 @@ class OverlapRecoveryStrategyTest {
         // Read attempt for the 6 overlap sectors filled with 1s
         val attemptPcm = ByteArray(overlapSizeBytes) { 1 }
 
-        val result = strategy.performAttempt(failedChunk) { lba, sectors ->
+        val result = strategy.performAttempt(RecoveryContext(0, 0, 0, 0, null, null, RipConfidence.HIGH), failedChunk) { lba, sectors ->
             assertEquals(100, lba)
             assertEquals(6, sectors)
             createChunk(lba, sectors, 1)
@@ -75,14 +77,14 @@ class OverlapRecoveryStrategyTest {
     @Test
     fun `performAttempt handles null read gracefully`() = runBlocking {
         val failedChunk = createChunk(100, 16, 0)
-        val result = strategy.performAttempt(failedChunk) { _, _ -> null }
+        val result = strategy.performAttempt(RecoveryContext(0, 0, 0, 0, null, null, RipConfidence.HIGH), failedChunk) { _, _ -> null }
         assertNull(result)
     }
 
     @Test
     fun `performAttempt handles short read gracefully`() = runBlocking {
         val failedChunk = createChunk(100, 16, 0)
-        val result = strategy.performAttempt(failedChunk) { lba, _ ->
+        val result = strategy.performAttempt(RecoveryContext(0, 0, 0, 0, null, null, RipConfidence.HIGH), failedChunk) { lba, _ ->
             createChunk(lba, 5, 1) // 5 sectors instead of 6
         }
         assertNull(result)

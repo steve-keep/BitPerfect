@@ -280,16 +280,17 @@ class RipManager(
 
                 val chunkSize = 16 // read ~16 sectors at a time
                 val overlapSize = 6
-                val advanceSize = chunkSize - overlapSize
+                require(chunkSize > overlapSize) { "chunkSize must be greater than overlapSize" }
+                var advanceSize = chunkSize - overlapSize
 
                 val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
                     overlapSizeSectors = overlapSize
                 )
-                val rereadStrategies = listOf(
-                    OverlapRecoveryStrategy(overlapVerifier),
-                    FullChunkRecoveryStrategy()
+                                val rereadEngine = RereadEngine(verifier = overlapVerifier, maxRereads = 6)
+                val recoveryCoordinator = com.bitperfect.app.ripping.paranoia.RecoveryCoordinator(
+                    rereadEngine = rereadEngine,
+                    verifier = overlapVerifier
                 )
-                val rereadEngine = RereadEngine(strategies = rereadStrategies, verifier = overlapVerifier, maxRereads = 6)
 
                 var pendingChunk: VerifiedChunk? = null
 
@@ -329,10 +330,7 @@ class RipManager(
 
                         // Determine if this is the final read
                         // advanceSize is the stride. If reading advanceSize puts us past or at the end, it's final.
-                        val remainingAfterAdvance = effectiveTotalSectors - (sectorsRead + advanceSize)
-                        // Actually, if we read sectorsToRead, and that completes or exceeds effectiveTotalSectors, it's final
-                        // But we advance by advanceSize. If advancing puts us at or past the end, next read won't happen.
-                        val isFinalChunk = (sectorsRead + advanceSize) >= effectiveTotalSectors || sectorsActuallyRead < chunkSize
+
 
                         val currentLba = firstLba + sectorsRead
 
@@ -363,7 +361,7 @@ class RipManager(
                             } else {
                                 AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
 
-                                val recoveryResult = rereadEngine.recover(
+                                val recoveryResult = recoveryCoordinator.recover(
                                     previousVerifiedChunk = pChunk,
                                     failedChunk = currentChunk,
                                     readChunk = { lba, count ->
@@ -384,6 +382,7 @@ class RipManager(
                                 val metadataHistory = when (recoveryResult) {
                                     is RereadRecoveryResult.Recovered -> recoveryResult.metadataHistory
                                     is RereadRecoveryResult.Failed -> recoveryResult.metadataHistory
+                                    else -> emptyList()
                                 }
 
                                 AppLogger.d("RipManager", "targeted_recovery_started track=$trackNumber lba=${currentChunk.startLba}")
@@ -432,6 +431,7 @@ class RipManager(
                                 val comparisonHistory = when (recoveryResult) {
                                     is RereadRecoveryResult.Recovered -> recoveryResult.comparisonHistory
                                     is RereadRecoveryResult.Failed -> recoveryResult.comparisonHistory
+                                    else -> null
                                 }
 
                                 if (comparisonHistory != null && comparisonHistory.uniqueCandidates > 1) {
@@ -453,6 +453,7 @@ class RipManager(
                                 currentChunk = when (recoveryResult) {
                                     is RereadRecoveryResult.Recovered -> recoveryResult.chunk
                                     is RereadRecoveryResult.Failed -> recoveryResult.chunk
+                                    else -> currentChunk
                                 }
 
                                 val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
@@ -533,6 +534,10 @@ class RipManager(
                             isFirstSector = false
                         }
 
+
+                        val dynamicAdvance = currentChunk.pcm.size / 2352 - overlapVerifier.overlapSizeBytes / 2352
+                        val isFinalChunk = (sectorsRead + dynamicAdvance) >= effectiveTotalSectors || currentChunk.pcm.size / 2352 < chunkSize
+
                         if (isFinalChunk) {
                             if (pendingChunk != null) {
                                 val finalCommitted = overlapVerifier.commitVerifiedAudio(pendingChunk!!, isFinal = true)
@@ -548,6 +553,7 @@ class RipManager(
                             }
                             sectorsRead += sectorsActuallyRead
                         } else {
+                            advanceSize = currentChunk.pcm.size / 2352 - overlapVerifier.overlapSizeBytes / 2352
                             sectorsRead += advanceSize
                         }
                     } else {
