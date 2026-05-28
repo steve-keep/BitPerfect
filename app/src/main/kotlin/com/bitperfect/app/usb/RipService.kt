@@ -9,8 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.bitperfect.app.MainActivity
+import com.bitperfect.core.utils.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +30,8 @@ class RipService : Service() {
     private val channelId = "RipServiceChannel"
     private val notificationId = 1
 
+    private lateinit var wakeLock: PowerManager.WakeLock
+
     private var artistName = ""
     private var albumTitle = ""
 
@@ -42,6 +46,15 @@ class RipService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Acquire wake lock BEFORE startForeground so it's held during the entire rip
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "BitPerfect::RipWakeLock"
+        )
+        wakeLock.acquire(/* timeout = */ 4 * 60 * 60 * 1000L) // 4 hours max safety timeout
+        AppLogger.d("RipService", "Acquired partial wake lock")
+
         val session = RipSession.getInstance(applicationContext)
 
         artistName = intent?.getStringExtra(EXTRA_ARTIST) ?: ""
@@ -192,6 +205,10 @@ class RipService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel()
+        if (::wakeLock.isInitialized && wakeLock.isHeld) {
+            wakeLock.release()
+            AppLogger.d("RipService", "Released partial wake lock")
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
