@@ -254,6 +254,16 @@ open class LibraryRepository(private val context: Context) {
         return total
     }
 
+    private fun normalizeArtistNameForSort(name: String): String {
+        val lower = name.lowercase().trim()
+        return when {
+            lower.startsWith("the ") -> lower.substring(4)
+            lower.startsWith("a ") -> lower.substring(2)
+            lower.startsWith("an ") -> lower.substring(3)
+            else -> lower
+        }
+    }
+
     open fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {
         if (outputFolderUriString.isNullOrBlank()) {
             return emptyList()
@@ -331,7 +341,7 @@ open class LibraryRepository(private val context: Context) {
                 name = artistNames[artistId] ?: "Unknown Artist",
                 albums = albumsMap.values.toList()
             )
-        }
+        }.sortedBy { normalizeArtistNameForSort(it.name) }
     }
 
     open fun getArtistThumbnailUrl(artistName: String, outputFolderUriString: String?): String? {
