@@ -3,10 +3,15 @@ package com.bitperfect.app.ripping.paranoia
 import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.app.ripping.paranoia.strategy.RecoveryStrategy
 import com.bitperfect.app.ripping.paranoia.strategy.RecoveryMetadata
+import com.bitperfect.app.ripping.paranoia.cache.ReadAttempt
+import com.bitperfect.core.utils.MonotonicClock
+import com.bitperfect.core.utils.DefaultMonotonicClock
+import java.util.zip.CRC32
 
 class RereadEngine(
     private val verifier: OverlapVerifier,
-    private val maxRereads: Int = 6
+    private val maxRereads: Int = 6,
+    private val clock: MonotonicClock = DefaultMonotonicClock()
 ) {
 
     suspend fun executeAttempts(
@@ -22,11 +27,33 @@ class RereadEngine(
         var previousRereadCandidate: VerifiedChunk? = null
         var finalDriftEvent: DriftEvent? = null
 
+        val readAttempts = mutableListOf<ReadAttempt>()
+
         for (attempt in 1..maxRereads) {
             AppLogger.d("RereadEngine", "reread_attempt strategy=\${strategy.strategyName} lba=\${failedChunk.startLba} attempt=\$attempt")
 
+            val startMs = clock.nowMs()
             val currentAttempt = strategy.performAttempt(context.copy(rereadAttempt = attempt), failedChunk, readChunk)
+            val durationMs = clock.nowMs() - startMs
+
             if (currentAttempt != null) {
+                val matchedPrevious = previousRereadCandidate != null && isStableCandidate(previousRereadCandidate, currentAttempt)
+
+                val crc = CRC32()
+                crc.update(currentAttempt.pcm)
+
+                readAttempts.add(
+                    ReadAttempt(
+                        startLba = currentAttempt.startLba,
+                        endLba = currentAttempt.endLba,
+                        durationMs = durationMs.toDouble(),
+                        wasReread = true,
+                        matchedPreviousAttempt = matchedPrevious,
+                        mismatchRegions = emptyList(), // Not calculating exact mismatch bounds for performance yet
+                        checksum = crc.value
+                    )
+                )
+
                 // Accumulate overlap candidate for US-003 multi-pass comparison
                 candidateOverlaps.add(currentAttempt.overlapHead)
 
@@ -56,7 +83,7 @@ class RereadEngine(
                      val successAttempt = currentAttempt.copy(rereadCount = attempt)
                      val metadata = RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, attempt, true)
 
-                     return RereadExecutionResult.Recovered(successAttempt, metadata)
+                     return RereadExecutionResult.Recovered(successAttempt, metadata, readAttempts)
                 }
 
                 lastAttempt = currentAttempt
@@ -68,7 +95,7 @@ class RereadEngine(
 
         // If this strategy failed after all retries
         val metadata = RecoveryMetadata(strategy.strategyName, window.startLba, window.startLba + window.sectorCount, maxRereads, false, finalDriftEvent)
-        return RereadExecutionResult.Failed(lastAttempt.copy(rereadCount = maxRereads), metadata)
+        return RereadExecutionResult.Failed(lastAttempt.copy(rereadCount = maxRereads), metadata, readAttempts)
     }
 
     private fun isStableCandidate(

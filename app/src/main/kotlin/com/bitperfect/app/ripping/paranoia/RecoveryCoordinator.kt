@@ -1,6 +1,8 @@
 package com.bitperfect.app.ripping.paranoia
 
 import com.bitperfect.app.ripping.paranoia.strategy.*
+import com.bitperfect.app.ripping.paranoia.cache.DriveCacheAnalyzer
+import com.bitperfect.app.ripping.paranoia.cache.DefaultDriveCacheAnalyzer
 import com.bitperfect.core.utils.AppLogger
 
 class RecoveryCoordinator(
@@ -9,6 +11,7 @@ class RecoveryCoordinator(
     private val multiPassComparator: MultiPassComparator = MultiPassComparator(),
     private val driftDetector: DriftDetector = DriftDetector(),
     private val alignmentValidator: SampleAlignmentValidator = SampleAlignmentValidator(),
+    private val cacheAnalyzer: DriveCacheAnalyzer = DefaultDriveCacheAnalyzer(),
     private val maxStrategyTransitions: Int = 4
 ) {
 
@@ -50,7 +53,10 @@ class RecoveryCoordinator(
                 readChunk = readChunk
             )
 
-            metadataHistory.add(result.metadata)
+            val cacheResult = cacheAnalyzer.analyze(result.readAttempts)
+            val updatedMetadata = result.metadata.copy(cacheProbeResult = cacheResult)
+
+            metadataHistory.add(updatedMetadata)
             previousStrategies.add(strategy.strategyName)
             currentChunk = result.chunk
 

@@ -2,6 +2,7 @@ package com.bitperfect.app.ripping.paranoia.strategy
 
 
 import com.bitperfect.app.ripping.paranoia.DriftEvent
+import com.bitperfect.app.ripping.paranoia.cache.CacheProbeResult
 
 data class RecoveryMetadata(
     val strategy: String,
@@ -10,5 +11,6 @@ data class RecoveryMetadata(
     val rereadAttempts: Int,
     val recovered: Boolean,
 
-    val driftEvent: DriftEvent? = null
+    val driftEvent: DriftEvent? = null,
+    val cacheProbeResult: CacheProbeResult? = null
 )

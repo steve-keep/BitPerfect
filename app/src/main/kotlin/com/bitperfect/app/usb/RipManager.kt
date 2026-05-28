@@ -416,7 +416,8 @@ class RipManager(
                                         strategy = finalMetadata.strategy,
                                         rereadAttempts = totalAttempts,
                                         recovered = finalMetadata.recovered,
-                                        driftEvent = finalMetadata.driftEvent
+                                        driftEvent = finalMetadata.driftEvent,
+                                        cacheProbeResult = finalMetadata.cacheProbeResult
                                     )
                                 } else {
                                     SuspiciousRead(
@@ -427,7 +428,8 @@ class RipManager(
                                         strategy = null,
                                         rereadAttempts = 0,
                                         recovered = false,
-                                        driftEvent = null
+                                        driftEvent = null,
+                                        cacheProbeResult = null
                                     )
                                 }
 
