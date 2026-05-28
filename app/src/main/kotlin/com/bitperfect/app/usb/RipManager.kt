@@ -812,7 +812,7 @@ class RipManager(
         // Eject drive upon successful completion if not cancelled
         if (!isCancelled) {
             val allSuccessful = _trackStates.value.values.all {
-                it.status == RipStatus.SUCCESS || it.status == RipStatus.UNVERIFIED
+                it.status == RipStatus.SUCCESS || it.status == RipStatus.UNVERIFIED || it.status == RipStatus.WARNING
             }
             if (allSuccessful) {
                 DeviceStateManager.ejectDrive()
