@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.PowerManager
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.bitperfect.app.MainActivity
@@ -32,8 +31,6 @@ class RipService : Service() {
     private var artistName = ""
     private var albumTitle = ""
 
-    private var wakeLock: PowerManager.WakeLock? = null
-
     companion object {
         const val EXTRA_ARTIST = "extra_artist"
         const val EXTRA_ALBUM = "extra_album"
@@ -42,11 +39,6 @@ class RipService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BitPerfect:RipWakeLock").apply {
-            acquire()
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -84,9 +76,6 @@ class RipService : Service() {
             }.collect { (states, isRipping) ->
                 if (!isRipping) {
                     ServiceCompat.stopForeground(this@RipService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                    if (wakeLock?.isHeld == true) {
-                        wakeLock?.release()
-                    }
                     stopSelf()
                     return@collect
                 }
@@ -203,9 +192,6 @@ class RipService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel()
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
-        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
