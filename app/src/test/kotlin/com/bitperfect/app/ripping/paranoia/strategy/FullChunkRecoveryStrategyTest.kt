@@ -8,6 +8,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.bitperfect.app.ripping.paranoia.RipConfidence
+import com.bitperfect.app.ripping.paranoia.strategy.RecoveryContext
 
 class FullChunkRecoveryStrategyTest {
 
@@ -42,7 +44,7 @@ class FullChunkRecoveryStrategyTest {
         // Original 16 sector chunk filled with 0s
         val failedChunk = createChunk(100, 16, 0)
 
-        val result = strategy.performAttempt(failedChunk) { lba, sectors ->
+        val result = strategy.performAttempt(RecoveryContext(0, 0, 0, 0, null, null, RipConfidence.HIGH), failedChunk) { lba, sectors ->
             assertEquals(100, lba)
             assertEquals(16, sectors)
             createChunk(lba, sectors, 1)
@@ -61,7 +63,7 @@ class FullChunkRecoveryStrategyTest {
     @Test
     fun `performAttempt handles null read gracefully`() = runBlocking {
         val failedChunk = createChunk(100, 16, 0)
-        val result = strategy.performAttempt(failedChunk) { _, _ -> null }
+        val result = strategy.performAttempt(RecoveryContext(0, 0, 0, 0, null, null, RipConfidence.HIGH), failedChunk) { _, _ -> null }
         assertNull(result)
     }
 }
