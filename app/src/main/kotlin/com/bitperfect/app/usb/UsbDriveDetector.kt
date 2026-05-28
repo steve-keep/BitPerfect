@@ -394,10 +394,19 @@ class UsbDriveDetector(
     }
 
     private fun reconnectWithoutPermissionRequest() {
-        val device = usbManager.deviceList.values.firstOrNull { usbManager.hasPermission(it) }
-        if (device != null) {
-            scope.launch { interrogateDevice(device) }
-        } else {
+        scope.launch {
+            repeat(5) { attempt ->
+                delay(500L * (attempt + 1)) // 500ms, 1s, 1.5s, 2s, 2.5s backoff
+                val device = usbManager.deviceList.values.firstOrNull { usbManager.hasPermission(it) }
+                if (device != null) {
+                    interrogateDevice(device)
+                    return@launch
+                }
+                AppLogger.w(TAG, "Reconnect attempt ${attempt + 1}: no device with permission yet")
+            }
+            // All retries failed - surface the error
+            AppLogger.e(TAG, "Could not reconnect after 5 attempts")
+            _driveStatus.value = DriveStatus.Error("USB reconnect failed — device lost in background")
             scanForDevices()
         }
     }
