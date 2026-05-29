@@ -276,6 +276,9 @@ open class AppViewModel(
     val currentAlbumTitle: StateFlow<String?> = playerRepository.currentAlbumTitle
     val currentAlbumArtUri: StateFlow<android.net.Uri?> = playerRepository.currentAlbumArtUri
 
+    private val _trackFormatInfo = MutableStateFlow<String?>(null)
+    val trackFormatInfo: StateFlow<String?> = _trackFormatInfo.asStateFlow()
+
     val currentTrack: StateFlow<TrackInfo?> = combine(
         outputRepository.activeDevice,
         _playingTracks,
@@ -288,6 +291,60 @@ open class AppViewModel(
             if (mediaId != null) tracks.find { it.id.toString() == mediaId } else null
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    init {
+        viewModelScope.launch(ioDispatcher) {
+            currentTrack.collectLatest { track ->
+                if (track == null || track.dataPath == null) {
+                    _trackFormatInfo.value = null
+                    return@collectLatest
+                }
+
+                try {
+                    val file = File(track.dataPath)
+                    if (file.exists()) {
+                        val audioFile = AudioFileIO.read(file)
+                        val header = audioFile.audioHeader
+
+                        val bitRateStr = header.bitRate
+                        val bitsPerSample = header.bitsPerSample
+                        val sampleRateAsNumber = header.sampleRateAsNumber
+
+                        val sampleRateFormatted = if (sampleRateAsNumber > 0) {
+                            val formatted = sampleRateAsNumber / 1000.0
+                            if (formatted == formatted.toLong().toDouble()) {
+                                "${formatted.toLong()} kHz"
+                            } else {
+                                "${formatted} kHz"
+                            }
+                        } else {
+                            ""
+                        }
+
+                        val bitRateFormatted = if (!bitRateStr.isNullOrEmpty()) "$bitRateStr kbps" else ""
+                        val bitDepthFormatted = if (bitsPerSample > 0) "$bitsPerSample-bit" else ""
+
+                        val formatParts = mutableListOf<String>()
+                        if (bitRateFormatted.isNotEmpty()) formatParts.add(bitRateFormatted)
+
+                        val depthAndRate = listOf(bitDepthFormatted, sampleRateFormatted).filter { it.isNotEmpty() }.joinToString("/")
+                        if (depthAndRate.isNotEmpty()) formatParts.add(depthAndRate)
+
+                        if (formatParts.isNotEmpty()) {
+                            _trackFormatInfo.value = formatParts.joinToString(" | ")
+                        } else {
+                            _trackFormatInfo.value = "Unknown Format"
+                        }
+                    } else {
+                        _trackFormatInfo.value = null
+                    }
+                } catch (e: Exception) {
+                    com.bitperfect.core.utils.AppLogger.e("AppViewModel", "Failed to read audio format: ${e.message}")
+                    _trackFormatInfo.value = "Unknown Format"
+                }
+            }
+        }
+    }
 
     val currentAlbum: StateFlow<com.bitperfect.app.library.AlbumInfo?> = combine(_artists, currentTrack) { artistsList, track ->
         if (track != null && track.albumId != -1L) {
