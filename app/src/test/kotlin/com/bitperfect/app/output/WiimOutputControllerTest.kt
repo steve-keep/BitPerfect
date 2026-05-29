@@ -92,7 +92,53 @@ class WiimOutputControllerTest {
     }
 
     @Test
-    fun `takeOver with multiple tracks sends correct sequence of SOAP actions`() = runTest {
+    fun `takeOver with tracks serves M3U8 playlist correctly via FlacHttpServer`() = runTest {
+        val tracks = listOf(
+            TrackInfo(1L, "Track 1", 1, 1500L, artist = "Artist A"),
+            TrackInfo(2L, "Track 2", 2, 2500L, artist = "Artist B"),
+            TrackInfo(3L, "Track 3", 3, 3500L, artist = "Artist C")
+        )
+
+        controller.takeOver(tracks, startIndex = 0, startPositionMs = 0L)
+
+        // Give the local server a moment to spin up properly
+        kotlinx.coroutines.delay(100)
+
+        // We can capture the CurrentURI sent to SetAVTransportURI to find the playlist port
+        val bodySlot = io.mockk.slot<String>()
+        verify {
+            controller["sendSoapActionWithResponse"](
+                "SetAVTransportURI",
+                capture(bodySlot)
+            )
+        }
+
+        val body = bodySlot.captured
+        val playlistUrl = body.substringAfter("<CurrentURI>").substringBefore("</CurrentURI>")
+
+        assert(playlistUrl.endsWith("/playlist.m3u8"))
+
+        // Make a real HTTP request to verify the playlist content
+        val url = java.net.URL(playlistUrl)
+        val m3u8Content = url.readText()
+
+        val port = url.port
+        val expected = """
+            #EXTM3U
+            #EXTINF:1,Artist A - Track 1
+            http://127.0.0.1:$port/track/1.flac
+            #EXTINF:2,Artist B - Track 2
+            http://127.0.0.1:$port/track/2.flac
+            #EXTINF:3,Artist C - Track 3
+            http://127.0.0.1:$port/track/3.flac
+
+        """.trimIndent()
+
+        assert(m3u8Content == expected) { "Expected:\n$expected\nGot:\n$m3u8Content" }
+    }
+
+    @Test
+    fun `takeOver sends correct sequence of SOAP actions using playlist URI`() = runTest {
         val tracks = listOf(
             TrackInfo(1L, "Track 1", 1, 1000L),
             TrackInfo(2L, "Track 2", 2, 2000L),
@@ -101,18 +147,14 @@ class WiimOutputControllerTest {
 
         controller.takeOver(tracks, startIndex = 1, startPositionMs = 0L)
 
-        // Give it some time to process
-        // We verify sendSoapAction instead of sendSoapActionWithResponse directly
-        // because it avoids the internal function calls issue in verifyOrder
-
         val calls = mutableListOf<String>()
         verify {
             controller["sendSoapActionWithResponse"](capture(calls), any<String>())
         }
 
         // We check if the actions were sent in order
-        // RemoveAllTracksFromQueue -> SetAVTransportURI -> AddURIToQueue -> AddURIToQueue -> Seek -> Play
-        val expectedActions = listOf("RemoveAllTracksFromQueue", "SetAVTransportURI", "AddURIToQueue", "AddURIToQueue", "Seek", "Play")
+        // SetAVTransportURI -> Seek -> Play
+        val expectedActions = listOf("SetAVTransportURI", "Seek", "Play")
         val actualActions = calls.filter { it in expectedActions }
 
         assert(actualActions == expectedActions) { "Expected: $expectedActions, but got: $actualActions" }
@@ -127,29 +169,10 @@ class WiimOutputControllerTest {
 
         // No REL_TIME Seek expected because startPositionMs = 0
         verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Seek", match<String> { it.contains("<Unit>REL_TIME</Unit>") }) }
-    }
 
-    @Test
-    fun `takeOver with single track sends correct sequence without AddURIToQueue or Seek`() = runTest {
-        val tracks = listOf(
-            TrackInfo(1L, "Track 1", 1, 1000L)
-        )
-
-        controller.takeOver(tracks, startIndex = 0, startPositionMs = 0L)
-
-        val calls = mutableListOf<String>()
-        verify {
-            controller["sendSoapActionWithResponse"](capture(calls), any<String>())
-        }
-
-        // We check if the actions were sent in order
-        val expectedActions = listOf("RemoveAllTracksFromQueue", "SetAVTransportURI", "Play")
-        val actualActions = calls.filter { it in expectedActions }
-
-        assert(actualActions == expectedActions) { "Expected: $expectedActions, but got: $actualActions" }
-
+        // Ensure the old queue clear method isn't sent
+        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("RemoveAllTracksFromQueue", any<String>()) }
+        // Ensure Sonos extension isn't used
         verify(exactly = 0) { controller["sendSoapActionWithResponse"]("AddURIToQueue", any<String>()) }
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Seek", match<String> { it.contains("<Unit>TRACK_NR</Unit>") }) }
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Seek", match<String> { it.contains("<Unit>REL_TIME</Unit>") }) }
     }
 }
