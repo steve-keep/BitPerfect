@@ -40,11 +40,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
 import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.io.BufferedOutputStream
 
-import java.net.URLEncoder
 import com.bitperfect.core.utils.computeAccurateRipDiscId
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
 import org.json.JSONObject
@@ -107,6 +104,8 @@ class RipManager(
 
     var isCancelled = false
         private set
+    private val audioDbRepository = com.bitperfect.core.services.AudioDbRepository()
+
     private val verifier = AccurateRipVerifier()
     private val confidenceEvaluator = RipConfidenceEvaluator()
     private val alignmentValidator = SampleAlignmentValidator()
@@ -172,20 +171,12 @@ class RipManager(
 
         val metricsCollector = ReadSizeMetricsCollector()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        launch {
             try {
                 val existingFile = artistDir.findFile("artist.json")
                 if (existingFile == null) {
-                    val encodedArtist = URLEncoder.encode(metadata.artistName, "UTF-8")
-                    val urlString = "https://www.theaudiodb.com/api/v1/json/2/search.php?s=$encodedArtist"
-                    val url = URL(urlString)
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.requestMethod = "GET"
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 10000
-
-                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+                    val responseBody = audioDbRepository.fetchArtist(metadata.artistName)
+                    if (responseBody != null) {
                         val file = artistDir.createFile("application/json", "artist.json")
                         if (file != null) {
                             context.contentResolver.openOutputStream(file.uri)?.use { out ->
@@ -196,9 +187,8 @@ class RipManager(
                             AppLogger.e("RipManager", "Could not create artist.json file")
                         }
                     } else {
-                        AppLogger.e("RipManager", "AudioDB API returned ${connection.responseCode}")
+                        AppLogger.w("RipManager", "Failed to fetch artist.json from AudioDB")
                     }
-                    connection.disconnect()
                 } else {
                     AppLogger.d("RipManager", "artist.json already exists, skipping fetch")
                 }
