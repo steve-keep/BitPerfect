@@ -5,6 +5,11 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.documentfile.provider.DocumentFile
 import com.bitperfect.app.BuildConfig
+
+import com.bitperfect.app.ripping.logging.DefaultForensicRipLogger
+import com.bitperfect.app.ripping.logging.RipLogEvent
+import com.bitperfect.app.ripping.logging.RipMode
+import com.bitperfect.app.ripping.capability.DefaultDriveProfiler
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.LyricsFetchResult
@@ -42,8 +47,6 @@ import java.io.BufferedOutputStream
 import java.net.URLEncoder
 import com.bitperfect.core.utils.computeAccurateRipDiscId
 import com.bitperfect.core.utils.computeMusicBrainzDiscId
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 import java.io.InputStreamReader
 import java.io.BufferedReader
@@ -127,6 +130,28 @@ class RipManager(
             0
         }
         AppLogger.d("RipManager", "Drive offset: $driveOffset samples")
+
+        val logger = DefaultForensicRipLogger()
+        val driveFirmware = DeviceStateManager.driveStatus.value.info?.firmware
+
+        val nowIso = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+
+        logger.record(
+            RipLogEvent.SessionStarted(
+                appVersion = "BitPerfect ${BuildConfig.VERSION_NAME}",
+                deviceModel = android.os.Build.MODEL,
+                androidVersion = "Android ${android.os.Build.VERSION.RELEASE}",
+                timestampIso = nowIso,
+                mode = RipMode.SECURE,
+                chunkSize = 16,
+                overlapSize = 6,
+                driveVendor = driveVendor,
+                driveModel = driveProduct,
+                driveFirmware = driveFirmware,
+                albumTitle = metadata.albumTitle,
+                artistName = metadata.artistName
+            )
+        )
 
         val baseUri = Uri.parse(outputFolderUriString)
         val parentDir = DocumentFile.fromTreeUri(context, baseUri)
@@ -219,6 +244,7 @@ class RipManager(
             val totalSamples = totalSectors.toLong() * 588L
 
             updateTrackState(trackNumber, RipStatus.RIPPING, 0f)
+            logger.record(RipLogEvent.TrackStarted(trackNumber, trackTitle))
 
             if (isCancelled) break
 
@@ -350,6 +376,11 @@ class RipManager(
                             metricsCollector.recordShortRead(chunkSize)
                             AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
                                 "got $sectorsActuallyRead of $sectorsToRead sectors")
+                            logger.record(RipLogEvent.TransportAnomaly(
+                                trackNumber = trackNumber,
+                                anomalyType = "SHORT_READ",
+                                details = "LBA ${firstLba + sectorsRead}: got $sectorsActuallyRead of $sectorsToRead sectors"
+                            ))
                         }
 
                         // Determine if this is the final read
@@ -386,6 +417,11 @@ class RipManager(
                             } else {
                                 metricsCollector.recordOverlapFailure(chunkSize)
                                 AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
+                                logger.record(RipLogEvent.OverlapMismatchDetected(
+                                    trackNumber = trackNumber,
+                                    lbaStart = currentChunk.startLba,
+                                    lbaEnd = pChunk.endLba
+                                ))
                                 fastPathEvaluator.reportMismatch()
 
                                 val recoveryResult = recoveryCoordinator.recover(
@@ -419,6 +455,12 @@ class RipManager(
                                 var totalAttempts = 0
 
                                 for (metadata in metadataHistory) {
+                                    logger.record(RipLogEvent.RereadEscalated(
+                                        trackNumber = trackNumber,
+                                        lbaStart = currentChunk.startLba,
+                                        lbaEnd = currentChunk.endLba,
+                                        strategy = metadata.strategy
+                                    ))
                                     for (i in 0 until metadata.rereadAttempts) {
                                         metricsCollector.recordRereadEscalation(chunkSize)
                                     }
@@ -432,6 +474,24 @@ class RipManager(
                                         }
                                     } else if (metadata.strategy == "full_chunk_recovery") {
                                         AppLogger.w("RipManager", "escalation_to_full_reread track=$trackNumber recoveryWindowStartLba=${metadata.recoveryWindowStartLba} recoveryWindowEndLba=${metadata.recoveryWindowEndLba} rereadAttempts=${metadata.rereadAttempts} confidence=${if(metadata.recovered) "MEDIUM" else "LOW"}")
+                                    }
+                                }
+
+                                if (finalMetadata != null) {
+                                    if (finalMetadata.recovered) {
+                                        logger.record(RipLogEvent.RecoverySucceeded(
+                                            trackNumber = trackNumber,
+                                            lbaStart = currentChunk.startLba,
+                                            lbaEnd = currentChunk.endLba,
+                                            rereadAttempts = totalAttempts
+                                        ))
+                                    } else {
+                                        logger.record(RipLogEvent.RecoveryFailed(
+                                            trackNumber = trackNumber,
+                                            lbaStart = currentChunk.startLba,
+                                            lbaEnd = currentChunk.endLba,
+                                            rereadAttempts = totalAttempts
+                                        ))
                                     }
                                 }
 
@@ -600,6 +660,11 @@ class RipManager(
                         }
                     } else {
                         metricsCollector.recordTransportFailure(chunkSize)
+                        logger.record(RipLogEvent.TransportAnomaly(
+                            trackNumber = trackNumber,
+                            anomalyType = "TRANSPORT_FAILURE",
+                            details = "Failed to read sector ${firstLba + sectorsRead} after 3 attempts"
+                        ))
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
                             throw java.io.IOException("Disc removed or drive not ready during rip")
@@ -858,15 +923,39 @@ class RipManager(
             val currentState = _trackStates.value[trackNumber]
             if (currentState != null) {
                 writeAccurateRipJsonl(albumDir, currentState)
+                logger.record(RipLogEvent.TrackCompleted(
+                    trackNumber = trackNumber,
+                    confidence = currentState.confidence,
+                    rereads = currentState.suspiciousRegions.sumOf { it.rereadAttempts },
+                    suspiciousReads = currentState.suspiciousRegions.size,
+                    status = currentState.status,
+                    accurateRipStatus = if (currentState.status == RipStatus.SUCCESS) "VERIFIED" else if (currentState.expectedChecksums.isNotEmpty()) "MISMATCH" else "NOT_IN_DB",
+                    durationSeconds = currentState.durationSeconds
+                ))
             }
         }
 
         if (!isCancelled) {
-            writeRipLog(albumDir, driveOffset, _trackStates.value)
-
             val profiler = DefaultAtomicReadProfiler()
             val profile = profiler.analyze(metricsCollector.build())
             AppLogger.d("RipManager", "[AtomicReadProfiler] Final Profile: preferredReadSize=${profile.preferredReadSize} maxReliableReadSize=${profile.maxReliableReadSize} unstableSizes=${profile.unstableSizes}")
+
+            val cacheProbeResult = _trackStates.value.values
+                .flatMap { it.suspiciousRegions }
+                .mapNotNull { it.cacheProbeResult }
+                .lastOrNull()
+
+            logger.record(RipLogEvent.DriveAnalysisCompleted(
+                cacheStatus = cacheProbeResult?.status,
+                streamingClassification = null, // Defer if not easily accessible at session scope
+                preferredReadSize = profile.preferredReadSize
+            ))
+
+            logger.record(RipLogEvent.SessionCompleted(success = true))
+
+            albumDir?.let { dir ->
+                logger.finalize(context, dir)
+            }
         }
         // Eject drive upon successful completion if not cancelled
         if (!isCancelled) {
@@ -1167,134 +1256,5 @@ class RipManager(
         write(value and 0xFF)
     }
 
-    private fun writeRipLog(albumDir: DocumentFile?, driveOffset: Int, ripStates: Map<Int, TrackRipState>) {
-        val dir = albumDir ?: return
-        try {
-            val sb = java.lang.StringBuilder()
-            sb.append("BitPerfect Rip Log v").append(BuildConfig.VERSION_NAME).append("\n")
-            sb.append("Generated: ").append(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.now())).append("\n\n")
 
-            sb.append("Album:  ").append(metadata.albumTitle).append("\n")
-            sb.append("Artist: ").append(metadata.artistName).append("\n\n")
-
-            sb.append("Drive:  ").append(driveVendor).append(" ").append(driveProduct).append("\n")
-            sb.append("Offset: ").append(driveOffset).append(" samples\n\n")
-
-            val arId = computeAccurateRipDiscId(toc)
-            sb.append("Disc IDs\n")
-            sb.append("  AccurateRip id1:   ").append(String.format("%08x", arId.id1 and 0xFFFFFFFFL)).append("\n")
-            sb.append("  AccurateRip id2:   ").append(String.format("%08x", arId.id2 and 0xFFFFFFFFL)).append("\n")
-            sb.append("  FreeDB id:         ").append(String.format("%08x", arId.id3)).append("\n")
-            sb.append("  MusicBrainz:       ").append(computeMusicBrainzDiscId(toc)).append("\n\n")
-
-            val states = ripStates.values.sortedBy { it.trackNumber }
-            val firstAccurateRipUrl: String? = states.firstNotNullOfOrNull { it.accurateRipUrl }
-                ?: AccurateRipService().getAccurateRipUrl(toc)
-
-            if (firstAccurateRipUrl != null) {
-                sb.append("AccurateRip URL:\n")
-                sb.append("  ").append(firstAccurateRipUrl).append("\n\n")
-            }
-
-            sb.append("Tracks\n")
-
-            for (state in states) {
-                sb.append("  ---------------------------------------------------------------\n")
-
-                val trackTitle = metadata.trackTitles.getOrNull(state.trackNumber - 1) ?: "Track ${state.trackNumber}"
-                sb.append(String.format("  %02d  %s\n", state.trackNumber, trackTitle))
-                sb.append("      Status:    ").append(state.status.name).append("\n")
-
-                sb.append("      LBA:       ").append(state.startLba).append(" → ").append(state.endLba)
-                  .append("  (").append(state.totalSectors).append(" sectors expected, ")
-                  .append(state.sectorsRead).append(" read)\n")
-
-                if (state.totalSectors != state.sectorsRead) {
-                    sb.append("  *** TRUNCATED ***\n")
-                }
-
-                val formattedDuration = String.format(java.util.Locale.US, "%.2fs", state.durationSeconds)
-                sb.append("      Duration:  ").append(formattedDuration).append(" (ripped)\n")
-
-                if (state.status == RipStatus.ERROR) {
-                    sb.append("      Error:     ").append(state.errorMessage ?: "Unknown error").append("\n")
-                } else if (state.computedChecksum != null) {
-                    val computedStr = String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
-                    when (state.status) {
-                        RipStatus.SUCCESS -> {
-                            sb.append("      Checksum:  ").append(computedStr).append("  ✓ matched\n")
-                            val expectedStr = state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-                            sb.append("      Expected:  ").append(expectedStr).append("\n")
-                        }
-                        RipStatus.WARNING -> {
-                            sb.append("      Checksum:  ").append(computedStr).append("  ← computed\n")
-                            val expectedStr = state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-                            sb.append("      Expected:  ").append(expectedStr).append("\n")
-                        }
-                        RipStatus.UNVERIFIED -> {
-                            sb.append("      Checksum:  ").append(computedStr).append("  (not in AccurateRip database)\n")
-                        }
-                        else -> {
-                            sb.append("      Checksum:  ").append(computedStr).append("\n")
-                        }
-                    }
-                }
-
-                sb.append("      Lyrics:\n")
-
-                val artistStr = metadata.artistName.ifBlank { "unknown" }
-                val trackStr = metadata.trackTitles.getOrNull(state.trackNumber - 1)?.ifBlank { "unknown" } ?: "unknown"
-                val albumStr = metadata.albumTitle.ifBlank { "unknown" }
-                val durationSeconds = state.durationSeconds.toLong()
-
-                val encodedArtist = URLEncoder.encode(artistStr, "UTF-8")
-                val encodedTrack = URLEncoder.encode(trackStr, "UTF-8")
-                val encodedAlbum = URLEncoder.encode(albumStr, "UTF-8")
-                val url = "https://lrclib.net/api/get?artist_name=$encodedArtist&track_name=$encodedTrack&album_name=$encodedAlbum&duration=$durationSeconds"
-
-                val mbGuard = if (metadata.mbReleaseId.isNullOrBlank()) "SKIPPED (mbReleaseId blank)" else "PASSED"
-                val fetchResult = lyricsMap[state.trackNumber]
-
-                val resultStr = when (fetchResult) {
-                    is LyricsFetchResult.Success -> {
-                        val lyrics = fetchResult.lyrics
-                        if (lyrics.plainLyrics != null && lyrics.syncedLyrics != null) "SUCCESS (plain + synced)"
-                        else if (lyrics.plainLyrics != null) "SUCCESS (plain only)"
-                        else if (lyrics.syncedLyrics != null) "SUCCESS (synced only)"
-                        else "SUCCESS (empty)"
-                    }
-                    is LyricsFetchResult.Failure -> "FAILED (${fetchResult.state})"
-                    null -> "NOT ATTEMPTED"
-                }
-
-                sb.append("        URL:       ").append(url).append("\n")
-                sb.append("        mbRelease: ").append(mbGuard).append("\n")
-                sb.append("        Result:    ").append(resultStr).append("\n")
-
-                if (fetchResult is LyricsFetchResult.Failure) {
-                    val message = fetchResult.message
-                    if (!message.isNullOrBlank()) {
-                        sb.append("        Detail:    ").append(message).append("\n")
-                    }
-                    if (fetchResult.httpCode != null) {
-                        sb.append("        HTTP Code: ").append(fetchResult.httpCode).append("\n")
-                    }
-                }
-            }
-            if (states.isNotEmpty()) {
-                sb.append("  ---------------------------------------------------------------\n")
-            }
-
-            dir.findFile("rip.txt")?.delete()
-            val destFile = dir.createFile("text/plain", "rip.txt")
-            if (destFile != null) {
-                context.contentResolver.openOutputStream(destFile.uri)?.use { out ->
-                    out.write(sb.toString().toByteArray(Charsets.UTF_8))
-                }
-                MediaScannerHelper.scanSafUri(context, destFile.uri)
-            }
-        } catch (e: Exception) {
-            AppLogger.w("RipManager", "Failed to write rip.txt: ${e.message}")
-        }
-    }
 }
