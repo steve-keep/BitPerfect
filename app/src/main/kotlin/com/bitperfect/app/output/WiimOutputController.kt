@@ -235,13 +235,13 @@ class WiimOutputController(
 
     override suspend fun skipNext() {
         withContext(Dispatchers.IO) {
-            sendSoapAction("Next", "<InstanceID>0</InstanceID>")
+            sendLinkPlayCommand("setPlayerCmd:next")
         }
     }
 
     override suspend fun skipPrev() {
         withContext(Dispatchers.IO) {
-            sendSoapAction("Previous", "<InstanceID>0</InstanceID>")
+            sendLinkPlayCommand("setPlayerCmd:prev")
         }
     }
 

@@ -68,26 +68,26 @@ class WiimOutputControllerTest {
     }
 
     @Test
-    fun `skipNext sends Next SOAP action`() = runTest {
+    fun `skipNext sends LinkPlay command`() = runTest {
         controller.skipNext()
 
         verify {
-            controller["sendSoapActionWithResponse"](
-                "Next",
-                match<String> { it.contains("<InstanceID>0</InstanceID>") }
-            )
+            openTrustAllConnection("https://192.168.1.100/httpapi.asp?command=setPlayerCmd:next")
+        }
+        verify(exactly = 0) {
+            controller["sendSoapActionWithResponse"](any<String>(), any<String>())
         }
     }
 
     @Test
-    fun `skipPrev sends Previous SOAP action`() = runTest {
+    fun `skipPrev sends LinkPlay command`() = runTest {
         controller.skipPrev()
 
         verify {
-            controller["sendSoapActionWithResponse"](
-                "Previous",
-                match<String> { it.contains("<InstanceID>0</InstanceID>") }
-            )
+            openTrustAllConnection("https://192.168.1.100/httpapi.asp?command=setPlayerCmd:prev")
+        }
+        verify(exactly = 0) {
+            controller["sendSoapActionWithResponse"](any<String>(), any<String>())
         }
     }
 
