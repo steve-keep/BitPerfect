@@ -44,4 +44,7 @@ interface OutputController {
      * Only implemented for UPnP devices; local/BT use ExoPlayer directly.
      */
     suspend fun appendToQueue(track: TrackInfo) { /* no-op for local/BT */ }
+
+    suspend fun insertNextInQueue(track: TrackInfo) { /* no-op for local/BT */ }
+    suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) { /* no-op for local/BT */ }
 }

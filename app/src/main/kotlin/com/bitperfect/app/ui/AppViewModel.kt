@@ -943,7 +943,21 @@ open class AppViewModel(
     }
 
     fun playNext(track: TrackInfo) {
-        playerRepository.playNext(track)
+        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
+        if (isWiim) {
+            val currentIndex = _playingTracks.value
+                .indexOfFirst { it.id == currentTrack.value?.id }
+                .coerceAtLeast(0)
+            val mutable = _playingTracks.value.toMutableList()
+            val insertAt = (currentIndex + 1).coerceIn(0, mutable.size)
+            mutable.add(insertAt, track)
+            _playingTracks.value = mutable
+            viewModelScope.launch {
+                outputRepository.insertNextInQueue(track)
+            }
+        } else {
+            playerRepository.playNext(track)
+        }
         viewModelScope.launch {
             _uiEvent.emit("Added to play next")
         }
@@ -965,7 +979,22 @@ open class AppViewModel(
     }
 
     fun playAlbumNext(tracks: List<TrackInfo>) {
-        playerRepository.playAlbumNext(tracks)
+        if (tracks.isEmpty()) return
+        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
+        if (isWiim) {
+            val currentIndex = _playingTracks.value
+                .indexOfFirst { it.id == currentTrack.value?.id }
+                .coerceAtLeast(0)
+            val mutable = _playingTracks.value.toMutableList()
+            val insertAt = (currentIndex + 1).coerceIn(0, mutable.size)
+            mutable.addAll(insertAt, tracks)
+            _playingTracks.value = mutable
+            viewModelScope.launch {
+                outputRepository.insertAlbumNextInQueue(tracks)
+            }
+        } else {
+            playerRepository.playAlbumNext(tracks)
+        }
         viewModelScope.launch {
             _uiEvent.emit("Added to play next")
         }

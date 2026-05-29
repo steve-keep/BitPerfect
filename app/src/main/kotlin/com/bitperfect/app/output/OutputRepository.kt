@@ -143,6 +143,14 @@ open class OutputRepository(
         activeController.appendToQueue(track)
     }
 
+    open suspend fun insertNextInQueue(track: TrackInfo) {
+        activeController.insertNextInQueue(track)
+    }
+
+    open suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
+        activeController.insertAlbumNextInQueue(tracks)
+    }
+
     open suspend fun setVolume(volume: Int) {
         val controller = activeController
         if (controller is WiimOutputController) {
