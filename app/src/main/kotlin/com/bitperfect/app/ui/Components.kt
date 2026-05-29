@@ -25,7 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -640,7 +642,10 @@ fun LibrarySection(
         modifier = modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                detectTapGestures(onTap = { focusManager.clearFocus() })
+                awaitEachGesture {
+                    awaitFirstDown(pass = PointerEventPass.Initial)
+                    focusManager.clearFocus()
+                }
             }
     ) {
         if (!isConfigured) {
