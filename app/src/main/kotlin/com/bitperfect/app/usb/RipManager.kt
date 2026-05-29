@@ -292,6 +292,9 @@ class RipManager(
                     verifier = overlapVerifier
                 )
                 val fastPathEvaluator = com.bitperfect.app.ripping.paranoia.fastpath.FastPathEvaluator()
+                val streamingBehaviorAnalyzer = com.bitperfect.app.ripping.streaming.DefaultStreamingBehaviorAnalyzer()
+                val streamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
+                var wasPreviousReadRecovery = false
 
                 var pendingChunk: VerifiedChunk? = null
 
@@ -320,9 +323,22 @@ class RipManager(
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
 
-                    val pcmData = session.readSectors(firstLba + sectorsRead, sectorsToRead)
+                    val readStartLba = firstLba + sectorsRead
+                    val readStartTime = android.os.SystemClock.elapsedRealtime()
+                    val pcmData = session.readSectors(readStartLba, sectorsToRead)
+                    val readDuration = android.os.SystemClock.elapsedRealtime() - readStartTime
 
                     if (pcmData != null) {
+                        streamingReads.add(
+                            com.bitperfect.app.ripping.streaming.SequentialReadTelemetry(
+                                startLba = readStartLba,
+                                endLba = readStartLba + sectorsToRead,
+                                durationMs = readDuration.toDouble(),
+                                wasRecoveryRead = false,
+                                followedSeekRecovery = wasPreviousReadRecovery
+                            )
+                        )
+                        wasPreviousReadRecovery = false
                         val sectorsActuallyRead = pcmData.size / 2352
                         if (sectorsActuallyRead < sectorsToRead) {
                             AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
@@ -370,6 +386,7 @@ class RipManager(
                                     readChunk = { lba, count ->
                                         val newPcm = session.readSectors(lba, count)
                                         if (newPcm != null) {
+                                            wasPreviousReadRecovery = true
                                             VerifiedChunk(
                                                 startLba = lba,
                                                 endLba = lba + (newPcm.size / 2352),
@@ -658,6 +675,18 @@ class RipManager(
                             confidence = finalConfidence
                         )
                     }
+                }
+
+                val streamingResult = streamingBehaviorAnalyzer.analyze(streamingReads)
+                if (streamingResult.classification != com.bitperfect.app.ripping.streaming.StreamingClassification.STABLE_STREAMING) {
+                    AppLogger.d("StreamingBehaviorAnalyzer", "Sequential instability detected")
+                    AppLogger.d("StreamingBehaviorAnalyzer", "window=$firstLba-$lastReadableLba")
+                    AppLogger.d("StreamingBehaviorAnalyzer", "latencyVarianceMs=${streamingResult.metrics.latencyVarianceMs}")
+                    AppLogger.d("StreamingBehaviorAnalyzer", "postSeekDegradationScore=${streamingResult.metrics.postSeekDegradationScore}")
+                    AppLogger.d("StreamingBehaviorAnalyzer", "classification=${streamingResult.classification.name}")
+                } else {
+                    AppLogger.d("StreamingBehaviorAnalyzer", "Stable streaming observed")
+                    AppLogger.d("StreamingBehaviorAnalyzer", "classification=${streamingResult.classification.name}")
                 }
 
                 for (anomaly in finalTrackValidation.anomalies) {
