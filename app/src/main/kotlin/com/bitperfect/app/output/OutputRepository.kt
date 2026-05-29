@@ -139,6 +139,10 @@ open class OutputRepository(
     open suspend fun skipNext() = activeController.skipNext()
     open suspend fun skipPrev() = activeController.skipPrev()
 
+    open suspend fun appendToQueue(track: TrackInfo) {
+        activeController.appendToQueue(track)
+    }
+
     open suspend fun setVolume(volume: Int) {
         val controller = activeController
         if (controller is WiimOutputController) {
