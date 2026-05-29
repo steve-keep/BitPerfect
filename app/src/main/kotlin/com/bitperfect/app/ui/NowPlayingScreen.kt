@@ -115,6 +115,7 @@ fun NowPlayingScreen(
     val currentTrackArtist by viewModel.currentTrackArtist.collectAsState()
     val currentAlbumTitle by viewModel.currentAlbumTitle.collectAsState()
     val currentAlbumArtUri by viewModel.currentAlbumArtUri.collectAsState()
+    val trackFormatInfo by viewModel.trackFormatInfo.collectAsState()
 
     val currentMediaId by viewModel.currentMediaId.collectAsState()
     val currentTrackState = viewModel.currentTrack.collectAsState()
@@ -450,6 +451,21 @@ fun NowPlayingScreen(
             }
 
         Spacer(modifier = Modifier.height(32.dp))
+
+        if (trackFormatInfo != null) {
+            Surface(
+                shape = CircleShape,
+                color = primaryColor,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text(
+                    text = trackFormatInfo!!,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Black,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+        }
 
         Text(
             text = currentTrackTitle ?: "Unknown Track",
