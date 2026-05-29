@@ -42,6 +42,18 @@ class WiimOutputController(
     private val _volume = MutableStateFlow(50)
     val volume: StateFlow<Int> = _volume.asStateFlow()
 
+    private val _currentTrackIndex = MutableStateFlow(-1)
+    val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
+
+    private val _currentTitle = MutableStateFlow<String?>(null)
+    val currentTitle: StateFlow<String?> = _currentTitle.asStateFlow()
+
+    private val _currentArtist = MutableStateFlow<String?>(null)
+    val currentArtist: StateFlow<String?> = _currentArtist.asStateFlow()
+
+    private val _currentAlbum = MutableStateFlow<String?>(null)
+    val currentAlbum: StateFlow<String?> = _currentAlbum.asStateFlow()
+
     private var pollingJob: Job? = null
 
     private fun startPolling() {
@@ -68,6 +80,11 @@ class WiimOutputController(
 
                         val vol = json.optInt("vol", -1)
                         if (vol in 0..100) _volume.value = vol
+
+                        _currentTrackIndex.value = json.optInt("plicurr", -1)
+                        _currentTitle.value = decodeHexString(json.optString("Title").takeIf { it.isNotEmpty() })
+                        _currentArtist.value = decodeHexString(json.optString("Artist").takeIf { it.isNotEmpty() })
+                        _currentAlbum.value = decodeHexString(json.optString("Album").takeIf { it.isNotEmpty() })
                     }
                     conn.disconnect()
                 } catch (e: Exception) {
@@ -140,14 +157,8 @@ class WiimOutputController(
 
         withContext(Dispatchers.IO) {
             // 1. Load the playlist
-            val success = sendSoapAction(
-                "SetAVTransportURI",
-                """
-                <InstanceID>0</InstanceID>
-                <CurrentURI>$playlistUrl</CurrentURI>
-                <CurrentURIMetaData></CurrentURIMetaData>
-                """.trimIndent()
-            )
+            val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
+            val success = sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
 
             if (success) {
                 // 2. Jump to startIndex (UPnP track numbers are 1-based)
@@ -177,15 +188,6 @@ class WiimOutputController(
                         """.trimIndent()
                     )
                 }
-
-                // 4. Play
-                sendSoapAction(
-                    "Play",
-                    """
-                    <InstanceID>0</InstanceID>
-                    <Speed>1</Speed>
-                    """.trimIndent()
-                )
             }
         }
 
@@ -296,6 +298,18 @@ class WiimOutputController(
             Log.e("WiimOutputController", "LinkPlay command failed: $command", e)
             false
         }
+    }
+
+    private fun decodeHexString(hex: String?): String? {
+        if (hex.isNullOrEmpty()) return null
+        return try {
+            hex.chunked(2)
+                .map { it.toInt(16).toByte() }
+                .toByteArray()
+                .toString(Charsets.UTF_8)
+                .trim()
+                .takeIf { it.isNotEmpty() }
+        } catch (e: Exception) { null }
     }
 
     private fun sendSoapActionWithResponse(action: String, body: String): String? {

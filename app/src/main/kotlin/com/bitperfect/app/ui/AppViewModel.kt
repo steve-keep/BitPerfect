@@ -263,20 +263,31 @@ open class AppViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val upNextQueue: StateFlow<List<androidx.media3.common.MediaItem>> = playerRepository.currentTimeline
-    val currentQueueIndex: StateFlow<Int> = playerRepository.currentIndex
+    val currentQueueIndex: StateFlow<Int> = combine(
+        outputRepository.activeDevice,
+        outputRepository.wiimCurrentTrackIndex,
+        playerRepository.currentIndex
+    ) { device, wiimIndex, localIndex ->
+        if (device is OutputDevice.Upnp && wiimIndex >= 0) wiimIndex else localIndex
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val currentTrackTitle: StateFlow<String?> = playerRepository.currentTrackTitle
     val currentTrackArtist: StateFlow<String?> = playerRepository.currentTrackArtist
     val currentAlbumTitle: StateFlow<String?> = playerRepository.currentAlbumTitle
     val currentAlbumArtUri: StateFlow<android.net.Uri?> = playerRepository.currentAlbumArtUri
 
-    val currentTrack: StateFlow<TrackInfo?> = combine(_playingTracks, currentMediaId) { tracks, mediaId ->
-        if (mediaId != null) {
-            tracks.find { it.id.toString() == mediaId }
+    val currentTrack: StateFlow<TrackInfo?> = combine(
+        outputRepository.activeDevice,
+        _playingTracks,
+        outputRepository.wiimCurrentTrackIndex,
+        currentMediaId
+    ) { device, tracks, wiimIndex, mediaId ->
+        if (device is OutputDevice.Upnp && wiimIndex >= 0) {
+            tracks.getOrNull(wiimIndex)
         } else {
-            null
+            if (mediaId != null) tracks.find { it.id.toString() == mediaId } else null
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val currentAlbum: StateFlow<com.bitperfect.app.library.AlbumInfo?> = combine(_artists, currentTrack) { artistsList, track ->
         if (track != null && track.albumId != -1L) {

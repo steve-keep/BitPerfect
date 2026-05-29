@@ -104,25 +104,27 @@ class WiimOutputControllerTest {
         // Give the local server a moment to spin up properly
         kotlinx.coroutines.delay(100)
 
-        // We can capture the CurrentURI sent to SetAVTransportURI to find the playlist port
-        val bodySlot = io.mockk.slot<String>()
+        // We can capture the URL sent to sendLinkPlayCommand to find the playlist port
+        val urlSlot = io.mockk.slot<String>()
         verify {
-            controller["sendSoapActionWithResponse"](
-                "SetAVTransportURI",
-                capture(bodySlot)
-            )
+            controller["sendLinkPlayCommand"](capture(urlSlot))
         }
 
-        val body = bodySlot.captured
-        val playlistUrl = body.substringAfter("<CurrentURI>").substringBefore("</CurrentURI>")
+        val url = urlSlot.captured
+        assert(url.startsWith("setPlayerCmd:playlist:"))
+
+        val playlistUrlEncoded = url.substringAfter("setPlayerCmd:playlist:")
+        val playlistUrl = java.net.URLDecoder.decode(playlistUrlEncoded, "UTF-8")
 
         assert(playlistUrl.endsWith("/playlist.m3u8"))
 
-        // Make a real HTTP request to verify the playlist content
-        val url = java.net.URL(playlistUrl)
-        val m3u8Content = url.readText()
+        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("SetAVTransportURI", any<String>()) }
 
-        val port = url.port
+        // Make a real HTTP request to verify the playlist content
+        val parsedUrl = java.net.URL(playlistUrl)
+        val m3u8Content = parsedUrl.readText()
+
+        val port = parsedUrl.port
         val expected = """
             #EXTM3U
             #EXTINF:1,Artist A - Track 1
@@ -145,7 +147,12 @@ class WiimOutputControllerTest {
             TrackInfo(3L, "Track 3", 3, 3000L)
         )
 
+        // Mock sendLinkPlayCommand to always return true, simulating success
+        every { controller["sendLinkPlayCommand"](any<String>()) } returns true
+
         controller.takeOver(tracks, startIndex = 1, startPositionMs = 0L)
+
+        verify { controller["sendLinkPlayCommand"](match<String> { it.startsWith("setPlayerCmd:playlist:") }) }
 
         val calls = mutableListOf<String>()
         verify {
@@ -153,8 +160,8 @@ class WiimOutputControllerTest {
         }
 
         // We check if the actions were sent in order
-        // SetAVTransportURI -> Seek -> Play
-        val expectedActions = listOf("SetAVTransportURI", "Seek", "Play")
+        // Seek
+        val expectedActions = listOf("Seek")
         val actualActions = calls.filter { it in expectedActions }
 
         assert(actualActions == expectedActions) { "Expected: $expectedActions, but got: $actualActions" }
@@ -170,9 +177,59 @@ class WiimOutputControllerTest {
         // No REL_TIME Seek expected because startPositionMs = 0
         verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Seek", match<String> { it.contains("<Unit>REL_TIME</Unit>") }) }
 
+        // No Play expected because setPlayerCmd:playlist automatically plays
+        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Play", any<String>()) }
+
         // Ensure the old queue clear method isn't sent
         verify(exactly = 0) { controller["sendSoapActionWithResponse"]("RemoveAllTracksFromQueue", any<String>()) }
         // Ensure Sonos extension isn't used
         verify(exactly = 0) { controller["sendSoapActionWithResponse"]("AddURIToQueue", any<String>()) }
+    }
+
+    @Test
+    fun `polling updates metadata from hex-encoded JSON`() = runTest {
+        val mockJson = """
+            {
+                "status": "play",
+                "plicurr": "2",
+                "Title": "54657374205469746C65",
+                "Artist": "5465737420417274697374",
+                "Album": "5465737420416C62756D"
+            }
+        """.trimIndent()
+
+        val pollingConnection = mockk<HttpURLConnection>(relaxed = true)
+        every { pollingConnection.responseCode } returns 200
+        every { pollingConnection.inputStream } returns ByteArrayInputStream(mockJson.toByteArray())
+
+        every { openTrustAllConnection(match { it.contains("getPlayerStatusEx") }) } returns pollingConnection
+
+        // Call private startPolling via reflection
+        controller.javaClass.getDeclaredMethod("startPolling").apply {
+            isAccessible = true
+            invoke(controller)
+        }
+
+        // Give coroutine time to poll
+        kotlinx.coroutines.delay(100)
+
+        // Wait for values to be set
+        var attempts = 0
+        while (controller.currentTitle.value != "Test Title" && attempts < 30) {
+            kotlinx.coroutines.delay(100)
+            attempts++
+        }
+
+        assert(controller.currentTrackIndex.value == 2) { "Expected 2, got ${controller.currentTrackIndex.value}" }
+        assert(controller.currentTitle.value == "Test Title") { "Expected Test Title, got ${controller.currentTitle.value}" }
+        assert(controller.currentArtist.value == "Test Artist") { "Expected Test Artist, got ${controller.currentArtist.value}" }
+        assert(controller.currentAlbum.value == "Test Album") { "Expected Test Album, got ${controller.currentAlbum.value}" }
+        assert(controller.isPlaying.value) { "Expected true, got ${controller.isPlaying.value}" }
+
+        // Cleanup
+        controller.javaClass.getDeclaredMethod("stopPolling").apply {
+            isAccessible = true
+            invoke(controller)
+        }
     }
 }
