@@ -158,14 +158,19 @@ class RipManager(
 
                     if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                         val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
-                        val file = artistDir.createFile("application/json", "artist.json")
-                        if (file != null) {
-                            context.contentResolver.openOutputStream(file.uri)?.use { out ->
-                                out.write(responseBody.toByteArray(Charsets.UTF_8))
+                        val jsonObject = JSONObject(responseBody)
+                        if (!jsonObject.isNull("artists")) {
+                            val file = artistDir.createFile("application/json", "artist.json")
+                            if (file != null) {
+                                context.contentResolver.openOutputStream(file.uri)?.use { out ->
+                                    out.write(responseBody.toByteArray(Charsets.UTF_8))
+                                }
+                                AppLogger.d("RipManager", "Successfully fetched and saved artist.json")
+                            } else {
+                                AppLogger.e("RipManager", "Could not create artist.json file")
                             }
-                            AppLogger.d("RipManager", "Successfully fetched and saved artist.json")
                         } else {
-                            AppLogger.e("RipManager", "Could not create artist.json file")
+                            AppLogger.d("RipManager", "No artist data found in AudioDB response, not saving artist.json")
                         }
                     } else {
                         AppLogger.e("RipManager", "AudioDB API returned ${connection.responseCode}")
