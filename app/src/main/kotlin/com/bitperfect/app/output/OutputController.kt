@@ -38,4 +38,10 @@ interface OutputController {
 
     suspend fun skipNext() { /* no-op for local/BT */ }
     suspend fun skipPrev() { /* no-op for local/BT */ }
+
+    /**
+     * Appends a track to the current queue.
+     * Only implemented for UPnP devices; local/BT use ExoPlayer directly.
+     */
+    suspend fun appendToQueue(track: TrackInfo) { /* no-op for local/BT */ }
 }

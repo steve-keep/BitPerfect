@@ -268,6 +268,19 @@ class WiimOutputController(
         return@withContext 0L
     }
 
+    override suspend fun appendToQueue(track: TrackInfo) {
+        val server = httpServer ?: return
+        val ip = wifiIp ?: return
+
+        server.appendTrack(track)
+
+        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+        }
+    }
+
     override suspend fun release() {
         stopPolling()
         withContext(Dispatchers.IO) {
@@ -353,7 +366,14 @@ class WiimOutputController(
         return null
     }
 
-    private inner class FlacHttpServer(val context: Context, val ip: String, val trackList: List<TrackInfo>) : NanoHTTPD(ip, 0) {
+    private inner class FlacHttpServer(val context: Context, val ip: String, initialTrackList: List<TrackInfo>) : NanoHTTPD(ip, 0) {
+
+        private val trackList = java.util.concurrent.CopyOnWriteArrayList(initialTrackList)
+
+        fun appendTrack(track: TrackInfo) {
+            trackList.add(track)
+        }
+
         override fun serve(session: IHTTPSession): Response {
             val uri = session.uri
 

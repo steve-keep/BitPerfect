@@ -950,7 +950,15 @@ open class AppViewModel(
     }
 
     fun addToQueue(track: TrackInfo) {
-        playerRepository.addToQueue(track)
+        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
+        if (isWiim) {
+            _playingTracks.value = _playingTracks.value + track
+            viewModelScope.launch {
+                outputRepository.appendToQueue(track)
+            }
+        } else {
+            playerRepository.addToQueue(track)
+        }
         viewModelScope.launch {
             _uiEvent.emit("Added to queue")
         }
