@@ -202,13 +202,13 @@ class UsbDriveDetectorTest {
     @Test
     fun testScsiInquiryCommandParsesCorrectly() {
         val vendorId = "PIONEER "
-        val productId = "BD-RW   BDR-XD07"
+        val model = "BD-RW   BDR-XD07"
 
         val inquiryData = ByteArray(36)
         inquiryData[0] = 0x05 // Peripheral device type 5 (CD/DVD)
 
         System.arraycopy(vendorId.toByteArray(Charsets.US_ASCII), 0, inquiryData, 8, 8)
-        System.arraycopy(productId.toByteArray(Charsets.US_ASCII), 0, inquiryData, 16, 16)
+        System.arraycopy(model.toByteArray(Charsets.US_ASCII), 0, inquiryData, 16, 16)
 
         val fakeTransport = FakeUsbTransport(inquiryResponse = inquiryData)
         val outEndpoint = mock(UsbEndpoint::class.java)
@@ -218,8 +218,8 @@ class UsbDriveDetectorTest {
         val driveInfo = command.execute()
 
         assertNotNull(driveInfo)
-        assertEquals("PIONEER", driveInfo?.vendorId)
-        assertEquals("BD-RW   BDR-XD07", driveInfo?.productId)
+        assertEquals("PIONEER", driveInfo?.vendor)
+        assertEquals("BD-RW   BDR-XD07", driveInfo?.model)
         assertTrue(driveInfo?.isOptical == true)
     }
 
@@ -414,7 +414,7 @@ class UsbDriveDetectorTest {
         statusField.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
-        val info = DriveInfo("VENDOR", "PRODUCT", true)
+        val info = DriveInfo("VENDOR", "PRODUCT", null, true)
         val emptyState = DriveStatus.Empty(info)
         stateFlow.value = emptyState
         // We simulate it by just setting the state
@@ -430,7 +430,7 @@ class UsbDriveDetectorTest {
         statusField.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
-        val info = DriveInfo("VENDOR", "PRODUCT", true)
+        val info = DriveInfo("VENDOR", "PRODUCT", null, true)
         stateFlow.value = DriveStatus.DiscReady(info)
 
         assertEquals(DriveStatus.DiscReady(info), detector.driveStatus.value)
@@ -520,7 +520,7 @@ class UsbDriveDetectorTest {
     fun testReportError() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         val detector = UsbDriveDetector(context)
-        val info = DriveInfo("v", "p", false)
+        val info = DriveInfo("v", "p", null, false)
         val field = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
         field.isAccessible = true
         (field.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>).value = DriveStatus.Empty(info)
@@ -676,7 +676,7 @@ class UsbDriveDetectorTest {
         statusField.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         val stateFlow = statusField.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
-        val info = DriveInfo("VENDOR", "PRODUCT", true)
+        val info = DriveInfo("VENDOR", "PRODUCT", null, true)
         stateFlow.value = DriveStatus.Empty(info)
 
         // Run the polling loop to simulate one TUR check
@@ -795,7 +795,7 @@ class UsbDriveDetectorTest {
         val field = UsbDriveDetector::class.java.getDeclaredField("_driveStatus")
         field.isAccessible = true
         val statusFlow = field.get(detector) as kotlinx.coroutines.flow.MutableStateFlow<DriveStatus>
-        statusFlow.value = DriveStatus.DiscReady(DriveInfo("ven", "prod", true))
+        statusFlow.value = DriveStatus.DiscReady(DriveInfo("ven", "prod", null, true))
 
         detector.setEjectingState()
 

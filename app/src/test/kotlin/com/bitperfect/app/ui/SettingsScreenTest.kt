@@ -48,7 +48,7 @@ class SettingsScreenTest {
         val application = org.robolectric.RuntimeEnvironment.getApplication()
 
         com.bitperfect.app.usb.DeviceStateManager.initialize(application)
-        val driveInfo = com.bitperfect.app.usb.DriveInfo("VendorX", "ProductY", true, 0, 0, "path")
+        val driveInfo = com.bitperfect.app.usb.DriveInfo("VendorX", "ProductY", null, true, 0, 0, "path")
         val driveStatusFlow = kotlinx.coroutines.flow.MutableStateFlow<com.bitperfect.app.usb.DriveStatus>(
             com.bitperfect.app.usb.DriveStatus.DiscReady(driveInfo, com.bitperfect.core.models.DiscToc(listOf(com.bitperfect.core.models.TocEntry(1, 0)), 100))
         )

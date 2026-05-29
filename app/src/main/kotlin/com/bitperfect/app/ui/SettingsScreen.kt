@@ -173,7 +173,7 @@ fun SettingsScreen(
                         driveStateIconTint = MaterialTheme.colorScheme.onSurface
                         driveStateTextColor = MaterialTheme.colorScheme.onSurface
                     } else {
-                        val offsetInfo = driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)
+                        val offsetInfo = driveOffsetRepository.findOffset(driveInfo.vendor, driveInfo.model)
                         if (offsetInfo != null) {
                             if (offsetInfo.offset != null) {
                                 // Match found with offset != null -> Green background
@@ -226,8 +226,8 @@ fun SettingsScreen(
                         ) {
                             Text(
                                 text = if (driveInfo != null) {
-                                    val vendor = driveInfo.vendorId.ifBlank { "" }
-                                    val product = driveInfo.productId.ifBlank { "" }
+                                    val vendor = driveInfo.vendor.ifBlank { "" }
+                                    val product = driveInfo.model.ifBlank { "" }
                                     val displayName = if (vendor.isNotBlank() && product.isNotBlank()) {
                                         "$vendor $product"
                                     } else if (vendor.isNotBlank()) {
@@ -262,7 +262,7 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .clickable {
                                 val discReady = driveStatus as? DriveStatus.DiscReady
-                                val offset = driveOffsetRepository.findOffset(driveInfo.vendorId, driveInfo.productId)?.offset
+                                val offset = driveOffsetRepository.findOffset(driveInfo.vendor, driveInfo.model)?.offset
                                 sendDebugInfo(context, driveInfo, discReady?.toc, discReady?.rawToc, offset, coverArtUrl, viewModel.ripStates.value, viewModel.discMetadata.value)
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
@@ -350,8 +350,8 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
 
     sb.appendLine("## Drive Information")
     if (driveInfo != null) {
-        sb.appendLine("- Vendor: ${driveInfo.vendorId}")
-        sb.appendLine("- Model: ${driveInfo.productId}")
+        sb.appendLine("- Vendor: ${driveInfo.vendor}")
+        sb.appendLine("- Model: ${driveInfo.model}")
     } else {
         sb.appendLine("- Vendor: None")
         sb.appendLine("- Model: None")
@@ -360,8 +360,8 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
 
     sb.appendLine("## USB Information")
     if (driveInfo != null) {
-        sb.appendLine("- Vendor ID: ${driveInfo.usbVendorId} (0x${driveInfo.usbVendorId.toString(16).uppercase()})")
-        sb.appendLine("- Product ID: ${driveInfo.usbProductId} (0x${driveInfo.usbProductId.toString(16).uppercase()})")
+        sb.appendLine("- Vendor ID: ${driveInfo.vendorId} (0x${driveInfo.vendorId?.toString(16)?.uppercase()})")
+        sb.appendLine("- Product ID: ${driveInfo.productId} (0x${driveInfo.productId?.toString(16)?.uppercase()})")
         sb.appendLine("- Device Path: ${driveInfo.devicePath}")
     } else {
         sb.appendLine("- Vendor ID: None")
@@ -512,8 +512,8 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         sb.appendLine()
 
         sb.appendLine("### Drive")
-        sb.appendLine("vendor:  ${driveInfo?.vendorId ?: ""}")
-        sb.appendLine("product: ${driveInfo?.productId ?: ""}")
+        sb.appendLine("vendor:  ${driveInfo?.vendor ?: ""}")
+        sb.appendLine("product: ${driveInfo?.model ?: ""}")
         sb.appendLine("offset:  ${offset ?: "0"}")
         sb.appendLine()
 

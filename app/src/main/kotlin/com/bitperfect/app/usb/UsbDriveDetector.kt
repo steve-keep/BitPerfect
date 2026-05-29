@@ -270,8 +270,8 @@ class UsbDriveDetector(
             }
 
             val info = baseInfo.copy(
-                usbVendorId = device.vendorId,
-                usbProductId = device.productId,
+                vendorId = device.vendorId,
+                productId = device.productId,
                 devicePath = device.deviceName
             )
 
@@ -534,10 +534,18 @@ class UsbDriveDetector(
 }
 
 data class DriveInfo(
-    val vendorId: String,
-    val productId: String,
+    val vendor: String,
+    val model: String,
+    val firmware: String? = null,
     val isOptical: Boolean,
-    val usbVendorId: Int = 0,
-    val usbProductId: Int = 0,
+    val vendorId: Int? = null,
+    val productId: Int? = null,
     val devicePath: String = ""
-)
+) {
+    fun driveId(): String {
+        return listOfNotNull(vendor, model, firmware)
+            .joinToString("_")
+            .lowercase()
+            .replace(" ", "")
+    }
+}
