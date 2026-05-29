@@ -281,6 +281,34 @@ class WiimOutputController(
         }
     }
 
+    override suspend fun insertNextInQueue(track: TrackInfo) {
+        val server = httpServer ?: return
+        val ip = wifiIp ?: return
+        val currentIndex = _currentTrackIndex.value.coerceAtLeast(0)
+
+        server.insertTrackAfterIndex(track, currentIndex)
+
+        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+        }
+    }
+
+    override suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
+        val server = httpServer ?: return
+        val ip = wifiIp ?: return
+        val currentIndex = _currentTrackIndex.value.coerceAtLeast(0)
+
+        server.insertTracksAfterIndex(tracks, currentIndex)
+
+        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+        }
+    }
+
     override suspend fun release() {
         stopPolling()
         withContext(Dispatchers.IO) {
@@ -372,6 +400,16 @@ class WiimOutputController(
 
         fun appendTrack(track: TrackInfo) {
             trackList.add(track)
+        }
+
+        fun insertTrackAfterIndex(track: TrackInfo, afterIndex: Int) {
+            val insertAt = (afterIndex + 1).coerceIn(0, trackList.size)
+            trackList.add(insertAt, track)
+        }
+
+        fun insertTracksAfterIndex(tracks: List<TrackInfo>, afterIndex: Int) {
+            val insertAt = (afterIndex + 1).coerceIn(0, trackList.size)
+            trackList.addAll(insertAt, tracks)
         }
 
         override fun serve(session: IHTTPSession): Response {
