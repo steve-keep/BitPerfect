@@ -29,7 +29,7 @@ class DeviceListTest(
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{index}: Status={0}")
         fun data(): Collection<Array<Any>> {
-            val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
+            val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", null, true)
             return listOf(
                 arrayOf(DriveStatus.Connecting(), "Connecting…", "Detecting drive capabilities"),
                 arrayOf(DriveStatus.PermissionDenied, "Access Denied", "Re-connect and allow access when prompted"),
@@ -91,7 +91,7 @@ class DeviceListTest(
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
         val testMetadata = DiscMetadata("Test Album", "Test Artist", emptyList(), "mb123")
 
-        val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
+        val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", null, true)
         val dummyToc = DiscToc((1..10).map { com.bitperfect.core.models.TocEntry(it, 150 * it) }, 2000)
         val status = DriveStatus.DiscReady(dummyInfo, dummyToc)
 
@@ -115,7 +115,7 @@ class DeviceListTest(
     fun verifyDiscReadyCard_withoutMetadata() {
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
 
-        val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", true)
+        val dummyInfo = DriveInfo("ASUS", "BW-16D1HT", null, true)
         val dummyToc = DiscToc((1..10).map { com.bitperfect.core.models.TocEntry(it, 150 * it) }, 2000)
         val status = DriveStatus.DiscReady(dummyInfo, dummyToc)
 

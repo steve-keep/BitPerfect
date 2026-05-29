@@ -66,16 +66,23 @@ class ScsiInquiryCommand(
 
         // Parse Inquiry Data
         val peripheralDeviceType = inquiryData[0].toInt() and 0x1F
-        val vendorIdBytes = inquiryData.copyOfRange(8, 16)
-        val productIdBytes = inquiryData.copyOfRange(16, 32)
+        val vendorBytes = inquiryData.copyOfRange(8, 16)
+        val modelBytes = inquiryData.copyOfRange(16, 32)
+        val firmwareBytes = inquiryData.copyOfRange(32, 36)
 
-        val vendorId = String(vendorIdBytes, Charsets.US_ASCII).trim()
-        val productId = String(productIdBytes, Charsets.US_ASCII).trim()
+        val vendor = String(vendorBytes, Charsets.US_ASCII).trim()
+        val model = String(modelBytes, Charsets.US_ASCII).trim()
+        val firmware = String(firmwareBytes, Charsets.US_ASCII).trim().takeIf { it.isNotEmpty() }
 
         // Optional: check if optical drive (type 5)
         val isOptical = peripheralDeviceType == 5
 
-        return DriveInfo(vendorId, productId, isOptical)
+        return DriveInfo(
+            vendor = vendor,
+            model = model,
+            firmware = firmware,
+            isOptical = isOptical
+        )
     }
 
     companion object {

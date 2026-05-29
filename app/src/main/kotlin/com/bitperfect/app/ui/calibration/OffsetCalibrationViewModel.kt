@@ -297,8 +297,8 @@ class OffsetCalibrationViewModel(
             return
         }
 
-        val vendorId = driveStatus.info.vendorId
-        val productId = driveStatus.info.productId
+        val vendorId = driveStatus.info.vendor
+        val productId = driveStatus.info.model
 
         _uiState.update { it.copy(saveState = SaveState.Saving) }
         viewModelScope.launch {

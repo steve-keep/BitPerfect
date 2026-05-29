@@ -48,8 +48,8 @@ class RipSession(private val context: Context) {
         }
 
         val info = DeviceStateManager.driveStatus.value.info
-        val driveVendor = info?.vendorId ?: ""
-        val driveProduct = info?.productId ?: ""
+        val driveVendor = info?.vendor ?: ""
+        val driveProduct = info?.model ?: ""
 
         val previousStates = if (_ripStates.value.isNotEmpty()) _ripStates.value else null
 

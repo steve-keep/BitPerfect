@@ -137,7 +137,7 @@ class AppViewModelTest {
             viewModel.discMetadata.collect {}
         }
 
-        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", null, true), dummyToc)
         advanceUntilIdle()
 
         // Wait for Dispatchers.IO coroutine to update the value
@@ -196,7 +196,7 @@ class AppViewModelTest {
             viewModel.discMetadata.collect {}
         }
 
-        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", null, true), dummyToc)
         advanceUntilIdle()
 
         var attempts = 0
@@ -241,7 +241,7 @@ class AppViewModelTest {
             viewModel.discMetadata.collect {}
         }
 
-        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), null)
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", null, true), null)
         advanceUntilIdle()
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
 
@@ -417,7 +417,7 @@ class AppViewModelTest {
         // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
         // to call ripSession.cancel(), which immediately sets _isRipping back to false.
         // So we override it to DiscReady here, before advancing the idle.
-        mockDriveStatusFlow.value = DriveStatus.DiscReady(com.bitperfect.app.usb.DriveInfo("vendor", "product", true), com.bitperfect.core.models.DiscToc(emptyList(), 150), null)
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(com.bitperfect.app.usb.DriveInfo("vendor", "product", null, true), com.bitperfect.core.models.DiscToc(emptyList(), 150), null)
         val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             vm.ripBannerState.collect {}
         }
@@ -782,7 +782,7 @@ class AppViewModelTest {
         val dummyToc = DiscToc(emptyList(), 10)
         val dummyMetadata = DiscMetadata("Test Album", "Test Artist", listOf("Track 1", "Track 2"), "mbid")
         mockLookupMusicBrainz = { if (it == dummyToc) dummyMetadata else null }
-        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", true), dummyToc)
+        mockDriveStatusFlow.value = DriveStatus.DiscReady(DriveInfo("Vendor", "Product", null, true), dummyToc)
         advanceUntilIdle()
 
         var attempts = 0

@@ -40,7 +40,7 @@ class ComponentsTest {
     @Test
     fun verifyEmptyState() {
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
-        val driveInfo = DriveInfo("ASUS", "BW-16D1HT", true, 0, 0, "")
+        val driveInfo = DriveInfo("ASUS", "BW-16D1HT", null, true, 0, 0, "")
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.Empty(driveInfo)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
@@ -58,7 +58,7 @@ class ComponentsTest {
     @Test
     fun verifyDiscReadyState() {
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
-        val driveInfo = DriveInfo("ASUS", "BW-16D1HT", true, 0, 0, "")
+        val driveInfo = DriveInfo("ASUS", "BW-16D1HT", null, true, 0, 0, "")
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.DiscReady(driveInfo)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
