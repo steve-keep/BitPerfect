@@ -67,6 +67,7 @@ class AppViewModelTest {
 
         org.mockito.Mockito.`when`(mockRepository.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockRepository.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockRepository.currentIndex).thenReturn(MutableStateFlow(0))
         org.mockito.Mockito.`when`(mockRepository.currentTrackTitle).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockRepository.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockRepository.positionMs).thenReturn(MutableStateFlow(0L))
@@ -393,6 +394,10 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
         try {
@@ -445,6 +450,10 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
         try {
@@ -494,6 +503,10 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
         try {
@@ -536,6 +549,10 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
         try {
@@ -606,6 +623,10 @@ class AppViewModelTest {
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
         try {
@@ -685,8 +706,13 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockOutputRepo.wiimVolume).thenReturn(MutableStateFlow(50))
         org.mockito.Mockito.`when`(mockOutputRepo.isPlaying).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockOutputRepo.wiimPositionMs).thenReturn(MutableStateFlow(0L))
+        org.mockito.Mockito.`when`(mockOutputRepo.wiimCurrentTrackIndex).thenReturn(MutableStateFlow(-1))
 
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
+        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
         org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
         val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
         try {
