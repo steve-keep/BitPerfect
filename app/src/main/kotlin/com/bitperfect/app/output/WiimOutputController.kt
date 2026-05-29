@@ -136,62 +136,21 @@ class WiimOutputController(
         httpServer = FlacHttpServer(context, wifiIp!!, trackList)
         httpServer?.start(5000, false)
 
-        val track = trackList.getOrNull(index) ?: return
-        val url = "http://$wifiIp:${httpServer?.listeningPort}/track/${track.id}.flac"
-
-        val artUrl = if (track.albumId != -1L)
-            "http://$wifiIp:${httpServer?.listeningPort}/art/${track.albumId}.jpg"
-        else null
-
-        val didl = buildDidl(track, url, artUrl)
+        val playlistUrl = "http://$wifiIp:${httpServer?.listeningPort}/playlist.m3u8"
 
         withContext(Dispatchers.IO) {
-            // 1. Clear the WiiM queue
-            val clearSuccess = sendSoapAction(
-                "RemoveAllTracksFromQueue",
-                """<InstanceID>0</InstanceID>"""
-            )
-            if (!clearSuccess) {
-                Log.w("WiimOutputController", "RemoveAllTracksFromQueue failed or returned non-2xx")
-            }
-
-            // 2. Load the first track
+            // 1. Load the playlist
             val success = sendSoapAction(
                 "SetAVTransportURI",
                 """
                 <InstanceID>0</InstanceID>
-                <CurrentURI>$url</CurrentURI>
-                <CurrentURIMetaData>${escapeXml(didl)}</CurrentURIMetaData>
+                <CurrentURI>$playlistUrl</CurrentURI>
+                <CurrentURIMetaData></CurrentURIMetaData>
                 """.trimIndent()
             )
 
             if (success) {
-                // 3. Enqueue remaining tracks
-                val limit = minOf(trackList.size, 200)
-                if (trackList.size > 200) {
-                    Log.w("WiimOutputController", "Queue size truncated to 200 tracks")
-                }
-                for (i in 1 until limit) {
-                    val nextTrack = trackList[i]
-                    val nextUrl = "http://$wifiIp:${httpServer?.listeningPort}/track/${nextTrack.id}.flac"
-                    val nextArtUrl = if (nextTrack.albumId != -1L)
-                        "http://$wifiIp:${httpServer?.listeningPort}/art/${nextTrack.albumId}.jpg"
-                    else null
-                    val nextDidl = buildDidl(nextTrack, nextUrl, nextArtUrl)
-
-                    sendSoapAction(
-                        "AddURIToQueue",
-                        """
-                        <InstanceID>0</InstanceID>
-                        <EnqueuedURI>$nextUrl</EnqueuedURI>
-                        <EnqueuedURIMetaData>${escapeXml(nextDidl)}</EnqueuedURIMetaData>
-                        <DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued>
-                        <EnqueueAsNext>0</EnqueueAsNext>
-                        """.trimIndent()
-                    )
-                }
-
-                // 4. Jump to startIndex
+                // 2. Jump to startIndex (UPnP track numbers are 1-based)
                 if (startIndex > 0) {
                     sendSoapAction(
                         "Seek",
@@ -203,7 +162,7 @@ class WiimOutputController(
                     )
                 }
 
-                // 5. Seek within track
+                // 3. Seek within track
                 if (startPositionMs > 0) {
                     val h = startPositionMs / 3600000
                     val m = (startPositionMs % 3600000) / 60000
@@ -219,7 +178,7 @@ class WiimOutputController(
                     )
                 }
 
-                // 6. Play
+                // 4. Play
                 sendSoapAction(
                     "Play",
                     """
@@ -321,32 +280,6 @@ class WiimOutputController(
         }
     }
 
-    private fun buildDidl(track: TrackInfo, url: String, artUrl: String?): String {
-        val artNode = if (artUrl != null) """
-                    <upnp:albumArtURI dlna:profileID="JPEG_TN"
-                        xmlns:dlna="urn:schemas-dlna-org:metadata-1-0/">${escapeXml(artUrl)}</upnp:albumArtURI>"""
-        else ""
-        return """
-            <DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
-                <item id="${track.id}" parentID="0" restricted="1">
-                    <dc:title>${escapeXml(track.title)}</dc:title>
-                    <dc:creator>${escapeXml(track.artist)}</dc:creator>
-                    <upnp:album>${escapeXml(track.albumTitle)}</upnp:album>
-                    <upnp:class>object.item.audioItem.musicTrack</upnp:class>$artNode
-                    <res protocolInfo="http-get:*:audio/flac:*">$url</res>
-                </item>
-            </DIDL-Lite>
-        """.trimIndent()
-    }
-
-    private fun escapeXml(input: String): String {
-        return input.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&apos;")
-    }
-
     private fun sendSoapAction(action: String, body: String): Boolean {
         return sendSoapActionWithResponse(action, body) != null
     }
@@ -409,6 +342,17 @@ class WiimOutputController(
     private inner class FlacHttpServer(val context: Context, val ip: String, val trackList: List<TrackInfo>) : NanoHTTPD(ip, 0) {
         override fun serve(session: IHTTPSession): Response {
             val uri = session.uri
+
+            if (uri == "/playlist.m3u8") {
+                val sb = StringBuilder("#EXTM3U\n")
+                for (track in trackList) {
+                    val trackUrl = "http://$ip:$listeningPort/track/${track.id}.flac"
+                    val duration = if (track.durationMs > 0) track.durationMs / 1000 else -1
+                    sb.append("#EXTINF:$duration,${track.artist} - ${track.title}\n")
+                    sb.append("$trackUrl\n")
+                }
+                return newFixedLengthResponse(Response.Status.OK, "audio/x-mpegurl", sb.toString())
+            }
 
             if (uri.startsWith("/art/") && uri.endsWith(".jpg")) {
                 val albumIdStr = uri.substringAfter("/art/").substringBefore(".jpg")
