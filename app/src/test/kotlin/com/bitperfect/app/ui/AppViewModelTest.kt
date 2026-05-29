@@ -117,6 +117,14 @@ class AppViewModelTest {
             detectorField.isAccessible = true
             detectorField.set(DeviceStateManager, null)
         }
+
+        try {
+            val ripSessionField = com.bitperfect.app.usb.RipSession::class.java.getDeclaredField("instance")
+            ripSessionField.isAccessible = true
+            ripSessionField.set(null, null)
+        } catch (e: Exception) {
+            // Ignore
+        }
     }
 
     @Test
