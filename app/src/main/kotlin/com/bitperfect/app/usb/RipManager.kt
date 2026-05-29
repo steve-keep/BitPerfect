@@ -24,7 +24,8 @@ import com.bitperfect.app.ripping.paranoia.RipConfidenceEvaluator
 import com.bitperfect.app.ripping.paranoia.SuspiciousRead
 import com.bitperfect.app.ripping.paranoia.SampleAlignmentValidator
 import com.bitperfect.app.ripping.paranoia.AlignmentIssue
-
+import com.bitperfect.app.ripping.profiler.ReadSizeMetricsCollector
+import com.bitperfect.app.ripping.profiler.DefaultAtomicReadProfiler
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -143,6 +144,8 @@ class RipManager(
             AppLogger.e("RipManager", "Could not create artist directory")
             return@withContext
         }
+
+        val metricsCollector = ReadSizeMetricsCollector()
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -323,6 +326,8 @@ class RipManager(
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
 
+                    metricsCollector.recordAttempt(chunkSize)
+
                     val readStartLba = firstLba + sectorsRead
                     val readStartTime = android.os.SystemClock.elapsedRealtime()
                     val pcmData = session.readSectors(readStartLba, sectorsToRead)
@@ -338,9 +343,11 @@ class RipManager(
                                 followedSeekRecovery = wasPreviousReadRecovery
                             )
                         )
+                        metricsCollector.recordSuccessfulRead(chunkSize)
                         wasPreviousReadRecovery = false
                         val sectorsActuallyRead = pcmData.size / 2352
                         if (sectorsActuallyRead < sectorsToRead) {
+                            metricsCollector.recordShortRead(chunkSize)
                             AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
                                 "got $sectorsActuallyRead of $sectorsToRead sectors")
                         }
@@ -377,6 +384,7 @@ class RipManager(
                                 totalOverlapTrimmedSamples += trimmedSamples
                                 expectedTotalOverlapTrimmedSamples += overlapVerifier.overlapSizeBytes / 4
                             } else {
+                                metricsCollector.recordOverlapFailure(chunkSize)
                                 AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
                                 fastPathEvaluator.reportMismatch()
 
@@ -411,6 +419,9 @@ class RipManager(
                                 var totalAttempts = 0
 
                                 for (metadata in metadataHistory) {
+                                    for (i in 0 until metadata.rereadAttempts) {
+                                        metricsCollector.recordRereadEscalation(chunkSize)
+                                    }
                                     totalAttempts += metadata.rereadAttempts
                                     if (metadata.strategy == "overlap_recovery") {
                                         AppLogger.d("RipManager", "overlap_recovery_attempt track=$trackNumber recoveryWindowStartLba=${metadata.recoveryWindowStartLba} recoveryWindowEndLba=${metadata.recoveryWindowEndLba} rereadAttempts=${metadata.rereadAttempts} confidence=${if(metadata.recovered) "MEDIUM" else "LOW"}")
@@ -588,6 +599,7 @@ class RipManager(
                             sectorsRead += advanceSize
                         }
                     } else {
+                        metricsCollector.recordTransportFailure(chunkSize)
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
                             throw java.io.IOException("Disc removed or drive not ready during rip")
@@ -851,6 +863,10 @@ class RipManager(
 
         if (!isCancelled) {
             writeRipLog(albumDir, driveOffset, _trackStates.value)
+
+            val profiler = DefaultAtomicReadProfiler()
+            val profile = profiler.analyze(metricsCollector.build())
+            AppLogger.d("RipManager", "[AtomicReadProfiler] Final Profile: preferredReadSize=${profile.preferredReadSize} maxReliableReadSize=${profile.maxReliableReadSize} unstableSizes=${profile.unstableSizes}")
         }
         // Eject drive upon successful completion if not cancelled
         if (!isCancelled) {
