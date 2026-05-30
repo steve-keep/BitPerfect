@@ -262,7 +262,28 @@ open class AppViewModel(
         .map { raw -> if (raw != null) com.bitperfect.app.player.parseLrc(raw) else emptyList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val upNextQueue: StateFlow<List<androidx.media3.common.MediaItem>> = playerRepository.currentTimeline
+    val upNextQueue: StateFlow<List<TrackInfo>> = combine(
+        outputRepository.activeDevice,
+        _playingTracks,
+        playerRepository.currentTimeline
+    ) { device, wiimTracks, exoTracks ->
+        if (device is OutputDevice.Upnp) {
+            wiimTracks
+        } else {
+            exoTracks.map { item ->
+                TrackInfo(
+                    id = item.mediaId.toLongOrNull() ?: -1L,
+                    title = item.mediaMetadata.title?.toString() ?: "Unknown",
+                    artist = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
+                    albumTitle = item.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
+                    trackNumber = item.mediaMetadata.trackNumber ?: 0,
+                    durationMs = 0L,
+                    albumId = item.mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L
+                )
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val currentQueueIndex: StateFlow<Int> = combine(
         outputRepository.activeDevice,
         outputRepository.wiimCurrentTrackIndex,
