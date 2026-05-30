@@ -295,25 +295,43 @@ open class AppViewModel(
     val currentTrackTitle: StateFlow<String?> = combine(
         outputRepository.activeDevice,
         outputRepository.wiimCurrentTitle,
-        playerRepository.currentTrackTitle
-    ) { device, wiimTitle, localTitle ->
-        if (device is OutputDevice.Upnp) wiimTitle else localTitle
+        playerRepository.currentTrackTitle,
+        _playingTracks,
+        currentQueueIndex
+    ) { device, wiimTitle, localTitle, tracks, queueIndex ->
+        if (device is OutputDevice.Upnp) {
+            wiimTitle ?: tracks.getOrNull(queueIndex)?.title
+        } else {
+            localTitle
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val currentTrackArtist: StateFlow<String?> = combine(
         outputRepository.activeDevice,
         outputRepository.wiimCurrentArtist,
-        playerRepository.currentTrackArtist
-    ) { device, wiimArtist, localArtist ->
-        if (device is OutputDevice.Upnp) wiimArtist else localArtist
+        playerRepository.currentTrackArtist,
+        _playingTracks,
+        currentQueueIndex
+    ) { device, wiimArtist, localArtist, tracks, queueIndex ->
+        if (device is OutputDevice.Upnp) {
+            wiimArtist ?: tracks.getOrNull(queueIndex)?.artist
+        } else {
+            localArtist
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val currentAlbumTitle: StateFlow<String?> = combine(
         outputRepository.activeDevice,
         outputRepository.wiimCurrentAlbum,
-        playerRepository.currentAlbumTitle
-    ) { device, wiimAlbum, localAlbum ->
-        if (device is OutputDevice.Upnp) wiimAlbum else localAlbum
+        playerRepository.currentAlbumTitle,
+        _playingTracks,
+        currentQueueIndex
+    ) { device, wiimAlbum, localAlbum, tracks, queueIndex ->
+        if (device is OutputDevice.Upnp) {
+            wiimAlbum ?: tracks.getOrNull(queueIndex)?.albumTitle
+        } else {
+            localAlbum
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _trackFormatInfo = MutableStateFlow<String?>(null)
