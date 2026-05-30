@@ -49,10 +49,9 @@ class AudioDbRepository() {
                 .replace('\u2013', '-')
                 .replace('\u2014', '-')
 
-            val url = "https://www.theaudiodb.com/api/v1/json/2/search.php"
-            val httpResponse = client.get(url) {
-                parameter("s", normalisedName)
-            }
+            val encodedName = java.net.URLEncoder.encode(normalisedName, "UTF-8")
+            val url = "https://www.theaudiodb.com/api/v1/json/2/search.php?s=$encodedName"
+            val httpResponse = client.get(url)
 
             AppLogger.d(TAG, "HTTP ${httpResponse.status.value}")
 

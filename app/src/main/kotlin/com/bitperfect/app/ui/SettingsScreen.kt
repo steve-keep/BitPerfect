@@ -445,7 +445,14 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
         }
 
         if (discMetadata != null) {
-            val encodedArtist = java.net.URLEncoder.encode(discMetadata.artistName, "UTF-8")
+            val normalisedArtistName = discMetadata.artistName
+                .replace('\u2010', '-')
+                .replace('\u2011', '-')
+                .replace('\u2012', '-')
+                .replace('\u2013', '-')
+                .replace('\u2014', '-')
+
+            val encodedArtist = java.net.URLEncoder.encode(normalisedArtistName, "UTF-8")
             val encodedAlbum = java.net.URLEncoder.encode(discMetadata.albumTitle, "UTF-8")
 
             sb.appendLine("### AudioDB")
