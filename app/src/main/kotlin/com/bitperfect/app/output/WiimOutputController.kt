@@ -281,6 +281,19 @@ class WiimOutputController(
         }
     }
 
+    override suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
+        val server = httpServer ?: return
+        val ip = wifiIp ?: return
+
+        server.appendTracks(tracks)
+
+        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+        }
+    }
+
     override suspend fun insertNextInQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
@@ -400,6 +413,10 @@ class WiimOutputController(
 
         fun appendTrack(track: TrackInfo) {
             trackList.add(track)
+        }
+
+        fun appendTracks(tracks: List<TrackInfo>) {
+            trackList.addAll(tracks)
         }
 
         fun insertTrackAfterIndex(track: TrackInfo, afterIndex: Int) {

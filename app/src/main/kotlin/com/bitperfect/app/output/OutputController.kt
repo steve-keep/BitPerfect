@@ -45,6 +45,8 @@ interface OutputController {
      */
     suspend fun appendToQueue(track: TrackInfo) { /* no-op for local/BT */ }
 
+    suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) { /* no-op for local/BT */ }
+
     suspend fun insertNextInQueue(track: TrackInfo) { /* no-op for local/BT */ }
     suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) { /* no-op for local/BT */ }
 }

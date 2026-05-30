@@ -1058,7 +1058,16 @@ open class AppViewModel(
     }
 
     fun addAlbumToQueue(tracks: List<TrackInfo>) {
-        playerRepository.addAlbumToQueue(tracks)
+        if (tracks.isEmpty()) return
+        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
+        if (isWiim) {
+            _playingTracks.value = _playingTracks.value + tracks
+            viewModelScope.launch {
+                outputRepository.appendAlbumToQueue(tracks)
+            }
+        } else {
+            playerRepository.addAlbumToQueue(tracks)
+        }
     }
 
     fun clearQueue() {
