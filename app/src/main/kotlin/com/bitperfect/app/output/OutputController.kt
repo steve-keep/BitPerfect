@@ -51,4 +51,5 @@ interface OutputController {
     suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) { /* no-op for local/BT */ }
 
     suspend fun reorderQueue(fromIndex: Int, toIndex: Int) { /* no-op for local/BT */ }
+    suspend fun removeFromQueue(index: Int) { /* no-op for local/BT */ }
 }

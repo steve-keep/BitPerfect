@@ -1075,7 +1075,18 @@ open class AppViewModel(
     }
 
     fun removeQueueItem(index: Int) {
-        playerRepository.removeMediaItem(index)
+        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
+        if (isWiim) {
+            val mutable = _playingTracks.value.toMutableList()
+            if (index !in mutable.indices) return
+            mutable.removeAt(index)
+            _playingTracks.value = mutable
+            viewModelScope.launch {
+                outputRepository.removeFromQueue(index)
+            }
+        } else {
+            playerRepository.removeMediaItem(index)
+        }
     }
 
     fun moveQueueItem(currentIndex: Int, newIndex: Int) {

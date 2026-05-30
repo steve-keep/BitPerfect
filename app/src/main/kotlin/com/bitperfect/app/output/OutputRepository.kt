@@ -159,6 +159,10 @@ open class OutputRepository(
         activeController.reorderQueue(fromIndex, toIndex)
     }
 
+    open suspend fun removeFromQueue(index: Int) {
+        activeController.removeFromQueue(index)
+    }
+
     open suspend fun setVolume(volume: Int) {
         val controller = activeController
         if (controller is WiimOutputController) {
