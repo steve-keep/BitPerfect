@@ -287,6 +287,9 @@ class UsbDriveDetector(
                 TurResult.SPINNING_UP -> {
                     _driveStatus.value = DriveStatus.SpinningUp(info)
                 }
+                TurResult.TRAY_OPEN -> {
+                    _driveStatus.value = DriveStatus.Open(info)
+                }
                 TurResult.NOT_READY -> {
                     _driveStatus.value = DriveStatus.Empty(info)
                 }
@@ -310,7 +313,11 @@ class UsbDriveDetector(
     }
 
     enum class TurResult {
-        READY, SPINNING_UP, NOT_READY, CONNECTION_DEAD
+        READY, SPINNING_UP, NOT_READY, TRAY_OPEN, CONNECTION_DEAD
+    }
+
+    enum class SenseResult {
+        SPINNING_UP, TRAY_OPEN, NOT_READY
     }
 
     fun pausePolling() {
@@ -366,6 +373,11 @@ class UsbDriveDetector(
                         TurResult.SPINNING_UP -> {
                             if (currentStatus !is DriveStatus.SpinningUp) {
                                 _driveStatus.value = DriveStatus.SpinningUp(info)
+                            }
+                        }
+                        TurResult.TRAY_OPEN -> {
+                            if (currentStatus !is DriveStatus.Open) {
+                                _driveStatus.value = DriveStatus.Open(info)
                             }
                         }
                         TurResult.NOT_READY -> {
@@ -467,8 +479,12 @@ class UsbDriveDetector(
         val status = csw[12]
         if (status != 0.toByte()) {
             AppLogger.d(TAG, "TUR: Drive not ready (status=$status) on tag $tag")
-            val isSpinningUp = executeRequestSense(transport, outEndpoint, inEndpoint, tag + 1)
-            return if (isSpinningUp) TurResult.SPINNING_UP else TurResult.NOT_READY
+            val senseResult = executeRequestSense(transport, outEndpoint, inEndpoint, tag + 1)
+            return when (senseResult) {
+                SenseResult.SPINNING_UP -> TurResult.SPINNING_UP
+                SenseResult.TRAY_OPEN -> TurResult.TRAY_OPEN
+                else -> TurResult.NOT_READY
+            }
         }
 
         return TurResult.READY
@@ -490,7 +506,7 @@ class UsbDriveDetector(
         return tocResult
     }
 
-    private fun executeRequestSense(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): Boolean {
+    private fun executeRequestSense(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): SenseResult {
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         buffer.putInt(0x43425355) // dCBWSignature
@@ -510,12 +526,12 @@ class UsbDriveDetector(
 
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 3000)
-        if (transferred < 0) return false
+        if (transferred < 0) return SenseResult.NOT_READY
 
         // Read Data
         val senseData = ByteArray(18)
         transferred = transport.bulkTransfer(inEndpoint, senseData, senseData.size, 3000)
-        if (transferred < 0) return false
+        if (transferred < 0) return SenseResult.NOT_READY
 
         // Read CSW
         val csw = ByteArray(13)
@@ -525,7 +541,13 @@ class UsbDriveDetector(
         val asc = senseData[12].toInt() and 0xFF
         val ascq = senseData[13].toInt() and 0xFF
 
-        return senseKey == 0x02 && asc == 0x04 && ascq == 0x01
+        if (senseKey == 0x02 && asc == 0x04 && ascq == 0x01) {
+            return SenseResult.SPINNING_UP
+        } else if (senseKey == 0x02 && asc == 0x3A && ascq == 0x02) {
+            return SenseResult.TRAY_OPEN
+        }
+
+        return SenseResult.NOT_READY
     }
 
     companion object {

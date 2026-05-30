@@ -575,6 +575,11 @@ fun DeviceList(
                     headline = "No Disc Inserted",
                     subtitle = "Insert a CD to continue"
                 )
+                is DriveStatus.Open -> DriveStatusCard(
+                    icon = Icons.Default.Eject,
+                    headline = "Tray Open",
+                    subtitle = "Insert a CD and close the tray"
+                )
                 is DriveStatus.SpinningUp -> DriveStatusCard(
                     icon = Icons.Outlined.HourglassBottom,
                     headline = "Spinning Up…",

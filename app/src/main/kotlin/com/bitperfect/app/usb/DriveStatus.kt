@@ -6,6 +6,7 @@ sealed class DriveStatus(open val info: DriveInfo?) {
     object PermissionDenied : DriveStatus(null)
     object NotOptical : DriveStatus(null)
     data class Empty(override val info: DriveInfo) : DriveStatus(info)
+    data class Open(override val info: DriveInfo) : DriveStatus(info)
     data class SpinningUp(override val info: DriveInfo) : DriveStatus(info)
     data class DetectingDisc(override val info: DriveInfo) : DriveStatus(info)
     data class Ejecting(override val info: DriveInfo) : DriveStatus(info)

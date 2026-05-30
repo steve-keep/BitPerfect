@@ -444,6 +444,7 @@ open class AppViewModel(
             driveStatus.collect { status ->
                 if (_awaitingEjectToCommit.value) {
                     val discGone = status is DriveStatus.Empty ||
+                                   status is DriveStatus.Open ||
                                    status is DriveStatus.NoDrive ||
                                    status is DriveStatus.Connecting
                     if (discGone) {
