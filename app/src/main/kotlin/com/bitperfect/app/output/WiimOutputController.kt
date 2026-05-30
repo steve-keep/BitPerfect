@@ -61,8 +61,8 @@ class WiimOutputController(
         pollingJob = scope.launch {
             while (isActive) {
                 try {
-                    val url = URL("https://${target.ipAddress}/httpapi.asp?command=getPlayerStatusEx")
-                    val conn = openTrustAllConnection(url.toString())
+                    val url = URL("http://${target.ipAddress}/httpapi.asp?command=getPlayerStatusEx")
+                    val conn = url.openConnection() as HttpURLConnection
                     conn.connectTimeout = 2000
                     conn.readTimeout = 2000
                     if (conn.responseCode == 200) {
@@ -150,7 +150,7 @@ class WiimOutputController(
         }
 
         httpServer?.stop()
-        httpServer = FlacHttpServer(context, wifiIp!!, trackList)
+        httpServer = FlacHttpServer(context, trackList)
         httpServer?.start(5000, false)
 
         val playlistUrl = "http://$wifiIp:${httpServer?.listeningPort}/playlist.m3u8"
@@ -368,7 +368,7 @@ class WiimOutputController(
 
     private fun sendLinkPlayCommand(command: String): Boolean {
         return try {
-            val conn = openTrustAllConnection("https://${target.ipAddress}/httpapi.asp?command=$command")
+            val conn = URL("http://${target.ipAddress}/httpapi.asp?command=$command").openConnection() as HttpURLConnection
             conn.connectTimeout = 3000
             conn.readTimeout = 3000
             val code = conn.responseCode
@@ -433,7 +433,7 @@ class WiimOutputController(
         return null
     }
 
-    private inner class FlacHttpServer(val context: Context, val ip: String, initialTrackList: List<TrackInfo>) : NanoHTTPD(ip, 0) {
+    private inner class FlacHttpServer(val context: Context, initialTrackList: List<TrackInfo>) : NanoHTTPD(0) {
 
         private val trackList = java.util.concurrent.CopyOnWriteArrayList(initialTrackList)
 
@@ -473,6 +473,7 @@ class WiimOutputController(
 
             if (uri == "/playlist.m3u8") {
                 val sb = StringBuilder("#EXTM3U\n")
+                val ip = wifiIp ?: "127.0.0.1"
                 for (track in trackList) {
                     val trackUrl = "http://$ip:$listeningPort/track/${track.id}.flac"
                     val duration = if (track.durationMs > 0) track.durationMs / 1000 else -1

@@ -52,8 +52,8 @@ class WiimOutputControllerTest {
         every { mockConnection.outputStream } returns mockk(relaxed = true)
         every { mockConnection.errorStream } returns null
 
-        mockkStatic("com.bitperfect.app.output.SslUtilsKt")
-        every { openTrustAllConnection(any()) } returns mockConnection
+        // Store current mockConnection in companion object so the static URLStreamHandlerFactory can use it
+        Companion.currentMockConnection = mockConnection
 
         // Mock getWifiIpAddress to return a dummy IP to avoid returning null and returning early
         every { controller["getWifiIpAddress"]() } returns "127.0.0.1"
@@ -65,6 +65,85 @@ class WiimOutputControllerTest {
     @After
     fun teardown() {
         unmockkAll()
+        Companion.currentMockConnection = null
+    }
+
+    companion object {
+        var currentMockConnection: HttpURLConnection? = null
+
+        var defaultHttpHandler: java.net.URLStreamHandler? = null
+
+        init {
+            // Retrieve default HTTP handler BEFORE setting the factory
+            try {
+                val dummy = java.net.URL("http://example.com")
+                val handlerField = java.net.URL::class.java.getDeclaredField("handler")
+                handlerField.isAccessible = true
+                defaultHttpHandler = handlerField.get(dummy) as java.net.URLStreamHandler
+            } catch (e: Exception) {
+                // Ignore
+            }
+
+            try {
+                java.net.URL.setURLStreamHandlerFactory { protocol ->
+                    if (protocol == "http") {
+                        object : java.net.URLStreamHandler() {
+                            override fun openConnection(u: java.net.URL): java.net.URLConnection {
+                                if (u.host == "192.168.1.100" && u.path.contains("httpapi.asp")) {
+                                    val mock = currentMockConnection
+                                    if (mock != null) return mock
+                                }
+                                val handler = defaultHttpHandler
+                                if (handler != null) {
+                                    try {
+                                        val m = java.net.URLStreamHandler::class.java.getDeclaredMethod("openConnection", java.net.URL::class.java)
+                                        m.isAccessible = true
+                                        return m.invoke(handler, u) as java.net.URLConnection
+                                    } catch (e: Exception) {
+                                        throw RuntimeException("Fallback connection failed for URL $u", e)
+                                    }
+                                }
+
+                                // On some JVMs, we can't extract the default HTTP handler reflectively due to modularity rules.
+                                // If defaultHttpHandler is null, we can do a naive socket GET just to make NanoHTTPD tests pass.
+                                if (u.host == "127.0.0.1") {
+                                    return object : java.net.HttpURLConnection(u) {
+                                        var content: ByteArray? = null
+                                        override fun connect() {}
+                                        override fun disconnect() {}
+                                        override fun usingProxy() = false
+                                        override fun getResponseCode() = 200
+                                        override fun getInputStream(): java.io.InputStream {
+                                            if (content == null) {
+                                                try {
+                                                    val socket = java.net.Socket(u.host, u.port)
+                                                    val req = "GET ${u.path} HTTP/1.0\r\nHost: ${u.host}\r\n\r\n"
+                                                    socket.outputStream.write(req.toByteArray())
+                                                    socket.outputStream.flush()
+                                                    val bytes = socket.inputStream.readBytes()
+                                                    socket.close()
+                                                    // strip HTTP headers
+                                                    val str = String(bytes)
+                                                    val body = str.substring(str.indexOf("\r\n\r\n") + 4)
+                                                    content = body.toByteArray()
+                                                } catch (e: Exception) {
+                                                    throw java.io.IOException(e)
+                                                }
+                                            }
+                                            return java.io.ByteArrayInputStream(content)
+                                        }
+                                    }
+                                }
+
+                                throw UnsupportedOperationException("Not mocked and no default handler: " + u)
+                            }
+                        }
+                    } else null
+                }
+            } catch (e: Error) {
+                // Ignore if already set
+            }
+        }
     }
 
     @Test
@@ -198,11 +277,8 @@ class WiimOutputControllerTest {
             }
         """.trimIndent()
 
-        val pollingConnection = mockk<HttpURLConnection>(relaxed = true)
-        every { pollingConnection.responseCode } returns 200
-        every { pollingConnection.inputStream } returns ByteArrayInputStream(mockJson.toByteArray())
-
-        every { openTrustAllConnection(match { it.contains("getPlayerStatusEx") }) } returns pollingConnection
+        // We need to re-configure the mockConnection stream for this specific test
+        every { mockConnection.inputStream } returns ByteArrayInputStream(mockJson.toByteArray())
 
         // Call private startPolling via reflection
         controller.javaClass.getDeclaredMethod("startPolling").apply {
