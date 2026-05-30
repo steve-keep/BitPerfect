@@ -1094,6 +1094,8 @@ class RipManager(
         input
             .replace('\u2018', '\'').replace('\u2019', '\'').replace('\u0060', '\'')
             .replace('\u201C', '"').replace('\u201D', '"')
+            .replace('\u2010', '-').replace('\u2011', '-').replace('\u2012', '-')
+            .replace('\u2013', '-').replace('\u2014', '-')
             .trim()
 
     private fun writeAccurateRipJsonl(albumDir: DocumentFile?, state: TrackRipState) {

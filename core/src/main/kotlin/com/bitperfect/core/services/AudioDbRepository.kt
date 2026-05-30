@@ -41,9 +41,17 @@ class AudioDbRepository() {
     suspend fun fetchArtist(artistName: String): String? = withContext(Dispatchers.IO) {
         try {
             AppLogger.d(TAG, "Fetching artist data for: $artistName")
+
+            val normalisedName = artistName
+                .replace('\u2010', '-')
+                .replace('\u2011', '-')
+                .replace('\u2012', '-')
+                .replace('\u2013', '-')
+                .replace('\u2014', '-')
+
             val url = "https://www.theaudiodb.com/api/v1/json/2/search.php"
             val httpResponse = client.get(url) {
-                parameter("s", artistName)
+                parameter("s", normalisedName)
             }
 
             AppLogger.d(TAG, "HTTP ${httpResponse.status.value}")
