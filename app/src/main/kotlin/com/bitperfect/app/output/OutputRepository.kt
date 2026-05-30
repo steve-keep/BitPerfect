@@ -143,6 +143,10 @@ open class OutputRepository(
         activeController.appendToQueue(track)
     }
 
+    open suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
+        activeController.appendAlbumToQueue(tracks)
+    }
+
     open suspend fun insertNextInQueue(track: TrackInfo) {
         activeController.insertNextInQueue(track)
     }
