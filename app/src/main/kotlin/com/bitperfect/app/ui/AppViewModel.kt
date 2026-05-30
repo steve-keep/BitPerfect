@@ -1079,7 +1079,21 @@ open class AppViewModel(
     }
 
     fun moveQueueItem(currentIndex: Int, newIndex: Int) {
-        playerRepository.moveMediaItem(currentIndex, newIndex)
+        if (currentIndex == newIndex) return
+
+        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
+        if (isWiim) {
+            val mutable = _playingTracks.value.toMutableList()
+            if (currentIndex !in mutable.indices || newIndex !in mutable.indices) return
+            val track = mutable.removeAt(currentIndex)
+            mutable.add(newIndex, track)
+            _playingTracks.value = mutable
+            viewModelScope.launch {
+                outputRepository.reorderQueue(currentIndex, newIndex)
+            }
+        } else {
+            playerRepository.moveMediaItem(currentIndex, newIndex)
+        }
     }
 
     fun togglePlayPause() {

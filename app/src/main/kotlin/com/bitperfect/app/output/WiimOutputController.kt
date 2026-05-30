@@ -322,6 +322,19 @@ class WiimOutputController(
         }
     }
 
+    override suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        val server = httpServer ?: return
+        val ip = wifiIp ?: return
+
+        server.moveTrack(fromIndex, toIndex)
+
+        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+        }
+    }
+
     override suspend fun release() {
         stopPolling()
         withContext(Dispatchers.IO) {
@@ -427,6 +440,14 @@ class WiimOutputController(
         fun insertTracksAfterIndex(tracks: List<TrackInfo>, afterIndex: Int) {
             val insertAt = (afterIndex + 1).coerceIn(0, trackList.size)
             trackList.addAll(insertAt, tracks)
+        }
+
+        fun moveTrack(fromIndex: Int, toIndex: Int) {
+            if (fromIndex == toIndex) return
+            val from = fromIndex.coerceIn(0, trackList.size - 1)
+            val to = toIndex.coerceIn(0, trackList.size - 1)
+            val track = trackList.removeAt(from)
+            trackList.add(to, track)
         }
 
         override fun serve(session: IHTTPSession): Response {

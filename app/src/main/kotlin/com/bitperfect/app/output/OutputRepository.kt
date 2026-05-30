@@ -155,6 +155,10 @@ open class OutputRepository(
         activeController.insertAlbumNextInQueue(tracks)
     }
 
+    open suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        activeController.reorderQueue(fromIndex, toIndex)
+    }
+
     open suspend fun setVolume(volume: Int) {
         val controller = activeController
         if (controller is WiimOutputController) {
