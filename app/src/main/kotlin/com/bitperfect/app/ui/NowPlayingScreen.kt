@@ -182,13 +182,13 @@ fun NowPlayingScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        itemsIndexed(upcomingItems, key = { _, item -> item.mediaMetadata.extras?.getString("queue_uid") ?: System.identityHashCode(item) }) { index, item ->
+                        itemsIndexed(upcomingItems, key = { index, item -> "${item.id}_$index" }) { index, item ->
                             val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
                             val buttonWidthDp = 88.dp
                             val buttonWidthPx = with(density) { buttonWidthDp.toPx() }
                             val offsetX = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
 
-                            ReorderableItem(reorderState, key = item.mediaMetadata.extras?.getString("queue_uid") ?: System.identityHashCode(item)) { isDragging ->
+                            ReorderableItem(reorderState, key = "${item.id}_$index") { isDragging ->
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -256,7 +256,9 @@ fun NowPlayingScreen(
                                             },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                            val artworkUri = item.mediaMetadata.artworkUri
+                                            val artworkUri = if (item.albumId != -1L)
+                                                ContentUris.withAppendedId(android.net.Uri.parse("content://media/external/audio/albumart"), item.albumId)
+                                            else null
                                             if (artworkUri != null) {
                                                 AsyncImage(
                                                     model = ImageRequest.Builder(LocalContext.current)
@@ -288,14 +290,14 @@ fun NowPlayingScreen(
                                             Spacer(modifier = Modifier.width(16.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
-                                                    text = item.mediaMetadata.title?.toString() ?: "Unknown",
+                                                    text = item.title,
                                                     style = MaterialTheme.typography.bodyLarge,
                                                     color = Color.White,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
-                                                    text = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
+                                                    text = item.artist,
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = Color.White.copy(alpha = 0.5f),
                                                     maxLines = 1,
