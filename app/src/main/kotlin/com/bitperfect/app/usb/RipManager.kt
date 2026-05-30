@@ -299,6 +299,7 @@ class RipManager(
 
                 val chunkSize = 16 // read ~16 sectors at a time
                 val overlapSize = 6
+                AppLogger.d("RipManager", "[US-014] Atomic read sizing configured. ChunkSize=$chunkSize sectors, Overlap=$overlapSize sectors")
                 require(chunkSize > overlapSize) { "chunkSize must be greater than overlapSize" }
                 var advanceSize = chunkSize - overlapSize
 
@@ -398,7 +399,16 @@ class RipManager(
 
                             if (match) {
                                 AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize} confidence=HIGH")
+                                val fpWasEligible = fastPathEvaluator.state.eligible
                                 fastPathEvaluator.reportMatch(currentChunkConfidence)
+                                if (!fpWasEligible && fastPathEvaluator.state.eligible) {
+                                    logger.record(RipLogEvent.FastPathStateChanged(trackNumber, true))
+                                }
+                                logger.record(RipLogEvent.ReadConsistencyScored(
+                                    trackNumber = trackNumber,
+                                    lbaStart = currentChunk.startLba,
+                                    score = 1.0f
+                                ))
                                 committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
 
                                 val trimmedSamples = (pChunk.pcm.size - committedPcm.size) / 4
@@ -412,7 +422,11 @@ class RipManager(
                                     lbaStart = currentChunk.startLba,
                                     lbaEnd = pChunk.endLba
                                 ))
+                                val fpWasEligible2 = fastPathEvaluator.state.eligible
                                 fastPathEvaluator.reportMismatch()
+                                if (fpWasEligible2 && !fastPathEvaluator.state.eligible) {
+                                    logger.record(RipLogEvent.FastPathStateChanged(trackNumber, false, "OverlapMismatch"))
+                                }
 
                                 val recoveryResult = recoveryCoordinator.recover(
                                     previousVerifiedChunk = pChunk,
@@ -451,6 +465,23 @@ class RipManager(
                                         lbaEnd = currentChunk.endLba,
                                         strategy = metadata.strategy
                                     ))
+                                    val winSize = (metadata.recoveryWindowEndLba ?: metadata.recoveryWindowStartLba ?: 0) - (metadata.recoveryWindowStartLba ?: 0)
+                                    if (winSize > 0) {
+                                        logger.record(RipLogEvent.TargetedSectorRecoveryLogged(
+                                            trackNumber = trackNumber,
+                                            lbaStart = metadata.recoveryWindowStartLba ?: currentChunk.startLba,
+                                            sectorCount = winSize,
+                                            strategy = metadata.strategy
+                                        ))
+                                    }
+                                    if (metadata.driftEvent != null) {
+                                        logger.record(RipLogEvent.ReadDriftDetected(
+                                            trackNumber = trackNumber,
+                                            lbaStart = currentChunk.startLba,
+                                            shiftSamples = metadata.driftEvent.shiftSamples,
+                                            confidence = metadata.driftEvent.confidence.name
+                                        ))
+                                    }
                                     for (i in 0 until metadata.rereadAttempts) {
                                         metricsCollector.recordRereadEscalation(chunkSize)
                                     }
@@ -523,6 +554,14 @@ class RipManager(
                                     if (comparisonHistory.stableCandidate != null) {
                                         AppLogger.d("RipManager", "[US-003] Stable candidate converged after attempt ${comparisonHistory.stableCandidate.firstSeenAttempt}")
                                     }
+                                    logger.record(RipLogEvent.MultiPassComparisonCompleted(
+                                        trackNumber = trackNumber,
+                                        lbaStart = currentChunk.startLba,
+                                        totalAttempts = comparisonHistory.totalAttempts,
+                                        uniqueCandidates = comparisonHistory.uniqueCandidates,
+                                        instabilityType = comparisonHistory.instabilityType.name,
+                                        resolved = comparisonHistory.stableCandidate != null
+                                    ))
                                 }
 
                                 currentChunkConfidence = confidenceEvaluator.evaluateChunkConfidence(
@@ -532,6 +571,17 @@ class RipManager(
                                     driftEvent = suspiciousRead.driftEvent,
                                     instabilityType = comparisonHistory?.instabilityType
                                 )
+
+                                logger.record(RipLogEvent.ReadConsistencyScored(
+                                    trackNumber = trackNumber,
+                                    lbaStart = currentChunk.startLba,
+                                    score = when (currentChunkConfidence) {
+                                        RipConfidence.HIGH -> 1.0f
+                                        RipConfidence.MEDIUM -> 0.5f
+                                        RipConfidence.LOW -> 0.0f
+                                        RipConfidence.DAMAGED -> 0.0f
+                                    }
+                                ))
 
                                 currentChunk = when (recoveryResult) {
                                     is RereadRecoveryResult.Recovered -> recoveryResult.chunk
@@ -574,11 +624,22 @@ class RipManager(
                             val preAlignmentConfidence = trackConfidence
                             trackConfidence = confidenceEvaluator.evaluateAlignmentConfidence(trackConfidence, alignmentResult)
 
+                            val fpWasEligible3 = fastPathEvaluator.state.eligible
                             if (trackConfidence != preAlignmentConfidence) {
                                 fastPathEvaluator.reportConfidenceDowngrade()
                             }
                             if (alignmentResult.anomalies.isNotEmpty()) {
                                 fastPathEvaluator.reportAnomaly()
+                            }
+                            if (fpWasEligible3 && !fastPathEvaluator.state.eligible) {
+                                logger.record(RipLogEvent.FastPathStateChanged(trackNumber, false, "AlignmentAnomaly/Downgrade"))
+                            }
+
+                            if (alignmentResult.anomalies.isEmpty()) {
+                                logger.record(RipLogEvent.SampleAlignmentValidated(
+                                    trackNumber = trackNumber,
+                                    valid = true
+                                ))
                             }
 
                             for (anomaly in alignmentResult.anomalies) {
@@ -587,20 +648,44 @@ class RipManager(
                                         AppLogger.w("RipManager", "[US-018] Duplicate samples detected")
                                         AppLogger.w("RipManager", "[US-018] SampleCount=${anomaly.sampleCount}")
                                         AppLogger.w("RipManager", "[US-018] BoundaryOffset=${anomaly.boundaryOffset}")
+                                        logger.record(RipLogEvent.SampleAlignmentValidated(
+                                            trackNumber = trackNumber,
+                                            valid = false,
+                                            anomalyType = "DuplicateSamples",
+                                            sampleCount = anomaly.sampleCount
+                                        ))
                                     }
                                     is AlignmentIssue.DroppedSamples -> {
                                         AppLogger.w("RipManager", "[US-018] Dropped samples detected")
                                         AppLogger.w("RipManager", "[US-018] SampleCount=${anomaly.sampleCount}")
                                         AppLogger.w("RipManager", "[US-018] BoundaryOffset=${anomaly.boundaryOffset}")
+                                        logger.record(RipLogEvent.SampleAlignmentValidated(
+                                            trackNumber = trackNumber,
+                                            valid = false,
+                                            anomalyType = "DroppedSamples",
+                                            sampleCount = anomaly.sampleCount
+                                        ))
                                     }
                                     is AlignmentIssue.InvalidOverlapTrim -> {
                                         AppLogger.w("RipManager", "[US-018] Invalid overlap trim")
                                         AppLogger.w("RipManager", "[US-018] ExpectedTrim=${anomaly.expectedTrimSamples}")
                                         AppLogger.w("RipManager", "[US-018] ActualTrim=${anomaly.actualTrimSamples}")
+                                        logger.record(RipLogEvent.SampleAlignmentValidated(
+                                            trackNumber = trackNumber,
+                                            valid = false,
+                                            anomalyType = "InvalidOverlapTrim",
+                                            expectedTrim = anomaly.expectedTrimSamples,
+                                            actualTrim = anomaly.actualTrimSamples
+                                        ))
                                     }
                                     is AlignmentIssue.BoundaryDiscontinuity -> {
                                         AppLogger.w("RipManager", "[US-018] Boundary discontinuity")
                                         AppLogger.w("RipManager", "[US-018] MismatchOffset=${anomaly.mismatchSampleOffset}")
+                                        logger.record(RipLogEvent.SampleAlignmentValidated(
+                                            trackNumber = trackNumber,
+                                            valid = false,
+                                            anomalyType = "BoundaryDiscontinuity"
+                                        ))
                                     }
                                 }
                             }

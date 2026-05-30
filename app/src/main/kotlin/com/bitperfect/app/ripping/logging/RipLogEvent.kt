@@ -84,4 +84,48 @@ sealed interface RipLogEvent {
     data class SessionCompleted(
         val success: Boolean
     ) : RipLogEvent
+
+    data class FastPathStateChanged(
+        val trackNumber: Int,
+        val enabled: Boolean,
+        val reason: String? = null
+    ) : RipLogEvent
+
+    data class SampleAlignmentValidated(
+        val trackNumber: Int,
+        val valid: Boolean,
+        val anomalyType: String? = null,
+        val expectedTrim: Int? = null,
+        val actualTrim: Int? = null,
+        val sampleCount: Int? = null
+    ) : RipLogEvent
+
+    data class ReadDriftDetected(
+        val trackNumber: Int,
+        val lbaStart: Int,
+        val shiftSamples: Int,
+        val confidence: String
+    ) : RipLogEvent
+
+    data class MultiPassComparisonCompleted(
+        val trackNumber: Int,
+        val lbaStart: Int,
+        val totalAttempts: Int,
+        val uniqueCandidates: Int,
+        val instabilityType: String,
+        val resolved: Boolean
+    ) : RipLogEvent
+
+    data class ReadConsistencyScored(
+        val trackNumber: Int,
+        val lbaStart: Int,
+        val score: Float
+    ) : RipLogEvent
+
+    data class TargetedSectorRecoveryLogged(
+        val trackNumber: Int,
+        val lbaStart: Int,
+        val sectorCount: Int,
+        val strategy: String
+    ) : RipLogEvent
 }

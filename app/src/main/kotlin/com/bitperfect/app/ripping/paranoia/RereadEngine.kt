@@ -39,6 +39,8 @@ class RereadEngine(
             if (currentAttempt != null) {
                 val matchedPrevious = previousRereadCandidate != null && isStableCandidate(previousRereadCandidate, currentAttempt)
 
+                AppLogger.d("RereadEngine", "[US-002] Deterministic reread comparison. Attempt=$attempt MatchedPrevious=$matchedPrevious")
+
                 val crc = CRC32()
                 crc.update(currentAttempt.pcm)
 
