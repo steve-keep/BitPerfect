@@ -45,7 +45,7 @@ class ReadCdCommand(
         buffer.put(0)                // Reserved
 
         // Send CBW
-        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 15000)
         if (transferred < 0) {
             AppLogger.e(TAG, "Failed to send CBW for READ CD")
             return null
@@ -53,7 +53,7 @@ class ReadCdCommand(
 
         // Read Audio Data
         val audioData = ByteArray(transferLength)
-        val totalRead = transport.bulkTransferFully(inEndpoint, audioData, transferLength, 5000)
+        val totalRead = transport.bulkTransferFully(inEndpoint, audioData, transferLength, 15000)
 
         val remainder = totalRead % 2352
         if (totalRead <= 0 || remainder != 0) {
@@ -63,7 +63,7 @@ class ReadCdCommand(
 
         // Read CSW (Command Status Wrapper)
         val csw = ByteArray(13)
-        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
+        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 15000)
         if (transferred < 0) {
             AppLogger.e(TAG, "Failed to read CSW for READ CD")
             return null
