@@ -170,6 +170,7 @@ class RipManager(
         }
 
         val metricsCollector = ReadSizeMetricsCollector()
+        val allStreamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
 
         launch {
             try {
@@ -223,6 +224,16 @@ class RipManager(
             if (isCancelled) break
 
             val trackNumber = trackQueue.poll() ?: break
+
+            // Track Statistics
+            var trackChunksRead = 0
+            var trackOverlapVerifications = 0
+            var trackOverlapFailures = 0
+            var trackAlignmentChecks = 0
+            var trackDriftEvents = 0
+            var trackRecoveryWindows = 0
+            var trackEscalations = 0
+            var trackFastPathChunks = 0
 
             val i = trackNumber - 1
             if (i < 0 || i >= toc.tracks.size) continue
@@ -314,6 +325,7 @@ class RipManager(
                 val fastPathEvaluator = com.bitperfect.app.ripping.paranoia.fastpath.FastPathEvaluator()
                 val streamingBehaviorAnalyzer = com.bitperfect.app.ripping.streaming.DefaultStreamingBehaviorAnalyzer()
                 val streamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
+
                 var wasPreviousReadRecovery = false
 
                 var pendingChunk: VerifiedChunk? = null
@@ -396,10 +408,12 @@ class RipManager(
                         if (pendingChunk != null) {
                             val pChunk = pendingChunk!!
                             val match = overlapVerifier.verifyOverlap(pChunk.overlapTail, currentChunk.overlapHead)
+                            trackOverlapVerifications++
 
                             if (match) {
                                 AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize} confidence=HIGH")
                                 val fpWasEligible = fastPathEvaluator.state.eligible
+                                trackFastPathChunks++
                                 fastPathEvaluator.reportMatch(currentChunkConfidence)
                                 if (!fpWasEligible && fastPathEvaluator.state.eligible) {
                                     logger.record(RipLogEvent.FastPathStateChanged(trackNumber, true))
@@ -415,6 +429,7 @@ class RipManager(
                                 totalOverlapTrimmedSamples += trimmedSamples
                                 expectedTotalOverlapTrimmedSamples += overlapVerifier.overlapSizeBytes / 4
                             } else {
+                                trackOverlapFailures++
                                 metricsCollector.recordOverlapFailure(chunkSize)
                                 AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
                                 logger.record(RipLogEvent.OverlapMismatchDetected(
@@ -428,6 +443,7 @@ class RipManager(
                                     logger.record(RipLogEvent.FastPathStateChanged(trackNumber, false, "OverlapMismatch"))
                                 }
 
+                                trackRecoveryWindows++
                                 val recoveryResult = recoveryCoordinator.recover(
                                     previousVerifiedChunk = pChunk,
                                     failedChunk = currentChunk,
@@ -475,6 +491,7 @@ class RipManager(
                                         ))
                                     }
                                     if (metadata.driftEvent != null) {
+                                        trackDriftEvents++
                                         logger.record(RipLogEvent.ReadDriftDetected(
                                             trackNumber = trackNumber,
                                             lbaStart = currentChunk.startLba,
@@ -483,6 +500,7 @@ class RipManager(
                                         ))
                                     }
                                     for (i in 0 until metadata.rereadAttempts) {
+                                        trackEscalations++
                                         metricsCollector.recordRereadEscalation(chunkSize)
                                     }
                                     totalAttempts += metadata.rereadAttempts
@@ -628,6 +646,7 @@ class RipManager(
                             if (trackConfidence != preAlignmentConfidence) {
                                 fastPathEvaluator.reportConfidenceDowngrade()
                             }
+                            trackAlignmentChecks++
                             if (alignmentResult.anomalies.isNotEmpty()) {
                                 fastPathEvaluator.reportAnomaly()
                             }
@@ -829,6 +848,8 @@ class RipManager(
                     }
                 }
 
+                allStreamingReads.addAll(streamingReads)
+
                 val streamingResult = streamingBehaviorAnalyzer.analyze(streamingReads)
                 if (streamingResult.classification != com.bitperfect.app.ripping.streaming.StreamingClassification.STABLE_STREAMING) {
                     AppLogger.d("StreamingBehaviorAnalyzer", "Sequential instability detected")
@@ -1005,7 +1026,17 @@ class RipManager(
                     suspiciousReads = currentState.suspiciousRegions.size,
                     status = currentState.status,
                     accurateRipStatus = if (currentState.status == RipStatus.SUCCESS) "VERIFIED" else if (currentState.expectedChecksums.isNotEmpty()) "MISMATCH" else "NOT_IN_DB",
-                    durationSeconds = currentState.durationSeconds
+                    durationSeconds = currentState.durationSeconds,
+                    summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
+                        chunksRead = trackChunksRead,
+                        overlapVerifications = trackOverlapVerifications,
+                        overlapFailures = trackOverlapFailures,
+                        alignmentChecks = trackAlignmentChecks,
+                        driftEvents = trackDriftEvents,
+                        recoveryWindows = trackRecoveryWindows,
+                        escalations = trackEscalations,
+                        fastPathChunks = trackFastPathChunks
+                    )
                 ))
             }
         }
@@ -1020,10 +1051,26 @@ class RipManager(
                 .mapNotNull { it.cacheProbeResult }
                 .lastOrNull()
 
+            val streamingBehaviorAnalyzer = com.bitperfect.app.ripping.streaming.DefaultStreamingBehaviorAnalyzer()
+            val globalStreamingResult = streamingBehaviorAnalyzer.analyze(allStreamingReads)
+
+            val driveProfiler = com.bitperfect.app.ripping.capability.DefaultDriveProfiler()
+            val driveInfo = DeviceStateManager.driveStatus.value.info ?: com.bitperfect.app.usb.DriveInfo(
+                vendor = driveVendor,
+                model = driveProduct,
+                firmware = null,
+                isOptical = true
+            )
+
+            val finalProfile = driveProfiler.buildProfile(
+                driveInfo = driveInfo,
+                cacheProbeResult = cacheProbeResult,
+                streamingAnalysisResult = globalStreamingResult,
+                readSizeProfile = profile
+            )
+
             logger.record(RipLogEvent.DriveAnalysisCompleted(
-                cacheStatus = cacheProbeResult?.status,
-                streamingClassification = null, // Defer if not easily accessible at session scope
-                preferredReadSize = profile.preferredReadSize
+                profile = finalProfile
             ))
 
             logger.record(RipLogEvent.SessionCompleted(success = true))

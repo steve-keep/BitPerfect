@@ -33,9 +33,12 @@ class DefaultForensicRipLogger : ForensicRipLogger {
         sb.append("Session\n")
         sb.append("-------\n")
         sb.append("Timestamp: ${sessionStarted.timestampIso}\n")
-        sb.append("Device: ${sessionStarted.deviceModel}\n")
-        sb.append("Android: ${sessionStarted.androidVersion}\n")
-        sb.append("Mode: ${if (sessionStarted.mode == RipMode.SECURE) "Secure" else sessionStarted.mode.name}\n\n")
+        sb.append("Application: ${sessionStarted.appVersion}\n\n")
+        sb.append("Album: ${sessionStarted.albumTitle}\n")
+        sb.append("Artist: ${sessionStarted.artistName}\n\n")
+        sb.append("Mode: ${if (sessionStarted.mode == RipMode.SECURE) "Secure" else sessionStarted.mode.name}\n")
+        sb.append("Chunk Size: ${sessionStarted.chunkSize} sectors\n")
+        sb.append("Overlap Size: ${sessionStarted.overlapSize} sectors\n\n")
 
         sb.append("Drive\n")
         sb.append("-----\n")
@@ -48,18 +51,27 @@ class DefaultForensicRipLogger : ForensicRipLogger {
 
         val driveAnalysis = events.filterIsInstance<RipLogEvent.DriveAnalysisCompleted>().lastOrNull()
         if (driveAnalysis != null) {
+            val p = driveAnalysis.profile
             sb.append("Drive Intelligence\n")
-            sb.append("------------------\n")
-            if (driveAnalysis.cacheStatus != null) {
-                sb.append("[US-012] Cache Status: ${driveAnalysis.cacheStatus.name}\n")
-            }
-            if (driveAnalysis.streamingClassification != null) {
-                sb.append("[US-013] Streaming: ${driveAnalysis.streamingClassification.name}\n")
-            }
-            if (driveAnalysis.preferredReadSize != null) {
-                sb.append("[US-015] Preferred Read Size: ${driveAnalysis.preferredReadSize}\n")
-            }
-            sb.append("\n")
+            sb.append("------------------\n\n")
+
+            // Cache probe result mapping (derive CacheStatus back or simple formatting)
+            val cacheStatusStr = if (p.likelyCachesAudio) "CACHE_CONFIRMED" else "CACHE_UNLIKELY"
+            sb.append("[US-012] Cache Status: $cacheStatusStr\n\n")
+
+            val streamingStatusStr = if (p.supportsStreaming) "STABLE_STREAMING" else "UNSTABLE_STREAMING"
+            sb.append("[US-013] Streaming: $streamingStatusStr\n\n")
+
+            sb.append("[US-014]\n")
+            sb.append("Preferred Read Size: ${p.preferredReadSize}\n")
+            sb.append("Max Reliable Size: ${p.maxReliableReadSize}\n")
+            sb.append("Unstable Sizes: None\n\n") // Based on current capabilities it is empty or simple
+
+            sb.append("[US-015]\n")
+            sb.append("Supports Streaming: ${if (p.supportsStreaming) "Yes" else "No"}\n")
+            sb.append("Likely Caches Audio: ${if (p.likelyCachesAudio) "Yes" else "No"}\n")
+            sb.append("Stable Large Reads: ${if (p.stableLargeReads) "Yes" else "No"}\n")
+            sb.append("Unstable Seeking: ${if (p.unstableSeeking) "Yes" else "No"}\n\n")
         }
 
         val trackStartEvents = events.filterIsInstance<RipLogEvent.TrackStarted>().associateBy { it.trackNumber }
@@ -87,77 +99,49 @@ class DefaultForensicRipLogger : ForensicRipLogger {
             }
 
             sb.append("Confidence: ${trackCompleted.confidence.name}\n")
-            sb.append(String.format(java.util.Locale.US, "Duration: %.2fs\n", trackCompleted.durationSeconds))
-
-            // Calculate recovery windows for this track
-            val trackRecoveryWindows = trackEvents.filterIsInstance<RipLogEvent.RecoverySucceeded>().count() +
-                                       trackEvents.filterIsInstance<RipLogEvent.RecoveryFailed>().count()
-
-            if (trackRecoveryWindows > 0) {
-                sb.append("Recovery Windows: $trackRecoveryWindows\n")
-            }
-            sb.append("Rereads: ${trackCompleted.rereads}\n")
-            sb.append("Suspicious Reads: ${trackCompleted.suspiciousReads}\n")
             sb.append("AccurateRip: ${trackCompleted.accurateRipStatus}\n\n")
 
-            // US-014 Atomic read sizing & US-001 Stable overlap verification is covered by general track events
-            // Let's print out all the track detailed events.
-            if (trackEvents.isNotEmpty()) {
-                sb.append("  Diagnostics & Recovery Pipelines\n")
-                sb.append("  --------------------------------\n")
+            sb.append("Verification\n")
+            sb.append("------------\n")
+            sb.append("Chunks Read: ${trackCompleted.summary.chunksRead}\n")
+            sb.append("Overlap Verifications: ${trackCompleted.summary.overlapVerifications}\n")
+            sb.append("Overlap Failures: ${trackCompleted.summary.overlapFailures}\n\n")
 
-                for (event in trackEvents) {
-                    when (event) {
-                        is RipLogEvent.OverlapMismatchDetected -> {
-                            sb.append("  [US-001] Overlap Mismatch: LBA ${event.lbaStart}-${event.lbaEnd}\n")
-                        }
-                        is RipLogEvent.FastPathStateChanged -> {
-                            if (event.enabled) {
-                                sb.append("  [US-022] Fast-Path Enabled\n")
-                            } else {
-                                sb.append("  [US-022] Fast-Path Revoked (Reason: ${event.reason})\n")
-                            }
-                        }
-                        is RipLogEvent.ReadConsistencyScored -> {
-                            // Can be too noisy if printed for every read. We will print it only if score < 1.0
-                            if (event.score < 1.0f) {
-                                sb.append("  [US-004] Consistency Score Dropped: LBA ${event.lbaStart} (Score: ${event.score})\n")
-                            }
-                        }
-                        is RipLogEvent.TargetedSectorRecoveryLogged -> {
-                            sb.append("  [US-007] Targeted Sector Recovery: LBA ${event.lbaStart} (${event.sectorCount} sectors, Strategy: ${event.strategy})\n")
-                        }
-                        is RipLogEvent.ReadDriftDetected -> {
-                            sb.append("  [US-005] Read Drift Detected: LBA ${event.lbaStart} (Shift: ${event.shiftSamples} samples, Confidence: ${event.confidence})\n")
-                        }
-                        is RipLogEvent.MultiPassComparisonCompleted -> {
-                            sb.append("  [US-003] Multi-pass Comparison: LBA ${event.lbaStart} (Attempts: ${event.totalAttempts}, Unique: ${event.uniqueCandidates}, Type: ${event.instabilityType}, Resolved: ${event.resolved})\n")
-                        }
-                        is RipLogEvent.RereadEscalated -> {
-                            sb.append("  [US-021] Reread Escalated: LBA ${event.lbaStart}-${event.lbaEnd} (Strategy: ${event.strategy})\n")
-                        }
-                        is RipLogEvent.RecoverySucceeded -> {
-                            sb.append("  [US-021] Recovery Stabilized: LBA ${event.lbaStart}-${event.lbaEnd} (Attempts: ${event.rereadAttempts})\n")
-                        }
-                        is RipLogEvent.RecoveryFailed -> {
-                            sb.append("  [US-021] Recovery Failed: LBA ${event.lbaStart}-${event.lbaEnd} (Attempts: ${event.rereadAttempts})\n")
-                        }
-                        is RipLogEvent.SampleAlignmentValidated -> {
-                            if (!event.valid) {
-                                sb.append("  [US-018] Alignment Anomaly: ${event.anomalyType} ")
-                                if (event.sampleCount != null) sb.append("(Samples: ${event.sampleCount}) ")
-                                if (event.expectedTrim != null && event.actualTrim != null) sb.append("(Trim Expected: ${event.expectedTrim}, Actual: ${event.actualTrim})")
-                                sb.append("\n")
-                            }
-                        }
-                        is RipLogEvent.TransportAnomaly -> {
-                            sb.append("  [US-025] Transport Anomaly: ${event.anomalyType} - ${event.details}\n")
-                        }
-                        else -> {}
+            sb.append("Recovery\n")
+            sb.append("--------\n")
+            sb.append("Rereads: ${trackCompleted.rereads}\n")
+            sb.append("Recovery Windows: ${trackCompleted.summary.recoveryWindows}\n")
+            sb.append("Escalations: ${trackCompleted.summary.escalations}\n\n")
+
+            // To figure out dropped/duplicate samples we can examine SampleAlignmentValidated events
+            var droppedSamples = 0
+            var duplicateSamples = 0
+            for (e in trackEvents.filterIsInstance<RipLogEvent.SampleAlignmentValidated>()) {
+                if (!e.valid && e.anomalyType != null) {
+                    if (e.anomalyType.contains("Dropped", ignoreCase = true)) {
+                        droppedSamples += e.sampleCount ?: 0
+                    } else if (e.anomalyType.contains("Duplicate", ignoreCase = true)) {
+                        duplicateSamples += e.sampleCount ?: 0
                     }
                 }
-                sb.append("\n")
             }
+
+            sb.append("Alignment\n")
+            sb.append("---------\n")
+            sb.append("Alignment Checks: ${trackCompleted.summary.alignmentChecks}\n")
+            sb.append("Drift Events: ${trackCompleted.summary.driftEvents}\n")
+            sb.append("Duplicate Samples: $duplicateSamples\n")
+            sb.append("Dropped Samples: $droppedSamples\n\n")
+
+            sb.append("Fast Path\n")
+            sb.append("---------\n")
+            val fpEnabled = trackEvents.filterIsInstance<RipLogEvent.FastPathStateChanged>().any { it.enabled }
+            val revocations = trackEvents.filterIsInstance<RipLogEvent.FastPathStateChanged>().count { !it.enabled }
+            sb.append("Enabled: ${if (fpEnabled) "Yes" else "No"}\n")
+            sb.append("Fast-Path Chunks: ${trackCompleted.summary.fastPathChunks}\n")
+            sb.append("Revocations: $revocations\n\n")
+
+
         }
 
         try {

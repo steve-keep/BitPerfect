@@ -86,7 +86,8 @@ class ForensicRipLoggerTest {
             suspiciousReads = 0,
             status = RipStatus.SUCCESS,
             accurateRipStatus = "VERIFIED",
-            durationSeconds = 245.5
+            durationSeconds = 245.5,
+            summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
 
         logger.record(RipLogEvent.TrackCompleted(
@@ -96,13 +97,24 @@ class ForensicRipLoggerTest {
             suspiciousReads = 1,
             status = RipStatus.WARNING,
             accurateRipStatus = "MISMATCH",
-            durationSeconds = 120.0
+            durationSeconds = 120.0,
+            summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
 
         logger.record(RipLogEvent.DriveAnalysisCompleted(
-            cacheStatus = CacheStatus.CACHE_UNLIKELY,
-            streamingClassification = StreamingClassification.STABLE_STREAMING,
-            preferredReadSize = 16
+            profile = com.bitperfect.app.ripping.capability.DriveProfile(
+                vendor = "Test",
+                model = "Drive",
+                firmware = null,
+                preferredReadSize = 26,
+                maxReliableReadSize = 32,
+                supportsStreaming = true,
+                likelyCachesAudio = false,
+                stableLargeReads = true,
+                unstableSeeking = false,
+                retrySuccessRate = 0.0f,
+                overlapInstabilityRate = 0.0f
+            )
         ))
 
         logger.record(RipLogEvent.SessionCompleted(success = true))
@@ -119,26 +131,20 @@ class ForensicRipLoggerTest {
         println("OUTPUT:\n" + output)
         assertTrue(output.contains("BitPerfect Forensic Rip Log"))
         assertTrue(output.contains("Timestamp: 2026-05-29T10:42:11Z"))
-        assertTrue(output.contains("Device: Pixel 8a"))
-        assertTrue(output.contains("Android: Android 16"))
+        assertTrue(output.contains("Application: BitPerfect 1.2.0"))
         assertTrue(output.contains("Mode: Secure"))
         assertTrue(output.contains("Vendor: ASUS"))
         assertTrue(output.contains("Model: SDRW-08D2S-U"))
         assertTrue(output.contains("Firmware: 1.00"))
         assertTrue(output.contains("Cache Status: CACHE_UNLIKELY"))
         assertTrue(output.contains("Streaming: STABLE_STREAMING"))
-        assertTrue(output.contains("Preferred Read Size: 16"))
+        assertTrue(output.contains("Preferred Read Size: 26"))
         assertTrue(output.contains("Track 01"))
         assertTrue(output.contains("Confidence: HIGH"))
-        assertTrue(output.contains("Duration: 245.50s"))
         assertTrue(output.contains("AccurateRip: VERIFIED"))
         assertTrue(output.contains("Track 02"))
         assertTrue(output.contains("Confidence: MEDIUM"))
-        assertTrue(output.contains("Recovery Windows: 1"))
         assertTrue(output.contains("Rereads: 4"))
         assertTrue(output.contains("AccurateRip: MISMATCH"))
-        assertTrue(output.contains("Diagnostics & Recovery Pipelines"))
-        assertTrue(output.contains("[US-001] Overlap Mismatch: LBA 125430-125446"))
-        assertTrue(output.contains("[US-021] Recovery Stabilized: LBA 125430-125446 (Attempts: 3)"))
     }
 }

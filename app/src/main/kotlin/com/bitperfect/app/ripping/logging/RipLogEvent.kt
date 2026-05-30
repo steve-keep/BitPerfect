@@ -28,9 +28,7 @@ sealed interface RipLogEvent {
     ) : RipLogEvent
 
     data class DriveAnalysisCompleted(
-        val cacheStatus: CacheStatus?,
-        val streamingClassification: StreamingClassification?,
-        val preferredReadSize: Int?
+        val profile: DriveProfile
     ) : RipLogEvent
 
     data class TrackStarted(
@@ -78,8 +76,21 @@ sealed interface RipLogEvent {
         val suspiciousReads: Int,
         val status: RipStatus,
         val accurateRipStatus: String,
-        val durationSeconds: Double
+        val durationSeconds: Double,
+        val summary: TrackRipSummary
     ) : RipLogEvent
+
+
+    data class TrackRipSummary(
+        val chunksRead: Int,
+        val overlapVerifications: Int,
+        val overlapFailures: Int,
+        val alignmentChecks: Int,
+        val driftEvents: Int,
+        val recoveryWindows: Int,
+        val escalations: Int,
+        val fastPathChunks: Int
+    )
 
     data class SessionCompleted(
         val success: Boolean
