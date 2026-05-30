@@ -448,6 +448,10 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
             val encodedArtist = java.net.URLEncoder.encode(discMetadata.artistName, "UTF-8")
             val encodedAlbum = java.net.URLEncoder.encode(discMetadata.albumTitle, "UTF-8")
 
+            sb.appendLine("### AudioDB")
+            sb.appendLine("Search URL: `https://www.theaudiodb.com/api/v1/json/2/search.php?s=$encodedArtist`")
+            sb.appendLine()
+
             sb.appendLine("### iTunes Search URLs")
             sb.appendLine("Stage 1 (Primary strict): `https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&attribute=albumTerm&limit=25`")
             sb.appendLine("Stage 2 (Relaxed text): `https://itunes.apple.com/search?term=$encodedArtist+$encodedAlbum&media=music&entity=album&limit=25`")
