@@ -453,20 +453,20 @@ class UsbDriveDetector(
         buffer.put(0)
 
         // Send CBW
-        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 5000)
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 15000)
         if (transferred < 0) {
-            AppLogger.e(TAG, "TUR: Failed to send CBW — connection may be dead, triggering rescan")
-            return TurResult.CONNECTION_DEAD
+            AppLogger.e(TAG, "TUR: Failed to send CBW — timeout, returning NOT_READY")
+            return TurResult.NOT_READY
         }
 
         // No Data phase for TUR
 
         // Read CSW (Command Status Wrapper)
         val csw = ByteArray(13)
-        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 5000)
+        transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 15000)
         if (transferred < 0) {
-            AppLogger.e(TAG, "TUR: Failed to read CSW — connection may be dead, triggering rescan")
-            return TurResult.CONNECTION_DEAD
+            AppLogger.e(TAG, "TUR: Failed to read CSW — timeout, returning NOT_READY")
+            return TurResult.NOT_READY
         }
 
         // Validate CSW
@@ -525,17 +525,17 @@ class UsbDriveDetector(
         buffer.put(0)
 
         // Send CBW
-        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 3000)
+        var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 15000)
         if (transferred < 0) return SenseResult.NOT_READY
 
         // Read Data
         val senseData = ByteArray(18)
-        transferred = transport.bulkTransfer(inEndpoint, senseData, senseData.size, 3000)
+        transferred = transport.bulkTransfer(inEndpoint, senseData, senseData.size, 15000)
         if (transferred < 0) return SenseResult.NOT_READY
 
         // Read CSW
         val csw = ByteArray(13)
-        transport.bulkTransfer(inEndpoint, csw, csw.size, 3000)
+        transport.bulkTransfer(inEndpoint, csw, csw.size, 15000)
 
         val senseKey = senseData[2].toInt() and 0x0F
         val asc = senseData[12].toInt() and 0xFF

@@ -486,7 +486,9 @@ fun NowPlayingScreen(
             text = "$artistName · $albumTitle",
             style = MaterialTheme.typography.bodyLarge,
             color = primaryColor, // Dynamic or fallback color
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(32.dp))
