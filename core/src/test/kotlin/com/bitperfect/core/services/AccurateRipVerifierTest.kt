@@ -44,11 +44,11 @@ class AccurateRipVerifierTest {
         assertEquals(2, result.size)
 
         assertEquals(1, result[1]?.size)
-        assertEquals(0xAAAAAAAAL, result[1]?.get(0)?.checksum)
+        assertEquals(0xAAAAAAAAL, result[1]?.get(0)?.checksumV1)
         assertEquals(5, result[1]?.get(0)?.confidence)
 
         assertEquals(1, result[2]?.size)
-        assertEquals(0xCCCCCCCCL, result[2]?.get(0)?.checksum)
+        assertEquals(0xCCCCCCCCL, result[2]?.get(0)?.checksumV1)
         assertEquals(10, result[2]?.get(0)?.confidence)
     }
 
@@ -84,10 +84,10 @@ class AccurateRipVerifierTest {
         assertEquals(1, result.size)     // both entries describe track 1
         assertEquals(2, result[1]?.size) // two entries for track 1
 
-        assertEquals(0x11111111L, result[1]?.get(0)?.checksum)
+        assertEquals(0x11111111L, result[1]?.get(0)?.checksumV1)
         assertEquals(3, result[1]?.get(0)?.confidence)
 
-        assertEquals(0x33333333L, result[1]?.get(1)?.checksum)
+        assertEquals(0x33333333L, result[1]?.get(1)?.checksumV1)
         assertEquals(7, result[1]?.get(1)?.confidence)
     }
 
@@ -135,7 +135,7 @@ class AccurateRipVerifierTest {
         // If discId1, discId2, and CDDB were not read correctly, the buffer offset would be wrong
         // and we wouldn't get the correct track checksum.
         assertEquals(1, result.size)
-        assertEquals(0xABCDEF01L, result[1]?.get(0)?.checksum)
+        assertEquals(0xABCDEF01L, result[1]?.get(0)?.checksumV1)
         assertEquals(5, result[1]?.get(0)?.confidence)
     }
 
@@ -177,7 +177,7 @@ class AccurateRipVerifierTest {
         // The key assertions: real values, not CDDB-contaminated ones
         assertEquals(
             "CRC v1 must be the real stored value, not bytes assembled from CDDB + confidence",
-            realCrcV1, track1[0].checksum
+            realCrcV1, track1[0].checksumV1
         )
         assertEquals(
             "Confidence must be the real stored value, not CDDB byte 0 (0x10)",
@@ -187,7 +187,7 @@ class AccurateRipVerifierTest {
         // Belt-and-suspenders: confirm the buggy value (0x2ACA097E) does NOT appear
         assertNotEquals(
             "Parsed CRC must not contain CDDB bytes — indicates missing CDDB consumption",
-            0x2ACA097EL, track1[0].checksum
+            0x2ACA097EL, track1[0].checksumV1
         )
     }
 

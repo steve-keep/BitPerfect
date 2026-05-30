@@ -79,7 +79,7 @@ class RipManagerChecksumTest {
         // track 1:
         accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
         accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
-        val t1Actual = accumulatorT1.ripChecksum
+        val t1Actual = accumulatorT1.ripChecksumV1
 
         assertEquals("Track 1 checksum mismatch", expectedChecksum1, t1Actual)
 
@@ -88,7 +88,7 @@ class RipManagerChecksumTest {
         accumulatorT2.accumulate(overreadBuffer)
         accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
         accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
-        val t2Actual = accumulatorT2.ripChecksum
+        val t2Actual = accumulatorT2.ripChecksumV1
 
         assertEquals("Track 2 checksum mismatch", expectedChecksum2, t2Actual)
     }
@@ -136,13 +136,13 @@ class RipManagerChecksumTest {
         val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = false)
         accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
         accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
-        assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
+        assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksumV1)
 
         val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
         accumulatorT2.accumulate(overreadBuffer)
         accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
         accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
-        assertEquals("Track 2 checksum mismatch", expectedChecksum2, accumulatorT2.ripChecksum)
+        assertEquals("Track 2 checksum mismatch", expectedChecksum2, accumulatorT2.ripChecksumV1)
     }
 
     @Test
@@ -170,6 +170,6 @@ class RipManagerChecksumTest {
         // No overread buffer, no skipBytes
         accumulatorT1.accumulate(t1PhysicalMain)
 
-        assertEquals("Exact multiple checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksum)
+        assertEquals("Exact multiple checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksumV1)
     }
 }

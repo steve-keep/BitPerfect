@@ -532,18 +532,22 @@ private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo
                 if (state != null) {
                     val status = state.status.name
 
-                    val computedStr = if (state.status == com.bitperfect.app.usb.RipStatus.IDLE || state.computedChecksum == null) {
+                    val computedStr = if (state.status == com.bitperfect.app.usb.RipStatus.IDLE) {
                         "—"
                     } else {
-                        String.format("0x%08X", state.computedChecksum)
+                        val v1 = state.computedChecksumV1?.let { String.format("0x%08X", it) } ?: "—"
+                        val v2 = state.computedChecksumV2?.let { String.format("0x%08X", it) } ?: "—"
+                        "V1:$v1, V2:$v2"
                     }
 
                     val expectedStr = if (state.status == com.bitperfect.app.usb.RipStatus.IDLE) {
                         "—"
-                    } else if (state.expectedChecksums.isEmpty()) {
+                    } else if (state.expectedChecksumsV1.isEmpty() && state.expectedChecksumsV2.isEmpty()) {
                         "none"
                     } else {
-                        state.expectedChecksums.joinToString(", ") { String.format("0x%08X", it) }
+                        val v1 = state.expectedChecksumsV1.joinToString(",") { String.format("0x%08X", it) }
+                        val v2 = state.expectedChecksumsV2.joinToString(",") { String.format("0x%08X", it) }
+                        "V1:$v1, V2:$v2"
                     }
 
                     sb.appendLine("| $i | $status | $computedStr | $expectedStr |")

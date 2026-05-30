@@ -59,8 +59,11 @@ data class TrackRipState(
     val progress: Float = 0f,
     val status: RipStatus = RipStatus.IDLE,
     val accurateRipUrl: String? = null,
-    val computedChecksum: Long? = null,
-    val expectedChecksums: List<Long> = emptyList(),
+    val computedChecksumV1: Long? = null,
+    val computedChecksumV2: Long? = null,
+    val expectedChecksumsV1: List<Long> = emptyList(),
+    val expectedChecksumsV2: List<Long> = emptyList(),
+    val matchedVersion: Int? = null,
     val errorMessage: String? = null,
     // Diagnostic fields
     val startLba: Int = 0,
@@ -282,7 +285,8 @@ class RipManager(
 
             var outputStream: java.io.OutputStream? = null
             var encoder: FlacEncoder? = null
-            var finalChecksum = 0L
+            var finalChecksumV1 = 0L
+            var finalChecksumV2 = 0L
             var sectorsRead = 0
 
             var lastCommittedPcm: ByteArray? = null
@@ -932,7 +936,9 @@ class RipManager(
                     durationSeconds = sectorsRead.toLong() * 588L / 44100.0
                 )
 
-                finalChecksum = checksumAccumulator.finalise()
+                val pair = checksumAccumulator.finalise()
+                finalChecksumV1 = pair.first
+                finalChecksumV2 = pair.second
             } catch (e: Exception) {
                 AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
                 updateTrackState(
@@ -981,51 +987,59 @@ class RipManager(
 
             // Verify checksum
             val expectedForTrack = expectedChecksums[trackNumber]
+            val expectedV1 = expectedForTrack?.map { it.checksumV1 } ?: emptyList()
+            val expectedV2 = expectedForTrack?.map { it.checksumV2 } ?: emptyList()
 
-            when {
-                expectedForTrack == null -> {
-                    AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
-                    updateTrackState(
-                        trackNumber,
-                        RipStatus.UNVERIFIED,
-                        1f,
-                        accurateRipUrl = accurateRipUrl,
-                        computedChecksum = finalChecksum
-                    )
-                }
-                expectedForTrack.any { it.checksum == finalChecksum } -> {
-                    updateTrackState(
-                        trackNumber,
-                        RipStatus.SUCCESS,
-                        1f,
-                        accurateRipUrl = accurateRipUrl,
-                        computedChecksum = finalChecksum,
-                        expectedChecksums = expectedForTrack.map { it.checksum }
-                    )
-                }
-                else -> {
-                    AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
-                    updateTrackState(
-                        trackNumber,
-                        RipStatus.WARNING,
-                        1f,
-                        accurateRipUrl = accurateRipUrl,
-                        computedChecksum = finalChecksum,
-                        expectedChecksums = expectedForTrack.map { it.checksum }
-                    )
-                }
+            val matchedV2 = expectedV2.contains(finalChecksumV2)
+            val matchedV1 = expectedV1.contains(finalChecksumV1)
+
+            val matchedVersion = when {
+                matchedV2 -> 2
+                matchedV1 -> 1
+                else -> null
             }
+
+            val finalStatus = when {
+                matchedVersion != null -> RipStatus.SUCCESS
+                expectedForTrack.isNullOrEmpty() -> RipStatus.UNVERIFIED
+                else -> RipStatus.WARNING
+            }
+
+            if (expectedForTrack == null) {
+                AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
+            } else if (matchedVersion == null) {
+                AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
+            }
+
+            updateTrackState(
+                trackNumber = trackNumber,
+                status = finalStatus,
+                progress = 1f,
+                accurateRipUrl = accurateRipUrl,
+                computedChecksumV1 = finalChecksumV1,
+                computedChecksumV2 = finalChecksumV2,
+                expectedChecksumsV1 = expectedV1,
+                expectedChecksumsV2 = expectedV2,
+                matchedVersion = matchedVersion
+            )
 
             val currentState = _trackStates.value[trackNumber]
             if (currentState != null) {
                 writeAccurateRipJsonl(albumDir, currentState)
+
+                val accurateRipStatusString = when {
+                    currentState.status == RipStatus.SUCCESS -> "VERIFIED (v${currentState.matchedVersion})"
+                    currentState.expectedChecksumsV1.isNotEmpty() || currentState.expectedChecksumsV2.isNotEmpty() -> "MISMATCH"
+                    else -> "NOT_IN_DB"
+                }
+
                 logger.record(RipLogEvent.TrackCompleted(
                     trackNumber = trackNumber,
                     confidence = currentState.confidence,
                     rereads = currentState.suspiciousRegions.sumOf { it.rereadAttempts },
                     suspiciousReads = currentState.suspiciousRegions.size,
                     status = currentState.status,
-                    accurateRipStatus = if (currentState.status == RipStatus.SUCCESS) "VERIFIED" else if (currentState.expectedChecksums.isNotEmpty()) "MISMATCH" else "NOT_IN_DB",
+                    accurateRipStatus = accurateRipStatusString,
                     durationSeconds = currentState.durationSeconds,
                     summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
                         chunksRead = trackChunksRead,
@@ -1126,7 +1140,7 @@ class RipManager(
 
             val isVerified = state.status == RipStatus.SUCCESS
             val checksumMatched = state.status == RipStatus.SUCCESS
-            val inDatabase = state.expectedChecksums.isNotEmpty() || state.status == RipStatus.SUCCESS
+            val inDatabase = state.expectedChecksumsV1.isNotEmpty() || state.expectedChecksumsV2.isNotEmpty() || state.status == RipStatus.SUCCESS
 
             // Remove existing entry for the same disc and track
             existingLines.removeAll {
@@ -1140,10 +1154,14 @@ class RipManager(
             val accurateRipObj = JSONObject()
             accurateRipObj.put("isVerified", isVerified)
             accurateRipObj.put("checksumMatched", checksumMatched)
+            accurateRipObj.put("matchedVersion", state.matchedVersion ?: JSONObject.NULL)
             accurateRipObj.put("inDatabase", inDatabase)
-            if (state.computedChecksum != null) {
-                val computedStr = String.format("0x%08X", state.computedChecksum and 0xFFFFFFFFL)
-                accurateRipObj.put("checksum", computedStr)
+
+            if (state.computedChecksumV1 != null) {
+                accurateRipObj.put("checksumV1", String.format("0x%08X", state.computedChecksumV1 and 0xFFFFFFFFL))
+            }
+            if (state.computedChecksumV2 != null) {
+                accurateRipObj.put("checksumV2", String.format("0x%08X", state.computedChecksumV2 and 0xFFFFFFFFL))
             }
             newEntry.put("accurateRip", accurateRipObj)
 
@@ -1165,8 +1183,11 @@ class RipManager(
         status: RipStatus,
         progress: Float,
         accurateRipUrl: String? = null,
-        computedChecksum: Long? = null,
-        expectedChecksums: List<Long> = emptyList(),
+        computedChecksumV1: Long? = null,
+        computedChecksumV2: Long? = null,
+        expectedChecksumsV1: List<Long> = emptyList(),
+        expectedChecksumsV2: List<Long> = emptyList(),
+        matchedVersion: Int? = null,
         errorMessage: String? = null,
         startLba: Int? = null,
         endLba: Int? = null,
@@ -1184,8 +1205,11 @@ class RipManager(
             progress = progress,
             status = status,
             accurateRipUrl = accurateRipUrl ?: existingState.accurateRipUrl,
-            computedChecksum = computedChecksum ?: existingState.computedChecksum,
-            expectedChecksums = if (expectedChecksums.isNotEmpty()) expectedChecksums else existingState.expectedChecksums,
+            computedChecksumV1 = computedChecksumV1 ?: existingState.computedChecksumV1,
+            computedChecksumV2 = computedChecksumV2 ?: existingState.computedChecksumV2,
+            expectedChecksumsV1 = if (expectedChecksumsV1.isNotEmpty()) expectedChecksumsV1 else existingState.expectedChecksumsV1,
+            expectedChecksumsV2 = if (expectedChecksumsV2.isNotEmpty()) expectedChecksumsV2 else existingState.expectedChecksumsV2,
+            matchedVersion = matchedVersion ?: existingState.matchedVersion,
             errorMessage = errorMessage ?: existingState.errorMessage,
             startLba = startLba ?: existingState.startLba,
             endLba = endLba ?: existingState.endLba,
