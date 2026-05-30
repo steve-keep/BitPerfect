@@ -137,8 +137,8 @@ class ForensicRipLoggerTest {
         assertTrue(output.contains("Recovery Windows: 1"))
         assertTrue(output.contains("Rereads: 4"))
         assertTrue(output.contains("AccurateRip: MISMATCH"))
-        assertTrue(output.contains("Recovery Events"))
-        assertTrue(output.contains("LBA 125430-125446 overlap mismatch"))
-        assertTrue(output.contains("Recovery stabilized after 3 rereads"))
+        assertTrue(output.contains("Diagnostics & Recovery Pipelines"))
+        assertTrue(output.contains("[US-001] Overlap Mismatch: LBA 125430-125446"))
+        assertTrue(output.contains("[US-021] Recovery Stabilized: LBA 125430-125446 (Attempts: 3)"))
     }
 }

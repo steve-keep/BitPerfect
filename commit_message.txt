@@ -1,0 +1,18 @@
+Expand ForensicRipLogger to capture detailed track diagnostics
+
+This commit completes the implementation of a fully verbose ripping logger.
+It modifies `RipLogEvent.kt` to introduce diagnostic events covering:
+- Stable overlap verification (US-001)
+- Multi-pass comparison results (US-003)
+- Read consistency scoring (US-004)
+- Read drift detection (US-005)
+- Targeted sector recovery (US-007)
+- Sample alignment validation (US-018)
+- Adaptive reread escalation (US-021)
+- Fast-path clean ripping (US-022)
+
+It also expands the textual output in `ForensicRipLogger` to group these
+by track and logs out drive intelligence such as Cache Status (US-012),
+Streaming Classification (US-013), and Preferred Read Size (US-015).
+Deterministic rereads (US-002) and Atomic read sizing (US-014) have their
+execution logged within the engine itself.
