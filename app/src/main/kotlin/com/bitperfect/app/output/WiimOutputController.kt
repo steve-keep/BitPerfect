@@ -153,7 +153,13 @@ class WiimOutputController(
         httpServer = FlacHttpServer(context, trackList)
         httpServer?.start(5000, false)
 
-        val playlistUrl = "http://$wifiIp:${httpServer?.listeningPort}/playlist.m3u8"
+        val port = httpServer?.listeningPort ?: -1
+        if (port <= 0) {
+            Log.e("WiimOutputController", "FlacHttpServer failed to bind to a port, aborting takeOver")
+            return
+        }
+
+        val playlistUrl = "http://$wifiIp:$port/playlist.m3u8"
 
         withContext(Dispatchers.IO) {
             // 1. Load the playlist
@@ -271,10 +277,12 @@ class WiimOutputController(
     override suspend fun appendToQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
+        val port = server.listeningPort
+        if (port <= 0) return
 
         server.appendTrack(track)
 
-        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
         val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
@@ -284,10 +292,12 @@ class WiimOutputController(
     override suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
+        val port = server.listeningPort
+        if (port <= 0) return
 
         server.appendTracks(tracks)
 
-        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
         val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
@@ -297,11 +307,13 @@ class WiimOutputController(
     override suspend fun insertNextInQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
+        val port = server.listeningPort
+        if (port <= 0) return
         val currentIndex = _currentTrackIndex.value.coerceAtLeast(0)
 
         server.insertTrackAfterIndex(track, currentIndex)
 
-        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
         val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
@@ -311,11 +323,13 @@ class WiimOutputController(
     override suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
+        val port = server.listeningPort
+        if (port <= 0) return
         val currentIndex = _currentTrackIndex.value.coerceAtLeast(0)
 
         server.insertTracksAfterIndex(tracks, currentIndex)
 
-        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
         val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
@@ -325,10 +339,12 @@ class WiimOutputController(
     override suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
+        val port = server.listeningPort
+        if (port <= 0) return
 
         server.moveTrack(fromIndex, toIndex)
 
-        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
         val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
@@ -338,10 +354,12 @@ class WiimOutputController(
     override suspend fun removeFromQueue(index: Int) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
+        val port = server.listeningPort
+        if (port <= 0) return
 
         server.removeTrack(index)
 
-        val playlistUrl = "http://$ip:${server.listeningPort}/playlist.m3u8"
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
         val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
