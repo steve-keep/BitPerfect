@@ -292,10 +292,29 @@ open class AppViewModel(
         if (device is OutputDevice.Upnp && wiimIndex >= 0) wiimIndex else localIndex
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    val currentTrackTitle: StateFlow<String?> = playerRepository.currentTrackTitle
-    val currentTrackArtist: StateFlow<String?> = playerRepository.currentTrackArtist
-    val currentAlbumTitle: StateFlow<String?> = playerRepository.currentAlbumTitle
-    val currentAlbumArtUri: StateFlow<android.net.Uri?> = playerRepository.currentAlbumArtUri
+    val currentTrackTitle: StateFlow<String?> = combine(
+        outputRepository.activeDevice,
+        outputRepository.wiimCurrentTitle,
+        playerRepository.currentTrackTitle
+    ) { device, wiimTitle, localTitle ->
+        if (device is OutputDevice.Upnp) wiimTitle else localTitle
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val currentTrackArtist: StateFlow<String?> = combine(
+        outputRepository.activeDevice,
+        outputRepository.wiimCurrentArtist,
+        playerRepository.currentTrackArtist
+    ) { device, wiimArtist, localArtist ->
+        if (device is OutputDevice.Upnp) wiimArtist else localArtist
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val currentAlbumTitle: StateFlow<String?> = combine(
+        outputRepository.activeDevice,
+        outputRepository.wiimCurrentAlbum,
+        playerRepository.currentAlbumTitle
+    ) { device, wiimAlbum, localAlbum ->
+        if (device is OutputDevice.Upnp) wiimAlbum else localAlbum
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _trackFormatInfo = MutableStateFlow<String?>(null)
     val trackFormatInfo: StateFlow<String?> = _trackFormatInfo.asStateFlow()
@@ -312,6 +331,23 @@ open class AppViewModel(
             if (mediaId != null) tracks.find { it.id.toString() == mediaId } else null
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val currentAlbumArtUri: StateFlow<android.net.Uri?> = combine(
+        outputRepository.activeDevice,
+        currentTrack,
+        playerRepository.currentAlbumArtUri
+    ) { device, wiimTrack, localArtUri ->
+        if (device is OutputDevice.Upnp) {
+            wiimTrack?.albumId?.takeIf { it != -1L }?.let { albumId ->
+                android.content.ContentUris.withAppendedId(
+                    android.net.Uri.parse("content://media/external/audio/albumart"),
+                    albumId
+                )
+            }
+        } else {
+            localArtUri
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         viewModelScope.launch(ioDispatcher) {
