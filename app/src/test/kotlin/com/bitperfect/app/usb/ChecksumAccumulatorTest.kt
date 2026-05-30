@@ -25,7 +25,7 @@ class ChecksumAccumulatorTest {
 
         val directResult = verifier.computeChecksumChunk(pcmData, samplePosition = 1, totalSamples = totalSamples)
 
-        assertEquals(directResult.partialChecksum, accumulator.ripChecksum)
+        assertEquals(directResult.partialChecksum, accumulator.ripChecksumV1)
         assertEquals(1001L, accumulator.samplePosition)
     }
 }

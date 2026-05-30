@@ -373,22 +373,33 @@ fun TrackListScreen(
                                         Text("Duration      ${String.format(java.util.Locale.US, "%.2f", ripState.durationSeconds)}s ripped  /  ${String.format(java.util.Locale.US, "%.2f", durationExpected)}s expected", style = MaterialTheme.typography.bodyMedium)
 
                                         // Checksum section
-                                        if (ripState.computedChecksum != null) {
+                                        if (ripState.computedChecksumV1 != null || ripState.computedChecksumV2 != null) {
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                            val computedStr = String.format("0x%08X", ripState.computedChecksum and 0xFFFFFFFFL)
+                                            val computedStr = if (ripState.matchedVersion == 2) {
+                                                ripState.computedChecksumV2?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                            } else {
+                                                ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                            }
+
                                             when (ripState.status) {
                                                 RipStatus.SUCCESS -> {
-                                                    Text("Computed   $computedStr  ✓ matched", style = MaterialTheme.typography.bodyMedium)
-                                                    val expectedStr = ripState.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    Text("Computed   $computedStr  ✓ matched (v${ripState.matchedVersion})", style = MaterialTheme.typography.bodyMedium)
+                                                    val expectedStr = if (ripState.matchedVersion == 2) {
+                                                        ripState.expectedChecksumsV2.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    } else {
+                                                        ripState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    }
                                                     Text("Expected   $expectedStr", style = MaterialTheme.typography.bodyMedium)
                                                 }
                                                 RipStatus.WARNING -> {
-                                                    Text("Computed   $computedStr", style = MaterialTheme.typography.bodyMedium)
-                                                    val expectedStr = ripState.expectedChecksums.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-                                                    Text("Expected   $expectedStr", style = MaterialTheme.typography.bodyMedium)
+                                                    val computedV1 = ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                                    val expectedV1 = ripState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    Text("Computed (v1)   $computedV1", style = MaterialTheme.typography.bodyMedium)
+                                                    Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
                                                 }
                                                 RipStatus.UNVERIFIED -> {
-                                                    Text("Checksum  $computedStr  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
+                                                    val computedV1 = ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                                    Text("Checksum (v1)  $computedV1  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
                                                 }
                                                 else -> {} // ERROR may or may not have a checksum, but usually doesn't output it specifically
                                             }

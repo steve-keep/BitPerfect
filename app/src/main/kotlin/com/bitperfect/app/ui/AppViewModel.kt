@@ -1198,13 +1198,26 @@ open class AppViewModel(
                 appendLine("Error details:")
                 appendLine(state.errorMessage ?: "Unknown error")
             } else {
-                val expectedHex = state.expectedChecksums
+                val expectedHexV1 = state.expectedChecksumsV1
                     .joinToString(", ") { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
-                val computedHex = state.computedChecksum
+                val expectedHexV2 = state.expectedChecksumsV2
+                    .joinToString(", ") { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
+                val computedHexV1 = state.computedChecksumV1
                     ?.let { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
                     ?: "unknown"
-                appendLine("Computed checksum:  $computedHex")
-                appendLine("Expected checksums: $expectedHex")
+                val computedHexV2 = state.computedChecksumV2
+                    ?.let { "0x${it.toString(16).uppercase().padStart(8, '0')}" }
+                    ?: "unknown"
+
+                if (state.matchedVersion == 2) {
+                    appendLine("Matched AccurateRip v2:")
+                    appendLine("Computed checksum:  $computedHexV2")
+                    appendLine("Expected checksums: $expectedHexV2")
+                } else {
+                    appendLine("Matched AccurateRip v1 (or no match):")
+                    appendLine("Computed checksum:  $computedHexV1")
+                    appendLine("Expected checksums: $expectedHexV1")
+                }
                 appendLine()
                 appendLine("AccurateRip URL:")
                 appendLine(state.accurateRipUrl ?: "unavailable")

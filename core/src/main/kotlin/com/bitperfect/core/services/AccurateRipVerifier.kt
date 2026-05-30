@@ -6,7 +6,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 data class AccurateRipTrackMetadata(
-    val checksum: Long,
+    val checksumV1: Long,
+    val checksumV2: Long,
     val confidence: Int
 )
 
@@ -35,7 +36,7 @@ class AccurateRipVerifier {
 
                 val trackNumber = i + 1
                 tracksInfo.getOrPut(trackNumber) { mutableListOf() }.add(
-                    AccurateRipTrackMetadata(crcV1, confidence)
+                    AccurateRipTrackMetadata(crcV1, crcV2, confidence)
                 )
             }
             AppLogger.d("AccurateRipVerifier", "Parsed $trackCount tracks for this disc entry")

@@ -773,8 +773,8 @@ class AppViewModelTest {
                 trackNumber = 2,
                 status = RipStatus.WARNING,
                 accurateRipUrl = accurateRipUrl,
-                computedChecksum = computedChecksum,
-                expectedChecksums = expectedChecksums
+                computedChecksumV1 = computedChecksum,
+                expectedChecksumsV1 = expectedChecksums
             )
         )
 
