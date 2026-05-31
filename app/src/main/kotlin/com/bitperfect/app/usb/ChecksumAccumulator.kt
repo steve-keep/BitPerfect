@@ -1,7 +1,6 @@
 package com.bitperfect.app.usb
 
 import com.bitperfect.core.services.AccurateRipVerifier
-import java.util.zip.CRC32
 
 internal class ChecksumAccumulator(
     private val totalSamples: Long,
@@ -10,10 +9,10 @@ internal class ChecksumAccumulator(
 ) {
     var ripChecksumV1: Long = 0L
         private set
+    var ripChecksumV2: Long = 0L
+        private set
     var samplePosition: Long = 1L
         private set
-
-    private val crcV2 = CRC32()
 
     fun getTotalProcessedBytes(): Long {
         return (samplePosition - 1L) * 4L
@@ -25,8 +24,7 @@ internal class ChecksumAccumulator(
 
         var currentSamplePos = samplePosition
         var partialV1 = 0L
-
-        val bytes = ByteArray(4)
+        var partialV2 = 0L
 
         for (i in 0 until (pcmData.size / 4) * 4 step 4) {
             val sample = ((pcmData[i].toLong() and 0xFF) or
@@ -36,22 +34,21 @@ internal class ChecksumAccumulator(
 
             val sampleValue = sample and 0xFFFFFFFFL
 
-            // V2 accumulation
-            val weighted = (sampleValue * currentSamplePos) and 0xFFFFFFFFL
-            bytes[0] = (weighted and 0xFF).toByte()
-            bytes[1] = ((weighted shr 8) and 0xFF).toByte()
-            bytes[2] = ((weighted shr 16) and 0xFF).toByte()
-            bytes[3] = ((weighted shr 24) and 0xFF).toByte()
-            crcV2.update(bytes)
-
             if (currentSamplePos > skipStart && currentSamplePos <= totalSamples - skipEnd) {
                 // V1 accumulation
                 partialV1 = (partialV1 + sampleValue * currentSamplePos) and 0xFFFFFFFFL
+
+                // V2 accumulation
+                val calcCrcNew = sampleValue * currentSamplePos
+                val lo = calcCrcNew and 0xFFFFFFFFL
+                val hi = (calcCrcNew ushr 32) and 0xFFFFFFFFL
+                partialV2 = (partialV2 + hi + lo) and 0xFFFFFFFFL
             }
             currentSamplePos++
         }
 
         ripChecksumV1 = (ripChecksumV1 + partialV1) and 0xFFFFFFFFL
+        ripChecksumV2 = (ripChecksumV2 + partialV2) and 0xFFFFFFFFL
         samplePosition = currentSamplePos
     }
 
@@ -59,7 +56,7 @@ internal class ChecksumAccumulator(
     fun finalise(): Pair<Long, Long> {
         return Pair(
             ripChecksumV1 and 0xFFFFFFFFL,
-            crcV2.value and 0xFFFFFFFFL
+            ripChecksumV2 and 0xFFFFFFFFL
         )
     }
 }
