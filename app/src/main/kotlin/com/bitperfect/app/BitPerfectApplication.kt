@@ -11,8 +11,23 @@ import okhttp3.CacheControl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
+import com.bitperfect.app.output.OutputRepository
+import com.bitperfect.app.output.SpeakerTypeProvider
+import com.bitperfect.app.player.PlayerRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class BitPerfectApplication : Application(), ImageLoaderFactory {
+    lateinit var playerRepository: PlayerRepository
+        private set
+
+    lateinit var outputRepository: OutputRepository
+        private set
+
+    lateinit var speakerTypeProvider: SpeakerTypeProvider
+        private set
+
     override fun onCreate() {
         super.onCreate()
         val crashHandler = CrashHandler(this)
@@ -22,6 +37,21 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
 
         DeviceStateManager.initialize(this)
         com.bitperfect.app.usb.RipSession.getInstance(this)
+
+        playerRepository = PlayerRepository(this)
+
+        outputRepository = OutputRepository(
+            this,
+            playerRepository,
+            CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        )
+
+        speakerTypeProvider = SpeakerTypeProvider(
+            this,
+            CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        )
+        speakerTypeProvider.setOutputRepository(outputRepository)
+        playerRepository.setSpeakerTypeProvider(speakerTypeProvider)
     }
 
     override fun newImageLoader(): ImageLoader {
