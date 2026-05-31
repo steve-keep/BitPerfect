@@ -20,6 +20,13 @@ import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.BitPerfectApplication
 import com.bitperfect.app.output.OutputRepository
+import com.bitperfect.app.output.OutputDevice
+import com.bitperfect.app.output.WiimCastPlayer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -28,6 +35,8 @@ import com.google.common.util.concurrent.ListenableFuture
 class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
+    private var wiimCastPlayer: WiimCastPlayer? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val libraryRepository: LibraryRepository by lazy { LibraryRepository(this) }
     private val settingsManager: SettingsManager by lazy { SettingsManager(this) }
@@ -69,6 +78,36 @@ class PlaybackService : MediaLibraryService() {
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, BrowseCallback())
             .setSessionActivity(sessionActivityPendingIntent)
             .build()
+
+        serviceScope.launch {
+            outputRepository.activeDevice.collect { device ->
+                handleDeviceSwitch(device)
+            }
+        }
+    }
+
+    private fun handleDeviceSwitch(target: OutputDevice) {
+        val session = mediaLibrarySession ?: return
+        val exo = player ?: return
+
+        if (target is OutputDevice.Upnp) {
+            // Pause local playback so audio doesn't come from both sources
+            exo.pause()
+
+            // Release any existing WiimCastPlayer before creating a new one
+            wiimCastPlayer?.release()
+
+            val newCastPlayer = WiimCastPlayer(this, target)
+            wiimCastPlayer = newCastPlayer
+            session.player = newCastPlayer
+
+        } else {
+            // Switching back to local — restore ExoPlayer as the session player
+            session.player = exo
+
+            wiimCastPlayer?.release()
+            wiimCastPlayer = null
+        }
     }
 
     private inner class BrowseCallback : MediaLibrarySession.Callback {
@@ -423,6 +462,10 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        wiimCastPlayer?.release()
+        wiimCastPlayer = null
+        serviceScope.cancel()  // stops the activeDevice collection coroutine
+
         mediaLibrarySession?.apply {
             release()
             mediaLibrarySession = null
