@@ -176,8 +176,10 @@ open class AppViewModel(
 
     open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
 
-    private val _tagsViewState = MutableStateFlow<List<Pair<String, String>>?>(null)
-    val tagsViewState: StateFlow<List<Pair<String, String>>?> = _tagsViewState.asStateFlow()
+    data class TagsViewState(val filePath: String, val tags: List<Pair<String, String>>)
+
+    private val _tagsViewState = MutableStateFlow<TagsViewState?>(null)
+    val tagsViewState: StateFlow<TagsViewState?> = _tagsViewState.asStateFlow()
     internal val _trackListViewState = MutableStateFlow<TrackListViewState?>(null)
     val trackListViewState: StateFlow<TrackListViewState?> = _trackListViewState
 
@@ -1259,7 +1261,7 @@ open class AppViewModel(
                         tagList.add(field.id to field.toString())
                     }
                 }
-                _tagsViewState.value = tagList
+                _tagsViewState.value = TagsViewState(path, tagList)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
