@@ -683,9 +683,14 @@ fun TrackListScreen(
                 Text(
                     text = "Track Tags",
                     style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = tagsViewState?.filePath ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                val tagsList = tagsViewState ?: emptyList()
+                val tagsList = tagsViewState?.tags ?: emptyList()
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(tagsList.size) { index ->
                         val (key, value) = tagsList[index]
