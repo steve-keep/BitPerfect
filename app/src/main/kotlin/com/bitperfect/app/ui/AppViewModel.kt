@@ -44,6 +44,7 @@ import com.bitperfect.core.services.ItunesArtworkRepository
 import com.bitperfect.core.services.LyricsRepository
 import com.bitperfect.core.models.LyricsResult
 import com.bitperfect.core.models.LyricsFetchResult
+import com.bitperfect.app.BitPerfectApplication
 import java.net.URL
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Semaphore
@@ -1274,20 +1275,8 @@ open class AppViewModel(
         fun factory(application: Application): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
-                    val playerRepository = PlayerRepository(application)
-                    val outputRepository = OutputRepository(
-                        application,
-                        playerRepository,
-                        CoroutineScope(SupervisorJob() + Dispatchers.IO)
-                    )
-                    val speakerTypeProvider = com.bitperfect.app.output.SpeakerTypeProvider(
-                        application,
-                        CoroutineScope(SupervisorJob() + Dispatchers.Main)
-                    )
-                    speakerTypeProvider.setOutputRepository(outputRepository)
-                    playerRepository.setSpeakerTypeProvider(speakerTypeProvider)
-
-                    AppViewModel(application, playerRepository, outputRepository)
+                    val app = application as BitPerfectApplication
+                    AppViewModel(application, app.playerRepository, app.outputRepository)
                 }
             }
     }

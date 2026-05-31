@@ -18,6 +18,8 @@ import androidx.media3.session.MediaSession
 import com.bitperfect.app.MainActivity
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
+import com.bitperfect.app.BitPerfectApplication
+import com.bitperfect.app.output.OutputRepository
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -29,6 +31,8 @@ class PlaybackService : MediaLibraryService() {
 
     private val libraryRepository: LibraryRepository by lazy { LibraryRepository(this) }
     private val settingsManager: SettingsManager by lazy { SettingsManager(this) }
+    private val outputRepository: OutputRepository
+        get() = (application as BitPerfectApplication).outputRepository
 
     override fun onCreate() {
         super.onCreate()
