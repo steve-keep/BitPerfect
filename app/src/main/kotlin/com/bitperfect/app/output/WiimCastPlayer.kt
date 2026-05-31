@@ -56,12 +56,12 @@ class WiimCastPlayer(
         }
         return State.Builder()
             .setPlaylist(playlist)
-            .setCurrentMediaItemIndex(currentIndex)
+            .setCurrentMediaItemIndex(if (playlist.isEmpty()) 0 else currentIndex)
             .setPlayWhenReady(
                 controller.isPlaying.value,
                 Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST
             )
-            .setPlaybackState(Player.STATE_READY)
+            .setPlaybackState(if (playlist.isEmpty()) Player.STATE_IDLE else Player.STATE_READY)
             .setContentPositionMs { controller.positionMs.value }
             .build()
     }
