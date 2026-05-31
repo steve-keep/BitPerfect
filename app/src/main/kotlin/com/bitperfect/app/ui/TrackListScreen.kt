@@ -375,33 +375,48 @@ fun TrackListScreen(
                                         // Checksum section
                                         if (ripState.computedChecksumV1 != null || ripState.computedChecksumV2 != null) {
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                            val computedStr = if (ripState.matchedVersion == 2) {
-                                                ripState.computedChecksumV2?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
-                                            } else {
-                                                ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
-                                            }
+
+                                            val computedV2 = ripState.computedChecksumV2?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                            val computedV1 = ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                            val expectedV2 = ripState.expectedChecksumsV2.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                            val expectedV1 = ripState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
 
                                             when (ripState.status) {
                                                 RipStatus.SUCCESS -> {
-                                                    Text("Computed   $computedStr  ✓ matched (v${ripState.matchedVersion})", style = MaterialTheme.typography.bodyMedium)
-                                                    val expectedStr = if (ripState.matchedVersion == 2) {
-                                                        ripState.expectedChecksumsV2.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-                                                    } else {
-                                                        ripState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    val v2MatchedStr = if (ripState.matchedVersion == 2) "  ✓ matched" else ""
+                                                    val v1MatchedStr = if (ripState.matchedVersion == 1) "  ✓ matched" else ""
+
+                                                    Text("Computed (v2)   $computedV2$v2MatchedStr", style = MaterialTheme.typography.bodyMedium)
+                                                    if (expectedV2.isNotEmpty()) {
+                                                        Text("Expected (v2)   $expectedV2", style = MaterialTheme.typography.bodyMedium)
                                                     }
-                                                    Text("Expected   $expectedStr", style = MaterialTheme.typography.bodyMedium)
+                                                    Text("Computed (v1)   $computedV1$v1MatchedStr", style = MaterialTheme.typography.bodyMedium)
+                                                    if (expectedV1.isNotEmpty()) {
+                                                        Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
+                                                    }
                                                 }
                                                 RipStatus.WARNING -> {
-                                                    val computedV1 = ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
-                                                    val expectedV1 = ripState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                                    Text("Computed (v2)   $computedV2", style = MaterialTheme.typography.bodyMedium)
+                                                    if (expectedV2.isNotEmpty()) {
+                                                        Text("Expected (v2)   $expectedV2", style = MaterialTheme.typography.bodyMedium)
+                                                    } else {
+                                                        Text("Expected (v2)   none", style = MaterialTheme.typography.bodyMedium)
+                                                    }
                                                     Text("Computed (v1)   $computedV1", style = MaterialTheme.typography.bodyMedium)
-                                                    Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
+                                                    if (expectedV1.isNotEmpty()) {
+                                                        Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
+                                                    } else {
+                                                        Text("Expected (v1)   none", style = MaterialTheme.typography.bodyMedium)
+                                                    }
                                                 }
                                                 RipStatus.UNVERIFIED -> {
-                                                    val computedV1 = ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                                    Text("Checksum (v2)  $computedV2  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
                                                     Text("Checksum (v1)  $computedV1  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
                                                 }
-                                                else -> {} // ERROR may or may not have a checksum, but usually doesn't output it specifically
+                                                else -> {
+                                                    Text("Checksum (v2)  $computedV2", style = MaterialTheme.typography.bodyMedium)
+                                                    Text("Checksum (v1)  $computedV1", style = MaterialTheme.typography.bodyMedium)
+                                                }
                                             }
                                         }
 
