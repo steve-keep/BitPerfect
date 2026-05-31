@@ -16,9 +16,8 @@ class RipManagerChecksumTest {
 
     @Test
     fun `ChecksumAccumulator position threading across chunks`() {
-        val verifier = AccurateRipVerifier()
         val totalSamples = 20L * 588L
-        val accumulator = ChecksumAccumulator(verifier, totalSamples)
+        val accumulator = ChecksumAccumulator(totalSamples)
 
         val chunk1Pcm = ByteArray(10 * 2352) { it.toByte() }
         accumulator.accumulate(chunk1Pcm)
@@ -75,7 +74,7 @@ class RipManagerChecksumTest {
         ).partialChecksum
 
         // Simulate RipManager Accumulator feeding
-        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = false)
+        val accumulatorT1 = ChecksumAccumulator(totalSamples, isFirstTrack = true, isLastTrack = false)
         // track 1:
         accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
         accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
@@ -83,7 +82,7 @@ class RipManagerChecksumTest {
 
         assertEquals("Track 1 checksum mismatch", expectedChecksum1, t1Actual)
 
-        val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
+        val accumulatorT2 = ChecksumAccumulator(totalSamples, isFirstTrack = false, isLastTrack = true)
         // track 2:
         accumulatorT2.accumulate(overreadBuffer)
         accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
@@ -133,12 +132,12 @@ class RipManagerChecksumTest {
             isFirstTrack = false, isLastTrack = true
         ).partialChecksum
 
-        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = false)
+        val accumulatorT1 = ChecksumAccumulator(totalSamples, isFirstTrack = true, isLastTrack = false)
         accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
         accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
         assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksumV1)
 
-        val accumulatorT2 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = false, isLastTrack = true)
+        val accumulatorT2 = ChecksumAccumulator(totalSamples, isFirstTrack = false, isLastTrack = true)
         accumulatorT2.accumulate(overreadBuffer)
         accumulatorT2.accumulate(t2PhysicalMain.copyOfRange(skipBytes, t2PhysicalMain.size))
         accumulatorT2.accumulate(t2PhysicalOvershoot.copyOfRange(0, skipBytes))
@@ -166,7 +165,7 @@ class RipManagerChecksumTest {
             isFirstTrack = true, isLastTrack = true
         ).partialChecksum
 
-        val accumulatorT1 = ChecksumAccumulator(verifier, totalSamples, isFirstTrack = true, isLastTrack = true)
+        val accumulatorT1 = ChecksumAccumulator(totalSamples, isFirstTrack = true, isLastTrack = true)
         // No overread buffer, no skipBytes
         accumulatorT1.accumulate(t1PhysicalMain)
 

@@ -304,7 +304,6 @@ class RipManager(
                 val isLastTrack  = (i == toc.tracks.size - 1)
 
                 val checksumAccumulator = ChecksumAccumulator(
-                    verifier      = verifier,
                     totalSamples  = totalSamples,
                     isFirstTrack  = isFirstTrack,
                     isLastTrack   = isLastTrack
