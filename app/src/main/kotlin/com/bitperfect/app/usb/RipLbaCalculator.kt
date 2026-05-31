@@ -10,6 +10,8 @@ package com.bitperfect.app.usb
  * @param isLastTrack   Whether this is the final track on the disc
  * @return              Pair of (firstLba, lastLba) — the inclusive range of LBAs to request.
  *                      lastLba must be strictly less than effectiveAudioLeadOutLba for the last track.
+ *                      firstLba is clamped to a minimum of 1; LBA 0 is the physical disc
+ *                      start and is not a valid audio sector on any standard CD.
  */
 internal fun ripLbaRange(
     trackLba: Int,
@@ -21,7 +23,11 @@ internal fun ripLbaRange(
     val lbaStart = trackLba + tocOffset
     val totalSectors = nextLba - trackLba
     val effectiveTotalSectors = if (isLastTrack) totalSectors - tocOffset else totalSectors
-    val firstLba = lbaStart - pregapOffset
-    val lastLba  = firstLba + effectiveTotalSectors - 1
+    val rawFirstLba = lbaStart - pregapOffset
+    // LBA 0 is the physical disc start and is not a valid audio sector. Clamp to 1
+    // (matches the same guard in CalibrationLbaCalculator).
+    val firstLba = maxOf(1, rawFirstLba)
+    val clampAdjustment = firstLba - rawFirstLba   // 0 normally, 1 when Track 1 pregap clamped
+    val lastLba = firstLba + effectiveTotalSectors - clampAdjustment - 1
     return Pair(firstLba, lastLba)
 }

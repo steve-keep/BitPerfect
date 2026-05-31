@@ -342,6 +342,11 @@ class RipManager(
                     pregapOffset  = toc.pregapOffset,
                     isLastTrack   = isLastTrack
                 )
+                // Log if LBA 0 clamping occurred (Track 1 on standard disc with zero drive offset)
+                if (firstLba == 1 && (entry.lba + tocOffset - toc.pregapOffset) <= 0) {
+                    AppLogger.w("RipManager", "LBA 0 clamp applied for track $trackNumber — " +
+                        "firstLba adjusted from ${entry.lba + tocOffset - toc.pregapOffset} to 1")
+                }
 
                 var isFirstSector = true
 
@@ -762,7 +767,9 @@ class RipManager(
                         logger.record(RipLogEvent.TransportAnomaly(
                             trackNumber = trackNumber,
                             anomalyType = "TRANSPORT_FAILURE",
-                            details = "Failed to read sector ${firstLba + sectorsRead} after 3 attempts"
+                            details = "Failed to read sector ${firstLba + sectorsRead} after 3 attempts " +
+                                "(${sectorsRead}/${effectiveTotalSectors} sectors complete, " +
+                                "${String.format("%.1f", sectorsRead * 100.0 / effectiveTotalSectors)}%)"
                         ))
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
                             isCancelled = true
@@ -794,7 +801,10 @@ class RipManager(
                             )
                         }
 
-                        throw java.io.IOException("Failed to read sector ${firstLba + sectorsRead} after 3 attempts") // see UsbReadSession.MAX_RETRIES
+                        throw java.io.IOException(
+                            "Failed to read sector ${firstLba + sectorsRead} after 3 attempts " +
+                            "(${sectorsRead}/${effectiveTotalSectors} sectors, track $trackNumber)"
+                        ) // see UsbReadSession.MAX_RETRIES
                     }
 
                     updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors)

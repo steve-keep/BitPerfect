@@ -124,4 +124,54 @@ class RipLbaCalculatorTest {
 
         assertTrue(last < leadOutLba - 150)
     }
+
+    // ── LBA 0 guard ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `track1 with pregapOffset=150 and tocOffset=0 - firstLba is clamped to 1 not 0`() {
+        // Standard disc: Track 1 lba=150 (normalised), pregapOffset=150, no drive offset
+        // rawFirstLba = 150 + 0 - 150 = 0 → must be clamped to 1
+        val (first, _) = ripLbaRange(
+            trackLba = 150, nextLba = 14051,
+            tocOffset = 0, pregapOffset = 150,
+            isLastTrack = false
+        )
+        assertEquals("firstLba must be clamped away from LBA 0", 1, first)
+    }
+
+    @Test
+    fun `track1 LBA clamp adjusts sector count so lastLba is unchanged relative to raw calculation`() {
+        // Without clamp: firstLba=0, lastLba=0+13901-1=13900
+        // With clamp:    firstLba=1, lastLba=1+13901-1-1=13900  (same lastLba)
+        val (first, last) = ripLbaRange(
+            trackLba = 150, nextLba = 14051,
+            tocOffset = 0, pregapOffset = 150,
+            isLastTrack = false
+        )
+        assertEquals(1, first)
+        assertEquals(13900, last)
+    }
+
+    @Test
+    fun `track1 with tocOffset=1 - firstLba is 1 not 0 (tocOffset pushes past clamp)`() {
+        // lbaStart = 150+1=151, rawFirstLba = 151-150 = 1 → no clamping needed
+        val (first, _) = ripLbaRange(
+            trackLba = 150, nextLba = 14051,
+            tocOffset = 1, pregapOffset = 150,
+            isLastTrack = false
+        )
+        assertEquals(1, first)
+    }
+
+    @Test
+    fun `pregapOffset=0 disc - firstLba is trackLba (no clamping needed)`() {
+        // 0-based disc not normalised: trackLba=0, pregapOffset=0
+        // firstLba = 0+0-0 = 0 → clamped to 1
+        val (first, _) = ripLbaRange(
+            trackLba = 0, nextLba = 13901,
+            tocOffset = 0, pregapOffset = 0,
+            isLastTrack = false
+        )
+        assertEquals(1, first)
+    }
 }
