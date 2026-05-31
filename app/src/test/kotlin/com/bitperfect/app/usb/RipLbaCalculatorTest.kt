@@ -140,9 +140,12 @@ class RipLbaCalculatorTest {
     }
 
     @Test
-    fun `track1 LBA clamp adjusts sector count so lastLba is unchanged relative to raw calculation`() {
-        // Without clamp: firstLba=0, lastLba=0+13901-1=13900
-        // With clamp:    firstLba=1, lastLba=1+13901-1-1=13900  (same lastLba)
+    fun `track1 LBA clamp does not reduce lastLba - full sector count is preserved`() {
+        // trackLba=150, nextLba=14051, pregapOffset=150, tocOffset=0
+        // totalSectors = 14051 - 150 = 13901
+        // rawFirstLba  = 150 + 0 - 150 = 0  → clamped to firstLba=1
+        // lastLba      = rawFirstLba(0) + 13901 - 1 = 13900
+        // sectors read = lastLba(13900) - firstLba(1) + 1 = 13900  ← correct full count
         val (first, last) = ripLbaRange(
             trackLba = 150, nextLba = 14051,
             tocOffset = 0, pregapOffset = 150,
@@ -150,6 +153,22 @@ class RipLbaCalculatorTest {
         )
         assertEquals(1, first)
         assertEquals(13900, last)
+        assertEquals(13900, last - first + 1)  // sectors read = totalSectors
+    }
+
+    @Test
+    fun `track1 LBA clamp yields correct readable sectors with real-disc data`() {
+        // Real-disc data: Track 1 starts at LBA 150, Track 2 starts at LBA 14209
+        // totalSectors = 14209 - 150 = 14059
+        // Expected readable sectors: 14058
+        val (first, last) = ripLbaRange(
+            trackLba = 150, nextLba = 14209,
+            tocOffset = 0, pregapOffset = 150,
+            isLastTrack = false
+        )
+        assertEquals(1, first)
+        assertEquals(14058, last)
+        assertEquals(14058, last - first + 1) // 14058 readable sectors
     }
 
     @Test
