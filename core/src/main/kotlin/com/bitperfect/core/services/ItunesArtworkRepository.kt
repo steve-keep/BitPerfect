@@ -71,7 +71,8 @@ private val editionPatterns = listOf(
     "reissue",
     "bonus track version",
     "bonus track",
-    "bonus edition"
+    "bonus edition",
+    "live acoustic"
 )
 
 private fun simplifyAlbumTitle(value: String): String {
