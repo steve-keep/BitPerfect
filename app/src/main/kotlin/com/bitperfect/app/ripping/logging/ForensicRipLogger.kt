@@ -57,15 +57,43 @@ class DefaultForensicRipLogger : ForensicRipLogger {
 
             // Cache probe result mapping (derive CacheStatus back or simple formatting)
             val cacheStatusStr = if (p.likelyCachesAudio) "CACHE_CONFIRMED" else "CACHE_UNLIKELY"
-            sb.append("[US-012] Cache Status: $cacheStatusStr\n\n")
+            sb.append("[US-012]\n")
+            sb.append("Cache Status: $cacheStatusStr\n")
+
+            if (driveAnalysis.cacheProbeResult != null) {
+                val cpr = driveAnalysis.cacheProbeResult
+                val confidence = if (cpr.suspicionScore > 0.8f) "HIGH" else if (cpr.suspicionScore > 0.4f) "MEDIUM" else "LOW"
+                sb.append("Confidence: $confidence\n")
+                // Approximation, you could calculate total reads from the result but we just log what we have
+                sb.append("Suspicion Score: ${String.format("%.2f", cpr.suspicionScore)}\n")
+                sb.append("Identical Rereads: ${cpr.identicalRereadCount}\n")
+            }
+            sb.append("\n")
 
             val streamingStatusStr = if (p.supportsStreaming) "STABLE_STREAMING" else "UNSTABLE_STREAMING"
-            sb.append("[US-013] Streaming: $streamingStatusStr\n\n")
+            sb.append("[US-013]\n")
+            sb.append("Streaming: $streamingStatusStr\n")
+            if (driveAnalysis.streamingAnalysisResult != null) {
+                val sm = driveAnalysis.streamingAnalysisResult.metrics
+                sb.append("Reads Analysed: ${sm.sequentialReadCount}\n")
+                sb.append("Stall Events: ${sm.stallEvents}\n")
+                sb.append("Longest Stall: ${String.format("%.1f", sm.longestStallMs)}ms\n")
+                // Removed Degradation Score as we use stall percentage now
+            }
+            sb.append("\n")
 
             sb.append("[US-014]\n")
             sb.append("Preferred Read Size: ${p.preferredReadSize}\n")
-            sb.append("Max Reliable Size: ${p.maxReliableReadSize}\n")
-            sb.append("Unstable Sizes: None\n\n") // Based on current capabilities it is empty or simple
+            sb.append("Max Reliable Size: ${p.maxReliableReadSize}\n\n")
+            if (driveAnalysis.readSizeProfile != null) {
+                sb.append("Size Testing\n")
+                sb.append("------------\n")
+                for (metric in driveAnalysis.readSizeProfile.metrics.sortedBy { it.readSize }) {
+                    val passFail = if (metric.transportFailures == 0 && metric.shortReads == 0 && metric.overlapFailures == 0) "PASS" else "FAIL"
+                    sb.append("${metric.readSize} sectors : $passFail\n")
+                }
+                sb.append("\n")
+            }
 
             sb.append("[US-015]\n")
             sb.append("Supports Streaming: ${if (p.supportsStreaming) "Yes" else "No"}\n")
@@ -113,6 +141,28 @@ class DefaultForensicRipLogger : ForensicRipLogger {
             sb.append("Recovery Windows: ${trackCompleted.summary.recoveryWindows}\n")
             sb.append("Escalations: ${trackCompleted.summary.escalations}\n\n")
 
+            sb.append("Recovery Strategies\n")
+            sb.append("-------------------\n")
+
+            var overlapRecovery = 0
+            var fullChunkRecovery = 0
+            var reducedChunkRecovery = 0
+            var driftFocusedRecovery = 0
+
+            for (e in trackEvents.filterIsInstance<RipLogEvent.TargetedSectorRecoveryLogged>()) {
+                when {
+                    e.strategy.contains("Overlap", ignoreCase = true) -> overlapRecovery++
+                    e.strategy.contains("FullChunk", ignoreCase = true) -> fullChunkRecovery++
+                    e.strategy.contains("Reduced", ignoreCase = true) -> reducedChunkRecovery++
+                    e.strategy.contains("Drift", ignoreCase = true) -> driftFocusedRecovery++
+                }
+            }
+
+            sb.append("OverlapRecoveryStrategy: $overlapRecovery\n")
+            sb.append("FullChunkRecoveryStrategy: $fullChunkRecovery\n")
+            sb.append("ReducedChunkRecoveryStrategy: $reducedChunkRecovery\n")
+            sb.append("DriftFocusedRecoveryStrategy: $driftFocusedRecovery\n\n")
+
             // To figure out dropped/duplicate samples we can examine SampleAlignmentValidated events
             var droppedSamples = 0
             var duplicateSamples = 0
@@ -144,8 +194,21 @@ class DefaultForensicRipLogger : ForensicRipLogger {
 
         }
 
+
+        // Calculate SHA-256 hash for verification
+        try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hashBytes = digest.digest(sb.toString().toByteArray(StandardCharsets.UTF_8))
+            val hashString = hashBytes.joinToString("") { "%02x".format(it) }
+            sb.append("End of log\n")
+            sb.append("Log Hash (SHA-256): $hashString\n")
+        } catch (e: Exception) {
+            AppLogger.e("ForensicRipLogger", "Failed to calculate log hash", e)
+        }
+
         try {
             outputDirectory.findFile("bitperfect-rip-log.txt")?.delete()
+
             val destFile = outputDirectory.createFile("text/plain", "bitperfect-rip-log.txt")
             if (destFile != null) {
                 context.contentResolver.openOutputStream(destFile.uri)?.use { out ->

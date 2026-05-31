@@ -7,12 +7,10 @@ enum class StreamingClassification {
 }
 
 data class StreamingMetrics(
-    val averageLatencyMs: Double,
-    val latencyVarianceMs: Double,
-    val maxLatencySpikeMs: Double,
-    val sequentialConsistencyScore: Float,
-    val postSeekDegradationScore: Float,
-    val sequentialReadCount: Int
+    val sequentialReadCount: Int,
+    val stallEvents: Int,
+    val longestStallMs: Double,
+    val stallPercentage: Float
 )
 
 data class StreamingAnalysisResult(
