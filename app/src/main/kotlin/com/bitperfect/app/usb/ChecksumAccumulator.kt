@@ -36,17 +36,17 @@ internal class ChecksumAccumulator(
 
             val sampleValue = sample and 0xFFFFFFFFL
 
+            // V2 accumulation
+            val weighted = (sampleValue * currentSamplePos) and 0xFFFFFFFFL
+            bytes[0] = (weighted and 0xFF).toByte()
+            bytes[1] = ((weighted shr 8) and 0xFF).toByte()
+            bytes[2] = ((weighted shr 16) and 0xFF).toByte()
+            bytes[3] = ((weighted shr 24) and 0xFF).toByte()
+            crcV2.update(bytes)
+
             if (currentSamplePos > skipStart && currentSamplePos <= totalSamples - skipEnd) {
                 // V1 accumulation
                 partialV1 = (partialV1 + sampleValue * currentSamplePos) and 0xFFFFFFFFL
-
-                // V2 accumulation
-                val weighted = (sampleValue * currentSamplePos) and 0xFFFFFFFFL
-                bytes[0] = (weighted and 0xFF).toByte()
-                bytes[1] = ((weighted shr 8) and 0xFF).toByte()
-                bytes[2] = ((weighted shr 16) and 0xFF).toByte()
-                bytes[3] = ((weighted shr 24) and 0xFF).toByte()
-                crcV2.update(bytes)
             }
             currentSamplePos++
         }

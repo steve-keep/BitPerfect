@@ -65,7 +65,7 @@ class ChecksumAccumulatorTest {
     }
 
     @Test
-    fun `V2 skips first 2940 samples on first track`() {
+    fun `V2 includes first 2940 samples on first track`() {
         val totalSamples = 10000L
 
         // 2940 samples exactly
@@ -77,13 +77,35 @@ class ChecksumAccumulatorTest {
 
         val checksums = accumulator.finalise()
 
-        // Initial CRC32 of empty bytes is 0
-        assertEquals(0L, checksums.second)
+        // V1 should still be 0 since it skips the first 2940 samples
+        assertEquals(0L, checksums.first)
+
+        // Manual V2 calculation for all 2940 samples
+        val crc = java.util.zip.CRC32()
+        val bytes = ByteArray(4)
+        for (i in 0 until skippedSamplesCount) {
+            val sample = ((pcmData[i*4].toLong() and 0xFF) or
+                         ((pcmData[i*4+1].toLong() and 0xFF) shl 8) or
+                         ((pcmData[i*4+2].toLong() and 0xFF) shl 16) or
+                         ((pcmData[i*4+3].toLong() and 0xFF) shl 24))
+            val sampleValue = sample and 0xFFFFFFFFL
+            val currentSamplePos = (i + 1).toLong()
+
+            val weighted = (sampleValue * currentSamplePos) and 0xFFFFFFFFL
+            bytes[0] = (weighted and 0xFF).toByte()
+            bytes[1] = ((weighted shr 8) and 0xFF).toByte()
+            bytes[2] = ((weighted shr 16) and 0xFF).toByte()
+            bytes[3] = ((weighted shr 24) and 0xFF).toByte()
+            crc.update(bytes)
+        }
+        val expectedV2 = crc.value and 0xFFFFFFFFL
+
+        assertEquals(expectedV2, checksums.second)
     }
 
     @Test
-    fun `V2 skips last 2940 samples on last track`() {
-        val totalSamples = 3000L // Small total samples, only first 60 samples will be accumulated
+    fun `V2 includes last 2940 samples on last track`() {
+        val totalSamples = 3000L // Small total samples, only first 60 samples would be accumulated for V1
         val pcmData = ByteArray(totalSamples.toInt() * 4)
 
         // Populate all samples with value 1
@@ -96,10 +118,17 @@ class ChecksumAccumulatorTest {
 
         val checksums = accumulator.finalise()
 
-        // Manual V2 calculation for the first 60 samples (3000 - 2940)
+        // V1 should only include the first 60 samples (3000 - 2940 = 60)
+        var expectedV1 = 0L
+        for (i in 1..60) {
+            expectedV1 = (expectedV1 + 1L * i) and 0xFFFFFFFFL
+        }
+        assertEquals(expectedV1, checksums.first)
+
+        // Manual V2 calculation for all 3000 samples
         val crc = java.util.zip.CRC32()
         val bytes = ByteArray(4)
-        for (i in 1..60) {
+        for (i in 1..3000) {
             val weighted = (1L * i) and 0xFFFFFFFFL
             bytes[0] = (weighted and 0xFF).toByte()
             bytes[1] = ((weighted shr 8) and 0xFF).toByte()
