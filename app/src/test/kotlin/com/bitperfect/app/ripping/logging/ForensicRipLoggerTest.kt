@@ -114,7 +114,10 @@ class ForensicRipLoggerTest {
                 unstableSeeking = false,
                 retrySuccessRate = 0.0f,
                 overlapInstabilityRate = 0.0f
-            )
+            ),
+            cacheProbeResult = null,
+            streamingAnalysisResult = null,
+            readSizeProfile = null
         ))
 
         logger.record(RipLogEvent.SessionCompleted(success = true))

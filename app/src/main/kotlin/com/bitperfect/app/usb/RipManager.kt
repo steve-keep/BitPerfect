@@ -404,6 +404,7 @@ class RipManager(
                             overlapTail = overlapVerifier.extractOverlapTail(pcmData),
                             rereadCount = 0
                         )
+                        trackChunksRead++
 
                         var currentChunkConfidence = RipConfidence.HIGH
 
@@ -455,6 +456,7 @@ class RipManager(
                                         val newPcm = session.readSectors(lba, count)
                                         if (newPcm != null) {
                                             wasPreviousReadRecovery = true
+                                            trackChunksRead++
                                             VerifiedChunk(
                                                 startLba = lba,
                                                 endLba = lba + (newPcm.size / 2352),
@@ -854,12 +856,17 @@ class RipManager(
 
                 allStreamingReads.addAll(streamingReads)
 
-                val streamingResult = streamingBehaviorAnalyzer.analyze(streamingReads)
+                val streamingResult = streamingBehaviorAnalyzer.analyze(
+                    reads = streamingReads,
+                    overlapFailures = trackOverlapFailures,
+                    rereads = currentState?.suspiciousRegions?.sumOf { it.rereadAttempts } ?: 0,
+                    recoveryWindows = trackRecoveryWindows
+                )
                 if (streamingResult.classification != com.bitperfect.app.ripping.streaming.StreamingClassification.STABLE_STREAMING) {
                     AppLogger.d("StreamingBehaviorAnalyzer", "Sequential instability detected")
                     AppLogger.d("StreamingBehaviorAnalyzer", "window=$firstLba-$lastReadableLba")
-                    AppLogger.d("StreamingBehaviorAnalyzer", "latencyVarianceMs=${streamingResult.metrics.latencyVarianceMs}")
-                    AppLogger.d("StreamingBehaviorAnalyzer", "postSeekDegradationScore=${streamingResult.metrics.postSeekDegradationScore}")
+
+                    AppLogger.d("StreamingBehaviorAnalyzer", "stallPercentage=${streamingResult.metrics.stallPercentage}")
                     AppLogger.d("StreamingBehaviorAnalyzer", "classification=${streamingResult.classification.name}")
                 } else {
                     AppLogger.d("StreamingBehaviorAnalyzer", "Stable streaming observed")
@@ -1066,7 +1073,13 @@ class RipManager(
                 .lastOrNull()
 
             val streamingBehaviorAnalyzer = com.bitperfect.app.ripping.streaming.DefaultStreamingBehaviorAnalyzer()
-            val globalStreamingResult = streamingBehaviorAnalyzer.analyze(allStreamingReads)
+            val totalRereads = _trackStates.value.values.sumOf { state -> state.suspiciousRegions.sumOf { it.rereadAttempts } }
+            val globalStreamingResult = streamingBehaviorAnalyzer.analyze(
+                reads = allStreamingReads,
+                overlapFailures = 0,
+                rereads = totalRereads,
+                recoveryWindows = 0
+            )
 
             val driveProfiler = com.bitperfect.app.ripping.capability.DefaultDriveProfiler()
             val driveInfo = DeviceStateManager.driveStatus.value.info ?: com.bitperfect.app.usb.DriveInfo(
@@ -1084,7 +1097,10 @@ class RipManager(
             )
 
             logger.record(RipLogEvent.DriveAnalysisCompleted(
-                profile = finalProfile
+                profile = finalProfile,
+                cacheProbeResult = cacheProbeResult,
+                streamingAnalysisResult = globalStreamingResult,
+                readSizeProfile = profile
             ))
 
             logger.record(RipLogEvent.SessionCompleted(success = true))

@@ -34,9 +34,8 @@ class DefaultDriveProfiler : DriveProfiler {
             streamingAnalysisResult.classification == StreamingClassification.STABLE_STREAMING
 
         // 3. unstableSeeking
-        // simple heuristic: if postSeekDegradationScore is > 0 or latency metrics show seeking is problematic.
-        // Let's rely on streamingAnalysisResult's postSeekDegradationScore > 0.5f for now.
-        val unstableSeeking = streamingAnalysisResult != null && streamingAnalysisResult.metrics.postSeekDegradationScore > 0.5f
+        // Relying on stallPercentage for now
+        val unstableSeeking = streamingAnalysisResult != null && streamingAnalysisResult.metrics.stallPercentage > 5.0f
 
         // 4. stableLargeReads
         val stableLargeReads = readSizeProfile != null && readSizeProfile.maxReliableReadSize > 16 // using > 16 frames as a safe marker for 'large' reads

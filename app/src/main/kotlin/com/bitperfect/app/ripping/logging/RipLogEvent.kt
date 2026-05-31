@@ -3,6 +3,9 @@ package com.bitperfect.app.ripping.logging
 import com.bitperfect.app.ripping.paranoia.RipConfidence
 import com.bitperfect.app.ripping.capability.DriveProfile
 import com.bitperfect.app.ripping.streaming.StreamingClassification
+import com.bitperfect.app.ripping.paranoia.cache.CacheProbeResult
+import com.bitperfect.app.ripping.streaming.StreamingAnalysisResult
+import com.bitperfect.app.ripping.profiler.ReadSizeProfile
 import com.bitperfect.app.ripping.paranoia.cache.CacheStatus
 import com.bitperfect.app.usb.RipStatus
 
@@ -28,7 +31,10 @@ sealed interface RipLogEvent {
     ) : RipLogEvent
 
     data class DriveAnalysisCompleted(
-        val profile: DriveProfile
+        val profile: DriveProfile,
+        val cacheProbeResult: CacheProbeResult?,
+        val streamingAnalysisResult: StreamingAnalysisResult?,
+        val readSizeProfile: ReadSizeProfile?
     ) : RipLogEvent
 
     data class TrackStarted(
