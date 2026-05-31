@@ -360,6 +360,26 @@ class RipManager(
 
                 val effectiveTotalSectors = lastReadableLba - firstLba + 1
 
+                val expectedTotalSectors = if (isLastTrack) totalSectors - tocOffset else totalSectors
+                val missingStartSectors = expectedTotalSectors - effectiveTotalSectors
+
+                if (missingStartSectors > 0) {
+                    AppLogger.w("RipManager", "Prepending $missingStartSectors sectors of silence due to LBA clamp")
+                    val silenceBytes = ByteArray(missingStartSectors * 2352)
+
+                    val trimmedSilence = if (isFirstSector && skipBytes > 0) {
+                        silenceBytes.copyOfRange(skipBytes, silenceBytes.size)
+                    } else {
+                        silenceBytes
+                    }
+
+                    encoder.encode(trimmedSilence)
+                    checksumAccumulator.accumulate(trimmedSilence)
+                    analyser.feed(trimmedSilence)
+
+                    isFirstSector = false // Ensure the physical read loop doesn't trim again
+                }
+
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
 

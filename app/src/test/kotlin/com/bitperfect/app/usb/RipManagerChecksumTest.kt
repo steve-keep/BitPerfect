@@ -93,8 +93,11 @@ class RipManagerChecksumTest {
     }
 
     @Test
-    fun `cdparanoia model with negative offset`() {
+    fun `cdparanoia model with negative offset and LBA 0 clamping`() {
         // -48 offset -> tocOffset = -1, sampleOffset = 540, skipBytes = 2160
+        // Because of -1 tocOffset, track 1 starts at LBA 0 (before pregap normalisation for simplicity,
+        // or pregap offset causes it). We will simulate clamping here.
+        val tocOffset = -1
         val sampleOffset = 540
         val skipBytes = 2160
 
@@ -103,16 +106,36 @@ class RipManagerChecksumTest {
         val totalSamples = sectorsPerTrack * 588L
 
         // Track 1
-        val t1PhysicalMain = ByteArray(trackBytesSize) { (it % 256).toByte() }
+        // Expected behavior for clamping:
+        // effectiveTotalSectors = expectedTotalSectors - clampAdjustment
+        // In our case clampAdjustment = 1.
+        // missingStartSectors = 1.
+        // So the first sector read from disc is actually the second logical sector of the track.
+        // We will mock the physical reads to only return 19 sectors instead of 20.
+        val missingStartSectors = 1
+        val expectedTotalSectors = 20
+        val effectiveTotalSectors = expectedTotalSectors - missingStartSectors
+
+        // Silence prepended for clamped sectors
+        val silenceBytes = ByteArray(missingStartSectors * 2352)
+        val trimmedSilence = silenceBytes.copyOfRange(skipBytes, silenceBytes.size)
+
+        // Physical read will only return 19 sectors
+        val t1PhysicalMain = ByteArray(effectiveTotalSectors * 2352) { (it % 256).toByte() }
         val t1PhysicalOvershoot = ByteArray(2352) { ((it + 10) % 256).toByte() }
+
+        // Construct expected continuous PCM stream:
+        // 1. Trimmed silence
+        // 2. Physical sectors (full)
+        // 3. Overshoot (skipBytes amount)
+        val expectedT1 = ByteArray(trackBytesSize)
+        System.arraycopy(trimmedSilence, 0, expectedT1, 0, trimmedSilence.size)
+        System.arraycopy(t1PhysicalMain, 0, expectedT1, trimmedSilence.size, t1PhysicalMain.size)
+        System.arraycopy(t1PhysicalOvershoot, 0, expectedT1, trimmedSilence.size + t1PhysicalMain.size, skipBytes)
 
         // Track 2
         val t2PhysicalMain = ByteArray(trackBytesSize - 2352) { ((it + 20) % 256).toByte() }
         val t2PhysicalOvershoot = ByteArray(2352) { ((it + 30) % 256).toByte() }
-
-        val expectedT1 = ByteArray(trackBytesSize)
-        System.arraycopy(t1PhysicalMain, skipBytes, expectedT1, 0, trackBytesSize - skipBytes)
-        System.arraycopy(t1PhysicalOvershoot, 0, expectedT1, trackBytesSize - skipBytes, skipBytes)
 
         val expectedT2 = ByteArray(trackBytesSize)
         val overreadBuffer = t1PhysicalOvershoot.copyOfRange(skipBytes, 2352)
@@ -133,7 +156,10 @@ class RipManagerChecksumTest {
         ).partialChecksum
 
         val accumulatorT1 = ChecksumAccumulator(totalSamples, isFirstTrack = true, isLastTrack = false)
-        accumulatorT1.accumulate(t1PhysicalMain.copyOfRange(skipBytes, t1PhysicalMain.size))
+        // Feed silence (trimmed by skipBytes, since it is the first chunk)
+        accumulatorT1.accumulate(trimmedSilence)
+        // Feed physical reads (no longer trimmed by skipBytes, as silence absorbed it)
+        accumulatorT1.accumulate(t1PhysicalMain)
         accumulatorT1.accumulate(t1PhysicalOvershoot.copyOfRange(0, skipBytes))
         assertEquals("Track 1 checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksumV1)
 
