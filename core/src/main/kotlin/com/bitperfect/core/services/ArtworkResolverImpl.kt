@@ -24,29 +24,17 @@ class ArtworkResolverImpl(private val context: Context) : ArtworkResolver {
     }
 
     override suspend fun resolveArtwork(metadata: DiscMetadata): ResolvedArtwork? = withContext(Dispatchers.IO) {
-        if (metadata.mbReleaseId.isNotBlank()) {
+        // 1. Trust MusicBrainz! No slow HTTP HEAD request needed.
+        if (metadata.mbReleaseId.isNotBlank() && metadata.hasFrontCoverArt) {
+            AppLogger.d(TAG, "MusicBrainz indicates Cover Art Archive has front artwork for ${metadata.mbReleaseId}")
             val caaUrl = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front"
-            try {
-                AppLogger.d(TAG, "Checking Cover Art Archive: $caaUrl")
-                val response = client.head(caaUrl)
-                if (response.status == HttpStatusCode.OK) {
-                    AppLogger.d(TAG, "Cover Art Archive found artwork for release ${metadata.mbReleaseId}")
-                    val previewUrl = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front-500"
-                    val highResUrl = caaUrl
-                    return@withContext ResolvedArtwork(previewUrl, highResUrl)
-                } else {
-                    AppLogger.d(TAG, "Cover Art Archive returned ${response.status} for release ${metadata.mbReleaseId}")
-                }
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "Error checking Cover Art Archive: ${e.message}")
-            }
-        } else {
-            AppLogger.d(TAG, "No valid mbReleaseId found for CAA lookup.")
+            val previewUrl = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front-500"
+            return@withContext ResolvedArtwork(previewUrl, caaUrl)
         }
 
-        // Fallback to iTunes
+        // 2. Fallback to iTunes instantly
+        AppLogger.d(TAG, "No Cover Art Archive artwork. Falling back to iTunes artwork search for '${metadata.artistName}' - '${metadata.albumTitle}'")
         val expectedTrackCount = metadata.trackTitles.size.takeIf { it > 0 }
-        AppLogger.d(TAG, "Falling back to iTunes artwork search for '${metadata.artistName}' - '${metadata.albumTitle}'")
         return@withContext itunesArtworkRepository.fetchItunesArtwork(metadata.artistName, metadata.albumTitle, expectedTrackCount)
     }
 }

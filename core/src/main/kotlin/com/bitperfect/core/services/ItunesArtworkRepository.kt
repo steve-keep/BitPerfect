@@ -13,6 +13,9 @@ import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -287,7 +290,7 @@ class ItunesArtworkRepository(private val context: Context) {
         private const val BEST_EFFORT_THRESHOLD = 30
     }
 
-    suspend fun fetchItunesArtwork(artist: String, album: String, expectedTrackCount: Int? = null): ResolvedArtwork? = withContext(Dispatchers.IO) {
+    suspend fun fetchItunesArtwork(artist: String, album: String, expectedTrackCount: Int? = null): ResolvedArtwork? = kotlinx.coroutines.coroutineScope {
         try {
             val encodedArtist = URLEncoder.encode(artist, "UTF-8")
             val encodedAlbum = URLEncoder.encode(album, "UTF-8")
@@ -302,42 +305,44 @@ class ItunesArtworkRepository(private val context: Context) {
             val expectedNormalisedArtist = normalizeArtistName(artist)
             val expectedSimplifiedAlbum = simplifyAlbumTitle(album)
 
+            // Fire all 4 network requests concurrently
+            val deferredResponses = queries.map { (stageName, url) ->
+                async(Dispatchers.IO) {
+                    try {
+                        val response: ItunesSearchResponse = client.get(url).body()
+                        Pair(stageName, response)
+                    } catch (e: Exception) {
+                        AppLogger.w("ItunesArtworkRepository", "Query failed for $stageName: ${e.message}")
+                        Pair(stageName, null as ItunesSearchResponse?)
+                    }
+                }
+            }
+
+            // Wait for all to finish
+            val responses: List<Pair<String, ItunesSearchResponse?>> = deferredResponses.awaitAll()
+
             var absoluteBestCandidate: ItunesAlbumResult? = null
             var absoluteBestScore = Int.MIN_VALUE
             var absoluteBestReason: String? = null
 
-            for ((stageName, url) in queries) {
-                AppLogger.d("ItunesArtworkRepository", "Executing $stageName query: $url")
-                val response: ItunesSearchResponse = client.get(url).body()
-
-                if (response.results.isEmpty()) {
-                    AppLogger.d("ItunesArtworkRepository", "$stageName returned 0 results")
+            // Evaluate them in order of priority (Stage 1 first, then 2, etc.)
+            for ((stageName, response) in responses) {
+                if (response == null || response.results.isEmpty()) {
+                    AppLogger.d("ItunesArtworkRepository", "$stageName returned 0 results or failed")
                     continue
                 }
 
                 val validCandidates = response.results.filter { result ->
-                    val hasRequiredFields =
-                        result.artistName != null &&
-                        result.collectionName != null &&
-                        result.artworkUrl100 != null
-
-                    val isAlbumCollection =
-                        result.wrapperType == "collection" &&
-                        result.collectionType == "Album"
-
-                    val isTrackFallback =
-                        result.wrapperType == "track" &&
-                        result.kind == "song"
-
+                    val hasRequiredFields = result.artistName != null && result.collectionName != null && result.artworkUrl100 != null
+                    val isAlbumCollection = result.wrapperType == "collection" && result.collectionType == "Album"
+                    val isTrackFallback = result.wrapperType == "track" && result.kind == "song"
                     hasRequiredFields && (isAlbumCollection || isTrackFallback)
                 }
 
-                // Deduplicate within the current stage using collectionId, falling back to artistName + collectionName
                 val deduplicatedCandidates = validCandidates.distinctBy {
                     it.collectionId?.toString() ?: "${it.artistName}-${it.collectionName}"
                 }
-
-                AppLogger.d("ItunesArtworkRepository", "Artwork candidates after dedupe: ${deduplicatedCandidates.size}")
+                AppLogger.d("ItunesArtworkRepository", "Artwork candidates after dedupe in $stageName: ${deduplicatedCandidates.size}")
 
                 var stageBestMatch: ItunesAlbumResult? = null
                 var stageBestScore = Int.MIN_VALUE
@@ -346,62 +351,34 @@ class ItunesArtworkRepository(private val context: Context) {
                 for (candidate in deduplicatedCandidates) {
                     val candidateScore = score(candidate, expectedNormalisedArtist, expectedSimplifiedAlbum, expectedTrackCount)
 
-                    val candidateArtist = candidate.artistName?.let { normalizeArtistName(it) } ?: ""
-                    val candidateSimplifiedAlbum = candidate.collectionName?.let { simplifyAlbumTitle(it) } ?: ""
-
-                    AppLogger.d("ItunesArtworkRepository", "[$stageName] Evaluating Candidate:")
-                    AppLogger.d("ItunesArtworkRepository", "  - Candidate Type: wrapper=${candidate.wrapperType} kind=${candidate.kind}")
-                    AppLogger.d("ItunesArtworkRepository", "  - Expected Artist: '$expectedNormalisedArtist' | Candidate: '$candidateArtist'")
-                    AppLogger.d("ItunesArtworkRepository", "  - Exact Artist Match: ${candidateScore.exactArtistMatch} | Overlap Ratio: ${candidateScore.artistOverlapRatio}")
-                    AppLogger.d("ItunesArtworkRepository", "  - Expected Album: '$expectedSimplifiedAlbum' | Candidate: '$candidateSimplifiedAlbum'")
-                    AppLogger.d("ItunesArtworkRepository", "  - Exact Album Match: ${candidateScore.exactAlbumMatch} | Overlap Ratio: ${candidateScore.albumOverlapRatio}")
-                    AppLogger.d("ItunesArtworkRepository", "  - Levenshtein Distance: ${candidateScore.levenshteinCost}")
-                    AppLogger.d("ItunesArtworkRepository", "  - Penalties: ${candidateScore.penaltiesApplied}")
-                    AppLogger.d("ItunesArtworkRepository", "  - Final Score: ${candidateScore.totalScore}")
-
-                    // Sanity validation check
                     val passesSanityCheck = (candidateScore.exactArtistMatch || candidateScore.artistOverlapRatio >= 0.9f) &&
                                             (candidateScore.exactAlbumMatch || candidateScore.albumOverlapRatio >= 0.75f)
 
-                    if (!passesSanityCheck) {
-                        AppLogger.d("ItunesArtworkRepository", "  - REJECTED: Failed sanity validation (needs strong artist AND album match)")
-                        continue
-                    }
+                    if (!passesSanityCheck) continue
 
                     if (candidateScore.totalScore > stageBestScore) {
-                        val reason = "Beat previous best score ($stageBestScore) with new score (${candidateScore.totalScore})"
-                        AppLogger.d("ItunesArtworkRepository", "  - ACCEPTED as current stage best: $reason")
                         stageBestScore = candidateScore.totalScore
                         stageBestMatch = candidate
-                        stageBestReason = reason
-                    } else {
-                        AppLogger.d("ItunesArtworkRepository", "  - ACCEPTED but did not beat stage best score ($stageBestScore)")
+                        stageBestReason = "Beat previous best score ($stageBestScore) with new score (${candidateScore.totalScore})"
                     }
                 }
 
                 if (stageBestMatch != null) {
                     if (stageBestScore >= CONFIDENCE_THRESHOLD) {
-                        AppLogger.d("ItunesArtworkRepository", "Selected best candidate in $stageName: ${stageBestMatch.collectionName} with score: $stageBestScore (>= threshold $CONFIDENCE_THRESHOLD)")
-                        AppLogger.d("ItunesArtworkRepository", "Winning reason: $stageBestReason")
-                        return@withContext buildArtwork(stageBestMatch)
-                    } else {
-                        AppLogger.d("ItunesArtworkRepository", "Best candidate in $stageName narrowly missed threshold: ${stageBestMatch.collectionName} with score: $stageBestScore (< threshold $CONFIDENCE_THRESHOLD). Trying relaxed search...")
+                        AppLogger.d("ItunesArtworkRepository", "Selected best candidate in $stageName: ${stageBestMatch.collectionName} with score: $stageBestScore")
+                        return@coroutineScope buildArtwork(stageBestMatch)
                     }
-
                     if (stageBestScore > absoluteBestScore) {
                         absoluteBestScore = stageBestScore
                         absoluteBestCandidate = stageBestMatch
                         absoluteBestReason = stageBestReason
                     }
-                } else {
-                    AppLogger.d("ItunesArtworkRepository", "No valid candidate found after filtering and scoring in $stageName")
                 }
             }
 
             if (absoluteBestCandidate != null && absoluteBestScore >= BEST_EFFORT_THRESHOLD) {
                 AppLogger.d("ItunesArtworkRepository", "Using best-effort fallback candidate: ${absoluteBestCandidate.collectionName} with score: $absoluteBestScore")
-                AppLogger.d("ItunesArtworkRepository", "Winning reason: $absoluteBestReason")
-                return@withContext buildArtwork(absoluteBestCandidate)
+                return@coroutineScope buildArtwork(absoluteBestCandidate)
             }
 
             AppLogger.d("ItunesArtworkRepository", "No acceptable artwork match found across all stages")
