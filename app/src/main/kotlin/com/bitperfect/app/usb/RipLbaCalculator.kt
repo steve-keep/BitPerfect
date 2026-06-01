@@ -23,11 +23,15 @@ internal fun ripLbaRange(
     val lbaStart = trackLba + tocOffset
     val totalSectors = nextLba - trackLba
     val effectiveTotalSectors = if (isLastTrack) totalSectors - tocOffset else totalSectors
+
     val rawFirstLba = lbaStart - pregapOffset
-    // LBA 0 is the physical disc start and is not a valid audio sector. Clamp to 1
-    // (matches the same guard in CalibrationLbaCalculator).
+    val rawLastLba = rawFirstLba + effectiveTotalSectors - 1
+
+    // LBA 0 represents the physical disc start and causes many drives to stall.
+    // Clamp to 1. By clamping firstLba but not shifting rawLastLba, the window shrinks.
+    // RipManager will detect the missing sector and prepend silence to maintain alignment.
     val firstLba = maxOf(1, rawFirstLba)
-    // lastLba is anchored to the clamped firstLba so that the LBA 0 clamp never shrinks the read window.
-    val lastLba = firstLba + effectiveTotalSectors - 1
+    val lastLba = maxOf(firstLba, rawLastLba)
+
     return Pair(firstLba, lastLba)
 }

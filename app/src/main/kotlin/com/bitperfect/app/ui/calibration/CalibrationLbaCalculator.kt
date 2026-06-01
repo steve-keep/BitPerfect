@@ -19,7 +19,15 @@ internal fun calibrationLbaRange(
     totalSectors: Int,
     overshootSectors: Int = 7
 ): Pair<Int, Int> {
-    val firstNativeLba = trackLba - pregapOffset + 1   // skip unreadable LBA 0
-    val sectorsToRead  = totalSectors + overshootSectors
+    val rawFirstLba = trackLba - pregapOffset
+
+    // LBA 0 is unreadable on most drives. Clamp to 1.
+    val firstNativeLba = maxOf(1, rawFirstLba)
+
+    // Reduce the sectors to read by however much we clamped,
+    // ensuring we don't over-read at the tail end.
+    val clampDifference = firstNativeLba - rawFirstLba
+    val sectorsToRead  = totalSectors + overshootSectors - clampDifference
+
     return Pair(firstNativeLba, sectorsToRead)
 }
