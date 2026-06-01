@@ -169,14 +169,10 @@ fun NowPlayingScreen(
                     }
                 } else {
                     val lazyListState = rememberLazyListState()
-                    var dragStartIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
-                    var currentDragIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
-
                     val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
                         val fromActualIndex = from.index + currentQueueIndex + 1
                         val toActualIndex = to.index + currentQueueIndex + 1
-                        currentDragIndex = toActualIndex
-                        viewModel.moveQueueItemLocal(fromActualIndex, toActualIndex)
+                        viewModel.moveQueueItem(fromActualIndex, toActualIndex)
                     }
 
                     val density = LocalDensity.current
@@ -311,20 +307,8 @@ fun NowPlayingScreen(
                                             IconButton(
                                                 onClick = {},
                                                 modifier = Modifier.draggableHandle(
-                                                    onDragStarted = {
-                                                        val actualIndex = currentItemIndex + currentQueueIndex + 1
-                                                        dragStartIndex = actualIndex
-                                                        currentDragIndex = actualIndex
-                                                    },
-                                                    onDragStopped = {
-                                                        val start = dragStartIndex
-                                                        val end = currentDragIndex
-                                                        if (start != null && end != null && start != end) {
-                                                            viewModel.commitQueueItemMove(start, end)
-                                                        }
-                                                        dragStartIndex = null
-                                                        currentDragIndex = null
-                                                    }
+                                                    onDragStarted = {},
+                                                    onDragStopped = {}
                                                 )
                                             ) {
                                                 Icon(

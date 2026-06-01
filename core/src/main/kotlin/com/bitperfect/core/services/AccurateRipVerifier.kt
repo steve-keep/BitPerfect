@@ -32,7 +32,7 @@ class AccurateRipVerifier {
             for (i in 0 until trackCount) {
                 val confidence = buffer.get().toInt() and 0xFF
                 val crcV1 = buffer.getInt().toLong() and 0xFFFFFFFFL
-                val crcV2 = buffer.getInt().toLong() and 0xFFFFFFFFL // AR v2 checksum — matched against ripChecksumV2 in RipManager
+                val crcV2 = buffer.getInt().toLong() and 0xFFFFFFFFL // AR v2 checksum — stored for future use, not currently matched
 
                 val trackNumber = i + 1
                 tracksInfo.getOrPut(trackNumber) { mutableListOf() }.add(

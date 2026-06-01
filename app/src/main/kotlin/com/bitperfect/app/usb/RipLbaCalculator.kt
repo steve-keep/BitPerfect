@@ -27,7 +27,6 @@ internal fun ripLbaRange(
     // LBA 0 is the physical disc start and is not a valid audio sector. Clamp to 1
     // (matches the same guard in CalibrationLbaCalculator).
     val firstLba = maxOf(1, rawFirstLba)
-    // lastLba is anchored to the clamped firstLba so that the LBA 0 clamp never shrinks the read window.
-    val lastLba = firstLba + effectiveTotalSectors - 1
+    val lastLba = rawFirstLba + effectiveTotalSectors - 1
     return Pair(firstLba, lastLba)
 }

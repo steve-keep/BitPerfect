@@ -168,7 +168,7 @@ class ReadTocCommand(
             AppLogger.d(TAG, "Normalised physical leadout=$normalisedLeadOut")
 
             // Tier 1: Full TOC A2
-            var candidateLeadout = fetchAudioLeadOutFromFullToc(lastAudioLba, normalisedLeadOut, pregapOffset)
+            var candidateLeadout = fetchAudioLeadOutFromFullToc(lastAudioLba, normalisedLeadOut)
             var valid = candidateLeadout != null &&
                         (lastAudioLba == null || candidateLeadout > lastAudioLba) &&
                         (normalisedLeadOut == null || candidateLeadout < normalisedLeadOut)
@@ -185,7 +185,7 @@ class ReadTocCommand(
                 }
 
                 // Tier 2: MSF Session 1
-                candidateLeadout = fetchAudioLeadOutFromMsfSession1(lastAudioLba, normalisedLeadOut, pregapOffset)
+                candidateLeadout = fetchAudioLeadOutFromMsfSession1(lastAudioLba, normalisedLeadOut)
                 if (candidateLeadout != null) {
                     audioLeadOutLba = candidateLeadout
                     audioLeadOutSource = AudioLeadOutSource.SESSION1_MSF
@@ -267,7 +267,7 @@ class ReadTocCommand(
         return pair
     }
 
-    private fun fetchAudioLeadOutFromFullToc(lastAudioTrackLba: Int?, physicalLeadOutLba: Int?, pregapOffset: Int): Int? {
+    private fun fetchAudioLeadOutFromFullToc(lastAudioTrackLba: Int?, physicalLeadOutLba: Int?): Int? {
         AppLogger.d(TAG, "Fetching Full TOC (Format=0x02) to determine audio session leadout")
         val tag = transport.nextTag()
         val allocLen = 2048
@@ -370,19 +370,18 @@ class ReadTocCommand(
                 val pframe = tocData[offset + 10].toInt() and 0xFF
 
                 val lba = ((pmin * 60) + psec) * 75 + pframe
-                val normalisedLba = lba + pregapOffset
-                AppLogger.d(TAG, "Session $targetSession A2 leadout MSF=$pmin:$psec:$pframe lba=$normalisedLba")
+                AppLogger.d(TAG, "Session $targetSession A2 leadout MSF=$pmin:$psec:$pframe lba=$lba")
 
-                if (lastAudioTrackLba != null && normalisedLba <= lastAudioTrackLba) {
-                    AppLogger.w(TAG, "Extracted Full TOC A2 leadout ($normalisedLba) <= last audio track LBA ($lastAudioTrackLba)")
+                if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
+                    AppLogger.w(TAG, "Extracted Full TOC A2 leadout ($lba) <= last audio track LBA ($lastAudioTrackLba)")
                     return null
                 }
-                if (physicalLeadOutLba != null && normalisedLba >= physicalLeadOutLba) {
-                    AppLogger.w(TAG, "Extracted Full TOC A2 leadout ($normalisedLba) >= physical leadout ($physicalLeadOutLba)")
+                if (physicalLeadOutLba != null && lba >= physicalLeadOutLba) {
+                    AppLogger.w(TAG, "Extracted Full TOC A2 leadout ($lba) >= physical leadout ($physicalLeadOutLba)")
                     return null
                 }
 
-                return normalisedLba
+                return lba
             }
 
             offset += 11
@@ -392,7 +391,7 @@ class ReadTocCommand(
         return null
     }
 
-    private fun fetchAudioLeadOutFromMsfSession1(lastAudioTrackLba: Int?, physicalLeadOutLba: Int?, pregapOffset: Int): Int? {
+    private fun fetchAudioLeadOutFromMsfSession1(lastAudioTrackLba: Int?, physicalLeadOutLba: Int?): Int? {
         AppLogger.d(TAG, "Fetching MSF Session 1 (Format=0x00) to determine audio session leadout")
         val tag = transport.nextTag()
         val allocLen = 2048
@@ -468,19 +467,18 @@ class ReadTocCommand(
                 }
 
                 val lba = ((min * 60) + sec) * 75 + frame
-                val normalisedLba = lba + pregapOffset
-                AppLogger.d(TAG, "MSF TOC session-1 leadout: MSF=$min:$sec:$frame lba=$normalisedLba")
+                AppLogger.d(TAG, "MSF TOC session-1 leadout: MSF=$min:$sec:$frame lba=$lba")
 
-                if (lastAudioTrackLba != null && normalisedLba <= lastAudioTrackLba) {
-                    AppLogger.w(TAG, "MSF session-1 leadout ($normalisedLba) <= last audio track LBA ($lastAudioTrackLba)")
+                if (lastAudioTrackLba != null && lba <= lastAudioTrackLba) {
+                    AppLogger.w(TAG, "MSF session-1 leadout ($lba) <= last audio track LBA ($lastAudioTrackLba)")
                     return null
                 }
-                if (physicalLeadOutLba != null && normalisedLba >= physicalLeadOutLba) {
-                    AppLogger.w(TAG, "MSF session-1 leadout ($normalisedLba) >= physical leadout ($physicalLeadOutLba)")
+                if (physicalLeadOutLba != null && lba >= physicalLeadOutLba) {
+                    AppLogger.w(TAG, "MSF session-1 leadout ($lba) >= physical leadout ($physicalLeadOutLba)")
                     return null
                 }
 
-                return normalisedLba
+                return lba
             }
 
             // Skip malformed descriptor tails
