@@ -294,6 +294,7 @@ class RipManager(
             var expectedTotalOverlapTrimmedSamples = 0L
 
             val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
+            var ripSucceeded = false
             try {
                 val tempOutputStream = BufferedOutputStream(java.io.FileOutputStream(tempFile), 1024 * 1024)
 
@@ -838,7 +839,7 @@ class RipManager(
                                 isCancelled = true
                                 throw java.io.IOException("Disc removed or drive not ready during rip")
                             }
-                            throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors} after 3 attempts") // see UsbReadSession.MAX_RETRIES
+                            throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors - toc.pregapOffset} after 3 attempts") // see UsbReadSession.MAX_RETRIES
                         }
                         val toFeed = overreadPcm.copyOfRange(0, skipBytes)
                         encoder.encode(toFeed)
@@ -972,6 +973,7 @@ class RipManager(
                     durationSeconds = sectorsRead.toLong() * 588L / 44100.0
                 )
 
+                ripSucceeded = true
                 val pair = checksumAccumulator.finalise()
                 finalChecksumV1 = pair.first
                 finalChecksumV2 = pair.second
@@ -998,6 +1000,16 @@ class RipManager(
                     closeException = e
                 }
                 tempFile.delete()
+
+                // Delete the zero-byte or partial SAF file if the rip failed, so it does
+                // not create a ghost MediaStore entry that blocks re-ripping the track.
+                if (!ripSucceeded) {
+                    try {
+                        context.contentResolver.delete(destFile.uri, null, null)
+                    } catch (e: Exception) {
+                        AppLogger.w("RipManager", "Failed to delete incomplete SAF file for track $trackNumber: ${e.message}")
+                    }
+                }
 
                 if (closeException != null) {
                     AppLogger.e("RipManager", "Error closing output stream for track $trackNumber", closeException)
