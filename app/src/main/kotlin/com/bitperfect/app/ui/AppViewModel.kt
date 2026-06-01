@@ -1110,21 +1110,26 @@ open class AppViewModel(
         }
     }
 
-    fun moveQueueItem(currentIndex: Int, newIndex: Int) {
+    fun moveQueueItemLocal(currentIndex: Int, newIndex: Int) {
         if (currentIndex == newIndex) return
+
+        val mutable = _playingTracks.value.toMutableList()
+        if (currentIndex !in mutable.indices || newIndex !in mutable.indices) return
+        val track = mutable.removeAt(currentIndex)
+        mutable.add(newIndex, track)
+        _playingTracks.value = mutable
+    }
+
+    fun commitQueueItemMove(originalIndex: Int, finalIndex: Int) {
+        if (originalIndex == finalIndex) return
 
         val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
         if (isWiim) {
-            val mutable = _playingTracks.value.toMutableList()
-            if (currentIndex !in mutable.indices || newIndex !in mutable.indices) return
-            val track = mutable.removeAt(currentIndex)
-            mutable.add(newIndex, track)
-            _playingTracks.value = mutable
             viewModelScope.launch {
-                outputRepository.reorderQueue(currentIndex, newIndex)
+                outputRepository.reorderQueue(originalIndex, finalIndex)
             }
         } else {
-            playerRepository.moveMediaItem(currentIndex, newIndex)
+            playerRepository.moveMediaItem(originalIndex, finalIndex)
         }
     }
 
