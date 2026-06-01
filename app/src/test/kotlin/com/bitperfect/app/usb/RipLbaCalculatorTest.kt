@@ -140,35 +140,36 @@ class RipLbaCalculatorTest {
     }
 
     @Test
-    fun `track1 LBA clamp does not reduce lastLba - full sector count is preserved`() {
+    fun `track1 LBA clamp reduces lastLba - allowing RipManager to prepend silence`() {
         // trackLba=150, nextLba=14051, pregapOffset=150, tocOffset=0
         // totalSectors = 14051 - 150 = 13901
         // rawFirstLba  = 150 + 0 - 150 = 0  → clamped to firstLba=1
-        // lastLba      = firstLba(1) + 13901 - 1 = 13901
-        // sectors read = lastLba(13901) - firstLba(1) + 1 = 13901  ← correct full count
+        // rawLastLba   = 0 + 13901 - 1 = 13900
+        // lastLba      = 13900
+        // sectors read = lastLba(13900) - firstLba(1) + 1 = 13900  ← one sector shorter
         val (first, last) = ripLbaRange(
             trackLba = 150, nextLba = 14051,
             tocOffset = 0, pregapOffset = 150,
             isLastTrack = false
         )
         assertEquals(1, first)
-        assertEquals(13901, last)
-        assertEquals(13901, last - first + 1)  // sectors read = totalSectors
+        assertEquals(13900, last)
+        assertEquals(13900, last - first + 1)  // sectors read = totalSectors - 1
     }
 
     @Test
-    fun `track1 LBA clamp yields correct readable sectors with real-disc data`() {
+    fun `track1 LBA clamp yields correctly shrunken readable sectors with real-disc data`() {
         // Real-disc data: Track 1 starts at LBA 150, Track 2 starts at LBA 14209
         // totalSectors = 14209 - 150 = 14059
-        // Expected readable sectors: 14059
+        // Expected readable sectors: 14058
         val (first, last) = ripLbaRange(
             trackLba = 150, nextLba = 14209,
             tocOffset = 0, pregapOffset = 150,
             isLastTrack = false
         )
         assertEquals(1, first)
-        assertEquals(14059, last)
-        assertEquals(14059, last - first + 1) // 14059 readable sectors
+        assertEquals(14058, last)
+        assertEquals(14058, last - first + 1) // 14058 readable sectors
     }
 
     @Test

@@ -35,25 +35,32 @@ class CalibrationLbaCalculatorTest {
     }
 
     @Test
-    fun `sectorsToRead equals totalSectors plus overshoot`() {
+    fun `sectorsToRead shrinks when clamped to account for skipped sector`() {
         val totalSectors = 13901
         val overshoot = 7
+        // rawFirstLba = 150 - 150 = 0 -> clamped to 1 (difference = 1)
         val (_, sectorsToRead) = calibrationLbaRange(
             trackLba = 150, pregapOffset = 150,
             totalSectors = totalSectors,
             overshootSectors = overshoot
         )
-        assertEquals(totalSectors + overshoot, sectorsToRead)
+        // Expected: 13901 + 7 - 1 = 13907
+        assertEquals(totalSectors + overshoot - 1, sectorsToRead)
     }
 
     @Test
-    fun `default overshoot of 7 provides more than 3000 samples of headroom`() {
-        // 7 sectors * 588 samples/sector = 4116 samples > 3000 (the scan range)
+    fun `default overshoot of 7 provides more than 3000 samples of headroom even when clamped`() {
+        // 6 sectors * 588 samples/sector = 3528 samples > 3000 (the scan range)
+        // (clamped from 7 to 6)
         val (_, sectorsToRead) = calibrationLbaRange(
             trackLba = 150, pregapOffset = 150, totalSectors = 13901
         )
         val totalSectors = 13901
-        val overshootSamples = (sectorsToRead - totalSectors) * 588
+        // even though it's clamped, the effective read sector count is reduced by 1
+        // however the total sectors includes the clamped sector conceptually.
+        // What we want to test is sectorsToRead - (totalSectors - 1)
+        val effectiveTrackSectors = totalSectors - 1
+        val overshootSamples = (sectorsToRead - effectiveTrackSectors) * 588
         assertTrue(
             "Overshoot ($overshootSamples samples) must exceed scan range (3000 samples)",
             overshootSamples > 3000
