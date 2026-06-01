@@ -41,6 +41,9 @@ class UsbDriveDetector(
     var inEndpoint: UsbEndpoint? = null
     var outEndpoint: UsbEndpoint? = null
 
+    private var targetVendorId: Int? = null
+    private var targetProductId: Int? = null
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var pollingJob: Job? = null
 
@@ -210,6 +213,9 @@ class UsbDriveDetector(
             return
         }
 
+        targetVendorId = device.vendorId
+        targetProductId = device.productId
+
         val connection = usbManager.openDevice(device)
         if (connection == null) {
             AppLogger.e(TAG, "Could not open connection")
@@ -282,7 +288,11 @@ class UsbDriveDetector(
             when (turResult) {
                 TurResult.READY -> {
                     val tocResult = readTocWithRetry(transportLocal, outEndpoint, inEndpoint)
-                    _driveStatus.value = DriveStatus.DiscReady(info, tocResult?.first, tocResult?.second)
+                    if (tocResult != null) {
+                        _driveStatus.value = DriveStatus.DiscReady(info, tocResult.first, tocResult.second)
+                    } else {
+                        _driveStatus.value = DriveStatus.Error("Failed to read disc layout", info)
+                    }
                 }
                 TurResult.SPINNING_UP -> {
                     _driveStatus.value = DriveStatus.SpinningUp(info)
@@ -367,7 +377,11 @@ class UsbDriveDetector(
                         TurResult.READY -> {
                             if (currentStatus !is DriveStatus.DiscReady) {
                                 val tocResult = readTocWithRetry(currentTransport, currentOutEndpoint, currentInEndpoint)
-                                _driveStatus.value = DriveStatus.DiscReady(info, tocResult?.first, tocResult?.second)
+                                if (tocResult != null) {
+                                    _driveStatus.value = DriveStatus.DiscReady(info, tocResult.first, tocResult.second)
+                                } else {
+                                    _driveStatus.value = DriveStatus.Error("Failed to read disc layout", info)
+                                }
                             }
                         }
                         TurResult.SPINNING_UP -> {
@@ -419,7 +433,12 @@ class UsbDriveDetector(
         scope.launch {
             repeat(5) { attempt ->
                 delay(500L * (attempt + 1)) // 500ms, 1s, 1.5s, 2s, 2.5s backoff
-                val device = usbManager.deviceList.values.firstOrNull { usbManager.hasPermission(it) }
+                val device = usbManager.deviceList.values.firstOrNull {
+                    usbManager.hasPermission(it) &&
+                    isMassStorageDevice(it) &&
+                    it.vendorId == targetVendorId &&
+                    it.productId == targetProductId
+                }
                 if (device != null) {
                     interrogateDevice(device)
                     return@launch
