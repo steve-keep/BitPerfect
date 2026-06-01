@@ -39,9 +39,9 @@ data class ItunesAlbumResult(
     val releaseDate: String? = null
 )
 
-data class ItunesArtwork(
-    val previewUrl: String,   // 600x600bb
-    val highResUrl: String    // 3000x3000bb
+data class ResolvedArtwork(
+    val previewUrl: String,
+    val highResUrl: String
 )
 
 private val editionPatterns = listOf(
@@ -79,6 +79,8 @@ private fun simplifyAlbumTitle(value: String): String {
     var normalized = value
         .lowercase()
         .replace("&", "and")
+        .replace(Regex("\\([^)]*\\)"), "")
+        .replace(Regex("\\[[^]]*\\]"), "")
         .replace(Regex("[^a-z0-9 ]"), " ")
         .replace(Regex("\\s+"), " ")
         .trim()
@@ -285,7 +287,7 @@ class ItunesArtworkRepository(private val context: Context) {
         private const val BEST_EFFORT_THRESHOLD = 30
     }
 
-    suspend fun fetchItunesArtwork(artist: String, album: String, expectedTrackCount: Int? = null): ItunesArtwork? = withContext(Dispatchers.IO) {
+    suspend fun fetchItunesArtwork(artist: String, album: String, expectedTrackCount: Int? = null): ResolvedArtwork? = withContext(Dispatchers.IO) {
         try {
             val encodedArtist = URLEncoder.encode(artist, "UTF-8")
             val encodedAlbum = URLEncoder.encode(album, "UTF-8")
@@ -410,10 +412,10 @@ class ItunesArtworkRepository(private val context: Context) {
         }
     }
 
-    private fun buildArtwork(candidate: ItunesAlbumResult): ItunesArtwork? {
+    private fun buildArtwork(candidate: ItunesAlbumResult): ResolvedArtwork? {
         val base = candidate.artworkUrl100 ?: return null
         val previewUrl = base.replace("100x100bb", "600x600bb")
         val highResUrl = base.replace("100x100bb", "3000x3000bb")
-        return ItunesArtwork(previewUrl, highResUrl)
+        return ResolvedArtwork(previewUrl, highResUrl)
     }
 }

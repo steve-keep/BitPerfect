@@ -104,7 +104,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags+cover-art-archive"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -133,7 +133,7 @@ class MusicBrainzRepository(private val context: Context) {
     private suspend fun lookupByToc(toc: DiscToc, discId: String, cacheFile: File): DiscMetadata? {
         // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
         val tocStr = computeMusicBrainzTocString(toc)
-        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags&cdstubs=no"
+        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+cover-art-archive&cdstubs=no"
 
         AppLogger.d(TAG, "TOC fuzzy lookup: $url")
         val httpResponse = client.get(url)

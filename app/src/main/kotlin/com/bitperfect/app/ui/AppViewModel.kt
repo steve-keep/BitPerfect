@@ -39,7 +39,7 @@ import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.bitperfect.core.services.MusicBrainzRepository
 import com.bitperfect.core.services.AccurateRipService
-import com.bitperfect.core.services.ItunesArtwork
+import com.bitperfect.core.services.ResolvedArtwork
 import com.bitperfect.core.services.ItunesArtworkRepository
 import com.bitperfect.core.services.LyricsRepository
 import com.bitperfect.core.models.LyricsResult
@@ -87,9 +87,7 @@ open class AppViewModel(
     private val libraryRepository: LibraryRepository = LibraryRepository(application),
     private val ioDispatcher: CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val lookupMusicBrainz: suspend (DiscToc) -> DiscMetadata? = { MusicBrainzRepository(application).lookup(it) },
-    private val fetchItunesArtwork: suspend (String, String, Int?) -> ItunesArtwork? = { artist, album, trackCount ->
-        ItunesArtworkRepository(application).fetchItunesArtwork(artist, album, trackCount)
-    }
+    private val artworkResolver: com.bitperfect.core.services.ArtworkResolver = com.bitperfect.core.services.ArtworkResolverImpl(application)
 ) : AndroidViewModel(application) {
 
     private val settingsManager = SettingsManager(application)
@@ -185,7 +183,8 @@ open class AppViewModel(
 
     private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
 
-    private val _artwork = MutableStateFlow<ItunesArtwork?>(null)
+    private val _artwork = MutableStateFlow<ResolvedArtwork?>(null)
+    val artwork: StateFlow<ResolvedArtwork?> = _artwork
     private val _artworkBytes = MutableStateFlow<ByteArray?>(null)
 
     private data class LyricsFetchKey(
@@ -604,7 +603,7 @@ open class AppViewModel(
         viewModelScope.launch {
             discMetadata.collectLatest { metadata ->
                 if (metadata != null) {
-                    val artwork = fetchItunesArtwork(metadata.artistName, metadata.albumTitle, metadata.trackTitles.size.takeIf { it > 0 })
+                    val artwork = artworkResolver.resolveArtwork(metadata)
                     _artwork.value = artwork
                     _artworkBytes.value = null
                     if (artwork != null) {
