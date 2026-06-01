@@ -254,6 +254,40 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `getTrack appends relative path when outputFolderUriString is provided`() {
+        val trackId = 1L
+        val outputFolderUriString = "content://com.android.externalstorage.documents/tree/primary%3AAudio%2FDiscs"
+        val cursor = MatrixCursor(
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.TRACK,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DATA
+            )
+        )
+
+        cursor.addRow(arrayOf(1L, "Track 1", 1, 1000L, 123L, "Artist 1", "Album 1", null))
+
+        `when`(
+            mockContentResolver.query(
+                eq(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI),
+                any(),
+                eq("${MediaStore.Audio.Media._ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"),
+                eq(arrayOf(trackId.toString(), "Audio/Discs/%")),
+                eq(null)
+            )
+        ).thenReturn(cursor)
+
+        val track = libraryRepository.getTrack(trackId, outputFolderUriString)
+
+        assertEquals(1L, track?.id)
+    }
+
+    @Test
     fun `getTrack returns null when cursor is null or empty`() {
         val trackId = 3L
 

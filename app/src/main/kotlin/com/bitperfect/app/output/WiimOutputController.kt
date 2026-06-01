@@ -401,12 +401,10 @@ class WiimOutputController(
     private fun decodeHexString(hex: String?): String? {
         if (hex.isNullOrEmpty()) return null
         return try {
-            hex.chunked(2)
+            val bytes = hex.chunked(2)
                 .map { it.toInt(16).toByte() }
                 .toByteArray()
-                .toString(Charsets.UTF_8)
-                .trim()
-                .takeIf { it.isNotEmpty() }
+            String(bytes, Charsets.UTF_8).trim().takeIf { it.isNotEmpty() }
         } catch (e: Exception) { null }
     }
 

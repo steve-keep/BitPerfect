@@ -218,17 +218,13 @@ open class LibraryRepository(private val context: Context) {
         }
     }
 
-    open fun getTotalTracks(outputFolderUriString: String?): Int {
-        if (outputFolderUriString.isNullOrBlank()) {
-            return 0
-        }
-
+    private fun getRelativePathFromUri(outputFolderUriString: String?): String? {
+        if (outputFolderUriString.isNullOrBlank()) return null
         val decodedUri = URLDecoder.decode(outputFolderUriString, "UTF-8")
         val pathIndex = decodedUri.lastIndexOf(":")
         if (pathIndex == -1 || pathIndex == decodedUri.length - 1) {
-            return 0
+            return null
         }
-
         var relativePath = decodedUri.substring(pathIndex + 1)
         if (relativePath.endsWith("/")) {
             relativePath = relativePath.dropLast(1)
@@ -236,6 +232,15 @@ open class LibraryRepository(private val context: Context) {
         if (relativePath.startsWith("/")) {
             relativePath = relativePath.drop(1)
         }
+        return relativePath
+    }
+
+    open fun getTotalTracks(outputFolderUriString: String?): Int {
+        if (outputFolderUriString.isNullOrBlank()) {
+            return 0
+        }
+
+        val relativePath = getRelativePathFromUri(outputFolderUriString) ?: return 0
 
         val projection = arrayOf(MediaStore.Audio.Media._ID)
         val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
@@ -269,24 +274,7 @@ open class LibraryRepository(private val context: Context) {
             return emptyList()
         }
 
-        // Decode the SAF URI (e.g. content://com.android.externalstorage.documents/tree/primary%3AMusic%2FBitPerfect)
-        val decodedUri = URLDecoder.decode(outputFolderUriString, "UTF-8")
-
-        // Extract substring after the last ':'
-        val pathIndex = decodedUri.lastIndexOf(":")
-        if (pathIndex == -1 || pathIndex == decodedUri.length - 1) {
-            return emptyList()
-        }
-
-        var relativePath = decodedUri.substring(pathIndex + 1)
-        // Ensure no trailing slash
-        if (relativePath.endsWith("/")) {
-            relativePath = relativePath.dropLast(1)
-        }
-        // Ensure no leading slash
-        if (relativePath.startsWith("/")) {
-            relativePath = relativePath.drop(1)
-        }
+        val relativePath = getRelativePathFromUri(outputFolderUriString) ?: return emptyList()
 
         val projection = arrayOf(
             MediaStore.Audio.Media.ARTIST_ID,
@@ -418,8 +406,18 @@ open class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media.DATA
         )
 
-        val selection = "${MediaStore.Audio.Media.ALBUM_ID} = ?"
-        val selectionArgs = arrayOf(albumId.toString())
+        val relativePath = getRelativePathFromUri(outputFolderUriString)
+
+        val selection = if (relativePath != null) {
+            "${MediaStore.Audio.Media.ALBUM_ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        } else {
+            "${MediaStore.Audio.Media.ALBUM_ID} = ?"
+        }
+        val selectionArgs = if (relativePath != null) {
+            arrayOf(albumId.toString(), "$relativePath/%")
+        } else {
+            arrayOf(albumId.toString())
+        }
         val sortOrder = "${MediaStore.Audio.Media.TRACK} ASC"
 
         val tracks = mutableListOf<TrackInfo>()
@@ -523,8 +521,18 @@ open class LibraryRepository(private val context: Context) {
             MediaStore.Audio.Media.DATA
         )
 
-        val selection = "${MediaStore.Audio.Media._ID} = ?"
-        val selectionArgs = arrayOf(trackId.toString())
+        val relativePath = getRelativePathFromUri(outputFolderUriString)
+
+        val selection = if (relativePath != null) {
+            "${MediaStore.Audio.Media._ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        } else {
+            "${MediaStore.Audio.Media._ID} = ?"
+        }
+        val selectionArgs = if (relativePath != null) {
+            arrayOf(trackId.toString(), "$relativePath/%")
+        } else {
+            arrayOf(trackId.toString())
+        }
 
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
