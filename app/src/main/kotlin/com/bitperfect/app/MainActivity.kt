@@ -116,10 +116,16 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    companion object {
+        private var isFirstLaunch = true
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
-        super.onCreate(savedInstanceState)
+        val savedStateToPass = if (isFirstLaunch) null else savedInstanceState
+        super.onCreate(savedStateToPass)
+        isFirstLaunch = false
         enableEdgeToEdge()
 
         // Request media permissions
