@@ -93,7 +93,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-            DeviceStateManager.rescan()
+            // Guard against Android re-delivering the base intent when returning
+            // from external activities (like the Share Sheet). If we are already
+            // ripping, do not sever the connection with a rescan!
+            if (!appViewModel.isRipping.value) {
+                DeviceStateManager.rescan()
+            }
         }
     }
 
