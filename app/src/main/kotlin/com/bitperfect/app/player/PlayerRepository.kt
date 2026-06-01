@@ -494,4 +494,8 @@ open class PlayerRepository(
     open fun moveMediaItem(currentIndex: Int, newIndex: Int) {
         controller?.moveMediaItem(currentIndex, newIndex)
     }
+
+    open fun setDeviceVolume(volume: Int) {
+        controller?.setDeviceVolume(volume, 0)
+    }
 }

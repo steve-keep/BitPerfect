@@ -27,7 +27,7 @@ import java.net.URL
 class WiimOutputController(
     private val context: Context,
     private val target: OutputDevice.Upnp
-) : OutputController {
+) {
 
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var httpServer: FlacHttpServer? = null
@@ -140,7 +140,7 @@ class WiimOutputController(
         return null
     }
 
-    override suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
+    suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
         val trackList = tracks
         val index = startIndex
         wifiIp = getWifiIpAddress()
@@ -200,37 +200,37 @@ class WiimOutputController(
         startPolling()
     }
 
-    override suspend fun skipNext() {
+    suspend fun skipNext() {
         withContext(Dispatchers.IO) {
             sendSoapAction("Next", "<InstanceID>0</InstanceID>")
         }
     }
 
-    override suspend fun skipPrev() {
+    suspend fun skipPrev() {
         withContext(Dispatchers.IO) {
             sendSoapAction("Previous", "<InstanceID>0</InstanceID>")
         }
     }
 
-    override suspend fun play() {
+    suspend fun play() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:resume")
         }
     }
 
-    override suspend fun pause() {
+    suspend fun pause() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:pause")
         }
     }
 
-    override suspend fun togglePlayPause() {
+    suspend fun togglePlayPause() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:onepause")
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) {
+    suspend fun seekTo(positionMs: Long) {
         withContext(Dispatchers.IO) {
             val h = positionMs / 3600000
             val m = (positionMs % 3600000) / 60000
@@ -247,7 +247,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun getPositionMs(): Long = withContext(Dispatchers.IO) {
+    suspend fun getPositionMs(): Long = withContext(Dispatchers.IO) {
         val response = sendSoapActionWithResponse(
             "GetPositionInfo",
             """
@@ -274,7 +274,7 @@ class WiimOutputController(
         return@withContext 0L
     }
 
-    override suspend fun appendToQueue(track: TrackInfo) {
+    suspend fun appendToQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -289,7 +289,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
+    suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -304,7 +304,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun insertNextInQueue(track: TrackInfo) {
+    suspend fun insertNextInQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -320,7 +320,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
+    suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -336,7 +336,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
+    suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -351,7 +351,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun removeFromQueue(index: Int) {
+    suspend fun removeFromQueue(index: Int) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -366,7 +366,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun release() {
+    suspend fun release() {
         stopPolling()
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:stop")
@@ -374,7 +374,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun setVolume(volume: Int) {
+    suspend fun setVolume(volume: Int) {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:vol:${volume.coerceIn(0, 100)}")
         }

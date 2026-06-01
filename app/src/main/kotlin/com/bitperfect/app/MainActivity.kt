@@ -103,11 +103,11 @@ class MainActivity : ComponentActivity() {
             if (activeDevice is OutputDevice.Upnp) {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_VOLUME_UP -> {
-                        appViewModel.adjustWiimVolume(+5)
+                        appViewModel.nudgeVolume(true)
                         return true
                     }
                     KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                        appViewModel.adjustWiimVolume(-5)
+                        appViewModel.nudgeVolume(false)
                         return true
                     }
                 }
@@ -654,13 +654,13 @@ class MainActivity : ComponentActivity() {
                     dragHandle = null
                 ) {
                     val isDiscovering by appViewModel.isDiscovering.collectAsState()
-                    val wiimVolume by appViewModel.wiimVolume.collectAsState()
+                        val castVolume by appViewModel.castVolume.collectAsState()
                     OutputDeviceSheet(
                         devices = availableDevices,
                         activeDevice = activeDevice,
                         isDiscovering = isDiscovering,
-                        wiimVolume = wiimVolume,
-                        onWiimVolumeChanged = { appViewModel.setWiimVolume(it) },
+                            castVolume = castVolume,
+                            onCastVolumeChanged = { appViewModel.setVolume(it) },
                         onDeviceSelected = { appViewModel.selectOutputDevice(it) }
                     )
                 }

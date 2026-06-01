@@ -42,7 +42,6 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
 
         outputRepository = OutputRepository(
             this,
-            playerRepository,
             CoroutineScope(SupervisorJob() + Dispatchers.IO)
         )
 

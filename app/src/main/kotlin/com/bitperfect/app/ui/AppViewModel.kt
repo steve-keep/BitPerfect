@@ -141,17 +141,24 @@ open class AppViewModel(
     private val _showOutputSheet = MutableStateFlow(false)
     val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
 
-    val wiimVolume: StateFlow<Int> = outputRepository.wiimVolume
+    private val _castVolume = MutableStateFlow(50)
+    val castVolume: StateFlow<Int> = _castVolume.asStateFlow()
 
-    fun setWiimVolume(volume: Int) {
+    fun setVolume(volume: Int) {
         viewModelScope.launch {
-            outputRepository.setVolume(volume)
+            val coerced = volume.coerceIn(0, 100)
+            _castVolume.value = coerced
+            playerRepository.setDeviceVolume(coerced)
         }
     }
 
-    fun adjustWiimVolume(delta: Int) {
-        val current = outputRepository.wiimVolume.value
-        setWiimVolume((current + delta).coerceIn(0, 100))
+    fun nudgeVolume(up: Boolean) {
+        viewModelScope.launch {
+            val current = _castVolume.value
+            val next = if (up) (current + 5).coerceAtMost(100) else (current - 5).coerceAtLeast(0)
+            _castVolume.value = next
+            playerRepository.setDeviceVolume(next)
+        }
     }
 
     fun openOutputDeviceSheet() {
@@ -164,9 +171,7 @@ open class AppViewModel(
     }
 
     fun selectOutputDevice(device: OutputDevice) {
-        val tracks = _playingTracks.value
-        val index = currentQueueIndex.value
-        outputRepository.switchTo(device, tracks, index)
+        outputRepository.switchTo(device)
         outputRepository.userSelectedDevice = device
         _showOutputSheet.value = false
     }
@@ -180,8 +185,6 @@ open class AppViewModel(
     val tagsViewState: StateFlow<TagsViewState?> = _tagsViewState.asStateFlow()
     internal val _trackListViewState = MutableStateFlow<TrackListViewState?>(null)
     val trackListViewState: StateFlow<TrackListViewState?> = _trackListViewState
-
-    private val _playingTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
 
     private val _artwork = MutableStateFlow<ResolvedArtwork?>(null)
     val artwork: StateFlow<ResolvedArtwork?> = _artwork
@@ -255,7 +258,7 @@ open class AppViewModel(
     private var pendingCommitMeta: DiscMetadata? = null
 
     val isControllerReady: StateFlow<Boolean> = playerRepository.isControllerReady
-    val isPlaying: StateFlow<Boolean> = outputRepository.isPlaying
+    val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
     val currentMediaId: StateFlow<String?> = playerRepository.currentMediaId
     private val _positionMs = MutableStateFlow(0L)
     val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
@@ -264,110 +267,55 @@ open class AppViewModel(
         .map { raw -> if (raw != null) com.bitperfect.app.player.parseLrc(raw) else emptyList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val upNextQueue: StateFlow<List<TrackInfo>> = combine(
-        outputRepository.activeDevice,
-        _playingTracks,
-        playerRepository.currentTimeline
-    ) { device, wiimTracks, exoTracks ->
-        if (device is OutputDevice.Upnp) {
-            wiimTracks
-        } else {
-            exoTracks.map { item ->
+    val upNextQueue: StateFlow<List<TrackInfo>> = playerRepository.currentTimeline
+        .map { items ->
+            items.map { item ->
+                val extras = item.mediaMetadata.extras ?: android.os.Bundle()
                 TrackInfo(
-                    id = item.mediaId.toLongOrNull() ?: -1L,
-                    title = item.mediaMetadata.title?.toString() ?: "Unknown",
-                    artist = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
-                    albumTitle = item.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
+                    id          = item.mediaId.toLongOrNull() ?: -1L,
+                    title       = item.mediaMetadata.title?.toString() ?: "Unknown",
+                    artist      = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
+                    albumTitle  = item.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
                     trackNumber = item.mediaMetadata.trackNumber ?: 0,
-                    durationMs = 0L,
-                    albumId = item.mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L
+                    durationMs  = extras.getLong("track_duration_ms", 0L),
+                    albumId     = item.mediaMetadata.artworkUri
+                                      ?.lastPathSegment?.toLongOrNull() ?: -1L
                 )
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val currentQueueIndex: StateFlow<Int> = combine(
-        outputRepository.activeDevice,
-        outputRepository.wiimCurrentTrackIndex,
-        playerRepository.currentIndex
-    ) { device, wiimIndex, localIndex ->
-        if (device is OutputDevice.Upnp && wiimIndex >= 0) wiimIndex else localIndex
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+    val currentQueueIndex: StateFlow<Int> = playerRepository.currentIndex
 
-    val currentTrackTitle: StateFlow<String?> = combine(
-        outputRepository.activeDevice,
-        outputRepository.wiimCurrentTitle,
-        playerRepository.currentTrackTitle,
-        _playingTracks,
-        currentQueueIndex
-    ) { device, wiimTitle, localTitle, tracks, queueIndex ->
-        if (device is OutputDevice.Upnp) {
-            wiimTitle ?: tracks.getOrNull(queueIndex)?.title
-        } else {
-            localTitle
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val currentTrackTitle: StateFlow<String?> = playerRepository.currentTrackTitle
 
-    val currentTrackArtist: StateFlow<String?> = combine(
-        outputRepository.activeDevice,
-        outputRepository.wiimCurrentArtist,
-        playerRepository.currentTrackArtist,
-        _playingTracks,
-        currentQueueIndex
-    ) { device, wiimArtist, localArtist, tracks, queueIndex ->
-        if (device is OutputDevice.Upnp) {
-            wiimArtist ?: tracks.getOrNull(queueIndex)?.artist
-        } else {
-            localArtist
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val currentTrackArtist: StateFlow<String?> = playerRepository.currentTrackArtist
 
-    val currentAlbumTitle: StateFlow<String?> = combine(
-        outputRepository.activeDevice,
-        outputRepository.wiimCurrentAlbum,
-        playerRepository.currentAlbumTitle,
-        _playingTracks,
-        currentQueueIndex
-    ) { device, wiimAlbum, localAlbum, tracks, queueIndex ->
-        if (device is OutputDevice.Upnp) {
-            wiimAlbum ?: tracks.getOrNull(queueIndex)?.albumTitle
-        } else {
-            localAlbum
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val currentAlbumTitle: StateFlow<String?> = playerRepository.currentAlbumTitle
 
     private val _trackFormatInfo = MutableStateFlow<String?>(null)
     val trackFormatInfo: StateFlow<String?> = _trackFormatInfo.asStateFlow()
 
     val currentTrack: StateFlow<TrackInfo?> = combine(
-        outputRepository.activeDevice,
-        _playingTracks,
-        outputRepository.wiimCurrentTrackIndex,
-        currentMediaId
-    ) { device, tracks, wiimIndex, mediaId ->
-        if (device is OutputDevice.Upnp && wiimIndex >= 0) {
-            tracks.getOrNull(wiimIndex)
-        } else {
-            if (mediaId != null) tracks.find { it.id.toString() == mediaId } else null
-        }
+        playerRepository.currentTimeline,
+        playerRepository.currentIndex
+    ) { timeline, index ->
+        val item = timeline.getOrNull(index) ?: return@combine null
+        val extras = item.mediaMetadata.extras ?: android.os.Bundle()
+        TrackInfo(
+            id          = item.mediaId.toLongOrNull() ?: -1L,
+            title       = item.mediaMetadata.title?.toString() ?: "",
+            artist      = item.mediaMetadata.artist?.toString() ?: "",
+            albumTitle  = item.mediaMetadata.albumTitle?.toString() ?: "",
+            trackNumber = item.mediaMetadata.trackNumber ?: 0,
+            durationMs  = extras.getLong("track_duration_ms", 0L),
+            albumId     = item.mediaMetadata.artworkUri
+                              ?.lastPathSegment?.toLongOrNull() ?: -1L,
+            dataPath    = extras.getString("track_data_path")
+        )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val currentAlbumArtUri: StateFlow<android.net.Uri?> = combine(
-        outputRepository.activeDevice,
-        currentTrack,
-        playerRepository.currentAlbumArtUri
-    ) { device, wiimTrack, localArtUri ->
-        if (device is OutputDevice.Upnp) {
-            wiimTrack?.albumId?.takeIf { it != -1L }?.let { albumId ->
-                android.content.ContentUris.withAppendedId(
-                    android.net.Uri.parse("content://media/external/audio/albumart"),
-                    albumId
-                )
-            }
-        } else {
-            localArtUri
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val currentAlbumArtUri: StateFlow<android.net.Uri?> = playerRepository.currentAlbumArtUri
 
     init {
         viewModelScope.launch(ioDispatcher) {
@@ -493,17 +441,7 @@ open class AppViewModel(
 
         viewModelScope.launch {
             playerRepository.positionMs.collect {
-                if (activeDevice.value !is OutputDevice.Upnp) {
-                    _positionMs.value = it
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            outputRepository.wiimPositionMs.collect {
-                if (activeDevice.value is OutputDevice.Upnp) {
-                    _positionMs.value = it
-                }
+                _positionMs.value = it
             }
         }
 
@@ -700,8 +638,7 @@ open class AppViewModel(
             }
             if (allTracks.isNotEmpty()) {
                 val shuffledTracks = allTracks.shuffled()
-                _playingTracks.value = shuffledTracks
-                outputRepository.takeOverAndPlay(shuffledTracks, 0)
+                playerRepository.playTrack(shuffledTracks, 0)
             }
         }
     }
@@ -1007,50 +944,26 @@ open class AppViewModel(
     }
 
     fun playAlbum(tracks: List<TrackInfo>) {
-        _playingTracks.value = tracks
         viewModelScope.launch {
-            outputRepository.takeOverAndPlay(tracks, 0)
+            playerRepository.playTrack(tracks, 0)
         }
     }
 
     fun playTrack(tracks: List<TrackInfo>, index: Int) {
-        _playingTracks.value = tracks
         viewModelScope.launch {
-            outputRepository.takeOverAndPlay(tracks, index)
+            playerRepository.playTrack(tracks, index)
         }
     }
 
     fun playNext(track: TrackInfo) {
-        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
-        if (isWiim) {
-            val currentIndex = _playingTracks.value
-                .indexOfFirst { it.id == currentTrack.value?.id }
-                .coerceAtLeast(0)
-            val mutable = _playingTracks.value.toMutableList()
-            val insertAt = (currentIndex + 1).coerceIn(0, mutable.size)
-            mutable.add(insertAt, track)
-            _playingTracks.value = mutable
-            viewModelScope.launch {
-                outputRepository.insertNextInQueue(track)
-            }
-        } else {
-            playerRepository.playNext(track)
-        }
+        playerRepository.playNext(track)
         viewModelScope.launch {
             _uiEvent.emit("Added to play next")
         }
     }
 
     fun addToQueue(track: TrackInfo) {
-        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
-        if (isWiim) {
-            _playingTracks.value = _playingTracks.value + track
-            viewModelScope.launch {
-                outputRepository.appendToQueue(track)
-            }
-        } else {
-            playerRepository.addToQueue(track)
-        }
+        playerRepository.addToQueue(track)
         viewModelScope.launch {
             _uiEvent.emit("Added to queue")
         }
@@ -1058,21 +971,7 @@ open class AppViewModel(
 
     fun playAlbumNext(tracks: List<TrackInfo>) {
         if (tracks.isEmpty()) return
-        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
-        if (isWiim) {
-            val currentIndex = _playingTracks.value
-                .indexOfFirst { it.id == currentTrack.value?.id }
-                .coerceAtLeast(0)
-            val mutable = _playingTracks.value.toMutableList()
-            val insertAt = (currentIndex + 1).coerceIn(0, mutable.size)
-            mutable.addAll(insertAt, tracks)
-            _playingTracks.value = mutable
-            viewModelScope.launch {
-                outputRepository.insertAlbumNextInQueue(tracks)
-            }
-        } else {
-            playerRepository.playAlbumNext(tracks)
-        }
+        playerRepository.playAlbumNext(tracks)
         viewModelScope.launch {
             _uiEvent.emit("Added to play next")
         }
@@ -1080,15 +979,7 @@ open class AppViewModel(
 
     fun addAlbumToQueue(tracks: List<TrackInfo>) {
         if (tracks.isEmpty()) return
-        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
-        if (isWiim) {
-            _playingTracks.value = _playingTracks.value + tracks
-            viewModelScope.launch {
-                outputRepository.appendAlbumToQueue(tracks)
-            }
-        } else {
-            playerRepository.addAlbumToQueue(tracks)
-        }
+        playerRepository.addAlbumToQueue(tracks)
     }
 
     fun clearQueue() {
@@ -1096,78 +987,41 @@ open class AppViewModel(
     }
 
     fun removeQueueItem(index: Int) {
-        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
-        if (isWiim) {
-            val mutable = _playingTracks.value.toMutableList()
-            if (index !in mutable.indices) return
-            mutable.removeAt(index)
-            _playingTracks.value = mutable
-            viewModelScope.launch {
-                outputRepository.removeFromQueue(index)
-            }
-        } else {
-            playerRepository.removeMediaItem(index)
-        }
+        playerRepository.removeMediaItem(index)
     }
 
     fun moveQueueItem(currentIndex: Int, newIndex: Int) {
         if (currentIndex == newIndex) return
-
-        val isWiim = outputRepository.activeDevice.value is OutputDevice.Upnp
-        if (isWiim) {
-            val mutable = _playingTracks.value.toMutableList()
-            if (currentIndex !in mutable.indices || newIndex !in mutable.indices) return
-            val track = mutable.removeAt(currentIndex)
-            mutable.add(newIndex, track)
-            _playingTracks.value = mutable
-            viewModelScope.launch {
-                outputRepository.reorderQueue(currentIndex, newIndex)
-            }
-        } else {
-            playerRepository.moveMediaItem(currentIndex, newIndex)
-        }
+        playerRepository.moveMediaItem(currentIndex, newIndex)
     }
 
     fun togglePlayPause() {
         viewModelScope.launch {
-            outputRepository.optimisticallyFlipWiimPlaying()
-            outputRepository.togglePlayPause()
+            playerRepository.togglePlayPause()
         }
     }
 
     fun seekTo(ms: Long) {
         viewModelScope.launch {
-            outputRepository.seekTo(ms)
+            playerRepository.seekTo(ms)
         }
     }
 
     fun skipNext() {
         viewModelScope.launch {
-            if (activeDevice.value is OutputDevice.Upnp) {
-                outputRepository.skipNext()
-            } else {
-                playerRepository.skipNext()
-            }
+            playerRepository.skipNext()
         }
     }
 
     fun skipPrev() {
         viewModelScope.launch {
-            if (activeDevice.value is OutputDevice.Upnp) {
-                outputRepository.skipPrev()
-            } else {
-                playerRepository.skipPrev()
-            }
+            playerRepository.skipPrev()
         }
     }
 
     fun pollPosition() {
         viewModelScope.launch {
-            if (activeDevice.value is OutputDevice.Upnp) {
-                _positionMs.value = outputRepository.getPositionMs()
-            } else {
-                playerRepository.pollPosition()
-            }
+            playerRepository.pollPosition()
         }
     }
 

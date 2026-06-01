@@ -47,17 +47,17 @@ fun OutputDeviceSheet(
     devices: List<OutputDevice>,
     activeDevice: OutputDevice,
     isDiscovering: Boolean = false,
-    wiimVolume: Int = 50,
-    onWiimVolumeChanged: (Int) -> Unit = {},
+    castVolume: Int = 50,
+    onCastVolumeChanged: (Int) -> Unit = {},
     onDeviceSelected: (OutputDevice) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var sliderPosition by remember { mutableFloatStateOf(wiimVolume / 100f) }
+    var sliderPosition by remember { mutableFloatStateOf(castVolume / 100f) }
     var isDraggingVolume by remember { mutableStateOf(false) }
 
-    LaunchedEffect(wiimVolume) {
+    LaunchedEffect(castVolume) {
         if (!isDraggingVolume) {
-            sliderPosition = wiimVolume / 100f
+            sliderPosition = castVolume / 100f
         }
     }
 
@@ -184,7 +184,7 @@ fun OutputDeviceSheet(
                                     },
                                     onValueChangeFinished = {
                                         isDraggingVolume = false
-                                        onWiimVolumeChanged((sliderPosition * 100).roundToInt())
+                                        onCastVolumeChanged((sliderPosition * 100).roundToInt())
                                     },
                                     modifier = Modifier
                                         .weight(1f)
