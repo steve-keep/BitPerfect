@@ -381,9 +381,6 @@ class RipManager(
 
                     isFirstSector = false // Ensure the physical read loop doesn't trim again
                 }
-                if (isFirstTrack && missingStartSectors > 0) {
-                    sectorsRead = missingStartSectors
-                }
 
 
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
@@ -973,9 +970,9 @@ class RipManager(
                     startLba = entry.lba,
                     endLba = nextLba,
                     totalSectors = totalSectors,
-                    sectorsRead = sectorsRead,
+                    sectorsRead = sectorsRead + missingStartSectors,
                     totalSamples = totalSamples,
-                    durationSeconds = sectorsRead.toLong() * 588L / 44100.0
+                    durationSeconds = (sectorsRead + missingStartSectors).toLong() * 588L / 44100.0
                 )
 
                 ripSucceeded = true
