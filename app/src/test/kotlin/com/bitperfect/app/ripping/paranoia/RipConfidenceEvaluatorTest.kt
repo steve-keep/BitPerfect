@@ -27,13 +27,25 @@ class RipConfidenceEvaluatorTest {
     }
 
     @Test
-    fun `failed recovery is LOW`() {
+    fun `failed recovery is DAMAGED`() {
         val confidence = evaluator.evaluateChunkConfidence(
             overlapMatchedImmediately = false,
             rereadsPerformed = 5,
             recoverySucceeded = false
         )
-        assertEquals(RipConfidence.LOW, confidence)
+        assertEquals(RipConfidence.DAMAGED, confidence)
+    }
+
+    @Test
+    fun `alignment confidence critical issue is DAMAGED`() {
+        val confidence = evaluator.evaluateAlignmentConfidence(
+            current = RipConfidence.HIGH,
+            validation = AlignmentValidationResult(
+                valid = false,
+                anomalies = listOf(AlignmentIssue.DuplicateSamples(5, 10))
+            )
+        )
+        assertEquals(RipConfidence.DAMAGED, confidence)
     }
 
     @Test

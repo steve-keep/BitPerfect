@@ -20,8 +20,8 @@ class AccurateRipVerifierTest {
 
     @Test
     fun `parseAccurateRipResponse - single disc entry, two tracks`() {
-        // Correct dBAR format: 13-byte header + 2 × 9-byte track entries = 31 bytes
-        val buffer = ByteBuffer.allocate(13 + 2 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        // Correct dBAR format: 13-byte header + 2 × 5-byte track entries = 23 bytes
+        val buffer = ByteBuffer.allocate(13 + 2 * 5).order(ByteOrder.LITTLE_ENDIAN)
 
         // Header (13 bytes)
         buffer.put(2.toByte())            // trackCount = 2
@@ -29,33 +29,31 @@ class AccurateRipVerifierTest {
         buffer.putInt(0x22222222)         // discId2
         buffer.putInt(0x99999999.toInt()) // cddb ← previously absent, caused the bug
 
-        // Track 1 (9 bytes)
+        // Track 1 (5 bytes)
         buffer.put(5.toByte())            // confidence
-        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1
-        buffer.putInt(0xBBBBBBBB.toInt()) // crcV2
+        buffer.putInt(0xAAAAAAAA.toInt()) // crc
 
-        // Track 2 (9 bytes)
+        // Track 2 (5 bytes)
         buffer.put(10.toByte())           // confidence
-        buffer.putInt(0xCCCCCCCC.toInt()) // crcV1
-        buffer.putInt(0xDDDDDDDD.toInt()) // crcV2
+        buffer.putInt(0xCCCCCCCC.toInt()) // crc
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
         assertEquals(2, result.size)
 
         assertEquals(1, result[1]?.size)
-        assertEquals(0xAAAAAAAAL, result[1]?.get(0)?.checksumV1)
+        assertEquals(0xAAAAAAAAL, result[1]?.get(0)?.crc)
         assertEquals(5, result[1]?.get(0)?.confidence)
 
         assertEquals(1, result[2]?.size)
-        assertEquals(0xCCCCCCCCL, result[2]?.get(0)?.checksumV1)
+        assertEquals(0xCCCCCCCCL, result[2]?.get(0)?.crc)
         assertEquals(10, result[2]?.get(0)?.confidence)
     }
 
     @Test
     fun `parseAccurateRipResponse - multiple disc entries`() {
-        // Correct dBAR format: 2 × (13-byte header + 1 × 9-byte track entry) = 44 bytes
-        val buffer = ByteBuffer.allocate((13 + 1 * 9) * 2).order(ByteOrder.LITTLE_ENDIAN)
+        // Correct dBAR format: 2 × (13-byte header + 1 × 5-byte track entry) = 36 bytes
+        val buffer = ByteBuffer.allocate((13 + 1 * 5) * 2).order(ByteOrder.LITTLE_ENDIAN)
 
         // Entry 1 header (13 bytes)
         buffer.put(1.toByte())            // trackCount = 1
@@ -63,10 +61,9 @@ class AccurateRipVerifierTest {
         buffer.putInt(0x22222222)         // discId2
         buffer.putInt(0xAAAAAAAA.toInt()) // cddb
 
-        // Entry 1, track 1 (9 bytes)
+        // Entry 1, track 1 (5 bytes)
         buffer.put(3.toByte())            // confidence
-        buffer.putInt(0x11111111)         // crcV1
-        buffer.putInt(0)                  // crcV2
+        buffer.putInt(0x11111111)         // crc
 
         // Entry 2 header (13 bytes)
         buffer.put(1.toByte())            // trackCount = 1
@@ -74,27 +71,26 @@ class AccurateRipVerifierTest {
         buffer.putInt(0x44444444)         // discId2
         buffer.putInt(0xBBBBBBBB.toInt()) // cddb
 
-        // Entry 2, track 1 (9 bytes)
+        // Entry 2, track 1 (5 bytes)
         buffer.put(7.toByte())            // confidence
-        buffer.putInt(0x33333333)         // crcV1
-        buffer.putInt(0)                  // crcV2
+        buffer.putInt(0x33333333)         // crc
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
         assertEquals(1, result.size)     // both entries describe track 1
         assertEquals(2, result[1]?.size) // two entries for track 1
 
-        assertEquals(0x11111111L, result[1]?.get(0)?.checksumV1)
+        assertEquals(0x11111111L, result[1]?.get(0)?.crc)
         assertEquals(3, result[1]?.get(0)?.confidence)
 
-        assertEquals(0x33333333L, result[1]?.get(1)?.checksumV1)
+        assertEquals(0x33333333L, result[1]?.get(1)?.crc)
         assertEquals(7, result[1]?.get(1)?.confidence)
     }
 
     @Test
     fun `parseAccurateRipResponse - truncated entry`() {
         // Header promises 3 tracks, but we only supply 2 tracks
-        val buffer = ByteBuffer.allocate(13 + 2 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        val buffer = ByteBuffer.allocate(13 + 2 * 5).order(ByteOrder.LITTLE_ENDIAN)
         buffer.put(3.toByte()) // trackCount = 3
         buffer.putInt(0x11111111) // discId1
         buffer.putInt(0x22222222) // discId2
@@ -103,12 +99,10 @@ class AccurateRipVerifierTest {
         // Track 1
         buffer.put(5.toByte())
         buffer.putInt(0xAAAAAAAA.toInt())
-        buffer.putInt(0)
 
         // Track 2
         buffer.put(10.toByte())
         buffer.putInt(0xCCCCCCCC.toInt())
-        buffer.putInt(0)
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
@@ -118,7 +112,7 @@ class AccurateRipVerifierTest {
 
     @Test
     fun `parseAccurateRipResponse - discId1 and discId2 read without corrupting buffer offsets`() {
-        val buffer = ByteBuffer.allocate(13 + 1 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        val buffer = ByteBuffer.allocate(13 + 1 * 5).order(ByteOrder.LITTLE_ENDIAN)
         // Header
         buffer.put(1.toByte()) // trackCount = 1
         buffer.putInt(0x12345678) // discId1
@@ -127,15 +121,14 @@ class AccurateRipVerifierTest {
 
         // Track 1
         buffer.put(5.toByte()) // confidence
-        buffer.putInt(0xABCDEF01.toInt()) // crcV1
-        buffer.putInt(0) // crcV2
+        buffer.putInt(0xABCDEF01.toInt()) // crc
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
         // If discId1, discId2, and CDDB were not read correctly, the buffer offset would be wrong
         // and we wouldn't get the correct track checksum.
         assertEquals(1, result.size)
-        assertEquals(0xABCDEF01L, result[1]?.get(0)?.checksumV1)
+        assertEquals(0xABCDEF01L, result[1]?.get(0)?.crc)
         assertEquals(5, result[1]?.get(0)?.confidence)
     }
 
@@ -145,16 +138,16 @@ class AccurateRipVerifierTest {
         // The CDDB value is chosen so that if it bleeds into the CRC (as it did
         // before the fix), the assertion will fail visibly.
         //
-        // Buggy behaviour: confidence=0x10 (CDDB byte 0), crcV1=0x2ACA097E (CDDB bytes + real conf)
-        // Correct behaviour: confidence=0x2A (42), crcV1=<actual CRC value>
+        // Buggy behaviour: confidence=0x10 (CDDB byte 0), crc=0x2ACA097E (CDDB bytes + real conf)
+        // Correct behaviour: confidence=0x2A (42), crc=<actual CRC value>
         //
         // We use CDDB = 0xCA097E10 and confidence = 0x2A to match the White Blood Cells
         // disc that exposed this bug.
 
-        val realCrcV1 = 0xDEADBEEFL
+        val realCrc = 0xDEADBEEFL
         val realConfidence = 0x2A  // 42
 
-        val buffer = ByteBuffer.allocate(13 + 1 * 9).order(ByteOrder.LITTLE_ENDIAN)
+        val buffer = ByteBuffer.allocate(13 + 1 * 5).order(ByteOrder.LITTLE_ENDIAN)
 
         // Header
         buffer.put(1.toByte())            // trackCount = 1
@@ -164,8 +157,7 @@ class AccurateRipVerifierTest {
 
         // Track 1
         buffer.put(realConfidence.toByte())
-        buffer.putInt(realCrcV1.toInt())
-        buffer.putInt(0x00000000)         // crcV2
+        buffer.putInt(realCrc.toInt())
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
@@ -176,8 +168,8 @@ class AccurateRipVerifierTest {
 
         // The key assertions: real values, not CDDB-contaminated ones
         assertEquals(
-            "CRC v1 must be the real stored value, not bytes assembled from CDDB + confidence",
-            realCrcV1, track1[0].checksumV1
+            "CRC must be the real stored value, not bytes assembled from CDDB + confidence",
+            realCrc, track1[0].crc
         )
         assertEquals(
             "Confidence must be the real stored value, not CDDB byte 0 (0x10)",
@@ -187,7 +179,7 @@ class AccurateRipVerifierTest {
         // Belt-and-suspenders: confirm the buggy value (0x2ACA097E) does NOT appear
         assertNotEquals(
             "Parsed CRC must not contain CDDB bytes — indicates missing CDDB consumption",
-            0x2ACA097EL, track1[0].checksumV1
+            0x2ACA097EL, track1[0].crc
         )
     }
 

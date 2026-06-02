@@ -16,13 +16,16 @@ class FastPathEvaluator {
         val newMatches = state.consecutiveImmediateMatches + 1
         val newStableCount = state.stableChunkCount + 1
 
-        val newEligible = !state.hasRecentAnomalies && newMatches >= 3
+        // Reset the anomaly quarantine if the drive proves stability over 3 sectors
+        val newHasRecentAnomalies = if (newMatches >= 3) false else state.hasRecentAnomalies
+        val newEligible = !newHasRecentAnomalies && newMatches >= 3
 
         val wasEligible = state.eligible
 
         state = state.copy(
             stableChunkCount = newStableCount,
             consecutiveImmediateMatches = newMatches,
+            hasRecentAnomalies = newHasRecentAnomalies,
             eligible = newEligible
         )
 
