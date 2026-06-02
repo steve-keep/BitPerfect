@@ -606,6 +606,9 @@ open class AppViewModel(
                     }
                     _discMetadata.value = null
                     _isKeyDisc.value = false
+                    if (_trackListViewState.value?.isCdMode == true) {
+                        clearTracks()
+                    }
                 }
             }
         }

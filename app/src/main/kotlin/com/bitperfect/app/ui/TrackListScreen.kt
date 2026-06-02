@@ -76,7 +76,8 @@ fun TrackListScreen(
     val awaitingEjectToCommit by viewModel.awaitingEjectToCommit.collectAsState()
 
     LaunchedEffect(driveStatus, awaitingEjectToCommit) {
-        if (driveStatus is DriveStatus.NoDrive && !isRipping && !awaitingEjectToCommit && isCdMode) {
+        val isDiscGone = driveStatus is DriveStatus.NoDrive || driveStatus is DriveStatus.Empty || driveStatus is DriveStatus.Open || driveStatus is DriveStatus.NotOptical || driveStatus is DriveStatus.Connecting
+        if (isDiscGone && !isRipping && !awaitingEjectToCommit && isCdMode) {
             onNavigateBack()
         }
     }
