@@ -201,7 +201,7 @@ open class AppViewModel(
     val lyricsMap: StateFlow<Map<Int, LyricsFetchResult>> = _lyricsMap.asStateFlow()
 
     open val coverArtUrl: StateFlow<String?> = _artwork
-        .map { it?.previewUrl }
+        .map { it?.url }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _discMetadata = MutableStateFlow<DiscMetadata?>(null)
@@ -612,17 +612,10 @@ open class AppViewModel(
                     if (artwork != null) {
                         try {
                             _artworkBytes.value = kotlinx.coroutines.withContext(ioDispatcher) {
-                                URL(artwork.highResUrl).readBytes()
+                                URL(artwork.url).readBytes()
                             }
                         } catch (e: Exception) {
-                            com.bitperfect.core.utils.AppLogger.w("AppViewModel", "High-res art download failed, trying preview: ${e.message}")
-                            try {
-                                _artworkBytes.value = kotlinx.coroutines.withContext(ioDispatcher) {
-                                    URL(artwork.previewUrl).readBytes()
-                                }
-                            } catch (e2: Exception) {
-                                com.bitperfect.core.utils.AppLogger.w("AppViewModel", "Preview art download also failed: ${e2.message}")
-                            }
+                            com.bitperfect.core.utils.AppLogger.w("AppViewModel", "Artwork download failed: ${e.message}")
                         }
                     }
                 } else {

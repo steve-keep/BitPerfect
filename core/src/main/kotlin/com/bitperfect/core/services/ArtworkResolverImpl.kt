@@ -27,9 +27,8 @@ class ArtworkResolverImpl(private val context: Context) : ArtworkResolver {
         // 1. Trust MusicBrainz! No slow HTTP HEAD request needed.
         if (metadata.mbReleaseId.isNotBlank() && metadata.hasFrontCoverArt) {
             AppLogger.d(TAG, "MusicBrainz indicates Cover Art Archive has front artwork for ${metadata.mbReleaseId}")
-            val caaUrl = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front"
-            val previewUrl = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front-500"
-            return@withContext ResolvedArtwork(previewUrl, caaUrl)
+            val url = "https://coverartarchive.org/release/${metadata.mbReleaseId}/front"
+            return@withContext ResolvedArtwork(url)
         }
 
         // 2. Fallback to iTunes instantly

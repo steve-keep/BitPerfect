@@ -43,8 +43,7 @@ data class ItunesAlbumResult(
 )
 
 data class ResolvedArtwork(
-    val previewUrl: String,
-    val highResUrl: String
+    val url: String
 )
 
 private val editionPatterns = listOf(
@@ -391,8 +390,7 @@ class ItunesArtworkRepository(private val context: Context) {
 
     private fun buildArtwork(candidate: ItunesAlbumResult): ResolvedArtwork? {
         val base = candidate.artworkUrl100 ?: return null
-        val previewUrl = base.replace("100x100bb", "600x600bb")
-        val highResUrl = base.replace("100x100bb", "3000x3000bb")
-        return ResolvedArtwork(previewUrl, highResUrl)
+        val url = base.replace("100x100bb", "3000x3000bb")
+        return ResolvedArtwork(url)
     }
 }
