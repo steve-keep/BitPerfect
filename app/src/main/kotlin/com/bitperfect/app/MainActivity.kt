@@ -26,8 +26,6 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.palette.graphics.Palette
-import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
@@ -200,8 +198,14 @@ class MainActivity : ComponentActivity() {
             val currentAlbumArtUri by appViewModel.currentAlbumArtUri.collectAsState()
 
             var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
+            val contextForColor = androidx.compose.ui.platform.LocalContext.current
             LaunchedEffect(currentAlbumArtUri) {
                 dominantColor = Color(0xFF141414)
+                if (currentAlbumArtUri != null) {
+                    com.bitperfect.app.ui.utils.ColorExtractor.extractVividColor(contextForColor, currentAlbumArtUri.toString())?.let { extractedColor ->
+                        dominantColor = extractedColor
+                    }
+                }
             }
             val fallbackColor = MaterialTheme.colorScheme.primary
             val displayColor = if (dominantColor == Color(0xFF141414)) fallbackColor else dominantColor
@@ -307,23 +311,7 @@ class MainActivity : ComponentActivity() {
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .blur(50.dp),
-                                    onSuccess = { success ->
-                                        val bitmap = success.result.drawable.toBitmap()
-                                        Palette.from(bitmap)
-                                            .addFilter { _, hsl -> hsl[2] in 0.2f..0.85f }
-                                            .generate { palette ->
-                                                palette?.let { p ->
-                                                    val swatch = p.vibrantSwatch
-                                                        ?: p.dominantSwatch
-                                                        ?: p.mutedSwatch
-                                                        ?: p.lightMutedSwatch
-                                                    swatch?.rgb?.let { colorValue ->
-                                                        dominantColor = Color(colorValue)
-                                                    }
-                                                }
-                                            }
-                                    }
+                                        .blur(50.dp)
                                 )
                                 // Dark overlay
                                 Box(
