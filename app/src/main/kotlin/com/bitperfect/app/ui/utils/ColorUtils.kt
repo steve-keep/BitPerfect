@@ -1,0 +1,59 @@
+package com.bitperfect.app.ui.utils
+
+import android.content.Context
+import android.net.Uri
+import androidx.collection.LruCache
+import androidx.compose.ui.graphics.Color
+import androidx.core.graphics.drawable.toBitmap
+import androidx.palette.graphics.Palette
+import coil.imageLoader
+import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+object ColorExtractor {
+    // Cache extracted colors by URI string to avoid recalculating the palette
+    private val colorCache = LruCache<String, Color>(50)
+
+    suspend fun extractVividColor(context: Context, uriString: String): Color? = withContext(Dispatchers.IO) {
+        colorCache.get(uriString)?.let { return@withContext it }
+
+        try {
+            val uri = Uri.parse(uriString)
+            val request = ImageRequest.Builder(context)
+                .data(uri)
+                .allowHardware(false)
+                // Load at a consistent fixed size for color extraction to guarantee same palette
+                .size(400)
+                .build()
+
+            val result = context.imageLoader.execute(request)
+            val drawable = result.drawable ?: return@withContext null
+            val bitmap = drawable.toBitmap()
+
+            val palette = Palette.from(bitmap)
+                .addFilter { _, hsl ->
+                    // Exclude overly dark or overly light colors to ensure vividness
+                    hsl[2] in 0.3f..0.85f && hsl[1] > 0.4f
+                }
+                .generate()
+
+            // Prioritize vibrant swatch for vivid colors
+            val swatch = palette.vibrantSwatch
+                ?: palette.dominantSwatch
+                ?: palette.mutedSwatch
+                ?: palette.lightMutedSwatch
+
+            swatch?.rgb?.let { colorValue ->
+                val color = Color(colorValue)
+                colorCache.put(uriString, color)
+                return@withContext color
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        null
+    }
+}

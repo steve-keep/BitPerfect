@@ -62,7 +62,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.core.graphics.drawable.toBitmap
-import androidx.palette.graphics.Palette
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
@@ -149,7 +148,6 @@ fun AlbumHeader(
     onPlayClick: () -> Unit = {},
     onStopRipClick: () -> Unit = {},
     dominantColor: Color = Color(0xFF141414),
-    onColorExtracted: (Color) -> Unit = {},
     primaryColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Box(
@@ -182,23 +180,7 @@ fun AlbumHeader(
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop,
                 placeholder = ColorPainter(Color(0xFF141414)),
-                error = ColorPainter(Color(0xFF141414)),
-                onSuccess = { success ->
-                    val bitmap = success.result.drawable.toBitmap()
-                    Palette.from(bitmap)
-                        .addFilter { _, hsl -> hsl[2] in 0.2f..0.85f }
-                        .generate { palette ->
-                            palette?.let { p ->
-                                val swatch = p.vibrantSwatch
-                                    ?: p.dominantSwatch
-                                    ?: p.mutedSwatch
-                                    ?: p.lightMutedSwatch
-                                swatch?.rgb?.let { colorValue ->
-                                    onColorExtracted(Color(colorValue))
-                                }
-                            }
-                        }
-                }
+                error = ColorPainter(Color(0xFF141414))
             )
             Spacer(modifier = Modifier.height(24.dp))
             val verifiedIconId = "verified_icon"

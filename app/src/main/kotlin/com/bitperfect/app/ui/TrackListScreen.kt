@@ -116,6 +116,16 @@ fun TrackListScreen(
             val displayColor = if (dominantColor == Color(0xFF141414)) fallbackColor else dominantColor
             val listState = rememberLazyListState()
 
+            val context = androidx.compose.ui.platform.LocalContext.current
+            androidx.compose.runtime.LaunchedEffect(state.coverArtUrl) {
+                dominantColor = Color(0xFF141414)
+                if (state.coverArtUrl != null) {
+                    com.bitperfect.app.ui.utils.ColorExtractor.extractVividColor(context, state.coverArtUrl)?.let { extractedColor ->
+                        dominantColor = extractedColor
+                    }
+                }
+            }
+
         var selectedRipDetail by remember {
             mutableStateOf<Pair<com.bitperfect.app.library.TrackInfo, com.bitperfect.app.usb.TrackRipState>?>(null)
         }
@@ -197,7 +207,6 @@ fun TrackListScreen(
                                 viewModel.ejectDrive()
                             },
                             dominantColor = dominantColor,
-                            onColorExtracted = { extractedColor -> dominantColor = extractedColor },
                             primaryColor = displayColor
                         )
                     }
