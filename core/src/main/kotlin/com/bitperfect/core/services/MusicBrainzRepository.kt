@@ -195,6 +195,7 @@ class MusicBrainzRepository(private val context: Context) {
         val trackTags = targetMedia?.tracks?.map { track ->
             track.recording?.tags?.map { it.name } ?: emptyList()
         } ?: emptyList()
+        val hasFrontCoverArt = release.coverArtArchive?.front == true
 
         return DiscMetadata(
             albumTitle = albumTitle,
@@ -207,7 +208,8 @@ class MusicBrainzRepository(private val context: Context) {
             discNumber = discNumber,
             totalDiscs = totalDiscs,
             releaseTags = releaseTags,
-            trackTags = trackTags
+            trackTags = trackTags,
+            hasFrontCoverArt = hasFrontCoverArt
         )
     }
 }

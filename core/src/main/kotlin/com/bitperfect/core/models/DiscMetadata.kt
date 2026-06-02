@@ -11,5 +11,6 @@ data class DiscMetadata(
     val discNumber: Int? = null,
     val totalDiscs: Int? = null,
     val releaseTags: List<String> = emptyList(),
-    val trackTags: List<List<String>> = emptyList()
+    val trackTags: List<List<String>> = emptyList(),
+    val hasFrontCoverArt: Boolean = false
 )
