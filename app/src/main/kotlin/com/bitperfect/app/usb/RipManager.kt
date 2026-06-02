@@ -380,6 +380,10 @@ class RipManager(
 
                     isFirstSector = false // Ensure the physical read loop doesn't trim again
                 }
+                if (isFirstTrack && missingStartSectors > 0) {
+                    sectorsRead = missingStartSectors
+                }
+
 
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
                     val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
