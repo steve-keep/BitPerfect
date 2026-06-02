@@ -116,6 +116,10 @@ fun TrackListScreen(
             val displayColor = if (dominantColor == Color(0xFF141414)) fallbackColor else dominantColor
             val listState = rememberLazyListState()
 
+        var selectedRipDetail by remember {
+            mutableStateOf<Pair<com.bitperfect.app.library.TrackInfo, com.bitperfect.app.usb.TrackRipState>?>(null)
+        }
+
             val density = androidx.compose.ui.platform.LocalDensity.current
             val fadeStartPx = remember(density) { with(density) { 240.dp.toPx() } }
             val fadeEndPx = remember(density) { with(density) { 340.dp.toPx() } }
@@ -223,7 +227,6 @@ fun TrackListScreen(
                         val tintColor = if (isCurrentTrack) displayColor else MaterialTheme.colorScheme.onSurfaceVariant
                         val titleColor = if (isCurrentTrack) displayColor else MaterialTheme.colorScheme.onSurface
                         val ripState = ripStates[track.trackNumber]
-                        var showRipDetailSheet by remember { mutableStateOf(false) }
 
                         Row(
                             modifier = Modifier
@@ -253,7 +256,7 @@ fun TrackListScreen(
                                         }
                                         RipStatus.SUCCESS -> {
                                             IconButton(
-                                                onClick = { showRipDetailSheet = true },
+                                                onClick = { if (ripState != null) selectedRipDetail = Pair(track, ripState) },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -266,7 +269,7 @@ fun TrackListScreen(
                                         }
                                         RipStatus.WARNING -> {
                                             IconButton(
-                                                onClick = { showRipDetailSheet = true },
+                                                onClick = { if (ripState != null) selectedRipDetail = Pair(track, ripState) },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -279,7 +282,7 @@ fun TrackListScreen(
                                         }
                                         RipStatus.UNVERIFIED -> {
                                             IconButton(
-                                                onClick = { showRipDetailSheet = true },
+                                                onClick = { if (ripState != null) selectedRipDetail = Pair(track, ripState) },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -292,7 +295,7 @@ fun TrackListScreen(
                                         }
                                         RipStatus.ERROR -> {
                                             IconButton(
-                                                onClick = { showRipDetailSheet = true },
+                                                onClick = { if (ripState != null) selectedRipDetail = Pair(track, ripState) },
                                                 modifier = Modifier.size(32.dp)
                                             ) {
                                                 Icon(
@@ -312,159 +315,6 @@ fun TrackListScreen(
                                         color = tintColor,
                                         modifier = Modifier.align(Alignment.Center)
                                     )
-                                }
-                            }
-                            if (showRipDetailSheet && ripState != null) {
-                                val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                                ModalBottomSheet(
-                                    onDismissRequest = { showRipDetailSheet = false },
-                                    sheetState = sheetState
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp)
-                                            .padding(bottom = 16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        val statusColor = when (ripState.status) {
-                                            RipStatus.SUCCESS -> displayColor
-                                            RipStatus.WARNING -> Color(0xFFFFC107)
-                                            RipStatus.UNVERIFIED -> Color.White.copy(alpha = 0.5f)
-                                            RipStatus.ERROR -> Color(0xFFF44336)
-                                            else -> MaterialTheme.colorScheme.onSurface
-                                        }
-
-                                        // Header
-                                        Text(
-                                            text = "${track.trackNumber.toString().padStart(2, '0')} - ${track.title}",
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Surface(
-                                            color = statusColor.copy(alpha = 0.1f),
-                                            shape = MaterialTheme.shapes.small
-                                        ) {
-                                            Text(
-                                                text = ripState.status.name,
-                                                color = statusColor,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                style = MaterialTheme.typography.labelMedium
-                                            )
-                                        }
-
-                                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                                        // Diagnostic section
-                                        val durationExpected = ripState.totalSectors * 588 / 44100.0
-                                        Text("LBA Range     ${ripState.startLba} → ${ripState.endLba}", style = MaterialTheme.typography.bodyMedium)
-
-                                        val isTruncated = ripState.sectorsRead != ripState.totalSectors
-                                        Text(
-                                            buildAnnotatedString {
-                                                append("Sectors       ${ripState.totalSectors} expected  /  ${ripState.sectorsRead} read")
-                                                if (isTruncated) {
-                                                    withStyle(SpanStyle(color = Color(0xFFF44336))) {
-                                                        append("   *** TRUNCATED ***")
-                                                    }
-                                                }
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        Text("Duration      ${String.format(java.util.Locale.US, "%.2f", ripState.durationSeconds)}s ripped  /  ${String.format(java.util.Locale.US, "%.2f", durationExpected)}s expected", style = MaterialTheme.typography.bodyMedium)
-
-                                        // Checksum section
-                                        if (ripState.computedChecksumV1 != null || ripState.computedChecksumV2 != null) {
-                                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                                            val computedV2 = ripState.computedChecksumV2?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
-                                            val computedV1 = ripState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
-                                            val expectedV2 = ripState.expectedChecksumsV2.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-                                            val expectedV1 = ripState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
-
-                                            when (ripState.status) {
-                                                RipStatus.SUCCESS -> {
-                                                    val v2MatchedStr = if (ripState.matchedVersion == 2) "  ✓ matched" else ""
-                                                    val v1MatchedStr = if (ripState.matchedVersion == 1) "  ✓ matched" else ""
-
-                                                    Text("Computed (v2)   $computedV2$v2MatchedStr", style = MaterialTheme.typography.bodyMedium)
-                                                    if (expectedV2.isNotEmpty()) {
-                                                        Text("Expected (v2)   $expectedV2", style = MaterialTheme.typography.bodyMedium)
-                                                    }
-                                                    Text("Computed (v1)   $computedV1$v1MatchedStr", style = MaterialTheme.typography.bodyMedium)
-                                                    if (expectedV1.isNotEmpty()) {
-                                                        Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
-                                                    }
-                                                }
-                                                RipStatus.WARNING -> {
-                                                    Text("Computed (v2)   $computedV2", style = MaterialTheme.typography.bodyMedium)
-                                                    if (expectedV2.isNotEmpty()) {
-                                                        Text("Expected (v2)   $expectedV2", style = MaterialTheme.typography.bodyMedium)
-                                                    } else {
-                                                        Text("Expected (v2)   none", style = MaterialTheme.typography.bodyMedium)
-                                                    }
-                                                    Text("Computed (v1)   $computedV1", style = MaterialTheme.typography.bodyMedium)
-                                                    if (expectedV1.isNotEmpty()) {
-                                                        Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
-                                                    } else {
-                                                        Text("Expected (v1)   none", style = MaterialTheme.typography.bodyMedium)
-                                                    }
-                                                }
-                                                RipStatus.UNVERIFIED -> {
-                                                    Text("Checksum (v2)  $computedV2  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
-                                                    Text("Checksum (v1)  $computedV1  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
-                                                }
-                                                else -> {
-                                                    Text("Checksum (v2)  $computedV2", style = MaterialTheme.typography.bodyMedium)
-                                                    Text("Checksum (v1)  $computedV1", style = MaterialTheme.typography.bodyMedium)
-                                                }
-                                            }
-                                        }
-
-                                        if (ripState.status == RipStatus.ERROR && ripState.errorMessage != null) {
-                                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                            Text("Error  ${ripState.errorMessage}", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFF44336))
-                                        }
-
-                                        // Action row
-                                        if (ripState.status == RipStatus.WARNING || ripState.status == RipStatus.ERROR) {
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.End
-                                            ) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        viewModel.rescanTrack(track.trackNumber)
-                                                        showRipDetailSheet = false
-                                                    }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.PlayArrow,
-                                                        contentDescription = "Rescan",
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Rescan")
-                                                }
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        onShareRipInfo(track.trackNumber)
-                                                    }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Share,
-                                                        contentDescription = "Share",
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Share Details")
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
-                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.width(16.dp))
@@ -664,6 +514,162 @@ fun TrackListScreen(
                     )
                 )
             }
+
+                    val detail = selectedRipDetail
+                    if (detail != null) {
+                        val (detailTrack, detailRipState) = detail
+                        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                        ModalBottomSheet(
+                            onDismissRequest = { selectedRipDetail = null },
+                            sheetState = sheetState
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val statusColor = when (detailRipState.status) {
+                                    RipStatus.SUCCESS -> displayColor
+                                    RipStatus.WARNING -> Color(0xFFFFC107)
+                                    RipStatus.UNVERIFIED -> Color.White.copy(alpha = 0.5f)
+                                    RipStatus.ERROR -> Color(0xFFF44336)
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+
+                                // Header
+                                Text(
+                                    text = "${detailTrack.trackNumber.toString().padStart(2, '0')} - ${detailTrack.title}",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Surface(
+                                    color = statusColor.copy(alpha = 0.1f),
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text(
+                                        text = detailRipState.status.name,
+                                        color = statusColor,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
+
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                                // Diagnostic section
+                                val durationExpected = detailRipState.totalSectors * 588 / 44100.0
+                                Text("LBA Range     ${detailRipState.startLba} → ${detailRipState.endLba}", style = MaterialTheme.typography.bodyMedium)
+
+                                val isTruncated = detailRipState.sectorsRead != detailRipState.totalSectors
+                                Text(
+                                    buildAnnotatedString {
+                                        append("Sectors       ${detailRipState.totalSectors} expected  /  ${detailRipState.sectorsRead} read")
+                                        if (isTruncated) {
+                                            withStyle(SpanStyle(color = Color(0xFFF44336))) {
+                                                append("   *** TRUNCATED ***")
+                                            }
+                                        }
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text("Duration      ${String.format(java.util.Locale.US, "%.2f", detailRipState.durationSeconds)}s ripped  /  ${String.format(java.util.Locale.US, "%.2f", durationExpected)}s expected", style = MaterialTheme.typography.bodyMedium)
+
+                                // Checksum section
+                                if (detailRipState.computedChecksumV1 != null || detailRipState.computedChecksumV2 != null) {
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                                    val computedV2 = detailRipState.computedChecksumV2?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                    val computedV1 = detailRipState.computedChecksumV1?.let { String.format("0x%08X", it and 0xFFFFFFFFL) } ?: "unknown"
+                                    val expectedV2 = detailRipState.expectedChecksumsV2.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                                    val expectedV1 = detailRipState.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+
+                                    when (detailRipState.status) {
+                                        RipStatus.SUCCESS -> {
+                                            val v2MatchedStr = if (detailRipState.matchedVersion == 2) "  ✓ matched" else ""
+                                            val v1MatchedStr = if (detailRipState.matchedVersion == 1) "  ✓ matched" else ""
+
+                                            Text("Computed (v2)   $computedV2$v2MatchedStr", style = MaterialTheme.typography.bodyMedium)
+                                            if (expectedV2.isNotEmpty()) {
+                                                Text("Expected (v2)   $expectedV2", style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                            Text("Computed (v1)   $computedV1$v1MatchedStr", style = MaterialTheme.typography.bodyMedium)
+                                            if (expectedV1.isNotEmpty()) {
+                                                Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                        }
+                                        RipStatus.WARNING -> {
+                                            Text("Computed (v2)   $computedV2", style = MaterialTheme.typography.bodyMedium)
+                                            if (expectedV2.isNotEmpty()) {
+                                                Text("Expected (v2)   $expectedV2", style = MaterialTheme.typography.bodyMedium)
+                                            } else {
+                                                Text("Expected (v2)   none", style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                            Text("Computed (v1)   $computedV1", style = MaterialTheme.typography.bodyMedium)
+                                            if (expectedV1.isNotEmpty()) {
+                                                Text("Expected (v1)   $expectedV1", style = MaterialTheme.typography.bodyMedium)
+                                            } else {
+                                                Text("Expected (v1)   none", style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                        }
+                                        RipStatus.UNVERIFIED -> {
+                                            Text("Checksum (v2)  $computedV2  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
+                                            Text("Checksum (v1)  $computedV1  (not in AccurateRip database)", style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                        else -> {
+                                            Text("Checksum (v2)  $computedV2", style = MaterialTheme.typography.bodyMedium)
+                                            Text("Checksum (v1)  $computedV1", style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                    }
+                                }
+
+                                if (detailRipState.status == RipStatus.ERROR && detailRipState.errorMessage != null) {
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                    Text("Error  ${detailRipState.errorMessage}", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFF44336))
+                                }
+
+                                // Action row
+                                if (detailRipState.status == RipStatus.WARNING || detailRipState.status == RipStatus.ERROR) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                viewModel.rescanTrack(detailTrack.trackNumber)
+                                                selectedRipDetail = null
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = "Rescan",
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Rescan")
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        OutlinedButton(
+                                            onClick = {
+                                                onShareRipInfo(detailTrack.trackNumber)
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Share",
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Share Details")
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+                            }
+                        }
+                    }
         } // Close Box here
     } // Close if statement here
     } // Close Box modifier fillMaxSize here

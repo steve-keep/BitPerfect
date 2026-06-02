@@ -594,7 +594,13 @@ open class AppViewModel(
                         DeviceStateManager.reportError("Network error: ${e.message ?: "Unknown error"}")
                         _discMetadata.value = null
                     }
-                } else {
+                } else if (
+                    status is DriveStatus.NoDrive ||
+                    status is DriveStatus.Empty ||
+                    status is DriveStatus.NotOptical ||
+                    status is DriveStatus.Open ||
+                    status is DriveStatus.Error
+                ) {
                     if (ripRepository.isRipping.value) {
                         ripRepository.cancelRip()
                     }
