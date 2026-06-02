@@ -36,7 +36,7 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
         TagOptionSingleton.getInstance().isAndroid = true
 
         DeviceStateManager.initialize(this)
-        com.bitperfect.app.usb.RipSession.getInstance(this)
+        com.bitperfect.app.usb.RipRepository.getInstance()
 
         playerRepository = PlayerRepository(this)
 

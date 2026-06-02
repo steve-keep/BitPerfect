@@ -13,7 +13,8 @@ import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.TrackRipState
 import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.app.usb.DriveInfo
-import com.bitperfect.app.usb.RipSession
+import com.bitperfect.app.usb.RipRepository
+import com.bitperfect.app.usb.RipService
 import com.bitperfect.app.usb.RipStatus as UsbRipStatus
 import com.bitperfect.app.usb.TrackRipState as UsbTrackRipState
 import com.bitperfect.core.models.DiscMetadata
@@ -386,9 +387,9 @@ class AppViewModelTest {
     @Test
     fun testRipBannerState_VisibleWhenRipping() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val ripSession = RipSession.getInstance(application)
+        val ripSession = RipRepository.getInstance()
 
-        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        val isRippingField = RipRepository::class.java.getDeclaredField("_isRipping")
         isRippingField.isAccessible = true
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
@@ -436,9 +437,9 @@ class AppViewModelTest {
     @Test
     fun testRipBannerState_CountsCompletedTracksCorrectly() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val ripSession = RipSession.getInstance(application)
+        val ripSession = RipRepository.getInstance()
 
-        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
+        val ripStatesField = RipRepository::class.java.getDeclaredField("_ripStates")
         ripStatesField.isAccessible = true
 
         val states = mapOf(
@@ -490,9 +491,9 @@ class AppViewModelTest {
     @Test
     fun testRipBannerState_CalculatesOverallProgress() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val ripSession = RipSession.getInstance(application)
+        val ripSession = RipRepository.getInstance()
 
-        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
+        val ripStatesField = RipRepository::class.java.getDeclaredField("_ripStates")
         ripStatesField.isAccessible = true
 
         val states = mapOf(
@@ -541,9 +542,9 @@ class AppViewModelTest {
     @Test
     fun testRipBannerState_UpdatesOnMetadataAndArtwork() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val ripSession = RipSession.getInstance(application)
+        val ripSession = RipRepository.getInstance()
 
-        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        val isRippingField = RipRepository::class.java.getDeclaredField("_isRipping")
         isRippingField.isAccessible = true
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
@@ -606,12 +607,12 @@ class AppViewModelTest {
     @Test
     fun testRipBannerState_VisibleAfterRipCompletes() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val ripSession = RipSession.getInstance(application)
+        val ripSession = RipRepository.getInstance()
 
-        val isRippingField = RipSession::class.java.getDeclaredField("_isRipping")
+        val isRippingField = RipRepository::class.java.getDeclaredField("_isRipping")
         isRippingField.isAccessible = true
 
-        val ripStatesField = RipSession::class.java.getDeclaredField("_ripStates")
+        val ripStatesField = RipRepository::class.java.getDeclaredField("_ripStates")
         ripStatesField.isAccessible = true
 
         // Ripping finished, isRipping is false, but ripStates is not empty

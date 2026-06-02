@@ -284,6 +284,7 @@ class RipManager(
             }
 
             var outputStream: java.io.OutputStream? = null
+            var tempOutputStream: java.io.OutputStream? = null
             var encoder: FlacEncoder? = null
             var finalChecksumV1 = 0L
             var finalChecksumV2 = 0L
@@ -296,7 +297,7 @@ class RipManager(
             val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
             var ripSucceeded = false
             try {
-                val tempOutputStream = BufferedOutputStream(java.io.FileOutputStream(tempFile), 1024 * 1024)
+                tempOutputStream = BufferedOutputStream(java.io.FileOutputStream(tempFile), 1024 * 1024)
 
                 encoder = FlacEncoder(tempOutputStream, writeHeader = false)
                 encoder.start()
@@ -918,8 +919,8 @@ class RipManager(
                     }
                 }
 
-                encoder.stop()
-                tempOutputStream.close() // Flush remaining buffers to temp file
+                encoder?.stop()
+                tempOutputStream?.close() // Flush remaining buffers to temp file
 
                 var audioAnalysis: AudioAnalysis? = null
                 try {
@@ -993,6 +994,17 @@ class RipManager(
                 )
                 continue
             } finally {
+                try {
+                    encoder?.stop()
+                } catch (e: Exception) {
+                    AppLogger.w("RipManager", "Failed to safely stop encoder in finally block: ${e.message}")
+                }
+                try {
+                    tempOutputStream?.close()
+                } catch (e: Exception) {
+                    AppLogger.w("RipManager", "Failed to close temp output stream in finally block: ${e.message}")
+                }
+
                 var closeException: Exception? = null
                 try {
                     outputStream?.close()
