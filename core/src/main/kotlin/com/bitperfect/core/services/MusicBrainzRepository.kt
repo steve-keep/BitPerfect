@@ -154,7 +154,25 @@ class MusicBrainzRepository(private val context: Context) {
     }
 
     private fun mapToMetadata(response: MbDiscIdResponse, queryDiscId: String): DiscMetadata? {
-        if (response.resolvedReleases().isEmpty()) return null
+        if (response.resolvedReleases().isEmpty()) {
+            if (!response.title.isNullOrBlank() && !response.id.isNullOrBlank()) {
+                return DiscMetadata(
+                    albumTitle = response.title,
+                    artistName = response.artist ?: "Unknown Artist",
+                    trackTitles = response.tracks.map { it.title },
+                    mbReleaseId = response.id,
+                    year = null,
+                    genre = null,
+                    albumArtist = null,
+                    discNumber = 1,
+                    totalDiscs = 1,
+                    releaseTags = emptyList(),
+                    trackTags = emptyList(),
+                    hasFrontCoverArt = false
+                )
+            }
+            return null
+        }
 
         val release = response.resolvedReleases().maxByOrNull { release ->
             var score = 0

@@ -101,6 +101,59 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
+    fun `testLookupReturnsMetadataForFlattenedSingularResponse`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        // Mock a flattened response (e.g. The Bronx)
+        val mockJson = """
+            {
+                "id": "flattened-id-123",
+                "title": "The Bronx",
+                "artist": "The Bronx",
+                "track-count": 11,
+                "tracks": [
+                    {"title": "Track 1"},
+                    {"title": "Track 2"},
+                    {"title": "Track 3"},
+                    {"title": "Track 4"},
+                    {"title": "Track 5"},
+                    {"title": "Track 6"},
+                    {"title": "Track 7"},
+                    {"title": "Track 8"},
+                    {"title": "Track 9"},
+                    {"title": "Track 10"},
+                    {"title": "Track 11"}
+                ]
+            }
+        """.trimIndent()
+
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = mockJson,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+
+        assertNotNull(metadata)
+        assertEquals("The Bronx", metadata!!.albumTitle)
+        assertEquals("The Bronx", metadata.artistName)
+        assertEquals("flattened-id-123", metadata.mbReleaseId)
+        assertEquals(11, metadata.trackTitles.size)
+        assertEquals("Track 1", metadata.trackTitles[0])
+        assertEquals("Track 11", metadata.trackTitles[10])
+        assertEquals(1, metadata.discNumber)
+        assertEquals(1, metadata.totalDiscs)
+        assertNull(metadata.year)
+        assertNull(metadata.genre)
+        assertEquals(emptyList<String>(), metadata.releaseTags)
+        assertEquals(emptyList<List<String>>(), metadata.trackTags)
+        assertEquals(false, metadata.hasFrontCoverArt)
+    }
+
+    @Test
     fun `empty releases list returns null`(): Unit = runBlocking {
         val mockJson = """
             {
