@@ -12,12 +12,24 @@ data class MbDiscWrapper(
 @Serializable
 data class MbDiscIdResponse(
     val disc: MbDiscWrapper? = null,
-    val releases: List<MbRelease> = emptyList()
+    val releases: List<MbRelease> = emptyList(),
+    // Direct root fallbacks for singular mappings
+    val id: String? = null,
+    val title: String? = null,
+    val artist: String? = null,
+    @SerialName("track-count") val trackCount: Int? = null,
+    val tracks: List<MbDirectTrack> = emptyList()
 ) {
     /** Returns releases from whichever shape this response used. */
     fun resolvedReleases(): List<MbRelease> =
         disc?.releases?.takeIf { it.isNotEmpty() } ?: releases
 }
+
+@Serializable
+data class MbDirectTrack(
+    val title: String,
+    val length: Int? = null
+)
 
 @Serializable data class MbRelease(
     val id: String,
