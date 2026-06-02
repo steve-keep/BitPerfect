@@ -1138,16 +1138,6 @@ open class AppViewModel(
         }
     }
 
-    fun moveQueueItemLocal(currentIndex: Int, newIndex: Int) {
-        if (currentIndex == newIndex) return
-
-        val mutable = _playingTracks.value.toMutableList()
-        if (currentIndex !in mutable.indices || newIndex !in mutable.indices) return
-        val track = mutable.removeAt(currentIndex)
-        mutable.add(newIndex, track)
-        _playingTracks.value = mutable
-    }
-
     fun commitQueueItemMove(originalIndex: Int, finalIndex: Int) {
         if (originalIndex == finalIndex) return
 
