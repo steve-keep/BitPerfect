@@ -12,6 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.DriveInfo
+import kotlinx.coroutines.flow.StateFlow
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
