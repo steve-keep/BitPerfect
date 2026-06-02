@@ -45,8 +45,7 @@ class ItunesArtworkRepositoryTest {
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
         val result = repository.fetchItunesArtwork("Artist", "Album")
 
-        assertEquals("https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/80/7e/ab/807eab7e-ccf8-3e91-cd20-4050d2bb2e40/12345.jpg/600x600bb.jpg", result?.previewUrl)
-        assertEquals("https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/80/7e/ab/807eab7e-ccf8-3e91-cd20-4050d2bb2e40/12345.jpg/3000x3000bb.jpg", result?.highResUrl)
+        assertEquals("https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/80/7e/ab/807eab7e-ccf8-3e91-cd20-4050d2bb2e40/12345.jpg/3000x3000bb.jpg", result?.url)
     }
 
     @Test
@@ -84,8 +83,7 @@ class ItunesArtworkRepositoryTest {
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
         val result = repository.fetchItunesArtwork("Artist", "Album")
 
-        assertEquals("https://example.com/right.jpg/600x600bb.jpg", result?.previewUrl)
-        assertEquals("https://example.com/right.jpg/3000x3000bb.jpg", result?.highResUrl)
+        assertEquals("https://example.com/right.jpg/3000x3000bb.jpg", result?.url)
     }
 
     @Test
@@ -176,8 +174,7 @@ class ItunesArtworkRepositoryTest {
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
         val result = repository.fetchItunesArtwork("Guns N' Roses", "Appetite for Destruction")
 
-        assertEquals("https://example.com/guns.jpg/600x600bb.jpg", result?.previewUrl)
-        assertEquals("https://example.com/guns.jpg/3000x3000bb.jpg", result?.highResUrl)
+        assertEquals("https://example.com/guns.jpg/3000x3000bb.jpg", result?.url)
     }
 
     @Test
@@ -208,8 +205,7 @@ class ItunesArtworkRepositoryTest {
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
         val result = repository.fetchItunesArtwork("Guns N' Roses", "Use Your Illusion (I)")
 
-        assertEquals("https://example.com/illusion.jpg/600x600bb.jpg", result?.previewUrl)
-        assertEquals("https://example.com/illusion.jpg/3000x3000bb.jpg", result?.highResUrl)
+        assertEquals("https://example.com/illusion.jpg/3000x3000bb.jpg", result?.url)
     }
 
 
@@ -242,8 +238,7 @@ class ItunesArtworkRepositoryTest {
         // Request without "The", should match the candidate with "The"
         val result = repository.fetchItunesArtwork("Beatles", "Abbey Road")
 
-        assertEquals("https://example.com/abbey.jpg/600x600bb.jpg", result?.previewUrl)
-        assertEquals("https://example.com/abbey.jpg/3000x3000bb.jpg", result?.highResUrl)
+        assertEquals("https://example.com/abbey.jpg/3000x3000bb.jpg", result?.url)
     }
 
     @Test
@@ -322,8 +317,7 @@ class ItunesArtworkRepositoryTest {
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
         val result = repository.fetchItunesArtwork("Nas", "Illmatic", 10)
 
-        assertEquals("https://example.com/exact.jpg/600x600bb.jpg", result?.previewUrl)
-        assertEquals("https://example.com/exact.jpg/3000x3000bb.jpg", result?.highResUrl)
+        assertEquals("https://example.com/exact.jpg/3000x3000bb.jpg", result?.url)
     }
 
     @Test
@@ -354,6 +348,6 @@ class ItunesArtworkRepositoryTest {
         val repository = ItunesArtworkRepository(mockContext, mockEngine)
         val result = repository.fetchItunesArtwork("The Kooks", "Inside In / Inside Out")
 
-        assertEquals("https://example.com/inside.jpg/600x600bb.jpg", result?.previewUrl)
+        assertEquals("https://example.com/inside.jpg/3000x3000bb.jpg", result?.url)
     }
 }
