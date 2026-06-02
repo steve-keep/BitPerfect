@@ -168,15 +168,27 @@ fun NowPlayingScreen(
                         Text("No upcoming tracks", color = Color.White.copy(alpha = 0.5f))
                     }
                 } else {
+                    var displayUpcomingItems by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(upcomingItems) }
+                    var isDraggingGlobal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+                    LaunchedEffect(upcomingItems) {
+                        if (!isDraggingGlobal) {
+                            displayUpcomingItems = upcomingItems
+                        }
+                    }
+
                     val lazyListState = rememberLazyListState()
                     var dragStartIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
                     var currentDragIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
 
                     val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
-                        val fromActualIndex = from.index + currentQueueIndex + 1
+                        val mutableList = displayUpcomingItems.toMutableList()
+                        val item = mutableList.removeAt(from.index)
+                        mutableList.add(to.index, item)
+                        displayUpcomingItems = mutableList
+
                         val toActualIndex = to.index + currentQueueIndex + 1
                         currentDragIndex = toActualIndex
-                        viewModel.moveQueueItemLocal(fromActualIndex, toActualIndex)
                     }
 
                     val density = LocalDensity.current
@@ -186,13 +198,13 @@ fun NowPlayingScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        itemsIndexed(upcomingItems, key = { index, item -> "${item.id}_$index" }) { index, item ->
+                        itemsIndexed(displayUpcomingItems, key = { index, item -> "${item.id}_${item.hashCode()}" }) { index, item ->
                             val currentItemIndex by androidx.compose.runtime.rememberUpdatedState(index)
                             val buttonWidthDp = 88.dp
                             val buttonWidthPx = with(density) { buttonWidthDp.toPx() }
                             val offsetX = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
 
-                            ReorderableItem(reorderState, key = "${item.id}_$index") { isDragging ->
+                            ReorderableItem(reorderState, key = "${item.id}_${item.hashCode()}") { isDragging ->
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -312,16 +324,19 @@ fun NowPlayingScreen(
                                                 onClick = {},
                                                 modifier = Modifier.draggableHandle(
                                                     onDragStarted = {
+                                                        isDraggingGlobal = true
                                                         val actualIndex = currentItemIndex + currentQueueIndex + 1
                                                         dragStartIndex = actualIndex
                                                         currentDragIndex = actualIndex
                                                     },
                                                     onDragStopped = {
+                                                        isDraggingGlobal = false
                                                         val start = dragStartIndex
                                                         val end = currentDragIndex
                                                         if (start != null && end != null && start != end) {
                                                             viewModel.commitQueueItemMove(start, end)
                                                         }
+                                                        displayUpcomingItems = upcomingItems
                                                         dragStartIndex = null
                                                         currentDragIndex = null
                                                     }
