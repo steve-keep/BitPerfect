@@ -6,6 +6,6 @@ import android.content.Intent
 
 class RipCancelReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        RipSession.getInstance(context).cancel()
+        RipRepository.getInstance().cancelRip()
     }
 }

@@ -46,6 +46,9 @@ import com.bitperfect.core.models.LyricsResult
 import com.bitperfect.core.models.LyricsFetchResult
 import com.bitperfect.app.BitPerfectApplication
 import java.net.URL
+import com.bitperfect.app.usb.RipParameters
+import com.bitperfect.app.usb.RipService
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -207,7 +210,7 @@ open class AppViewModel(
     private val _isKeyDisc = MutableStateFlow(false)
     open val isKeyDisc: StateFlow<Boolean> = _isKeyDisc.asStateFlow()
 
-    private val ripSession = com.bitperfect.app.usb.RipSession.getInstance(application)
+    private val ripRepository = com.bitperfect.app.usb.RipRepository.getInstance()
 
     internal val _ripStates = MutableStateFlow<Map<Int, TrackRipState>>(emptyMap())
     open val ripStates: StateFlow<Map<Int, TrackRipState>> = _ripStates.asStateFlow()
@@ -218,11 +221,11 @@ open class AppViewModel(
     private val _uiEvent = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 1)
     val uiEvent: SharedFlow<String> = _uiEvent.asSharedFlow()
 
-    val isRipping: StateFlow<Boolean> = ripSession.isRipping
+    val isRipping: StateFlow<Boolean> = ripRepository.isRipping
 
     val ripBannerState: StateFlow<RipBannerState> = combine(
-        ripSession.isRipping,
-        ripSession.ripStates,
+        ripRepository.isRipping,
+        ripRepository.ripStates,
         discMetadata,
         _artworkBytes
     ) { isRipping, states, meta, artworkBytes ->
@@ -508,7 +511,7 @@ open class AppViewModel(
         }
 
         viewModelScope.launch {
-            ripSession.ripStates.collect { states ->
+            ripRepository.ripStates.collect { states ->
                 _ripStates.value = states
 
                 // Check if all tracks are done ripping
@@ -592,8 +595,8 @@ open class AppViewModel(
                         _discMetadata.value = null
                     }
                 } else {
-                    if (ripSession.isRipping.value) {
-                        ripSession.cancel()
+                    if (ripRepository.isRipping.value) {
+                        ripRepository.cancelRip()
                     }
                     _discMetadata.value = null
                     _isKeyDisc.value = false
@@ -847,8 +850,8 @@ open class AppViewModel(
 
     fun clearTracks() {
         _trackListViewState.value = null
-        if (!ripSession.isRipping.value) {
-            ripSession.clearResults()
+        if (!ripRepository.isRipping.value) {
+            ripRepository.clearResults()
             hasHandledRipCompletion = false
             _awaitingEjectToCommit.value = false
             pendingCommitMeta = null
@@ -896,7 +899,7 @@ open class AppViewModel(
 
     fun cancelRip(deleteFiles: Boolean) {
         hasHandledRipCompletion = true
-        ripSession.cancel(deleteFiles)
+        ripRepository.cancelRip(deleteFiles)
         _awaitingEjectToCommit.value = false
         pendingCommitMeta = null
     }
@@ -914,15 +917,26 @@ open class AppViewModel(
                 val lyrics = _lyricsMap.value[trackNumber]
                 val trackLyricsMap = if (lyrics != null) mapOf(trackNumber to lyrics) else emptyMap()
 
-                ripSession.startRip(
-                    outputFolderUriString = settingsManager.outputFolderUri ?: "",
-                    toc = toc,
-                    metadata = meta,
-                    expectedChecksums = expectedChecksums,
-                    artworkBytes = _artworkBytes.value,
-                    lyricsMap = trackLyricsMap,
-                    tracksToRip = listOf(trackNumber)
-                )
+                if (ripRepository.isRipping.value) {
+                    ripRepository.queueTrack(trackNumber)
+                } else {
+                    ripRepository.pendingRipParameters = RipParameters(
+                        outputFolderUriString = settingsManager.outputFolderUri ?: "",
+                        toc = toc,
+                        metadata = meta,
+                        expectedChecksums = expectedChecksums,
+                        artworkBytes = _artworkBytes.value,
+                        lyricsMap = trackLyricsMap,
+                        tracksToRip = listOf(trackNumber)
+                    )
+
+                    val app = getApplication<Application>()
+                    val intent = Intent(app, RipService::class.java).apply {
+                        putExtra(RipService.EXTRA_ARTIST, meta.artistName)
+                        putExtra(RipService.EXTRA_ALBUM, meta.albumTitle)
+                    }
+                    ContextCompat.startForegroundService(app, intent)
+                }
             }
         }
     }
@@ -940,14 +954,29 @@ open class AppViewModel(
 
             viewModelScope.launch(ioDispatcher) {
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
-                ripSession.startRip(
-                    outputFolderUriString = outputUri,
-                    toc = toc,
-                    metadata = meta,
-                    expectedChecksums = expectedChecksums,
-                    artworkBytes = _artworkBytes.value,
-                    lyricsMap = _lyricsMap.value
-                )
+                if (!ripRepository.isRipping.value) {
+                    ripRepository.pendingRipParameters = RipParameters(
+                        outputFolderUriString = outputUri,
+                        toc = toc,
+                        metadata = meta,
+                        expectedChecksums = expectedChecksums,
+                        artworkBytes = _artworkBytes.value,
+                        lyricsMap = _lyricsMap.value,
+                        tracksToRip = null
+                    )
+
+                    val app = getApplication<Application>()
+                    val intent = Intent(app, RipService::class.java).apply {
+                        putExtra(RipService.EXTRA_ARTIST, meta.artistName)
+                        putExtra(RipService.EXTRA_ALBUM, meta.albumTitle)
+                    }
+                    ContextCompat.startForegroundService(app, intent)
+                } else {
+                    // Queue tracks
+                    for (track in toc.tracks.map { it.trackNumber }) {
+                        ripRepository.queueTrack(track)
+                    }
+                }
             }
         }
     }

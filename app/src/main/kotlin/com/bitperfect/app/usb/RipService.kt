@@ -19,14 +19,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import com.bitperfect.app.R // Assume R is accessible
+import com.bitperfect.app.R
 
 import androidx.core.app.ServiceCompat
 import android.content.pm.ServiceInfo
+import kotlinx.coroutines.withContext
 
 class RipService : Service() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channelId = "RipServiceChannel"
     private val notificationId = 1
 
@@ -34,6 +35,9 @@ class RipService : Service() {
 
     private var artistName = ""
     private var albumTitle = ""
+    private var ripManager: RipManager? = null
+
+    private val repository = RipRepository.getInstance()
 
     companion object {
         const val EXTRA_ARTIST = "extra_artist"
@@ -54,8 +58,6 @@ class RipService : Service() {
         )
         wakeLock.acquire(/* timeout = */ 4 * 60 * 60 * 1000L) // 4 hours max safety timeout
         AppLogger.d("RipService", "Acquired partial wake lock")
-
-        val session = RipSession.getInstance(applicationContext)
 
         artistName = intent?.getStringExtra(EXTRA_ARTIST) ?: ""
         albumTitle = intent?.getStringExtra(EXTRA_ALBUM) ?: ""
@@ -82,10 +84,68 @@ class RipService : Service() {
             foregroundServiceType
         )
 
+        // Initialize RipManager using the parameters from repository
+        val params = repository.pendingRipParameters
+        if (params == null) {
+            AppLogger.e("RipService", "No pending rip parameters found")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        repository.pendingRipParameters = null
+
+        val info = DeviceStateManager.driveStatus.value.info
+        val driveVendor = info?.vendor ?: ""
+        val driveProduct = info?.model ?: ""
+
+        val previousStates = if (repository.ripStates.value.isNotEmpty()) repository.ripStates.value else null
+
+        val manager = RipManager(
+            context = applicationContext,
+            outputFolderUriString = params.outputFolderUriString,
+            toc = params.toc,
+            metadata = params.metadata,
+            expectedChecksums = params.expectedChecksums,
+            artworkBytes = params.artworkBytes,
+            lyricsMap = params.lyricsMap,
+            driveVendor = driveVendor,
+            driveProduct = driveProduct,
+            initialTracks = params.tracksToRip ?: params.toc.tracks.map { it.trackNumber },
+            previousStates = previousStates
+        )
+        ripManager = manager
+
+        repository.setIsRipping(true)
+        repository.updateRipStates(manager.trackStates.value)
+
+        // Launch the actual ripping process
         scope.launch {
-            combine(session.ripStates, session.isRipping) { states, isRipping ->
+            var unexpectedError = false
+            try {
+                withContext(Dispatchers.IO) {
+                    UsbReadSession.open().use { session ->
+                        manager.startRipping(session)
+                    }
+                }
+            } catch (e: Exception) {
+                unexpectedError = true
+                AppLogger.e("RipService", "Failed to open USB session", e)
+            } finally {
+                repository.setIsRipping(false)
+
+                if (unexpectedError && manager.isCancelled == false) {
+                    AppLogger.w("RipService", "Rip ended with unexpected error — USB connection preserved for polling loop recovery")
+                }
+            }
+        }
+
+        // Listen for track states and update repository and notification
+        scope.launch(Dispatchers.Main) {
+            combine(manager.trackStates, repository.isRipping) { states, isRipping ->
                 Pair(states, isRipping)
             }.collect { (states, isRipping) ->
+                repository.updateRipStates(states)
+
                 if (!isRipping) {
                     ServiceCompat.stopForeground(this@RipService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -136,7 +196,30 @@ class RipService : Service() {
             }
         }
 
-        return START_STICKY
+        // Listen for queue track events
+        scope.launch {
+            repository.queueTrackEvent.collect { trackNumber ->
+                if (trackNumber != null) {
+                    ripManager?.queueTrack(trackNumber)
+                    repository.clearQueueTrackEvent()
+                }
+            }
+        }
+
+        // Listen for cancel events
+        scope.launch {
+            repository.cancelEvent.collect { deleteFiles ->
+                if (deleteFiles != null) {
+                    ripManager?.cancel()
+                    if (deleteFiles) {
+                        ripManager?.deleteRipFiles()
+                    }
+                    repository.clearCancelEvent()
+                }
+            }
+        }
+
+        return START_NOT_STICKY
     }
 
     private fun createNotificationChannel() {
@@ -208,6 +291,7 @@ class RipService : Service() {
             wakeLock.release()
             AppLogger.d("RipService", "Released partial wake lock")
         }
+        repository.setIsRipping(false)
     }
 
     override fun onBind(intent: Intent?): IBinder? {
