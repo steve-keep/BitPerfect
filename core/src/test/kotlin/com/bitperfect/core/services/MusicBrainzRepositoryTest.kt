@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -443,6 +444,106 @@ class MusicBrainzRepositoryTest {
         assertEquals(emptyList<String>(), metadata.trackTitles) // tests empty media
 
         cacheFile.delete()
+    }
+
+    @Test
+    fun `disc ID lookup without cover art but with barcode performs TOC lookup and finds cover art`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        val barcode = "123456789012"
+
+        // Initial response: matches disc ID, has barcode, NO cover art
+        val initialJson = """
+            {
+                "disc": {
+                    "id": "$discId",
+                    "releases": [
+                        {
+                            "id": "release-id-1",
+                            "title": "Album Without Cover",
+                            "barcode": "$barcode",
+                            "cover-art-archive": {
+                                "front": false
+                            },
+                            "artist-credit": [
+                                {
+                                    "artist": {
+                                        "name": "Artist 1"
+                                    }
+                                }
+                            ],
+                            "media": [
+                                {
+                                    "position": 1,
+                                    "discs": [{"id": "$discId"}],
+                                    "tracks": [
+                                        { "title": "Track 1" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        """.trimIndent()
+
+        // Secondary response: TOC fuzzy lookup returns a release WITH the same barcode and WITH cover art
+        val tocJson = """
+            {
+                "releases": [
+                    {
+                        "id": "release-id-2",
+                        "title": "Album With Cover",
+                        "barcode": "$barcode",
+                        "cover-art-archive": {
+                            "front": true
+                        },
+                        "artist-credit": [
+                            {
+                                "artist": {
+                                    "name": "Artist 1"
+                                }
+                            }
+                        ],
+                        "media": [
+                            {
+                                "position": 1,
+                                "tracks": [
+                                    { "title": "Track 1" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val mockEngine = MockEngine { request ->
+            val url = request.url.toString()
+            if (url.contains("discid/$discId")) {
+                respond(
+                    content = initialJson,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else if (url.contains("toc=") && url.contains("discid/-")) {
+                respond(
+                    content = tocJson,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else {
+                respond(content = "", status = HttpStatusCode.NotFound)
+            }
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+
+        assertNotNull("Metadata should not be null", metadata)
+        assertEquals("release-id-2", metadata!!.mbReleaseId)
+        assertTrue("hasFrontCoverArt should be true from TOC fallback", metadata.hasFrontCoverArt)
+        assertEquals("Album With Cover", metadata.albumTitle)
     }
 
     @Test
