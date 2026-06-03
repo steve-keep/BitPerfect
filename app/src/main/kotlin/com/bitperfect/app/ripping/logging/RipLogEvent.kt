@@ -82,6 +82,10 @@ sealed interface RipLogEvent {
         val suspiciousReads: Int,
         val status: RipStatus,
         val accurateRipStatus: String,
+        val computedChecksumV1: Long? = null,
+        val computedChecksumV2: Long? = null,
+        val expectedChecksumsV1: List<Long> = emptyList(),
+        val expectedChecksumsV2: List<Long> = emptyList(),
         val durationSeconds: Double,
         val summary: TrackRipSummary
     ) : RipLogEvent
