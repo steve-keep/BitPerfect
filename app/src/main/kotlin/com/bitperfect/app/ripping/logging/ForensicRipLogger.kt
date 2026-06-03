@@ -135,6 +135,23 @@ class DefaultForensicRipLogger : ForensicRipLogger {
                 }
             }
 
+            sb.append("LBA Range     ${trackCompleted.startLba} → ${trackCompleted.endLba}\n")
+            val isTruncated = trackCompleted.sectorsRead != trackCompleted.totalSectors
+            if (isTruncated) {
+                sb.append("Sectors       ${trackCompleted.totalSectors} expected  /  ${trackCompleted.sectorsRead} read   *** TRUNCATED ***\n")
+            } else {
+                sb.append("Sectors       ${trackCompleted.totalSectors} expected  /  ${trackCompleted.sectorsRead} read\n")
+            }
+            val durationExpected = trackCompleted.totalSectors * 588 / 44100.0
+
+            val rippedSecs = trackCompleted.durationSeconds.toLong()
+            val rippedFormatted = String.format("%02d:%02d", rippedSecs / 60, rippedSecs % 60)
+
+            val expectedSecs = durationExpected.toLong()
+            val expectedFormatted = String.format("%02d:%02d", expectedSecs / 60, expectedSecs % 60)
+
+            sb.append("Duration      $rippedFormatted ripped  /  $expectedFormatted expected\n\n")
+
             sb.append("Confidence: ${trackCompleted.confidence.name}\n")
             sb.append("AccurateRip: ${trackCompleted.accurateRipStatus}\n")
 
