@@ -34,7 +34,7 @@ internal class ChecksumAccumulator(
 
             val sampleValue = sample and 0xFFFFFFFFL
 
-            if (currentSamplePos > skipStart && currentSamplePos <= totalSamples - skipEnd) {
+            if (currentSamplePos >= skipStart && currentSamplePos <= totalSamples - skipEnd) {
                 // V1 accumulation
                 partialV1 = (partialV1 + sampleValue * currentSamplePos) and 0xFFFFFFFFL
 

@@ -110,7 +110,7 @@ class AccurateRipVerifier {
 
             val sampleValue = sample and 0xFFFFFFFFL
 
-            if (currentSamplePos > skipStart && currentSamplePos <= totalSamples - skipEnd) {
+            if (currentSamplePos >= skipStart && currentSamplePos <= totalSamples - skipEnd) {
                 partialChecksum = (partialChecksum + sampleValue * currentSamplePos) and 0xFFFFFFFFL
             }
             currentSamplePos++
