@@ -1048,10 +1048,15 @@ class RipManager(
 
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
 
-            // Verify checksum
+            // Verify checksum — prefer V2 match, fall back to V1.
+            // A pressing must match on whichever version its database entry carries.
             activePressingCandidates.retainAll { pressing ->
-                val dbTrack = pressing.tracks[trackNumber]
-                dbTrack != null && (dbTrack.crcV1 == finalChecksumV1 || dbTrack.crcV2 == finalChecksumV2)
+                val dbTrack = pressing.tracks[trackNumber] ?: return@retainAll false
+                if (dbTrack.crcV2 != null) {
+                    dbTrack.crcV2 == finalChecksumV2
+                } else {
+                    dbTrack.crcV1 == finalChecksumV1
+                }
             }
 
             val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
@@ -1060,36 +1065,24 @@ class RipManager(
                 null
             }
 
-            val expectedCRCs = expectedChecksums.flatMap { pressing ->
-                val dbTrack = pressing.tracks[trackNumber]
-                if (dbTrack != null) {
-                    listOfNotNull(dbTrack.crcV2, dbTrack.crcV1)
-                } else emptyList()
-            }.distinct()
+            // Always derive expected hash lists from the full original database — never
+            // from the filtered candidates — so the log always shows what AR actually holds.
+            val allExpectedV1 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV1 }.distinct()
+            val allExpectedV2 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV2 }.distinct()
+            val hasExpected = allExpectedV1.isNotEmpty() || allExpectedV2.isNotEmpty()
 
             val finalStatus = if (activePressingCandidates.isNotEmpty()) {
                 RipStatus.SUCCESS
-            } else if (expectedCRCs.isEmpty()) {
+            } else if (!hasExpected) {
                 RipStatus.UNVERIFIED
             } else {
                 RipStatus.WARNING
             }
 
-            if (expectedCRCs.isEmpty()) {
+            if (!hasExpected) {
                 AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
             } else if (matchedVersion == null) {
                 AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
-            }
-
-            // Calculate expected checksums for UI dynamically from remaining candidates (or fallback to original expected checksums if no candidates remain)
-            val expectedChecksumsForUi = if (activePressingCandidates.isNotEmpty()) {
-                activePressingCandidates.mapNotNull {
-                    val dbTrack = it.tracks[trackNumber]
-                    // Prefer V2 for UI display if available
-                    dbTrack?.crcV2 ?: dbTrack?.crcV1
-                }.distinct()
-            } else {
-                expectedCRCs
             }
 
             updateTrackState(
@@ -1099,8 +1092,8 @@ class RipManager(
                 accurateRipUrl = accurateRipUrl,
                 computedChecksumV1 = finalChecksumV1,
                 computedChecksumV2 = finalChecksumV2,
-                expectedChecksumsV1 = expectedChecksumsForUi,
-                expectedChecksumsV2 = expectedChecksumsForUi,
+                expectedChecksumsV1 = allExpectedV1,
+                expectedChecksumsV2 = allExpectedV2,
                 matchedVersion = matchedVersion
             )
 
