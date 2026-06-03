@@ -75,8 +75,14 @@ fun TrackListScreen(
     val driveStatus by viewModel.driveStatus.collectAsState()
     val awaitingEjectToCommit by viewModel.awaitingEjectToCommit.collectAsState()
 
-    LaunchedEffect(driveStatus, awaitingEjectToCommit) {
-        if (driveStatus is DriveStatus.NoDrive && !isRipping && !awaitingEjectToCommit && isCdMode) {
+    LaunchedEffect(driveStatus, awaitingEjectToCommit, viewState) {
+        val isDiscGone = driveStatus is DriveStatus.NoDrive || driveStatus is DriveStatus.Empty || driveStatus is DriveStatus.NotOptical || driveStatus is DriveStatus.Connecting
+        val isDriveOpen = driveStatus is DriveStatus.Open
+
+        // If the drive is opened or gone AND the viewState is null (which is handled by AppViewModel
+        // when manually cancelled or disconnected early) we should pop. If it's a successful rip,
+        // the view state is preserved so the user can review it.
+        if ((isDriveOpen || isDiscGone) && viewState == null && isCdMode && !isRipping && !awaitingEjectToCommit) {
             onNavigateBack()
         }
     }
