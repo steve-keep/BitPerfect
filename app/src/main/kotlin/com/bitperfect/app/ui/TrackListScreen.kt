@@ -588,7 +588,12 @@ fun TrackListScreen(
                                     },
                                     style = MaterialTheme.typography.bodyMedium
                                 )
-                                Text("Duration      ${String.format(java.util.Locale.US, "%.2f", detailRipState.durationSeconds)}s ripped  /  ${String.format(java.util.Locale.US, "%.2f", durationExpected)}s expected", style = MaterialTheme.typography.bodyMedium)
+
+                                val rippedSecs = detailRipState.durationSeconds.toLong()
+                                val rippedFormatted = String.format("%02d:%02d", rippedSecs / 60, rippedSecs % 60)
+                                val expectedSecs = durationExpected.toLong()
+                                val expectedFormatted = String.format("%02d:%02d", expectedSecs / 60, expectedSecs % 60)
+                                Text("Duration      $rippedFormatted ripped  /  $expectedFormatted expected", style = MaterialTheme.typography.bodyMedium)
 
                                 // Checksum section
                                 if (detailRipState.computedChecksumV1 != null || detailRipState.computedChecksumV2 != null) {

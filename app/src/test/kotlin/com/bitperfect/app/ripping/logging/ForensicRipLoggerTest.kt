@@ -90,6 +90,10 @@ class ForensicRipLoggerTest {
             computedChecksumV2 = 0x87654321L,
             expectedChecksumsV1 = listOf(0x12345678L, 0xABCDEF01L),
             expectedChecksumsV2 = listOf(0x87654321L, 0x10FEDCBAL),
+            startLba = 0,
+            endLba = 18412,
+            totalSectors = 18412,
+            sectorsRead = 18412,
             durationSeconds = 245.5,
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
@@ -105,6 +109,10 @@ class ForensicRipLoggerTest {
             computedChecksumV2 = null,
             expectedChecksumsV1 = listOf(0x22222222L),
             expectedChecksumsV2 = emptyList(),
+            startLba = 18412,
+            endLba = 27412,
+            totalSectors = 9000,
+            sectorsRead = 9000,
             durationSeconds = 120.0,
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
