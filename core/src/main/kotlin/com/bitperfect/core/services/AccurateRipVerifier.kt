@@ -23,19 +23,16 @@ class AccurateRipVerifier {
         // To determine if a file is V1 (5 bytes per track) or V2 (9 bytes per track),
         // we can do a quick dry-run parse or check the format.
         // A simple way is to check if it parses cleanly as V2.
-        var isV2 = true
-        var dryRunBuffer = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
-        while (dryRunBuffer.remaining() >= 13) {
-            val trackCount = dryRunBuffer.get().toInt() and 0xFF
-            dryRunBuffer.position(dryRunBuffer.position() + 12) // Skip discId1, discId2, CDDB
-            if (dryRunBuffer.remaining() < trackCount * 9) {
-                isV2 = false
-                break
+        val isV2 = run {
+            var buf = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
+            var ok = true
+            while (buf.remaining() >= 13) {
+                val trackCount = buf.get().toInt() and 0xFF
+                buf.position(buf.position() + 12) // skip discId1, discId2, CDDB
+                if (buf.remaining() < trackCount * 9) { ok = false; break }
+                buf.position(buf.position() + trackCount * 9)
             }
-            dryRunBuffer.position(dryRunBuffer.position() + trackCount * 9)
-        }
-        if (dryRunBuffer.remaining() != 0) {
-            isV2 = false
+            ok && buf.remaining() == 0
         }
 
         val trackRecordSize = if (isV2) 9 else 5

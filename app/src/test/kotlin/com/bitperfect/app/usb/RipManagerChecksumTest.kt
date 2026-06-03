@@ -184,4 +184,88 @@ class RipManagerChecksumTest {
 
         assertEquals("Exact multiple checksum mismatch", expectedChecksum1, accumulatorT1.ripChecksumV1)
     }
+
+    @Test
+    fun `verification match with V1 only pressing`() {
+        val pressingA = com.bitperfect.core.services.AccurateRipDiscPressing(
+            discId1 = 1L, discId2 = 1L,
+            tracks = mapOf(1 to AccurateRipTrackMetadata(crcV1 = 0xAAAA, crcV2 = null, confidence = 5))
+        )
+        val expectedChecksums = listOf(pressingA)
+        val activePressingCandidates = expectedChecksums.toMutableSet()
+
+        val finalChecksumV1 = 0xAAAAL
+        val finalChecksumV2 = 0xBBBBL // Does not match
+
+        activePressingCandidates.retainAll { pressing ->
+            val dbTrack = pressing.tracks[1] ?: return@retainAll false
+            if (dbTrack.crcV2 != null) {
+                dbTrack.crcV2 == finalChecksumV2
+            } else {
+                dbTrack.crcV1 == finalChecksumV1
+            }
+        }
+
+        val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
+            if (activePressingCandidates.any { it.tracks[1]?.crcV2 == finalChecksumV2 }) 2 else 1
+        } else null
+
+        val allExpectedV1 = expectedChecksums.mapNotNull { it.tracks[1]?.crcV1 }.distinct()
+        val allExpectedV2 = expectedChecksums.mapNotNull { it.tracks[1]?.crcV2 }.distinct()
+        val hasExpected = allExpectedV1.isNotEmpty() || allExpectedV2.isNotEmpty()
+
+        val finalStatus = if (activePressingCandidates.isNotEmpty()) {
+            RipStatus.SUCCESS
+        } else if (!hasExpected) {
+            RipStatus.UNVERIFIED
+        } else {
+            RipStatus.WARNING
+        }
+
+        assertEquals(1, activePressingCandidates.size)
+        assertEquals(1, matchedVersion)
+        assertEquals(RipStatus.SUCCESS, finalStatus)
+    }
+
+    @Test
+    fun `verification match with V2 preferred pressing`() {
+        val pressingA = com.bitperfect.core.services.AccurateRipDiscPressing(
+            discId1 = 1L, discId2 = 1L,
+            tracks = mapOf(1 to AccurateRipTrackMetadata(crcV1 = 0xAAAA, crcV2 = 0xBBBB, confidence = 5))
+        )
+        val expectedChecksums = listOf(pressingA)
+        val activePressingCandidates = expectedChecksums.toMutableSet()
+
+        val finalChecksumV1 = 0xCCCCL // Does not match
+        val finalChecksumV2 = 0xBBBBL // Matches V2
+
+        activePressingCandidates.retainAll { pressing ->
+            val dbTrack = pressing.tracks[1] ?: return@retainAll false
+            if (dbTrack.crcV2 != null) {
+                dbTrack.crcV2 == finalChecksumV2
+            } else {
+                dbTrack.crcV1 == finalChecksumV1
+            }
+        }
+
+        val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
+            if (activePressingCandidates.any { it.tracks[1]?.crcV2 == finalChecksumV2 }) 2 else 1
+        } else null
+
+        val allExpectedV1 = expectedChecksums.mapNotNull { it.tracks[1]?.crcV1 }.distinct()
+        val allExpectedV2 = expectedChecksums.mapNotNull { it.tracks[1]?.crcV2 }.distinct()
+        val hasExpected = allExpectedV1.isNotEmpty() || allExpectedV2.isNotEmpty()
+
+        val finalStatus = if (activePressingCandidates.isNotEmpty()) {
+            RipStatus.SUCCESS
+        } else if (!hasExpected) {
+            RipStatus.UNVERIFIED
+        } else {
+            RipStatus.WARNING
+        }
+
+        assertEquals(1, activePressingCandidates.size)
+        assertEquals(2, matchedVersion)
+        assertEquals(RipStatus.SUCCESS, finalStatus)
+    }
 }

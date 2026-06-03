@@ -3,6 +3,7 @@ package com.bitperfect.core.services
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -52,6 +53,32 @@ class AccurateRipVerifierTest {
         assertEquals(0xCCCCCCCCL, pressing.tracks[2]?.crcV1)
         assertEquals(0xDDDDDDDDL, pressing.tracks[2]?.crcV2)
         assertEquals(10, pressing.tracks[2]?.confidence)
+    }
+
+    @Test
+    fun `parseAccurateRipResponse - V1 length disguised as V2 multiple`() {
+        // A byte buffer that is valid as V1 (1 track) = 13 bytes header + 5 bytes track = 18 bytes.
+        // Total length is 18, which is a multiple of 9 (9 bytes per track for V2).
+        val buffer = ByteBuffer.allocate(18).order(ByteOrder.LITTLE_ENDIAN)
+
+        // Header (13 bytes)
+        buffer.put(1.toByte())            // trackCount = 1
+        buffer.putInt(0x11111111)         // discId1
+        buffer.putInt(0x22222222)         // discId2
+        buffer.putInt(0x99999999.toInt()) // cddb
+
+        // Track 1 (5 bytes)
+        buffer.put(5.toByte())            // confidence
+        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1
+
+        val result = verifier.parseAccurateRipResponse(buffer.array())
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].tracks.size)
+
+        // Assert it is parsed as V1 (crcV2 == null)
+        assertNull(result[0].tracks[1]?.crcV2)
+        assertEquals(0xAAAAAAAAL, result[0].tracks[1]?.crcV1)
     }
 
     @Test
