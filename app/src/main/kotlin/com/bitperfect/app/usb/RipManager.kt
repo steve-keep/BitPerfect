@@ -65,6 +65,7 @@ data class TrackRipState(
     val expectedChecksumsV1: List<Long> = emptyList(),
     val expectedChecksumsV2: List<Long> = emptyList(),
     val matchedVersion: Int? = null,
+    val arConfidence: Int? = null,
     val errorMessage: String? = null,
     // Diagnostic fields
     val startLba: Int = 0,
@@ -1076,6 +1077,12 @@ class RipManager(
                 null
             }
 
+            val matchedConfidence: Int? = if (activePressingCandidates.isNotEmpty()) {
+                activePressingCandidates
+                    .mapNotNull { it.tracks[trackNumber]?.confidence }
+                    .maxOrNull()
+            } else null
+
             // Always derive expected hash lists from the full original database — never
             // from the filtered candidates — so the log always shows what AR actually holds.
             val allExpectedV1 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV1 }.distinct()
@@ -1106,6 +1113,7 @@ class RipManager(
                 expectedChecksumsV1 = allExpectedV1,
                 expectedChecksumsV2 = allExpectedV2,
                 matchedVersion = matchedVersion,
+                arConfidence = matchedConfidence,
                 extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
             )
 
@@ -1114,7 +1122,11 @@ class RipManager(
                 writeAccurateRipJsonl(albumDir, currentState)
 
                 val accurateRipStatusString = when {
-                    currentState.status == RipStatus.SUCCESS -> "VERIFIED (v${currentState.matchedVersion})"
+                    currentState.status == RipStatus.SUCCESS -> buildString {
+                        append("VERIFIED (v${currentState.matchedVersion}")
+                        currentState.arConfidence?.let { append(", confidence $it") }
+                        append(")")
+                    }
                     currentState.expectedChecksumsV1.isNotEmpty() || currentState.expectedChecksumsV2.isNotEmpty() -> "MISMATCH"
                     else -> "NOT_IN_DB"
                 }
@@ -1126,6 +1138,7 @@ class RipManager(
                     suspiciousReads = currentState.suspiciousRegions.size,
                     status = currentState.status,
                     accurateRipStatus = accurateRipStatusString,
+                    arConfidence = currentState.arConfidence,
                     computedChecksumV1 = currentState.computedChecksumV1,
                     computedChecksumV2 = currentState.computedChecksumV2,
                     expectedChecksumsV1 = currentState.expectedChecksumsV1,
@@ -1264,6 +1277,7 @@ class RipManager(
             accurateRipObj.put("isVerified", isVerified)
             accurateRipObj.put("checksumMatched", checksumMatched)
             accurateRipObj.put("matchedVersion", state.matchedVersion ?: JSONObject.NULL)
+            accurateRipObj.put("confidence", state.arConfidence ?: JSONObject.NULL)
             accurateRipObj.put("inDatabase", inDatabase)
 
             if (state.computedChecksumV1 != null) {
@@ -1297,6 +1311,7 @@ class RipManager(
         expectedChecksumsV1: List<Long> = emptyList(),
         expectedChecksumsV2: List<Long> = emptyList(),
         matchedVersion: Int? = null,
+        arConfidence: Int? = null,
         errorMessage: String? = null,
         startLba: Int? = null,
         endLba: Int? = null,
@@ -1320,6 +1335,7 @@ class RipManager(
             expectedChecksumsV1 = if (expectedChecksumsV1.isNotEmpty()) expectedChecksumsV1 else existingState.expectedChecksumsV1,
             expectedChecksumsV2 = if (expectedChecksumsV2.isNotEmpty()) expectedChecksumsV2 else existingState.expectedChecksumsV2,
             matchedVersion = matchedVersion ?: existingState.matchedVersion,
+            arConfidence = arConfidence ?: existingState.arConfidence,
             errorMessage = errorMessage ?: existingState.errorMessage,
             startLba = startLba ?: existingState.startLba,
             endLba = endLba ?: existingState.endLba,
