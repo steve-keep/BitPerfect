@@ -73,6 +73,7 @@ data class TrackRipState(
     val sectorsRead: Int = 0,
     val totalSamples: Long = 0L,
     val durationSeconds: Double = 0.0,
+    val extractionTimeSeconds: Double = 0.0,
     val confidence: RipConfidence = RipConfidence.HIGH,
     val suspiciousRegions: List<com.bitperfect.app.ripping.paranoia.SuspiciousRead> = emptyList()
 )
@@ -230,6 +231,8 @@ class RipManager(
 
             val trackNumber = trackQueue.poll() ?: break
 
+            val trackStartTimeMs = android.os.SystemClock.elapsedRealtime()
+
             // Track Statistics
             var trackChunksRead = 0
             var trackOverlapVerifications = 0
@@ -249,7 +252,7 @@ class RipManager(
             val totalSectors = nextLba - entry.lba
             val totalSamples = totalSectors.toLong() * 588L
 
-            updateTrackState(trackNumber, RipStatus.RIPPING, 0f)
+            updateTrackState(trackNumber, RipStatus.RIPPING, 0f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
             logger.record(RipLogEvent.TrackStarted(trackNumber, trackTitle))
 
             if (isCancelled) break
@@ -280,7 +283,8 @@ class RipManager(
                     totalSectors = totalSectors,
                     sectorsRead = 0,
                     totalSamples = totalSamples,
-                    durationSeconds = 0.0
+                    durationSeconds = 0.0,
+                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
                 )
                 continue
             }
@@ -652,6 +656,7 @@ class RipManager(
                                     trackNumber = trackNumber,
                                     status = state.status,
                                     progress = state.progress,
+                                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
                                     suspiciousRegions = currentSuspiciousRegions
                                 )
 
@@ -750,6 +755,7 @@ class RipManager(
                                 trackNumber = trackNumber,
                                 status = state.status,
                                 progress = state.progress,
+                                extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
                                 confidence = trackConfidence
                             )
                         }
@@ -821,6 +827,7 @@ class RipManager(
                                 trackNumber = trackNumber,
                                 status = state.status,
                                 progress = state.progress,
+                                extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
                                 confidence = newConfidence,
                                 suspiciousRegions = currentSuspiciousRegions
                             )
@@ -832,7 +839,7 @@ class RipManager(
                         ) // see UsbReadSession.MAX_RETRIES
                     }
 
-                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors)
+                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
                 }
 
                 if (sampleOffset > 0) {
@@ -883,6 +890,7 @@ class RipManager(
                             trackNumber = trackNumber,
                             status = currentState.status,
                             progress = currentState.progress,
+                            extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
                             confidence = finalConfidence
                         )
                     }
@@ -974,7 +982,8 @@ class RipManager(
                     totalSectors = totalSectors,
                     sectorsRead = sectorsRead + missingStartSectors,
                     totalSamples = totalSamples,
-                    durationSeconds = (sectorsRead + missingStartSectors).toLong() * 588L / 44100.0
+                    durationSeconds = (sectorsRead + missingStartSectors).toLong() * 588L / 44100.0,
+                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
                 )
 
                 ripSucceeded = true
@@ -993,7 +1002,8 @@ class RipManager(
                     totalSectors = totalSectors,
                     sectorsRead = sectorsRead,
                     totalSamples = totalSamples,
-                    durationSeconds = sectorsRead.toLong() * 588L / 44100.0
+                    durationSeconds = sectorsRead.toLong() * 588L / 44100.0,
+                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
                 )
                 continue
             } finally {
@@ -1038,7 +1048,8 @@ class RipManager(
                         totalSectors = totalSectors,
                         sectorsRead = sectorsRead,
                         totalSamples = totalSamples,
-                        durationSeconds = sectorsRead.toLong() * 588L / 44100.0
+                        durationSeconds = sectorsRead.toLong() * 588L / 44100.0,
+                        extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
                     )
                     continue
                 }
@@ -1046,7 +1057,7 @@ class RipManager(
 
             MediaScannerHelper.scanSafUri(context, destFile.uri)
 
-            updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
+            updateTrackState(trackNumber, RipStatus.VERIFYING, 1f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
 
             // Verify checksum — prefer V2 match, fall back to V1.
             // A pressing must match on whichever version its database entry carries.
@@ -1094,7 +1105,8 @@ class RipManager(
                 computedChecksumV2 = finalChecksumV2,
                 expectedChecksumsV1 = allExpectedV1,
                 expectedChecksumsV2 = allExpectedV2,
-                matchedVersion = matchedVersion
+                matchedVersion = matchedVersion,
+                extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
             )
 
             val currentState = _trackStates.value[trackNumber]
@@ -1123,6 +1135,7 @@ class RipManager(
                     totalSectors = currentState.totalSectors,
                     sectorsRead = currentState.sectorsRead,
                     durationSeconds = currentState.durationSeconds,
+                    extractionTimeSeconds = currentState.extractionTimeSeconds,
                     summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
                         chunksRead = trackChunksRead,
                         overlapVerifications = trackOverlapVerifications,
@@ -1291,6 +1304,7 @@ class RipManager(
         sectorsRead: Int? = null,
         totalSamples: Long? = null,
         durationSeconds: Double? = null,
+        extractionTimeSeconds: Double? = null,
         confidence: RipConfidence? = null,
         suspiciousRegions: List<com.bitperfect.app.ripping.paranoia.SuspiciousRead>? = null
     ) {
@@ -1313,6 +1327,7 @@ class RipManager(
             sectorsRead = sectorsRead ?: existingState.sectorsRead,
             totalSamples = totalSamples ?: existingState.totalSamples,
             durationSeconds = durationSeconds ?: existingState.durationSeconds,
+            extractionTimeSeconds = extractionTimeSeconds ?: existingState.extractionTimeSeconds,
             confidence = confidence ?: existingState.confidence,
             suspiciousRegions = suspiciousRegions ?: existingState.suspiciousRegions
         )

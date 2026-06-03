@@ -95,6 +95,7 @@ class ForensicRipLoggerTest {
             totalSectors = 18412,
             sectorsRead = 18412,
             durationSeconds = 245.5,
+            extractionTimeSeconds = 60.0,
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
 
@@ -114,6 +115,7 @@ class ForensicRipLoggerTest {
             totalSectors = 9000,
             sectorsRead = 9000,
             durationSeconds = 120.0,
+            extractionTimeSeconds = 30.0,
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
 

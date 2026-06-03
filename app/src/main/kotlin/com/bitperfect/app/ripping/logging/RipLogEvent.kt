@@ -91,6 +91,7 @@ sealed interface RipLogEvent {
         val totalSectors: Int,
         val sectorsRead: Int,
         val durationSeconds: Double,
+        val extractionTimeSeconds: Double,
         val summary: TrackRipSummary
     ) : RipLogEvent
 
