@@ -10,9 +10,15 @@ data class AccurateRipTrackMetadata(
     val confidence: Int
 )
 
+data class AccurateRipDiscPressing(
+    val discId1: Long,
+    val discId2: Long,
+    val tracks: Map<Int, AccurateRipTrackMetadata>
+)
+
 class AccurateRipVerifier {
-    fun parseAccurateRipResponse(responseBytes: ByteArray): Map<Int, List<AccurateRipTrackMetadata>> {
-        val tracksInfo = mutableMapOf<Int, MutableList<AccurateRipTrackMetadata>>()
+    fun parseAccurateRipResponse(responseBytes: ByteArray): List<AccurateRipDiscPressing> {
+        val pressings = mutableListOf<AccurateRipDiscPressing>()
         val buffer = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
 
         while (buffer.remaining() >= 13) {
@@ -28,18 +34,19 @@ class AccurateRipVerifier {
                 break
             }
 
+            val tracksInfo = mutableMapOf<Int, AccurateRipTrackMetadata>()
             for (i in 0 until trackCount) {
                 val confidence = buffer.get().toInt() and 0xFF
                 val crc = buffer.getInt().toLong() and 0xFFFFFFFFL
 
                 val trackNumber = i + 1
-                tracksInfo.getOrPut(trackNumber) { mutableListOf() }.add(
-                    AccurateRipTrackMetadata(crc, confidence)
-                )
+                tracksInfo[trackNumber] = AccurateRipTrackMetadata(crc, confidence)
             }
+
+            pressings.add(AccurateRipDiscPressing(discId1, discId2, tracksInfo))
             AppLogger.d("AccurateRipVerifier", "Parsed $trackCount tracks for this disc entry")
         }
-        return tracksInfo
+        return pressings
     }
 
     @Deprecated("Replaced by computeChecksumChunk — remove after RipManager is updated in Chunk 2")

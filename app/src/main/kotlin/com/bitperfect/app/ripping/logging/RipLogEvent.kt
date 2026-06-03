@@ -99,7 +99,9 @@ sealed interface RipLogEvent {
     )
 
     data class SessionCompleted(
-        val success: Boolean
+        val success: Boolean,
+        val matchedDiscId1: Long? = null,
+        val matchedDiscId2: Long? = null
     ) : RipLogEvent
 
     data class FastPathStateChanged(

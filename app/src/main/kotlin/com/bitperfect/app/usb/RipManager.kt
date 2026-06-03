@@ -16,6 +16,7 @@ import com.bitperfect.core.models.LyricsFetchResult
 import com.bitperfect.core.services.AccurateRipService
 import com.bitperfect.core.services.AccurateRipVerifier
 import com.bitperfect.core.services.AccurateRipTrackMetadata
+import com.bitperfect.core.services.AccurateRipDiscPressing
 import com.bitperfect.core.services.DriveOffsetRepository
 import com.bitperfect.core.utils.AppLogger
 import com.bitperfect.app.ripping.paranoia.OverlapVerifier
@@ -81,7 +82,7 @@ class RipManager(
     private val outputFolderUriString: String,
     private val toc: DiscToc,
     private val metadata: DiscMetadata,
-    private val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
+    private val expectedChecksums: List<AccurateRipDiscPressing>,
     private val artworkBytes: ByteArray?,
     private val lyricsMap: Map<Int, LyricsFetchResult> = emptyMap(),
     private val driveVendor: String,
@@ -89,6 +90,7 @@ class RipManager(
     initialTracks: List<Int>,
     previousStates: Map<Int, TrackRipState>? = null
 ) {
+    private val activePressingCandidates: MutableSet<AccurateRipDiscPressing> = expectedChecksums.toMutableSet()
     private val _trackStates = MutableStateFlow<Map<Int, TrackRipState>>(
         toc.tracks.associate { track ->
             val prevState = previousStates?.get(track.trackNumber)
@@ -1047,28 +1049,37 @@ class RipManager(
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f)
 
             // Verify checksum
-            val expectedForTrack = expectedChecksums[trackNumber]
-            val expectedCRCs = expectedForTrack?.map { it.crc } ?: emptyList()
-
-            val matchedV2 = expectedCRCs.contains(finalChecksumV2)
-            val matchedV1 = expectedCRCs.contains(finalChecksumV1)
-
-            val matchedVersion = when {
-                matchedV2 -> 2
-                matchedV1 -> 1
-                else -> null
+            activePressingCandidates.retainAll { pressing ->
+                val dbTrack = pressing.tracks[trackNumber]
+                dbTrack != null && (dbTrack.crc == finalChecksumV1 || dbTrack.crc == finalChecksumV2)
             }
 
-            val finalStatus = when {
-                matchedVersion != null -> RipStatus.SUCCESS
-                expectedForTrack.isNullOrEmpty() -> RipStatus.UNVERIFIED
-                else -> RipStatus.WARNING
+            val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
+                if (activePressingCandidates.any { it.tracks[trackNumber]?.crc == finalChecksumV2 }) 2 else 1
+            } else {
+                null
             }
 
-            if (expectedForTrack == null) {
+            val expectedCRCs = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crc }.distinct()
+            val finalStatus = if (activePressingCandidates.isNotEmpty()) {
+                RipStatus.SUCCESS
+            } else if (expectedCRCs.isEmpty()) {
+                RipStatus.UNVERIFIED
+            } else {
+                RipStatus.WARNING
+            }
+
+            if (expectedCRCs.isEmpty()) {
                 AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
             } else if (matchedVersion == null) {
                 AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
+            }
+
+            // Calculate expected checksums for UI dynamically from remaining candidates (or fallback to original expected checksums if no candidates remain)
+            val expectedChecksumsForUi = if (activePressingCandidates.isNotEmpty()) {
+                activePressingCandidates.mapNotNull { it.tracks[trackNumber]?.crc }.distinct()
+            } else {
+                expectedCRCs
             }
 
             updateTrackState(
@@ -1078,8 +1089,8 @@ class RipManager(
                 accurateRipUrl = accurateRipUrl,
                 computedChecksumV1 = finalChecksumV1,
                 computedChecksumV2 = finalChecksumV2,
-                expectedChecksumsV1 = expectedCRCs,
-                expectedChecksumsV2 = expectedCRCs,
+                expectedChecksumsV1 = expectedChecksumsForUi,
+                expectedChecksumsV2 = expectedChecksumsForUi,
                 matchedVersion = matchedVersion
             )
 
@@ -1156,7 +1167,12 @@ class RipManager(
                 readSizeProfile = profile
             ))
 
-            logger.record(RipLogEvent.SessionCompleted(success = true))
+            val matchedPressing = activePressingCandidates.firstOrNull()
+            logger.record(RipLogEvent.SessionCompleted(
+                success = true,
+                matchedDiscId1 = matchedPressing?.discId1,
+                matchedDiscId2 = matchedPressing?.discId2
+            ))
 
             albumDir?.let { dir ->
                 logger.finalize(context, dir)

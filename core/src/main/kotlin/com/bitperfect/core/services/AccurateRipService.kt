@@ -46,7 +46,7 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
         }
     }
 
-    suspend fun getExpectedChecksums(toc: DiscToc): Map<Int, List<AccurateRipTrackMetadata>> = withContext(Dispatchers.IO) {
+    suspend fun getExpectedChecksums(toc: DiscToc): List<AccurateRipDiscPressing> = withContext(Dispatchers.IO) {
         try {
             val discId = computeAccurateRipDiscId(toc)
             val url = discId.toUrl(toc.trackCount)
@@ -57,11 +57,11 @@ class AccurateRipService(private val client: AccurateRipClient = AccurateRipClie
                 val bytes = response.readBytes()
                 return@withContext verifier.parseAccurateRipResponse(bytes)
             } else {
-                return@withContext emptyMap()
+                return@withContext emptyList()
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error fetching expected checksums: ${e.message}")
-            return@withContext emptyMap()
+            return@withContext emptyList()
         }
     }
 }

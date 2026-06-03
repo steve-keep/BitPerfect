@@ -111,23 +111,23 @@ class OffsetCalibrationViewModel(
                 val trackIndex = if (useTrack2) 1 else 0   // 0-based index into toc.tracks
                 val arTrackNumber = trackIndex + 1   // AccurateRip track numbers are 1-based
                 var expectedChecksums: List<com.bitperfect.core.services.AccurateRipTrackMetadata>? = null
-                var allChecksums: Map<Int, List<com.bitperfect.core.services.AccurateRipTrackMetadata>> = emptyMap()
+                var allChecksums: List<com.bitperfect.core.services.AccurateRipDiscPressing> = emptyList()
 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     allChecksums = accurateRipService.getExpectedChecksums(toc)
-                    expectedChecksums = allChecksums[arTrackNumber]
+                    expectedChecksums = allChecksums.mapNotNull { it.tracks[arTrackNumber] }.distinct()
                 }
 
                 // If Track 2 has no AR entry for this pressing, fall back to Track 1.
                 // This can happen on discs where only the first track was submitted.
-                val (resolvedTrackIndex, resolvedArTrackNumber) = if (expectedChecksums == null && useTrack2) {
-                    expectedChecksums = allChecksums[1]
+                val (resolvedTrackIndex, resolvedArTrackNumber) = if (expectedChecksums.isNullOrEmpty() && useTrack2) {
+                    expectedChecksums = allChecksums.mapNotNull { it.tracks[1] }.distinct()
                     Pair(0, 1)
                 } else {
                     Pair(trackIndex, arTrackNumber)
                 }
 
-                if (expectedChecksums == null) {
+                if (expectedChecksums.isNullOrEmpty()) {
                     throw IllegalStateException("No AccurateRip checksums found for track ${resolvedArTrackNumber}")
                 }
 
