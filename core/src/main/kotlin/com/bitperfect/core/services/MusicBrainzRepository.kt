@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import java.io.File
 
 class MusicBrainzRepository(private val context: Context) {
@@ -120,15 +121,53 @@ class MusicBrainzRepository(private val context: Context) {
             val responseBody = httpResponse.bodyAsText()
             val response: MbDiscIdResponse = json.decodeFromString(responseBody)
 
+            var finalResponse = response
+            var finalResponseBody = responseBody
+
+            val mappedMetadata = mapToMetadata(response, discId)
+
+            // Secondary TOC fuzzy lookup if no cover art but barcode is present
+            if (mappedMetadata != null && !mappedMetadata.hasFrontCoverArt) {
+                val selectedRelease = findSelectedRelease(response, discId)
+                if (selectedRelease != null && !selectedRelease.barcode.isNullOrBlank()) {
+                    AppLogger.d(TAG, "No cover art found but barcode present (${selectedRelease.barcode}), attempting TOC fuzzy lookup and filtering by barcode")
+                    val tocStr = computeMusicBrainzTocString(toc)
+                    val tocUrl = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres&cdstubs=no"
+
+                    val tocHttpResponse = client.get(tocUrl)
+                    if (tocHttpResponse.status == HttpStatusCode.OK) {
+                        val tocResponseBody = tocHttpResponse.bodyAsText()
+                        val tocResponse: MbDiscIdResponse = json.decodeFromString(tocResponseBody)
+
+                        val matchedRelease = tocResponse.resolvedReleases().find {
+                            it.barcode == selectedRelease.barcode && it.coverArtArchive?.front == true
+                        }
+
+                        if (matchedRelease != null) {
+                            AppLogger.d(TAG, "Found release with cover art via TOC barcode match")
+                            // Replace the response with the matched one, ensuring we wrap the matched release
+                            finalResponse = tocResponse.copy(
+                                releases = listOf(matchedRelease),
+                                disc = null // Drop disc info so resolvedReleases() uses releases list
+                            )
+                            // Serialize back to update the body to cache
+                            finalResponseBody = json.encodeToString(finalResponse)
+                        } else {
+                            AppLogger.d(TAG, "No release found with cover art via TOC barcode match")
+                        }
+                    }
+                }
+            }
+
             // On success, save the raw network JSON string to the cache file
             try {
-                cacheFile.writeText(responseBody)
+                cacheFile.writeText(finalResponseBody)
                 AppLogger.d(TAG, "Saved metadata to cache for discId: $discId")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error writing to cache for discId $discId: ${e.message}")
             }
 
-            return@withContext mapToMetadata(response, discId)
+            return@withContext mapToMetadata(finalResponse, discId)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error fetching from MusicBrainz for discId $discId: ${e.message}")
             throw e
@@ -153,6 +192,21 @@ class MusicBrainzRepository(private val context: Context) {
         return mapToMetadata(response, discId)
     }
 
+    private fun findSelectedRelease(response: MbDiscIdResponse, queryDiscId: String): MbRelease? {
+        return response.resolvedReleases().maxByOrNull { release ->
+            var score = 0
+            // Exact disc ID match is the strongest signal
+            if (release.media.any { m -> m.discs.any { d -> d.id == queryDiscId } }) score += 100
+            // Prefer releases with cover art
+            if (release.coverArtArchive?.front == true) score += 10
+            // Prefer releases with a date
+            if (!release.date.isNullOrBlank()) score += 5
+            // Prefer releases with a barcode
+            if (!release.barcode.isNullOrBlank()) score += 2
+            score
+        }
+    }
+
     private fun mapToMetadata(response: MbDiscIdResponse, queryDiscId: String): DiscMetadata? {
         if (response.resolvedReleases().isEmpty()) {
             if (!response.title.isNullOrBlank() && !response.id.isNullOrBlank()) {
@@ -174,18 +228,7 @@ class MusicBrainzRepository(private val context: Context) {
             return null
         }
 
-        val release = response.resolvedReleases().maxByOrNull { release ->
-            var score = 0
-            // Exact disc ID match is the strongest signal
-            if (release.media.any { m -> m.discs.any { d -> d.id == queryDiscId } }) score += 100
-            // Prefer releases with cover art
-            if (release.coverArtArchive?.front == true) score += 10
-            // Prefer releases with a date
-            if (!release.date.isNullOrBlank()) score += 5
-            // Prefer releases with a barcode
-            if (!release.barcode.isNullOrBlank()) score += 2
-            score
-        } ?: return null
+        val release = findSelectedRelease(response, queryDiscId) ?: return null
 
         val albumTitle = release.title
         val artistName = release.artistCredit.firstOrNull()?.artist?.name ?: "Unknown Artist"
