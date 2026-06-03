@@ -263,9 +263,9 @@ class AccurateRipVerifierTest {
             isFirstTrack = true, isLastTrack = true
         )
 
-        // Expected partial sum: sum of i for i in 2941..5880
+        // Expected partial sum: sum of i for i in 2940..5880
         var expectedSum = 0L
-        for (i in 2941L..5880L) {
+        for (i in 2940L..5880L) {
             expectedSum += i * 1L
         }
 

@@ -69,19 +69,46 @@ class ChecksumAccumulatorTest {
     }
 
     @Test
-    fun `V2 skips first 2940 samples on first track`() {
+    fun `first track skips first 2939 samples, includes from sample 2940 onwards`() {
         val totalSamples = 10000L
 
-        // 2940 samples exactly
-        val skippedSamplesCount = 2940
-        val pcmData = createDummyPcmData(skippedSamplesCount * 4)
+        // Feed exactly 2940 samples. With the correct spec (>=), the sample AT position 2940
+        // is included. With the wrong > boundary it would be excluded.
+        val pcmData = ByteArray(2940 * 4)
+        // Set only the last sample (position 2940) to a known non-zero value.
+        // All previous samples (positions 1..2939) are zero and will be skipped anyway.
+        val lastSampleValue = 0x00000001L
+        pcmData[2939 * 4 + 0] = 0x01
+        pcmData[2939 * 4 + 1] = 0x00
+        pcmData[2939 * 4 + 2] = 0x00
+        pcmData[2939 * 4 + 3] = 0x00
 
         val accumulator = ChecksumAccumulator(totalSamples, isFirstTrack = true, isLastTrack = false)
         accumulator.accumulate(pcmData)
 
         val checksums = accumulator.finalise()
 
-        // Both V1 and V2 should be 0 since they skip the first 2940 samples
+        // Sample at position 2940 should be included: V1 = value * 2940 = 1 * 2940 = 2940
+        val expectedV1 = (lastSampleValue * 2940L) and 0xFFFFFFFFL
+        val calc = lastSampleValue * 2940L
+        val expectedV2 = ((calc and 0xFFFFFFFFL) + ((calc ushr 32) and 0xFFFFFFFFL)) and 0xFFFFFFFFL
+
+        assertEquals(expectedV1, checksums.first)
+        assertEquals(expectedV2, checksums.second)
+    }
+
+    @Test
+    fun `first track truly skips samples 1 through 2939`() {
+        val totalSamples = 10000L
+
+        // Feed 2939 samples, all non-zero. All should be skipped.
+        val pcmData = ByteArray(2939 * 4) { 0x01 }
+
+        val accumulator = ChecksumAccumulator(totalSamples, isFirstTrack = true, isLastTrack = false)
+        accumulator.accumulate(pcmData)
+
+        val checksums = accumulator.finalise()
+
         assertEquals(0L, checksums.first)
         assertEquals(0L, checksums.second)
     }
