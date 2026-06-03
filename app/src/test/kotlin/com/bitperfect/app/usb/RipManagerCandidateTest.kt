@@ -32,16 +32,16 @@ class RipManagerCandidateTest {
         val pressingA = AccurateRipDiscPressing(
             discId1 = 1L, discId2 = 1L,
             tracks = mapOf(
-                1 to AccurateRipTrackMetadata(crc = 0xAAAA, confidence = 5),
-                2 to AccurateRipTrackMetadata(crc = 0xBBBB, confidence = 5)
+                1 to AccurateRipTrackMetadata(crcV1 = 0xAAAA, crcV2 = null, confidence = 5),
+                2 to AccurateRipTrackMetadata(crcV1 = 0xBBBB, crcV2 = null, confidence = 5)
             )
         )
 
         val pressingB = AccurateRipDiscPressing(
             discId1 = 2L, discId2 = 2L,
             tracks = mapOf(
-                1 to AccurateRipTrackMetadata(crc = 0xCCCC, confidence = 5),
-                2 to AccurateRipTrackMetadata(crc = 0xDDDD, confidence = 5)
+                1 to AccurateRipTrackMetadata(crcV1 = 0xCCCC, crcV2 = null, confidence = 5),
+                2 to AccurateRipTrackMetadata(crcV1 = 0xDDDD, crcV2 = null, confidence = 5)
             )
         )
 
@@ -56,7 +56,7 @@ class RipManagerCandidateTest {
 
         activePressingCandidates.retainAll { pressing ->
             val dbTrack = pressing.tracks[1]
-            dbTrack != null && (dbTrack.crc == finalChecksumV1_T1 || dbTrack.crc == finalChecksumV2_T1)
+            dbTrack != null && (dbTrack.crcV1 == finalChecksumV1_T1 || dbTrack.crcV2 == finalChecksumV2_T1)
         }
 
         // Assert Pressing B is eliminated, A remains
@@ -64,7 +64,7 @@ class RipManagerCandidateTest {
         assertEquals(1L, activePressingCandidates.first().discId1)
 
         val matchedVersionT1 = if (activePressingCandidates.isNotEmpty()) {
-            if (activePressingCandidates.any { it.tracks[1]?.crc == finalChecksumV2_T1 }) 2 else 1
+            if (activePressingCandidates.any { it.tracks[1]?.crcV2 == finalChecksumV2_T1 }) 2 else 1
         } else null
         assertEquals(1, matchedVersionT1)
 
@@ -74,18 +74,21 @@ class RipManagerCandidateTest {
 
         activePressingCandidates.retainAll { pressing ->
             val dbTrack = pressing.tracks[2]
-            dbTrack != null && (dbTrack.crc == finalChecksumV1_T2 || dbTrack.crc == finalChecksumV2_T2)
+            dbTrack != null && (dbTrack.crcV1 == finalChecksumV1_T2 || dbTrack.crcV2 == finalChecksumV2_T2)
         }
 
         // Assert candidate pool drops to zero
         assertEquals(0, activePressingCandidates.size)
 
         val matchedVersionT2 = if (activePressingCandidates.isNotEmpty()) {
-            if (activePressingCandidates.any { it.tracks[2]?.crc == finalChecksumV2_T2 }) 2 else 1
+            if (activePressingCandidates.any { it.tracks[2]?.crcV2 == finalChecksumV2_T2 }) 2 else 1
         } else null
         assertNull(matchedVersionT2)
 
-        val expectedCRCsT2 = expectedChecksums.mapNotNull { it.tracks[2]?.crc }.distinct()
+        val expectedCRCsT2 = expectedChecksums.flatMap { pressing ->
+            val dbTrack = pressing.tracks[2]
+            if (dbTrack != null) listOfNotNull(dbTrack.crcV2, dbTrack.crcV1) else emptyList()
+        }.distinct()
 
         val finalStatusT2 = if (activePressingCandidates.isNotEmpty()) {
             RipStatus.SUCCESS

@@ -19,9 +19,9 @@ class AccurateRipVerifierTest {
     }
 
     @Test
-    fun `parseAccurateRipResponse - single disc entry, two tracks`() {
-        // Correct dBAR format: 13-byte header + 2 × 5-byte track entries = 23 bytes
-        val buffer = ByteBuffer.allocate(13 + 2 * 5).order(ByteOrder.LITTLE_ENDIAN)
+    fun `parseAccurateRipResponse - single disc entry, two tracks, V2 format`() {
+        // Correct dBAR format for V2: 13-byte header + 2 × 9-byte track entries = 31 bytes
+        val buffer = ByteBuffer.allocate(13 + 2 * 9).order(ByteOrder.LITTLE_ENDIAN)
 
         // Header (13 bytes)
         buffer.put(2.toByte())            // trackCount = 2
@@ -29,13 +29,15 @@ class AccurateRipVerifierTest {
         buffer.putInt(0x22222222)         // discId2
         buffer.putInt(0x99999999.toInt()) // cddb ← previously absent, caused the bug
 
-        // Track 1 (5 bytes)
+        // Track 1 (9 bytes)
         buffer.put(5.toByte())            // confidence
-        buffer.putInt(0xAAAAAAAA.toInt()) // crc
+        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1
+        buffer.putInt(0xBBBBBBBB.toInt()) // crcV2
 
-        // Track 2 (5 bytes)
+        // Track 2 (9 bytes)
         buffer.put(10.toByte())           // confidence
-        buffer.putInt(0xCCCCCCCC.toInt()) // crc
+        buffer.putInt(0xCCCCCCCC.toInt()) // crcV1
+        buffer.putInt(0xDDDDDDDD.toInt()) // crcV2
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
@@ -43,17 +45,53 @@ class AccurateRipVerifierTest {
         val pressing = result[0]
         assertEquals(2, pressing.tracks.size)
 
-        assertEquals(0xAAAAAAAAL, pressing.tracks[1]?.crc)
+        assertEquals(0xAAAAAAAAL, pressing.tracks[1]?.crcV1)
+        assertEquals(0xBBBBBBBBL, pressing.tracks[1]?.crcV2)
         assertEquals(5, pressing.tracks[1]?.confidence)
 
-        assertEquals(0xCCCCCCCCL, pressing.tracks[2]?.crc)
+        assertEquals(0xCCCCCCCCL, pressing.tracks[2]?.crcV1)
+        assertEquals(0xDDDDDDDDL, pressing.tracks[2]?.crcV2)
+        assertEquals(10, pressing.tracks[2]?.confidence)
+    }
+
+    @Test
+    fun `parseAccurateRipResponse - legacy V1 format (5 bytes per track)`() {
+        // Correct dBAR format: 13-byte header + 2 × 5-byte track entries = 23 bytes
+        val buffer = ByteBuffer.allocate(13 + 2 * 5).order(ByteOrder.LITTLE_ENDIAN)
+
+        // Header (13 bytes)
+        buffer.put(2.toByte())            // trackCount = 2
+        buffer.putInt(0x11111111)         // discId1
+        buffer.putInt(0x22222222)         // discId2
+        buffer.putInt(0x99999999.toInt()) // cddb
+
+        // Track 1 (5 bytes)
+        buffer.put(5.toByte())            // confidence
+        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1
+
+        // Track 2 (5 bytes)
+        buffer.put(10.toByte())           // confidence
+        buffer.putInt(0xCCCCCCCC.toInt()) // crcV1
+
+        val result = verifier.parseAccurateRipResponse(buffer.array())
+
+        assertEquals(1, result.size)
+        val pressing = result[0]
+        assertEquals(2, pressing.tracks.size)
+
+        assertEquals(0xAAAAAAAAL, pressing.tracks[1]?.crcV1)
+        assertEquals(null, pressing.tracks[1]?.crcV2)
+        assertEquals(5, pressing.tracks[1]?.confidence)
+
+        assertEquals(0xCCCCCCCCL, pressing.tracks[2]?.crcV1)
+        assertEquals(null, pressing.tracks[2]?.crcV2)
         assertEquals(10, pressing.tracks[2]?.confidence)
     }
 
     @Test
     fun `parseAccurateRipResponse - multiple disc entries`() {
-        // Correct dBAR format: 2 × (13-byte header + 1 × 5-byte track entry) = 36 bytes
-        val buffer = ByteBuffer.allocate((13 + 1 * 5) * 2).order(ByteOrder.LITTLE_ENDIAN)
+        // Correct dBAR format: 2 × (13-byte header + 1 × 9-byte track entry) = 44 bytes
+        val buffer = ByteBuffer.allocate((13 + 1 * 9) * 2).order(ByteOrder.LITTLE_ENDIAN)
 
         // Entry 1 header (13 bytes)
         buffer.put(1.toByte())            // trackCount = 1
@@ -61,9 +99,10 @@ class AccurateRipVerifierTest {
         buffer.putInt(0x22222222)         // discId2
         buffer.putInt(0xAAAAAAAA.toInt()) // cddb
 
-        // Entry 1, track 1 (5 bytes)
+        // Entry 1, track 1 (9 bytes)
         buffer.put(3.toByte())            // confidence
-        buffer.putInt(0x11111111)         // crc
+        buffer.putInt(0x11111111)         // crcV1
+        buffer.putInt(0x22222222)         // crcV2
 
         // Entry 2 header (13 bytes)
         buffer.put(1.toByte())            // trackCount = 1
@@ -71,9 +110,10 @@ class AccurateRipVerifierTest {
         buffer.putInt(0x44444444)         // discId2
         buffer.putInt(0xBBBBBBBB.toInt()) // cddb
 
-        // Entry 2, track 1 (5 bytes)
+        // Entry 2, track 1 (9 bytes)
         buffer.put(7.toByte())            // confidence
-        buffer.putInt(0x33333333)         // crc
+        buffer.putInt(0x33333333)         // crcV1
+        buffer.putInt(0x44444444)         // crcV2
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
@@ -81,12 +121,12 @@ class AccurateRipVerifierTest {
 
         assertEquals(0x11111111L, result[0].discId1)
         assertEquals(1, result[0].tracks.size)
-        assertEquals(0x11111111L, result[0].tracks[1]?.crc)
+        assertEquals(0x11111111L, result[0].tracks[1]?.crcV1)
         assertEquals(3, result[0].tracks[1]?.confidence)
 
         assertEquals(0x33333333L, result[1].discId1)
         assertEquals(1, result[1].tracks.size)
-        assertEquals(0x33333333L, result[1].tracks[1]?.crc)
+        assertEquals(0x33333333L, result[1].tracks[1]?.crcV1)
         assertEquals(7, result[1].tracks[1]?.confidence)
     }
 
@@ -131,7 +171,7 @@ class AccurateRipVerifierTest {
         // If discId1, discId2, and CDDB were not read correctly, the buffer offset would be wrong
         // and we wouldn't get the correct track checksum.
         assertEquals(1, result.size)
-        assertEquals(0xABCDEF01L, result[0].tracks[1]?.crc)
+        assertEquals(0xABCDEF01L, result[0].tracks[1]?.crcV1)
         assertEquals(5, result[0].tracks[1]?.confidence)
     }
 
@@ -172,7 +212,7 @@ class AccurateRipVerifierTest {
         // The key assertions: real values, not CDDB-contaminated ones
         assertEquals(
             "CRC must be the real stored value, not bytes assembled from CDDB + confidence",
-            realCrc, track1!!.crc
+            realCrc, track1!!.crcV1
         )
         assertEquals(
             "Confidence must be the real stored value, not CDDB byte 0 (0x10)",
@@ -182,7 +222,7 @@ class AccurateRipVerifierTest {
         // Belt-and-suspenders: confirm the buggy value (0x2ACA097E) does NOT appear
         assertNotEquals(
             "Parsed CRC must not contain CDDB bytes — indicates missing CDDB consumption",
-            0x2ACA097EL, track1.crc
+            0x2ACA097EL, track1.crcV1
         )
     }
 
