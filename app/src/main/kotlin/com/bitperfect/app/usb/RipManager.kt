@@ -1048,11 +1048,10 @@ class RipManager(
 
             // Verify checksum
             val expectedForTrack = expectedChecksums[trackNumber]
-            val expectedV1 = expectedForTrack?.map { it.checksumV1 } ?: emptyList()
-            val expectedV2 = expectedForTrack?.map { it.checksumV2 } ?: emptyList()
+            val expectedCRCs = expectedForTrack?.map { it.crc } ?: emptyList()
 
-            val matchedV2 = expectedV2.contains(finalChecksumV2)
-            val matchedV1 = expectedV1.contains(finalChecksumV1)
+            val matchedV2 = expectedCRCs.contains(finalChecksumV2)
+            val matchedV1 = expectedCRCs.contains(finalChecksumV1)
 
             val matchedVersion = when {
                 matchedV2 -> 2
@@ -1079,8 +1078,8 @@ class RipManager(
                 accurateRipUrl = accurateRipUrl,
                 computedChecksumV1 = finalChecksumV1,
                 computedChecksumV2 = finalChecksumV2,
-                expectedChecksumsV1 = expectedV1,
-                expectedChecksumsV2 = expectedV2,
+                expectedChecksumsV1 = expectedCRCs,
+                expectedChecksumsV2 = expectedCRCs,
                 matchedVersion = matchedVersion
             )
 

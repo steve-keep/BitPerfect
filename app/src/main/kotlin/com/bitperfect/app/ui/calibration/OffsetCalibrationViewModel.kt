@@ -134,7 +134,7 @@ class OffsetCalibrationViewModel(
                 // Strip placeholder entries (checksum=0, confidence=0) that AccurateRip inserts for
                 // unverified submissions. Matching against these produces false positives because the
                 // inter-track gap before the scan window is silence, which also checksums to 0x00000000.
-                val validChecksums = expectedChecksums!!.filter { it.checksumV1 != 0L && it.confidence > 0 }
+                val validChecksums = expectedChecksums!!.filter { it.crc != 0L && it.confidence > 0 }
                 if (validChecksums.isEmpty()) {
                     throw IllegalStateException(
                         "No valid AccurateRip checksums for track $resolvedArTrackNumber " +
@@ -226,7 +226,7 @@ class OffsetCalibrationViewModel(
                         }
 
                         // Collect ALL offsets that match ANY valid AR entry — do NOT break early
-                        if (validChecksums.any { it.checksumV1 == checksum }) {
+                        if (validChecksums.any { it.crc == checksum }) {
                             matchingOffsets.add(offset)
                         }
                     }
@@ -246,7 +246,7 @@ class OffsetCalibrationViewModel(
                     totalSectors         = totalSectors,
                     expectedChecksums    = buildList {
                         addAll(validChecksums.map {
-                            "0x${it.checksumV1.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
+                            "0x${it.crc.toString(16).uppercase().padStart(8, '0')} (conf ${it.confidence})"
                         })
                         val filteredCount = expectedChecksums!!.size - validChecksums.size
                         if (filteredCount > 0) add("[$filteredCount zero-confidence placeholder(s) filtered]")

@@ -6,8 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 data class AccurateRipTrackMetadata(
-    val checksumV1: Long,
-    val checksumV2: Long,
+    val crc: Long,
     val confidence: Int
 )
 
@@ -24,19 +23,18 @@ class AccurateRipVerifier {
 
             AppLogger.d("AccurateRipVerifier", "Parsed disc entry header: discId1=${String.format("%08x", discId1)}, discId2=${String.format("%08x", discId2)}")
 
-            if (buffer.remaining() < trackCount * 9) {
-                AppLogger.w("AccurateRipVerifier", "Truncated AccurateRip response: expected ${trackCount * 9} bytes for $trackCount tracks, but only ${buffer.remaining()} bytes remaining")
+            if (buffer.remaining() < trackCount * 5) {
+                AppLogger.w("AccurateRipVerifier", "Truncated AccurateRip response: expected ${trackCount * 5} bytes for $trackCount tracks, but only ${buffer.remaining()} bytes remaining")
                 break
             }
 
             for (i in 0 until trackCount) {
                 val confidence = buffer.get().toInt() and 0xFF
-                val crcV1 = buffer.getInt().toLong() and 0xFFFFFFFFL
-                val crcV2 = buffer.getInt().toLong() and 0xFFFFFFFFL // AR v2 checksum — matched against ripChecksumV2 in RipManager
+                val crc = buffer.getInt().toLong() and 0xFFFFFFFFL
 
                 val trackNumber = i + 1
                 tracksInfo.getOrPut(trackNumber) { mutableListOf() }.add(
-                    AccurateRipTrackMetadata(crcV1, crcV2, confidence)
+                    AccurateRipTrackMetadata(crc, confidence)
                 )
             }
             AppLogger.d("AccurateRipVerifier", "Parsed $trackCount tracks for this disc entry")

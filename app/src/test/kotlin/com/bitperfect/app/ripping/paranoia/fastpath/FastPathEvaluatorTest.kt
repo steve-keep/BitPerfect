@@ -81,13 +81,17 @@ class FastPathEvaluatorTest {
     }
 
     @Test
-    fun `does not become eligible again after anomalies`() {
+    fun `becomes eligible again after anomaly followed by consecutive matches`() {
         val evaluator = FastPathEvaluator()
         evaluator.reportMismatch()
 
         evaluator.reportMatch()
         evaluator.reportMatch()
-        evaluator.reportMatch()
         assertFalse(evaluator.state.eligible)
+        assertTrue(evaluator.state.hasRecentAnomalies)
+
+        evaluator.reportMatch()
+        assertTrue(evaluator.state.eligible)
+        assertFalse(evaluator.state.hasRecentAnomalies)
     }
 }

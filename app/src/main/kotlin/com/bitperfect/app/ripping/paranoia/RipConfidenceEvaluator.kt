@@ -12,6 +12,10 @@ class RipConfidenceEvaluator {
             return RipConfidence.HIGH
         }
 
+        if (!overlapMatchedImmediately && !recoverySucceeded) {
+            return RipConfidence.DAMAGED
+        }
+
         if (recoverySucceeded) {
             return RipConfidence.MEDIUM
         }
@@ -50,7 +54,7 @@ class RipConfidenceEvaluator {
         }
 
         return when {
-            hasCriticalIssue -> RipConfidence.LOW
+            hasCriticalIssue -> RipConfidence.DAMAGED
             hasMinorIssue && current == RipConfidence.HIGH -> RipConfidence.MEDIUM
             else -> current
         }
