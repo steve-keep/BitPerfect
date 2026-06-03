@@ -547,6 +547,81 @@ class MusicBrainzRepositoryTest {
     }
 
     @Test
+    fun `stub disc ID response with barcode performs TOC lookup and finds cover art`(): Unit = runBlocking {
+        val toc = getSyntheticToc()
+        val discId = computeMusicBrainzDiscId(toc)
+        val barcode = "5021456121489"
+
+        // Primary response: CDstub shape — flat root fields, no releases array
+        val stubJson = """
+            {
+                "id": "$discId",
+                "title": "The Bronx",
+                "artist": "The Bronx",
+                "barcode": "$barcode",
+                "track-count": 2,
+                "tracks": [
+                    { "title": "Heart Attack American", "length": 171093 },
+                    { "title": "False Alarm", "length": 131973 }
+                ],
+                "disambiguation": ""
+            }
+        """.trimIndent()
+
+        // Secondary response: TOC fuzzy lookup returns a full release with matching barcode and cover art
+        val tocJson = """
+            {
+                "releases": [
+                    {
+                        "id": "54aff668-eaa8-47b4-af15-77dde10afe5a",
+                        "title": "The Bronx",
+                        "barcode": "$barcode",
+                        "cover-art-archive": { "front": true },
+                        "artist-credit": [
+                            { "artist": { "name": "The Bronx" } }
+                        ],
+                        "media": [
+                            {
+                                "position": 1,
+                                "tracks": [
+                                    { "title": "Heart Attack American" },
+                                    { "title": "False Alarm" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val mockEngine = MockEngine { request ->
+            val url = request.url.toString()
+            when {
+                url.contains("discid/$discId") -> respond(
+                    content = stubJson,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                url.contains("discid/-") && url.contains("toc=") -> respond(
+                    content = tocJson,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+                else -> respond(content = "", status = HttpStatusCode.NotFound)
+            }
+        }
+
+        val repository = MusicBrainzRepository(context, mockEngine)
+        val metadata = repository.lookup(toc)
+
+        assertNotNull("Metadata should not be null", metadata)
+        assertEquals("54aff668-eaa8-47b4-af15-77dde10afe5a", metadata!!.mbReleaseId)
+        assertTrue("hasFrontCoverArt should be true from TOC barcode fallback", metadata.hasFrontCoverArt)
+        assertEquals("The Bronx", metadata.albumTitle)
+        assertEquals("The Bronx", metadata.artistName)
+    }
+
+    @Test
     fun `lookup handles cache write exception gracefully`(): Unit = runBlocking {
         val toc = getSyntheticToc()
         val discId = computeMusicBrainzDiscId(toc)

@@ -17,6 +17,7 @@ data class MbDiscIdResponse(
     val id: String? = null,
     val title: String? = null,
     val artist: String? = null,
+    val barcode: String? = null,
     @SerialName("track-count") val trackCount: Int? = null,
     val tracks: List<MbDirectTrack> = emptyList()
 ) {
