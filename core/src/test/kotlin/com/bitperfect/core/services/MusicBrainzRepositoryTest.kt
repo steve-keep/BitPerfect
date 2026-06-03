@@ -462,9 +462,6 @@ class MusicBrainzRepositoryTest {
                             "id": "release-id-1",
                             "title": "Album Without Cover",
                             "barcode": "$barcode",
-                            "cover-art-archive": {
-                                "front": false
-                            },
                             "artist-credit": [
                                 {
                                     "artist": {
@@ -495,9 +492,6 @@ class MusicBrainzRepositoryTest {
                         "id": "release-id-2",
                         "title": "Album With Cover",
                         "barcode": "$barcode",
-                        "cover-art-archive": {
-                            "front": true
-                        },
                         "artist-credit": [
                             {
                                 "artist": {
@@ -542,7 +536,6 @@ class MusicBrainzRepositoryTest {
 
         assertNotNull("Metadata should not be null", metadata)
         assertEquals("release-id-2", metadata!!.mbReleaseId)
-        assertTrue("hasFrontCoverArt should be true from TOC fallback", metadata.hasFrontCoverArt)
         assertEquals("Album With Cover", metadata.albumTitle)
     }
 
@@ -576,7 +569,6 @@ class MusicBrainzRepositoryTest {
                         "id": "54aff668-eaa8-47b4-af15-77dde10afe5a",
                         "title": "The Bronx",
                         "barcode": "$barcode",
-                        "cover-art-archive": { "front": true },
                         "artist-credit": [
                             { "artist": { "name": "The Bronx" } }
                         ],
@@ -616,7 +608,6 @@ class MusicBrainzRepositoryTest {
 
         assertNotNull("Metadata should not be null", metadata)
         assertEquals("54aff668-eaa8-47b4-af15-77dde10afe5a", metadata!!.mbReleaseId)
-        assertTrue("hasFrontCoverArt should be true from TOC barcode fallback", metadata.hasFrontCoverArt)
         assertEquals("The Bronx", metadata.albumTitle)
         assertEquals("The Bronx", metadata.artistName)
     }

@@ -105,7 +105,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags+genres+cover-art-archive"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags+genres"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -137,7 +137,7 @@ class MusicBrainzRepository(private val context: Context) {
                 if (!barcodeForLookup.isNullOrBlank()) {
                     AppLogger.d(TAG, "No cover art found but barcode present ($barcodeForLookup), attempting TOC fuzzy lookup and filtering by barcode")
                     val tocStr = computeMusicBrainzTocString(toc)
-                    val tocUrl = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres+cover-art-archive&cdstubs=no"
+                    val tocUrl = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres&cdstubs=no"
 
                     val tocHttpResponse = client.get(tocUrl)
                     if (tocHttpResponse.status == HttpStatusCode.OK) {
@@ -182,7 +182,7 @@ class MusicBrainzRepository(private val context: Context) {
     private suspend fun lookupByToc(toc: DiscToc, discId: String, cacheFile: File): DiscMetadata? {
         // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
         val tocStr = computeMusicBrainzTocString(toc)
-        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres+cover-art-archive&cdstubs=no"
+        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres&cdstubs=no"
 
         AppLogger.d(TAG, "TOC fuzzy lookup: $url")
         val httpResponse = client.get(url)
