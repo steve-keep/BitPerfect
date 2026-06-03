@@ -147,27 +147,27 @@ class OffsetScanWindowTest {
     @Test
     fun `zero checksum and zero confidence entries are filtered before scan`() {
         val raw = listOf(
-            AccurateRipTrackMetadata(crc = 0x1AE5FD7AL, confidence = 200),
-            AccurateRipTrackMetadata(crc = 0x00000000L, confidence = 0),
-            AccurateRipTrackMetadata(crc = 0x00000000L, confidence = 0),
-            AccurateRipTrackMetadata(crc = 0x086EDF18L, confidence = 57),
+            AccurateRipTrackMetadata(crcV1 = 0x1AE5FD7AL, crcV2 = null, confidence = 200),
+            AccurateRipTrackMetadata(crcV1 = 0x00000000L, crcV2 = null, confidence = 0),
+            AccurateRipTrackMetadata(crcV1 = 0x00000000L, crcV2 = null, confidence = 0),
+            AccurateRipTrackMetadata(crcV1 = 0x086EDF18L, crcV2 = null, confidence = 57),
         )
 
-        val valid = raw.filter { it.crc != 0L && it.confidence > 0 }
+        val valid = raw.filter { it.crcV1 != 0L && it.confidence > 0 }
 
         assertEquals(2, valid.size)
-        assertTrue(valid.all { it.crc != 0L })
+        assertTrue(valid.all { it.crcV1 != 0L })
         assertTrue(valid.all { it.confidence > 0 })
     }
 
     @Test
     fun `all zero confidence entries throws rather than false-positiving`() {
         val allZero = listOf(
-            AccurateRipTrackMetadata(crc = 0L, confidence = 0),
-            AccurateRipTrackMetadata(crc = 0L, confidence = 0),
+            AccurateRipTrackMetadata(crcV1 = 0L, crcV2 = null, confidence = 0),
+            AccurateRipTrackMetadata(crcV1 = 0L, crcV2 = null, confidence = 0),
         )
 
-        val valid = allZero.filter { it.crc != 0L && it.confidence > 0 }
+        val valid = allZero.filter { it.crcV1 != 0L && it.confidence > 0 }
 
         assertTrue(valid.isEmpty())
         // In production this path throws IllegalStateException — test documents the expectation

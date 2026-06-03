@@ -6,7 +6,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 data class AccurateRipTrackMetadata(
-    val crc: Long,
+    val crcV1: Long,
+    val crcV2: Long?,
     val confidence: Int
 )
 
@@ -19,28 +20,54 @@ data class AccurateRipDiscPressing(
 class AccurateRipVerifier {
     fun parseAccurateRipResponse(responseBytes: ByteArray): List<AccurateRipDiscPressing> {
         val pressings = mutableListOf<AccurateRipDiscPressing>()
+        // To determine if a file is V1 (5 bytes per track) or V2 (9 bytes per track),
+        // we can do a quick dry-run parse or check the format.
+        // A simple way is to check if it parses cleanly as V2.
+        var isV2 = true
+        var dryRunBuffer = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
+        while (dryRunBuffer.remaining() >= 13) {
+            val trackCount = dryRunBuffer.get().toInt() and 0xFF
+            dryRunBuffer.position(dryRunBuffer.position() + 12) // Skip discId1, discId2, CDDB
+            if (dryRunBuffer.remaining() < trackCount * 9) {
+                isV2 = false
+                break
+            }
+            dryRunBuffer.position(dryRunBuffer.position() + trackCount * 9)
+        }
+        if (dryRunBuffer.remaining() != 0) {
+            isV2 = false
+        }
+
+        val trackRecordSize = if (isV2) 9 else 5
+
         val buffer = ByteBuffer.wrap(responseBytes).order(ByteOrder.LITTLE_ENDIAN)
 
         while (buffer.remaining() >= 13) {
             val trackCount = buffer.get().toInt() and 0xFF
             val discId1 = buffer.getInt().toLong() and 0xFFFFFFFFL
             val discId2 = buffer.getInt().toLong() and 0xFFFFFFFFL
-            buffer.getInt() // consume CDDB / discId3 — required by dBAR format but not used
+            buffer.getInt() // consume CDDB / discId3
 
             AppLogger.d("AccurateRipVerifier", "Parsed disc entry header: discId1=${String.format("%08x", discId1)}, discId2=${String.format("%08x", discId2)}")
 
-            if (buffer.remaining() < trackCount * 5) {
-                AppLogger.w("AccurateRipVerifier", "Truncated AccurateRip response: expected ${trackCount * 5} bytes for $trackCount tracks, but only ${buffer.remaining()} bytes remaining")
+            if (trackCount == 0) {
+                AppLogger.w("AccurateRipVerifier", "Zero track count in AccurateRip response")
+                break
+            }
+
+            if (buffer.remaining() < trackCount * trackRecordSize) {
+                AppLogger.w("AccurateRipVerifier", "Truncated AccurateRip response: remaining ${buffer.remaining()} bytes not enough for $trackCount tracks of size $trackRecordSize")
                 break
             }
 
             val tracksInfo = mutableMapOf<Int, AccurateRipTrackMetadata>()
             for (i in 0 until trackCount) {
                 val confidence = buffer.get().toInt() and 0xFF
-                val crc = buffer.getInt().toLong() and 0xFFFFFFFFL
+                val crcV1 = buffer.getInt().toLong() and 0xFFFFFFFFL
+                val crcV2 = if (isV2) buffer.getInt().toLong() and 0xFFFFFFFFL else null
 
                 val trackNumber = i + 1
-                tracksInfo[trackNumber] = AccurateRipTrackMetadata(crc, confidence)
+                tracksInfo[trackNumber] = AccurateRipTrackMetadata(crcV1, crcV2, confidence)
             }
 
             pressings.add(AccurateRipDiscPressing(discId1, discId2, tracksInfo))

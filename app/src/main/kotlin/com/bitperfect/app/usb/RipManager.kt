@@ -1051,16 +1051,22 @@ class RipManager(
             // Verify checksum
             activePressingCandidates.retainAll { pressing ->
                 val dbTrack = pressing.tracks[trackNumber]
-                dbTrack != null && (dbTrack.crc == finalChecksumV1 || dbTrack.crc == finalChecksumV2)
+                dbTrack != null && (dbTrack.crcV1 == finalChecksumV1 || dbTrack.crcV2 == finalChecksumV2)
             }
 
             val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
-                if (activePressingCandidates.any { it.tracks[trackNumber]?.crc == finalChecksumV2 }) 2 else 1
+                if (activePressingCandidates.any { it.tracks[trackNumber]?.crcV2 == finalChecksumV2 }) 2 else 1
             } else {
                 null
             }
 
-            val expectedCRCs = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crc }.distinct()
+            val expectedCRCs = expectedChecksums.flatMap { pressing ->
+                val dbTrack = pressing.tracks[trackNumber]
+                if (dbTrack != null) {
+                    listOfNotNull(dbTrack.crcV2, dbTrack.crcV1)
+                } else emptyList()
+            }.distinct()
+
             val finalStatus = if (activePressingCandidates.isNotEmpty()) {
                 RipStatus.SUCCESS
             } else if (expectedCRCs.isEmpty()) {
@@ -1077,7 +1083,11 @@ class RipManager(
 
             // Calculate expected checksums for UI dynamically from remaining candidates (or fallback to original expected checksums if no candidates remain)
             val expectedChecksumsForUi = if (activePressingCandidates.isNotEmpty()) {
-                activePressingCandidates.mapNotNull { it.tracks[trackNumber]?.crc }.distinct()
+                activePressingCandidates.mapNotNull {
+                    val dbTrack = it.tracks[trackNumber]
+                    // Prefer V2 for UI display if available
+                    dbTrack?.crcV2 ?: dbTrack?.crcV1
+                }.distinct()
             } else {
                 expectedCRCs
             }
