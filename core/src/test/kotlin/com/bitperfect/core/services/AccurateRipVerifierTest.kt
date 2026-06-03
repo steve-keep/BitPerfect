@@ -39,15 +39,15 @@ class AccurateRipVerifierTest {
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
-        assertEquals(2, result.size)
+        assertEquals(1, result.size)
+        val pressing = result[0]
+        assertEquals(2, pressing.tracks.size)
 
-        assertEquals(1, result[1]?.size)
-        assertEquals(0xAAAAAAAAL, result[1]?.get(0)?.crc)
-        assertEquals(5, result[1]?.get(0)?.confidence)
+        assertEquals(0xAAAAAAAAL, pressing.tracks[1]?.crc)
+        assertEquals(5, pressing.tracks[1]?.confidence)
 
-        assertEquals(1, result[2]?.size)
-        assertEquals(0xCCCCCCCCL, result[2]?.get(0)?.crc)
-        assertEquals(10, result[2]?.get(0)?.confidence)
+        assertEquals(0xCCCCCCCCL, pressing.tracks[2]?.crc)
+        assertEquals(10, pressing.tracks[2]?.confidence)
     }
 
     @Test
@@ -77,14 +77,17 @@ class AccurateRipVerifierTest {
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
-        assertEquals(1, result.size)     // both entries describe track 1
-        assertEquals(2, result[1]?.size) // two entries for track 1
+        assertEquals(2, result.size)     // two pressings
 
-        assertEquals(0x11111111L, result[1]?.get(0)?.crc)
-        assertEquals(3, result[1]?.get(0)?.confidence)
+        assertEquals(0x11111111L, result[0].discId1)
+        assertEquals(1, result[0].tracks.size)
+        assertEquals(0x11111111L, result[0].tracks[1]?.crc)
+        assertEquals(3, result[0].tracks[1]?.confidence)
 
-        assertEquals(0x33333333L, result[1]?.get(1)?.crc)
-        assertEquals(7, result[1]?.get(1)?.confidence)
+        assertEquals(0x33333333L, result[1].discId1)
+        assertEquals(1, result[1].tracks.size)
+        assertEquals(0x33333333L, result[1].tracks[1]?.crc)
+        assertEquals(7, result[1].tracks[1]?.confidence)
     }
 
     @Test
@@ -128,8 +131,8 @@ class AccurateRipVerifierTest {
         // If discId1, discId2, and CDDB were not read correctly, the buffer offset would be wrong
         // and we wouldn't get the correct track checksum.
         assertEquals(1, result.size)
-        assertEquals(0xABCDEF01L, result[1]?.get(0)?.crc)
-        assertEquals(5, result[1]?.get(0)?.confidence)
+        assertEquals(0xABCDEF01L, result[0].tracks[1]?.crc)
+        assertEquals(5, result[0].tracks[1]?.confidence)
     }
 
     @Test
@@ -162,24 +165,24 @@ class AccurateRipVerifierTest {
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
         assertEquals(1, result.size)
-        val track1 = result[1]
+        val pressing = result[0]
+        val track1 = pressing.tracks[1]
         assertNotNull(track1)
-        assertEquals(1, track1!!.size)
 
         // The key assertions: real values, not CDDB-contaminated ones
         assertEquals(
             "CRC must be the real stored value, not bytes assembled from CDDB + confidence",
-            realCrc, track1[0].crc
+            realCrc, track1!!.crc
         )
         assertEquals(
             "Confidence must be the real stored value, not CDDB byte 0 (0x10)",
-            realConfidence, track1[0].confidence
+            realConfidence, track1.confidence
         )
 
         // Belt-and-suspenders: confirm the buggy value (0x2ACA097E) does NOT appear
         assertNotEquals(
             "Parsed CRC must not contain CDDB bytes — indicates missing CDDB consumption",
-            0x2ACA097EL, track1[0].crc
+            0x2ACA097EL, track1.crc
         )
     }
 

@@ -2,7 +2,7 @@ package com.bitperfect.app.usb
 
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
-import com.bitperfect.core.services.AccurateRipTrackMetadata
+import com.bitperfect.core.services.AccurateRipDiscPressing
 import com.bitperfect.core.models.LyricsFetchResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,7 +12,7 @@ data class RipParameters(
     val outputFolderUriString: String,
     val toc: DiscToc,
     val metadata: DiscMetadata,
-    val expectedChecksums: Map<Int, List<AccurateRipTrackMetadata>>,
+    val expectedChecksums: List<AccurateRipDiscPressing>,
     val artworkBytes: ByteArray?,
     val lyricsMap: Map<Int, LyricsFetchResult>,
     val tracksToRip: List<Int>?

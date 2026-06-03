@@ -33,7 +33,16 @@ class DefaultForensicRipLogger : ForensicRipLogger {
         sb.append("Session\n")
         sb.append("-------\n")
         sb.append("Timestamp: ${sessionStarted.timestampIso}\n")
-        sb.append("Application: ${sessionStarted.appVersion}\n\n")
+        sb.append("Application: ${sessionStarted.appVersion}\n")
+
+        val sessionCompleted = events.filterIsInstance<RipLogEvent.SessionCompleted>().lastOrNull()
+        if (sessionCompleted != null && sessionCompleted.matchedDiscId1 != null && sessionCompleted.matchedDiscId2 != null) {
+            val hexId1 = String.format("%08x", sessionCompleted.matchedDiscId1 and 0xFFFFFFFFL)
+            val hexId2 = String.format("%08x", sessionCompleted.matchedDiscId2 and 0xFFFFFFFFL)
+            sb.append("Matched Pressing: $hexId1-$hexId2\n")
+        }
+        sb.append("\n")
+
         sb.append("Album: ${sessionStarted.albumTitle}\n")
         sb.append("Artist: ${sessionStarted.artistName}\n\n")
         sb.append("Mode: ${if (sessionStarted.mode == RipMode.SECURE) "Secure" else sessionStarted.mode.name}\n")
