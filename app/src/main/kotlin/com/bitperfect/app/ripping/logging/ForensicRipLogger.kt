@@ -150,7 +150,13 @@ class DefaultForensicRipLogger : ForensicRipLogger {
             val expectedSecs = durationExpected.toLong()
             val expectedFormatted = String.format("%02d:%02d", expectedSecs / 60, expectedSecs % 60)
 
-            sb.append("Duration      $rippedFormatted ripped  /  $expectedFormatted expected\n\n")
+            sb.append("Duration      $rippedFormatted ripped  /  $expectedFormatted expected\n")
+            val extractionSpeed = if (trackCompleted.extractionTimeSeconds > 0.0) {
+                (trackCompleted.sectorsRead / 75.0) / trackCompleted.extractionTimeSeconds
+            } else {
+                0.0
+            }
+            sb.append("Extraction speed ${String.format("%.1f", extractionSpeed)} X\n\n")
 
             sb.append("Confidence: ${trackCompleted.confidence.name}\n")
             sb.append("AccurateRip: ${trackCompleted.accurateRipStatus}\n")
