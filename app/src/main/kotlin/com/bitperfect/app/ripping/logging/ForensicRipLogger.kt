@@ -136,7 +136,23 @@ class DefaultForensicRipLogger : ForensicRipLogger {
             }
 
             sb.append("Confidence: ${trackCompleted.confidence.name}\n")
-            sb.append("AccurateRip: ${trackCompleted.accurateRipStatus}\n\n")
+            sb.append("AccurateRip: ${trackCompleted.accurateRipStatus}\n")
+
+            if (trackCompleted.computedChecksumV1 != null) {
+                sb.append("Computed Hash (v1): ${String.format("0x%08X", trackCompleted.computedChecksumV1 and 0xFFFFFFFFL)}\n")
+            }
+            if (trackCompleted.computedChecksumV2 != null) {
+                sb.append("Computed Hash (v2): ${String.format("0x%08X", trackCompleted.computedChecksumV2 and 0xFFFFFFFFL)}\n")
+            }
+            if (trackCompleted.expectedChecksumsV1.isNotEmpty()) {
+                val formattedHashes = trackCompleted.expectedChecksumsV1.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                sb.append("Expected Hashes (v1): [$formattedHashes]\n")
+            }
+            if (trackCompleted.expectedChecksumsV2.isNotEmpty()) {
+                val formattedHashes = trackCompleted.expectedChecksumsV2.joinToString(", ") { String.format("0x%08X", it and 0xFFFFFFFFL) }
+                sb.append("Expected Hashes (v2): [$formattedHashes]\n")
+            }
+            sb.append("\n")
 
             sb.append("Verification\n")
             sb.append("------------\n")

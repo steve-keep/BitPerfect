@@ -86,6 +86,10 @@ class ForensicRipLoggerTest {
             suspiciousReads = 0,
             status = RipStatus.SUCCESS,
             accurateRipStatus = "VERIFIED",
+            computedChecksumV1 = 0x12345678L,
+            computedChecksumV2 = 0x87654321L,
+            expectedChecksumsV1 = listOf(0x12345678L, 0xABCDEF01L),
+            expectedChecksumsV2 = listOf(0x87654321L, 0x10FEDCBAL),
             durationSeconds = 245.5,
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
@@ -97,6 +101,10 @@ class ForensicRipLoggerTest {
             suspiciousReads = 1,
             status = RipStatus.WARNING,
             accurateRipStatus = "MISMATCH",
+            computedChecksumV1 = 0x11111111L,
+            computedChecksumV2 = null,
+            expectedChecksumsV1 = listOf(0x22222222L),
+            expectedChecksumsV2 = emptyList(),
             durationSeconds = 120.0,
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))

@@ -1111,6 +1111,10 @@ class RipManager(
                     suspiciousReads = currentState.suspiciousRegions.size,
                     status = currentState.status,
                     accurateRipStatus = accurateRipStatusString,
+                    computedChecksumV1 = currentState.computedChecksumV1,
+                    computedChecksumV2 = currentState.computedChecksumV2,
+                    expectedChecksumsV1 = currentState.expectedChecksumsV1,
+                    expectedChecksumsV2 = currentState.expectedChecksumsV2,
                     durationSeconds = currentState.durationSeconds,
                     summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
                         chunksRead = trackChunksRead,
