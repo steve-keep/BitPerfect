@@ -105,7 +105,7 @@ class MusicBrainzRepository(private val context: Context) {
 
         try {
             AppLogger.d(TAG, "Fetching metadata from MusicBrainz for discId: $discId")
-            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags+genres"
+            val url = "https://musicbrainz.org/ws/2/discid/$discId?fmt=json&inc=artist-credits+recordings+tags+genres+cover-art-archive"
             val httpResponse = client.get(url)
 
             if (httpResponse.status == HttpStatusCode.NotFound) {
@@ -126,13 +126,18 @@ class MusicBrainzRepository(private val context: Context) {
 
             val mappedMetadata = mapToMetadata(response, discId)
 
-            // Secondary TOC fuzzy lookup if no cover art but barcode is present
+            // Secondary TOC fuzzy lookup if no cover art but barcode is present.
+            // The barcode may come from a matched release (normal shape) OR from the stub root field
+            // (flat CDstub shape where resolvedReleases() is empty).
             if (mappedMetadata != null && !mappedMetadata.hasFrontCoverArt) {
                 val selectedRelease = findSelectedRelease(response, discId)
-                if (selectedRelease != null && !selectedRelease.barcode.isNullOrBlank()) {
-                    AppLogger.d(TAG, "No cover art found but barcode present (${selectedRelease.barcode}), attempting TOC fuzzy lookup and filtering by barcode")
+                val barcodeForLookup = selectedRelease?.barcode?.takeIf { it.isNotBlank() }
+                    ?: response.barcode?.takeIf { it.isNotBlank() }
+
+                if (!barcodeForLookup.isNullOrBlank()) {
+                    AppLogger.d(TAG, "No cover art found but barcode present ($barcodeForLookup), attempting TOC fuzzy lookup and filtering by barcode")
                     val tocStr = computeMusicBrainzTocString(toc)
-                    val tocUrl = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres&cdstubs=no"
+                    val tocUrl = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres+cover-art-archive&cdstubs=no"
 
                     val tocHttpResponse = client.get(tocUrl)
                     if (tocHttpResponse.status == HttpStatusCode.OK) {
@@ -140,11 +145,11 @@ class MusicBrainzRepository(private val context: Context) {
                         val tocResponse: MbDiscIdResponse = json.decodeFromString(tocResponseBody)
 
                         val matchedRelease = tocResponse.resolvedReleases().find {
-                            it.barcode == selectedRelease.barcode && it.coverArtArchive?.front == true
+                            it.barcode == barcodeForLookup
                         }
 
                         if (matchedRelease != null) {
-                            AppLogger.d(TAG, "Found release with cover art via TOC barcode match")
+                            AppLogger.d(TAG, "Found release via TOC barcode match (release id: ${matchedRelease.id}, hasCoverArt: ${matchedRelease.coverArtArchive?.front})")
                             // Replace the response with the matched one, ensuring we wrap the matched release
                             finalResponse = tocResponse.copy(
                                 releases = listOf(matchedRelease),
@@ -153,7 +158,7 @@ class MusicBrainzRepository(private val context: Context) {
                             // Serialize back to update the body to cache
                             finalResponseBody = json.encodeToString(finalResponse)
                         } else {
-                            AppLogger.d(TAG, "No release found with cover art via TOC barcode match")
+                            AppLogger.d(TAG, "No release found via TOC barcode match for barcode $barcodeForLookup")
                         }
                     }
                 }
@@ -177,7 +182,7 @@ class MusicBrainzRepository(private val context: Context) {
     private suspend fun lookupByToc(toc: DiscToc, discId: String, cacheFile: File): DiscMetadata? {
         // Build MB TOC string: firstTrack + trackCount + leadOutLba+150 + (lba+150 for each track)
         val tocStr = computeMusicBrainzTocString(toc)
-        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres&cdstubs=no"
+        val url = "https://musicbrainz.org/ws/2/discid/-?toc=$tocStr&fmt=json&inc=artist-credits+recordings+tags+genres+cover-art-archive&cdstubs=no"
 
         AppLogger.d(TAG, "TOC fuzzy lookup: $url")
         val httpResponse = client.get(url)
