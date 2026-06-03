@@ -13,13 +13,33 @@ import org.robolectric.annotation.Config
 import com.bitperfect.app.usb.DriveStatus
 import com.bitperfect.app.usb.DriveInfo
 import kotlinx.coroutines.flow.StateFlow
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ComponentsTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    private val testDispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun verifyConnectingState() {
