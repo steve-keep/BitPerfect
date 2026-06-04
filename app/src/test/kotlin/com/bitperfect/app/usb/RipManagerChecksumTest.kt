@@ -2,6 +2,7 @@ package com.bitperfect.app.usb
 
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
+import com.bitperfect.core.services.AccurateRipDiscPressing
 import com.bitperfect.core.services.AccurateRipTrackMetadata
 import com.bitperfect.core.services.AccurateRipVerifier
 import org.junit.Assert.*
@@ -267,5 +268,23 @@ class RipManagerChecksumTest {
         assertEquals(1, activePressingCandidates.size)
         assertEquals(2, matchedVersion)
         assertEquals(RipStatus.SUCCESS, finalStatus)
+    }
+
+    @Test
+    fun `matched pressing confidence is the maximum across surviving pressings`() {
+        val pressingLow = AccurateRipDiscPressing(
+            discId1 = 1L, discId2 = 1L,
+            tracks = mapOf(1 to AccurateRipTrackMetadata(crcV1 = 0xAAAAL, crcV2 = null, confidence = 3))
+        )
+        val pressingHigh = AccurateRipDiscPressing(
+            discId1 = 2L, discId2 = 2L,
+            tracks = mapOf(1 to AccurateRipTrackMetadata(crcV1 = 0xAAAAL, crcV2 = null, confidence = 47))
+        )
+        val candidates = mutableSetOf(pressingLow, pressingHigh)
+        // Both match the same checksum
+        candidates.retainAll { it.tracks[1]?.crcV1 == 0xAAAAL }
+
+        val confidence = candidates.mapNotNull { it.tracks[1]?.confidence }.maxOrNull()
+        assertEquals(47, confidence)
     }
 }
