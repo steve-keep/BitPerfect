@@ -46,6 +46,12 @@ import com.bitperfect.core.models.LyricsResult
 import com.bitperfect.core.models.LyricsFetchResult
 import com.bitperfect.app.BitPerfectApplication
 import java.net.URL
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import java.io.ByteArrayOutputStream
 import com.bitperfect.app.usb.RipParameters
 import com.bitperfect.app.usb.RipService
 import androidx.core.content.ContextCompat
@@ -915,6 +921,31 @@ open class AppViewModel(
             hasHandledRipCompletion = false
 
             viewModelScope.launch(ioDispatcher) {
+                var currentArtworkBytes = _artworkBytes.value
+                val currentArtworkUrl = _artwork.value?.url
+
+                if (currentArtworkBytes == null && !currentArtworkUrl.isNullOrBlank()) {
+                    try {
+                        val request = ImageRequest.Builder(getApplication())
+                            .data(currentArtworkUrl)
+                            .allowHardware(false) // Crucial to allow byte extraction
+                            .build()
+
+                        val result = getApplication<Application>().imageLoader.execute(request)
+
+                        if (result is SuccessResult) {
+                            val bitmap = (result.drawable as BitmapDrawable).bitmap
+                            val stream = ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+
+                            currentArtworkBytes = stream.toByteArray()
+                            _artworkBytes.value = currentArtworkBytes // Cache for subsequent tracks
+                        }
+                    } catch (e: Exception) {
+                        com.bitperfect.core.utils.AppLogger.w("AppViewModel", "Failed to get artwork from Coil: ${e.message}")
+                    }
+                }
+
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
                 val lyrics = _lyricsMap.value[trackNumber]
                 val trackLyricsMap = if (lyrics != null) mapOf(trackNumber to lyrics) else emptyMap()
@@ -927,7 +958,7 @@ open class AppViewModel(
                         toc = toc,
                         metadata = meta,
                         expectedChecksums = expectedChecksums,
-                        artworkBytes = _artworkBytes.value,
+                        artworkBytes = currentArtworkBytes,
                         lyricsMap = trackLyricsMap,
                         tracksToRip = listOf(trackNumber)
                     )
@@ -955,6 +986,31 @@ open class AppViewModel(
             hasHandledRipCompletion = false
 
             viewModelScope.launch(ioDispatcher) {
+                var currentArtworkBytes = _artworkBytes.value
+                val currentArtworkUrl = _artwork.value?.url
+
+                if (currentArtworkBytes == null && !currentArtworkUrl.isNullOrBlank()) {
+                    try {
+                        val request = ImageRequest.Builder(getApplication())
+                            .data(currentArtworkUrl)
+                            .allowHardware(false) // Crucial to allow byte extraction
+                            .build()
+
+                        val result = getApplication<Application>().imageLoader.execute(request)
+
+                        if (result is SuccessResult) {
+                            val bitmap = (result.drawable as BitmapDrawable).bitmap
+                            val stream = ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+
+                            currentArtworkBytes = stream.toByteArray()
+                            _artworkBytes.value = currentArtworkBytes // Cache for subsequent tracks
+                        }
+                    } catch (e: Exception) {
+                        com.bitperfect.core.utils.AppLogger.w("AppViewModel", "Failed to get artwork from Coil: ${e.message}")
+                    }
+                }
+
                 val expectedChecksums = accurateRipService.getExpectedChecksums(toc)
                 if (!ripRepository.isRipping.value) {
                     ripRepository.pendingRipParameters = RipParameters(
@@ -962,7 +1018,7 @@ open class AppViewModel(
                         toc = toc,
                         metadata = meta,
                         expectedChecksums = expectedChecksums,
-                        artworkBytes = _artworkBytes.value,
+                        artworkBytes = currentArtworkBytes,
                         lyricsMap = _lyricsMap.value,
                         tracksToRip = null
                     )
