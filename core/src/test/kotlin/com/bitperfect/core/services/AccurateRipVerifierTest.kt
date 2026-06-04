@@ -32,13 +32,13 @@ class AccurateRipVerifierTest {
 
         // Track 1 (9 bytes)
         buffer.put(5.toByte())            // confidence
-        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1
-        buffer.putInt(0xBBBBBBBB.toInt()) // crcV2
+        buffer.putInt(0xBBBBBBBB.toInt()) // crcV2 (stored first in V2)
+        buffer.putInt(0xAAAAAAAA.toInt()) // crcV1 (stored second in V2)
 
         // Track 2 (9 bytes)
         buffer.put(10.toByte())           // confidence
-        buffer.putInt(0xCCCCCCCC.toInt()) // crcV1
-        buffer.putInt(0xDDDDDDDD.toInt()) // crcV2
+        buffer.putInt(0xDDDDDDDD.toInt()) // crcV2 (stored first in V2)
+        buffer.putInt(0xCCCCCCCC.toInt()) // crcV1 (stored second in V2)
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 
@@ -128,8 +128,8 @@ class AccurateRipVerifierTest {
 
         // Entry 1, track 1 (9 bytes)
         buffer.put(3.toByte())            // confidence
-        buffer.putInt(0x11111111)         // crcV1
-        buffer.putInt(0x22222222)         // crcV2
+        buffer.putInt(0x22222222)         // crcV2 (stored first in V2)
+        buffer.putInt(0x11111111)         // crcV1 (stored second in V2)
 
         // Entry 2 header (13 bytes)
         buffer.put(1.toByte())            // trackCount = 1
@@ -139,8 +139,8 @@ class AccurateRipVerifierTest {
 
         // Entry 2, track 1 (9 bytes)
         buffer.put(7.toByte())            // confidence
-        buffer.putInt(0x33333333)         // crcV1
-        buffer.putInt(0x44444444)         // crcV2
+        buffer.putInt(0x44444444)         // crcV2 (stored first in V2)
+        buffer.putInt(0x33333333)         // crcV1 (stored second in V2)
 
         val result = verifier.parseAccurateRipResponse(buffer.array())
 

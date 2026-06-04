@@ -60,8 +60,15 @@ class AccurateRipVerifier {
             val tracksInfo = mutableMapOf<Int, AccurateRipTrackMetadata>()
             for (i in 0 until trackCount) {
                 val confidence = buffer.get().toInt() and 0xFF
-                val crcV1 = buffer.getInt().toLong() and 0xFFFFFFFFL
-                val crcV2 = if (isV2) buffer.getInt().toLong() and 0xFFFFFFFFL else null
+
+                // Read the next two chunks of 4 bytes
+                val firstCrc = buffer.getInt().toLong() and 0xFFFFFFFFL
+                val secondCrc = if (isV2) buffer.getInt().toLong() and 0xFFFFFFFFL else null
+
+                // If it's a V2 response, the V2 hash comes first.
+                // If it's a V1 response, there is only one hash (V1).
+                val crcV1 = if (isV2) secondCrc!! else firstCrc
+                val crcV2 = if (isV2) firstCrc else null
 
                 val trackNumber = i + 1
                 tracksInfo[trackNumber] = AccurateRipTrackMetadata(crcV1, crcV2, confidence)
