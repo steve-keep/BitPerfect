@@ -101,6 +101,8 @@ open class AppViewModel(
 
     private val settingsManager = SettingsManager(application)
 
+    private val cacheManager = com.bitperfect.app.library.LibraryCacheManager(application)
+
     private val accurateRipService = AccurateRipService()
 
     private val _artists = MutableStateFlow<List<ArtistInfo>>(emptyList())
@@ -461,6 +463,14 @@ open class AppViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        // Load cache instantly
+        val cached = cacheManager.loadCachedLists()
+        if (cached != null) {
+            _recentlyPlayedAlbums.value = cached.recentlyPlayed
+            _rediscoverAlbums.value = cached.rediscover
+            _latestRippedAlbums.value = cached.newReleases
+        }
+
         loadLibrary()
 
         viewModelScope.launch {
@@ -766,15 +776,13 @@ open class AppViewModel(
                 artist.albums.map { Pair(artist, it) }
             }
             val rediscoverPool = allAlbums.filter { !recentAlbumIds.contains(it.second.id) }
-
-            if (rediscoverPool.isEmpty()) {
-                _rediscoverAlbums.value = emptyList()
-            } else {
-                _rediscoverAlbums.value = rediscoverPool.shuffled().take(10)
-            }
+            val rediscoverAlbumsForState = if (rediscoverPool.isEmpty()) emptyList() else rediscoverPool.shuffled().take(10)
+            _rediscoverAlbums.value = rediscoverAlbumsForState
 
             val latest = libraryRepository.getLatestRippedAlbums(uriString)
             _latestRippedAlbums.value = latest
+
+            cacheManager.saveCachedLists(recentlyPlayedItems, rediscoverAlbumsForState, latest)
         }
     }
 
