@@ -1,8 +1,3 @@
-        CE-->>RM: Confidence Downgraded (LOW/DAMAGED)
-        RM->>RM: updateTrackState(suspiciousRegions++)
-    end
-
-    note over RM,URS: Fatal Transport Failure
 # RipManager Architecture
 
 Accurate as of `RipManager.kt` rev in BitPerfect-main (June 2026).
@@ -391,29 +386,3 @@ These are observations about the current structure, not bugs.
 **`overreadBuffer` is a mutable `var` in `startRipping`** that carries state across track boundaries. This is the mechanism for sub-sector sample offset correction but is invisible to the caller and untestable without running the whole pipeline.
 
 **Fire-and-forget `launch` for AudioDB fetch** (line 182) has no cancellation handle. If the rip is cancelled, the network request continues running until it completes or times out.
-
-    RM->>URS: readSectors(lba+n, 16)
-
-    loop 3 Retries (UsbReadSession)
-        URS->>DSM: Check driveStatus == DiscReady
-        DSM-->>URS: Empty / Error (Drive Removed)
-        URS-->>RM: null
-    end
-
-    RM->>RM: Drive removed exception thrown
-    RM->>RM: updateTrackState(ERROR)
-    RM->>RM: cancel()
-    RM->>RM: Cleanup Partial Files
-```
-
-## Component Complexity & Traceability
-
-*   **`UsbDriveDetector`**: Highly complex background daemon. Maintains continuous connection with the SCSI layer using low-level CBW (Command Block Wrapper) testing (TEST UNIT READY).
-*   **`DeviceStateManager`**: Singleton registry for the hardware state. Vital for orchestrating the "polling pause" during `UsbReadSession` to prevent command interleaving that crashes the USB bridge.
-*   **`RipManager`**: The monolithic orchestrator. It manages:
-    *   File I/O (SAF / Temp Files)
-    *   Metadata embedding (FlacEncoder)
-    *   The Paranoia/Recovery pipeline (`OverlapVerifier`, `RecoveryCoordinator`, `AlignmentValidator`)
-    *   AccurateRip state machine verification
-    *   Forensic logging (`DefaultForensicRipLogger`)
-*   **Paranoia Subsystem**: `RecoveryCoordinator` encapsulates the retry logic (`RereadEngine`) when overlaps fail, determining if a drive is skipping or shifting samples (Read Drift). It feeds this data into the `RipConfidenceEvaluator` to score the rip (HIGH, MEDIUM, LOW, DAMAGED).
