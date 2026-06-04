@@ -32,17 +32,14 @@ object ColorExtractor {
             val bitmap = drawable.toBitmap()
 
             val palette = Palette.from(bitmap)
-                .addFilter { _, hsl ->
-                    // Exclude overly dark or overly light colors to ensure vividness
-                    hsl[2] in 0.3f..0.85f && hsl[1] > 0.4f
-                }
                 .generate()
 
-            // Prioritize vibrant swatch for vivid colors
-            val swatch = palette.vibrantSwatch
-                ?: palette.dominantSwatch
-                ?: palette.mutedSwatch
+            // Prioritize light vibrant swatch
+            val swatch = palette.lightVibrantSwatch
+                ?: palette.vibrantSwatch
                 ?: palette.lightMutedSwatch
+                ?: palette.mutedSwatch
+                ?: palette.dominantSwatch
 
             swatch?.rgb?.let { colorValue ->
                 val color = Color(colorValue)

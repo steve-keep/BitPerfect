@@ -242,7 +242,7 @@ open class OutputRepository(
      * Call this when the output sheet is opened.
      * Always includes ThisPhone; appends connected A2DP Bluetooth devices.
      */
-    fun refreshDevices() {
+    open fun refreshDevices() {
         scope.launch {
             val devices = mutableListOf<OutputDevice>(OutputDevice.ThisPhone)
             val btDevices = fetchConnectedA2dpDevices()

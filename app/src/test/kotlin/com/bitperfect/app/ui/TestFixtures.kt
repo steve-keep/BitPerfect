@@ -34,5 +34,7 @@ fun fakeOutputRepository(application: Application, playerRepository: PlayerRepos
         override suspend fun getPositionMs(): Long = playerRepository.positionMs.value
         override suspend fun skipNext() {}
         override suspend fun skipPrev() {}
+
+        override fun refreshDevices() {}
     }
 }
