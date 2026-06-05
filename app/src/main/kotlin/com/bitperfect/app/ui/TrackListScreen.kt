@@ -117,18 +117,24 @@ fun TrackListScreen(
                 state.tracks.mapIndexed { index, track -> track.id to index }.toMap()
             }
 
-            var dominantColor by remember { mutableStateOf(Color(0xFF141414)) }
             val fallbackColor = MaterialTheme.colorScheme.primary
-            val displayColor = if (dominantColor == Color(0xFF141414)) fallbackColor else dominantColor
-            val listState = rememberLazyListState()
 
             val context = androidx.compose.ui.platform.LocalContext.current
+            var dominantColor by remember(state.coverArtUrl) {
+                androidx.compose.runtime.mutableStateOf(com.bitperfect.app.ui.utils.ColorExtractor.getCachedColor(context, state.coverArtUrl) ?: Color(0xFF141414))
+            }
+            var isExtracting by remember(state.coverArtUrl) {
+                androidx.compose.runtime.mutableStateOf(com.bitperfect.app.ui.utils.ColorExtractor.getCachedColor(context, state.coverArtUrl) == null)
+            }
+            val displayColor = if (dominantColor == Color(0xFF141414) && !isExtracting) fallbackColor else dominantColor
+            val listState = rememberLazyListState()
+
             androidx.compose.runtime.LaunchedEffect(state.coverArtUrl) {
-                dominantColor = Color(0xFF141414)
-                if (state.coverArtUrl != null) {
+                if (isExtracting && state.coverArtUrl != null) {
                     com.bitperfect.app.ui.utils.ColorExtractor.extractVividColor(context, state.coverArtUrl)?.let { extractedColor ->
                         dominantColor = extractedColor
                     }
+                    isExtracting = false
                 }
             }
 
