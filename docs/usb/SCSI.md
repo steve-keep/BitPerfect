@@ -557,3 +557,189 @@ BitPerfect uses `0x10` exclusively. Other values shown for context:
 **No MODE SENSE (0x5A) / MODE SELECT (0x55):** BitPerfect does not query or configure drive capabilities or read speed. Drive speed is left at firmware defaults. This is a known limitation: riplock firmware on drives such as the ASUS SDRW-08D2S-U caps audio extraction at approximately 2× regardless of software requests. Only a firmware modification can lift this restriction — there is no SCSI command that bypasses it.
 
 **No PREVENT ALLOW MEDIUM REMOVAL (0x1E):** BitPerfect does not lock the tray during ripping. A user pressing the physical eject button mid-rip will succeed at the hardware level. The post-rip warning flow that holds the user on the rip screen until disc ejection is confirmed is entirely software-side; it cannot prevent a forced hardware eject.
+
+
+# SCSI Commands — libcdio Verification Report
+
+**Reference:** libcdio 2.1.0, Linux kernel `linux/cdrom.h` and `scsi/scsi.h` (installed, verified against GPCMD constants)
+
+All six CDBs were verified byte-by-byte. No opcodes, field values, or allocation lengths are wrong. Three gaps were identified — two in REQUEST SENSE sense code coverage, one architectural gap around C2 error reporting.
+
+---
+
+## Verification Results at a Glance
+
+| Command | CDB Match | Notes |
+|---|---|---|
+| TEST UNIT READY | ✅ Byte-perfect | Identical to libcdio `mmc_run_cmd(CDIO_MMC_GPCMD_TEST_UNIT_READY)` |
+| REQUEST SENSE | ✅ CDB correct | Response parsing covers 3 of ~8 actionable sense codes |
+| INQUIRY | ✅ Byte-perfect | Identical to libcdio standard INQUIRY path |
+| START STOP UNIT | ✅ Byte-perfect | Identical to libcdio `mmc_eject_media()` |
+| READ TOC (A/B/C) | ✅ All three correct | Variant B allocation 2048 vs libcdio 0xFFFF — see Gap 3 |
+| READ CD | ✅ Byte-perfect | Identical to libcdio `mmc_read_audio_sectors()` — C2 not requested, see Gap 4 |
+
+---
+
+## Command-by-Command Detail
+
+### TEST UNIT READY (0x00)
+
+`scsi/scsi.h`: `TEST_UNIT_READY = 0x00` ✅  
+libcdio: `CDIO_MMC_GPCMD_TEST_UNIT_READY = 0x00` ✅
+
+BitPerfect CDB `[00 00 00 00 00 00]` is identical to libcdio. No issues.
+
+---
+
+### REQUEST SENSE (0x03)
+
+`scsi/scsi.h`: `REQUEST_SENSE = 0x03` ✅  
+Allocation length `0x12` (18 bytes) ✅ — matches libcdio `mmc_get_drive_cap()`  
+Response field offsets — SK at byte 2 bits[3:0], ASC at byte 12, ASCQ at byte 13 ✅
+
+**CDB and response parsing are correct. The gap is in how many sense codes are acted on.**
+
+BitPerfect handles three sense code combinations:
+
+| SK | ASC | ASCQ | Result |
+|---|---|---|---|
+| `0x02` | `0x04` | `0x01` | `SPINNING_UP` |
+| `0x02` | `0x3A` | `0x02` | `TRAY_OPEN` |
+| anything else | — | — | `NOT_READY` |
+
+libcdio and cdparanoia act on a broader set:
+
+| SK | ASC | ASCQ | Meaning | BitPerfect behaviour |
+|---|---|---|---|---|
+| `0x02` | `0x04` | `0x01` | LU becoming ready (spin-up) | ✅ `SPINNING_UP` |
+| `0x02` | `0x04` | `0x02` | LU needs initializing command | ❌ `NOT_READY` — same as empty |
+| `0x02` | `0x3A` | `0x00` | Medium not present (generic) | ❌ `NOT_READY` — not `TRAY_OPEN` |
+| `0x02` | `0x3A` | `0x01` | Medium not present, tray closed | ❌ `NOT_READY` — not `TRAY_OPEN` |
+| `0x02` | `0x3A` | `0x02` | Medium not present, tray open | ✅ `TRAY_OPEN` |
+| `0x06` | `0x28` | `0x00` | Unit Attention — medium may have changed | ❌ `NOT_READY` |
+| `0x06` | `0x29` | `0x00` | Unit Attention — power on / device reset | ❌ `NOT_READY` |
+
+**Gap 1 — ASC=0x3A ASCQ=0x00/0x01 (medium not present, generic and tray-closed variants):**  
+BitPerfect only matches `ASCQ=0x02` for `TRAY_OPEN`. Drives that report the generic `0x3A/0x00` or the tray-closed `0x3A/0x01` variant when the tray is open will be classified as `NOT_READY` instead of `TRAY_OPEN`. This causes the polling loop to use the 2000 ms idle interval rather than the tray-aware behaviour, and the UI will show `Empty` rather than `Open`. The tray is still correctly detected as unreadable — no data loss — but the state label and polling speed are wrong.
+
+**Gap 2 — SK=0x06 Unit Attention not distinguished:**  
+A Unit Attention condition (SK=0x06) occurs when the drive detects a disc change, power cycle, or device reset. libcdio treats this as a signal to re-read the TOC and update its disc model. BitPerfect maps it to `NOT_READY`, which triggers a poll-and-retry loop. In practice this works because the next TUR will return READY once the drive settles, but it means a hot-swap disc change (eject → insert without BitPerfect issuing an eject command) may take longer to detect than necessary and won't trigger an immediate TOC re-read. No data integrity issue, but a responsiveness gap.
+
+**Recommended fix for Gap 1:**
+```kotlin
+// In executeRequestSense(), expand the TRAY_OPEN condition:
+0x3A -> TurResult.TRAY_OPEN  // match any ASCQ for ASC 0x3A
+// Instead of:
+0x3A -> if (ascq == 0x02) TurResult.TRAY_OPEN else TurResult.NOT_READY
+```
+
+---
+
+### INQUIRY (0x12)
+
+`linux/cdrom.h`: `GPCMD_INQUIRY = 0x12` ✅  
+EVPD=0 (`b1=0x00`) ✅  
+Allocation length 36 (`0x24`) ✅ — identical to libcdio standard INQUIRY  
+Peripheral type 5 = optical ✅  
+Response byte layout (vendor 8–15, product 16–31, revision 32–35) ✅
+
+No issues. BitPerfect's INQUIRY is byte-perfect against libcdio.
+
+One minor note: libcdio also handles peripheral type `0x1F` (unknown/not connected) as a distinct case from type 5. BitPerfect treats any type ≠ 5 as `NotOptical`. This is functionally equivalent — type 0x1F would correctly be rejected — but if a non-standard device reports a type BitPerfect hasn't anticipated, the error message will say "not optical" rather than something more specific. Not worth changing.
+
+---
+
+### START STOP UNIT (0x1B)
+
+`linux/cdrom.h`: `GPCMD_START_STOP_UNIT = 0x1B` ✅  
+`b4 = 0x02` (LoEj=1, Start=0 = eject) ✅  
+`b1 = 0x00` (IMMED=0, wait for completion) ✅
+
+libcdio `mmc_eject_media()` uses exactly the same CDB. No issues.
+
+---
+
+### READ TOC/PMA/ATIP (0x43)
+
+`linux/cdrom.h` and `scsi/scsi.h`: `READ_TOC = 0x43` ✅  
+`linux/cdrom.h` `GPCMD_READ_TOC_PMA_ATIP = 0x43` ✅
+
+All three variant CDBs verified:
+
+| | Format | MSF | Session | Alloc | libcdio equivalent |
+|---|---|---|---|---|---|
+| Variant A | `0x00` | 0 | 0 | 804 | `mmc_get_toc()` — identical ✅ |
+| Variant B | `0x02` | 1 | 0 | 2048 | `mmc_get_raw_toc()` — format/MSF match ✅, alloc differs ⚠️ |
+| Variant C | `0x00` | 1 | 1 | 2048 | constructed inline — correct ✅ |
+
+**Allocation length 804 for Variant A:**  
+`804 = 4 (header) + 100 × 8 (descriptors)`. 100 = 99 Red Book tracks + 1 lead-out. This is the correct maximum for any legal CD. libcdio uses the same value. ✅
+
+**Gap 3 — Variant B allocation length 2048 vs libcdio's 0xFFFF:**  
+libcdio requests up to 0xFFFF bytes for the Full TOC to guarantee it receives all descriptors regardless of disc complexity. BitPerfect requests 2048, which accommodates `(2048 - 4) / 11 = 185` descriptors. A typical CD-Extra disc has 30–80 Full TOC descriptors. The theoretical maximum for a pathological multi-session disc is much larger, but no real-world consumer disc has come close to 185 descriptors. Risk is low, but replacing `2048` with `0xFFFF` would align with the reference and eliminate the edge case entirely.
+
+---
+
+### READ CD (0xBE)
+
+`linux/cdrom.h`: `GPCMD_READ_CD = 0xBE` ✅  
+`b1 = 0x00` (any sector type) ✅  
+`b9 = 0x10` (user data only) ✅  
+`b10 = 0x00` (no subchannel) ✅
+
+libcdio `mmc_read_audio_sectors()` uses an identical CDB. The kernel constant `CD_FRAMESIZE_RAW = 2352` and `CD_MSF_OFFSET = 150` both match BitPerfect's constants. ✅
+
+**Sector type values for b1 bits[4:2] — reference table:**
+
+| Value | Meaning |
+|---|---|
+| `000` | Any (BitPerfect) ✅ |
+| `001` | CD-DA |
+| `010` | Mode 1 |
+| `011` | Mode 2 formless |
+| `100` | Mode 2 Form 1 |
+| `101` | Mode 2 Form 2 |
+
+Using `000` (any) rather than `001` (CD-DA) is intentional and correct — some firmware-locked drives reject type-specific requests.
+
+**Gap 4 — C2 error information never requested:**  
+Byte 9 bits[2:1] select C2 error reporting. BitPerfect sets both to 0 (no C2). libcdio and cdparanoia can optionally request C2 error data alongside audio:
+
+```
+b9 bits[2:1]:
+  00 = no C2 info (BitPerfect)
+  01 = C2 error block data (296 bytes per sector appended after audio)
+  10 = C2 and block error bits (294 bytes per sector)
+```
+
+When C2 is enabled, the drive appends one bit per audio byte indicating whether that byte was corrected. libcdio-paranoia uses this to identify which specific sectors had hardware read errors and prioritise targeted re-reads of those sectors before falling back to interpolation.
+
+BitPerfect's alternative is AccurateRip verification, which catches errors at the track level after the full rip. The tradeoff:
+
+| | C2-based (libcdio-paranoia) | AccurateRip-based (BitPerfect) |
+|---|---|---|
+| Error detection granularity | Per-sector, per-byte | Per-track checksum |
+| When errors are detected | During ripping | After ripping completes |
+| Response to errors | Targeted re-read of bad sectors | Full track WARNING, manual re-rip |
+| Drive support required | Drive must report C2 | Any drive |
+| Correct rip confirmed | By convergence across re-reads | By matching known-good database entry |
+
+C2 support is not universal — many consumer drives (including the ASUS SDRW-08D2S-U) either don't support it or report unreliable C2 data. Requesting C2 from a drive that doesn't support it typically results in the drive ignoring the flag and returning standard 2352-byte sectors. There is no correctness risk in adding C2 support — the response validation (`totalRead % 2352 == 0`) would need to be updated to also accept `totalRead % (2352 + 296) == 0` when C2 is enabled, and the C2 bytes stripped before passing audio to `ChecksumAccumulator`.
+
+This is a meaningful future enhancement for drives that support it reliably, but not a bug.
+
+---
+
+## Summary of Findings
+
+**All six CDBs are correctly implemented.** No opcode, field value, or byte ordering is wrong compared to libcdio and the kernel MMC constants.
+
+### Gaps identified
+
+| # | Severity | Command | Gap | Fix |
+|---|---|---|---|---|
+| 1 | 🟡 Medium | REQUEST SENSE | `ASC=0x3A ASCQ=0x00/0x01` not matched as `TRAY_OPEN` — generic and tray-closed medium-absent variants fall through to `NOT_READY` | Match any ASCQ for `ASC=0x3A` |
+| 2 | 🟢 Low | REQUEST SENSE | Unit Attention (SK=0x06) not distinguished — disc hot-swap slower to detect, no re-read triggered | Add `SK=0x06` case → trigger TOC re-read |
+| 3 | 🟢 Low | READ TOC Variant B | Allocation length 2048 vs libcdio's 0xFFFF — theoretical truncation on extreme multi-session discs | Change to `0xFFFF` |
+| 4 | 🟢 Low | READ CD | C2 error info never requested — no per-sector hardware error signal | Future enhancement: request C2 for drives that support it reliably |
+
