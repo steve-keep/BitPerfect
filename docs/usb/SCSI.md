@@ -515,4 +515,45 @@ flowchart TD
     RS --> TUR
     TUR -->|zero CSW| RTOC["④ READ TOC\nbuild DiscToc"]
     RTOC --> RCD["⑤ READ CD\nrip raw sectors"]
-    RCD --> SSU["⑥ 
+    RCD --> SSU["⑥ START STOP UNIT\neject"]
+    SSU --> TUR
+```
+
+---
+
+## Quick Reference — All CDBs
+
+| Command | B0 | B1 | B2 | B3 | B4 | B5 | B6 | B7 | B8 | B9 | B10 | B11 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| INQUIRY | `12` | `00` | `00` | `00` | `24` | `00` | | | | | | |
+| TEST UNIT READY | `00` | `00` | `00` | `00` | `00` | `00` | | | | | | |
+| REQUEST SENSE | `03` | `00` | `00` | `00` | `12` | `00` | | | | | | |
+| START STOP UNIT | `1B` | `00` | `00` | `00` | `02` | `00` | | | | | | |
+| READ TOC (A) | `43` | `00` | `00` | `00` | `00` | `00` | `00` | `03` | `24` | `00` | | |
+| READ TOC (B) | `43` | `02` | `02` | `00` | `00` | `00` | `00` | `08` | `00` | `00` | | |
+| READ TOC (C) | `43` | `02` | `00` | `00` | `00` | `00` | `01` | `08` | `00` | `00` | | |
+| READ CD | `BE` | `00` | LBA | LBA | LBA | LBA | LEN | LEN | LEN | `10` | `00` | `00` |
+
+---
+
+## Byte 9 READ CD Flag Reference
+
+BitPerfect uses `0x10` exclusively. Other values shown for context:
+
+| Byte 9 | User Data | Sync | Header | EDC/ECC | Notes |
+|---|---|---|---|---|---|
+| `0x10` | ✓ | ✗ | ✗ | ✗ | **BitPerfect — audio user data only** |
+| `0xF8` | ✓ | ✓ | ✓ | ✓ | Full raw sector (Mode 1 data) |
+| `0x10` + sub `0x01` | ✓ | ✗ | ✗ | ✗ | Audio + raw P–W subchannel (used by some rippers for offset scanning) |
+
+---
+
+## Known Issues & Notes
+
+**TEST UNIT READY timeout vs disconnect:** A `bulkTransfer` timeout on the CBW or CSW is returned as `TurResult.NOT_READY`, not `CONNECTION_DEAD`. A genuine USB disconnect is detected later when the BOT signature validation receives an all-zero buffer — at that point `CONNECTION_DEAD` is returned and a silent reconnect sequence begins with exponential backoff (500 ms, 1 s, 1.5 s, 2 s, 2.5 s, up to 5 attempts).
+
+**READ CD byte 1 — Expected Sector Type = 0:** Setting this to `0x04` (CDDA) would be more precise, but firmware-locked consumer drives commonly reject type-specific READ CD requests. Type 0 (any) is the universal safe value.
+
+**No MODE SENSE (0x5A) / MODE SELECT (0x55):** BitPerfect does not query or configure drive capabilities or read speed. Drive speed is left at firmware defaults. This is a known limitation: riplock firmware on drives such as the ASUS SDRW-08D2S-U caps audio extraction at approximately 2× regardless of software requests. Only a firmware modification can lift this restriction — there is no SCSI command that bypasses it.
+
+**No PREVENT ALLOW MEDIUM REMOVAL (0x1E):** BitPerfect does not lock the tray during ripping. A user pressing the physical eject button mid-rip will succeed at the hardware level. The post-rip warning flow that holds the user on the rip screen until disc ejection is confirmed is entirely software-side; it cannot prevent a forced hardware eject.
