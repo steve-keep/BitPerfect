@@ -1,4 +1,4 @@
-# AccurateRip Pipeline — Technical Documentation
+# AccurateRip — Complete Technical Reference
 
 ## Overview
 
@@ -6,11 +6,22 @@ AccurateRip is a community-maintained database of per-track CRC checksums derive
 
 The pipeline has five distinct stages:
 
-1. **Disc identification** — compute a disc-specific triple-ID from the TOC
-2. **Database fetch** — download the binary `.bin` file from AccurateRip's CDN
-3. **Binary parsing** — decode the file into per-pressing, per-track checksum records
-4. **Checksum accumulation** — compute V1 and V2 hashes in real time as PCM sectors arrive
-5. **Verification** — compare computed hashes against every known pressing and report status
+```mermaid
+flowchart LR
+    A([CD inserted]) --> B[Stage 1\nDisc ID]
+    B --> C[Stage 2\nDB Fetch]
+    C -->|HTTP 200| D[Stage 3\nParse .bin]
+    C -->|non-200 / error| U([UNVERIFIED])
+    D --> E[Stage 4\nChecksum\nAccumulation]
+    E --> F[Stage 5\nVerification]
+    F -->|candidate survives| S([SUCCESS])
+    F -->|pool empty, DB had entries| W([WARNING])
+    F -->|not in DB| U
+
+    style S fill:#2d6a2d,color:#fff
+    style W fill:#7a5c00,color:#fff
+    style U fill:#555,color:#fff
+```
 
 ---
 
@@ -18,14 +29,33 @@ The pipeline has five distinct stages:
 
 The AccurateRip ID is a triple `(id1, id2, id3)` that uniquely identifies a disc. All three components are derived from the TOC's track LBAs (logical block addresses).
 
+```mermaid
+flowchart TD
+    TOC[DiscToc\ntrack LBAs + lead-out]
+
+    TOC --> LSN["LSN = LBA − 150\n(subtract CD lead-in)"]
+
+    LSN --> ID1["id1 = Σ LSN(track_n) + LSN(lead-out)\n— additive fingerprint"]
+    LSN --> ID2["id2 = Σ max(LSN(n),1) × trackNum + LSN(lead-out) × (N+1)\n— weighted polynomial"]
+    TOC --> ID3["id3 = freedb CDDB\n(digit-sum of track seconds, always uses global lead-out)"]
+
+    ID1 --> URL["CDN URL\ndBAR-NNN-{id1}-{id2}-{id3}.bin\ndir = id1[7] / id1[6] / id1[5]"]
+    ID2 --> URL
+    ID3 --> URL
+
+    TOC --> CDEX{CD-Extra?}
+    CDEX -->|yes| AUD["use audioLeadOutLba\nfor id1 + id2 only"]
+    CDEX -->|no| STD["use leadOutLba\nfor all three"]
+```
+
 ### id1 — Sum of LSNs
 
 ```
 id1 = Σ LSN(track_n)  +  LSN(lead-out)
-LSN = LBA - 150        // subtract the 150-frame CD lead-in
+LSN = LBA − 150
 ```
 
-Every track offset (including the lead-out) is converted to an LSN and summed. This is a simple additive fingerprint of the layout.
+Every track offset plus the lead-out is converted to an LSN and summed. Simple additive fingerprint of the layout.
 
 ### id2 — Weighted sum of LSNs
 
@@ -33,7 +63,7 @@ Every track offset (including the lead-out) is converted to an LSN and summed. T
 id2 = Σ ( max(LSN(track_n), 1) × trackNumber )  +  LSN(lead-out) × (trackCount + 1)
 ```
 
-Each track's LSN is multiplied by its 1-based track number. The lead-out is treated as track `N+1`. The `max(..., 1)` guard prevents multiplying by zero for a degenerate first track with LSN 0. This produces a second independent polynomial over the offsets.
+Each LSN is multiplied by its 1-based track number, with the lead-out treated as track `N+1`. The `max(..., 1)` guard handles degenerate cases where LBA < 150 produces a negative or zero LSN.
 
 ### id3 — freedb CDDB ID
 
@@ -41,62 +71,131 @@ Each track's LSN is multiplied by its 1-based track number. The lead-out is trea
 id3 = (checksum % 255) << 24  |  discLengthSeconds << 8  |  trackCount
 ```
 
-Where `checksum = Σ digitSum(track_start_seconds)`. This is the classic freedb algorithm, reproduced verbatim. The digit-sum recursion operates on the raw second value of each track's absolute LBA, not its offset within the disc.
+Where `checksum = Σ digitSum(track_start_seconds)`. This is the classic freedb algorithm. **Important for CD-Extra:** `id1` and `id2` use `audioLeadOutLba` (session-1 boundary) but `id3` always uses the global `leadOutLba` — freedb was defined over total disc length. This intentional asymmetry means the three components of the ID are derived from two different lead-out values on CD-Extra discs.
 
-### CD-Extra handling
-
-For CD-Extra discs (mixed audio+data with multiple sessions), the audio lead-out differs from the global lead-out. `computeAccurateRipDiscId` uses `toc.audioLeadOutLba` when present, falling back to `toc.leadOutLba`. This matches MusicBrainz's convention and avoids a disc ID mismatch that would produce a CDN miss.
-
-### URL construction (`AccurateRipDiscId.toUrl`)
-
-The CDN URL is deterministically derived from the three IDs:
+### URL construction
 
 ```
 http://www.accuraterip.com/accuraterip/{id1[7]}/{id1[6]}/{id1[5]}/
     dBAR-{trackCount:03d}-{id1:08x}-{id2:08x}-{id3:08x}.bin
 ```
 
-The three directory levels are the 5th, 6th, and 7th hex digits (0-indexed from the right) of `id1`, sharding the CDN across 4096 directories. All three IDs are formatted as zero-padded 8-character lowercase hex.
+The three directory levels are hex digits 5, 6, 7 (0-indexed from the right) of `id1`, sharding the CDN across 4096 directories.
 
 ---
 
 ## Stage 2 — Database Fetch (`AccurateRipService.kt` / `AccurateRipClient.kt`)
 
-`AccurateRipService.getExpectedChecksums(toc)` is called once per disc, before any tracks are ripped. It:
+`AccurateRipService.getExpectedChecksums(toc)` is called once per disc, before any tracks are ripped:
 
 1. Computes the disc ID and derives the URL
-2. Issues an HTTP GET via `AccurateRipClient` (a thin Ktor/OkHttp wrapper with a `BitPerfect/1.0` User-Agent)
+2. Issues an HTTP GET via `AccurateRipClient` (Ktor/OkHttp, `BitPerfect/1.0` User-Agent)
 3. On HTTP 200, reads the full response body as raw bytes and forwards to the parser
 4. On any non-200 or network error, returns an empty list — the rip proceeds as UNVERIFIED
 
-The full response body is read into memory in one shot (`readBytes()`). AccurateRip `.bin` files are small: a 15-track disc with 10 known pressings is ~1.5 KB for V2 format.
+The full body is read in one shot (`readBytes()`). AccurateRip `.bin` files are small — a 15-track disc with 10 known pressings is ~1.5 KB for V2 format.
 
-`checkIsKeyDisc` is a lightweight variant that issues the same request but only checks whether a 200 response arrives, without parsing. It is used by the calibration flow to confirm a disc is in the database before attempting offset convergence.
+`checkIsKeyDisc` is a lightweight variant that only checks for a 200 response without parsing, used by the calibration flow to confirm a disc is in the database before attempting offset convergence.
 
 ---
 
-## Worked Example — `dBAR-011-000cb4d1-006e975f-9507580b.bin`
+## Stage 3 — Binary Parsing (`AccurateRipVerifier.parseAccurateRipResponse`)
 
-This is a real AccurateRip response for an 11-track disc. The full file is 224 bytes.
+The `.bin` file is a concatenation of disc pressing records. All values are little-endian.
 
-### Decoding the filename
+### Binary layout
 
-The filename itself encodes the disc identity:
+```mermaid
+block-beta
+    columns 1
+    block:file["dBAR .bin file"]:1
+        block:p1["Pressing 1"]:1
+            h1["Header\n13 bytes"]
+            t1["Track 1\n9 bytes (V2)\nor 5 bytes (V1)"]
+            t2["Track 2\n9 bytes"]
+            tdots["..."]
+            tn["Track N\n9 bytes"]
+        end
+        block:p2["Pressing 2"]:1
+            h2["Header\n13 bytes"]
+            t2a["Track 1..N\n9 bytes each"]
+        end
+        pdots["... more pressings"]
+    end
+```
+
+**Header (13 bytes):**
+
+```
+[0]     trackCount : UInt8
+[1..4]  discId1    : UInt32 LE
+[5..8]  discId2    : UInt32 LE
+[9..12] cddbId     : UInt32 LE  ← must be consumed and discarded
+```
+
+**Per-track entry:**
+
+```
+V1 (5 bytes):              V2 (9 bytes):
+[0]    confidence : UInt8  [0]    confidence : UInt8
+[1..4] crcV1      : UInt32 [1..4] crcV2      : UInt32  ← stored FIRST
+                           [5..8] crcV1      : UInt32  ← stored SECOND
+```
+
+The V2 field order is a common trap: `crcV2` is stored first in the binary even though V1 is the older algorithm. The parser explicitly maps `firstCrc → crcV2` and `secondCrc → crcV1`.
+
+The CDDB field must be consumed even though it is discarded. Omitting `buffer.getInt()` for this field shifts the buffer by 4 bytes, causing every subsequent confidence byte to be read from CDDB data. This was a real bug caught by the `CDDB bytes do not appear in parsed CRC` regression test (reproduces the White Blood Cells disc that exposed it).
+
+### V1 vs V2 auto-detection
+
+```mermaid
+flowchart TD
+    A[Raw bytes] --> B["Dry-run:\nadvance assuming 9 bytes/track\nthrough entire buffer"]
+    B --> C{remaining == 0?}
+    C -->|yes| V2[Parse as V2\n9 bytes per track]
+    C -->|no| V1[Parse as V1\n5 bytes per track]
+    V2 --> R[List of AccurateRipDiscPressing]
+    V1 --> R
+```
+
+The dry-run works because a given `.bin` file is internally consistent — all pressing records use the same format.
+
+### Result model
+
+```kotlin
+data class AccurateRipTrackMetadata(
+    val crcV1: Long,       // 32-bit checksum as unsigned Long
+    val crcV2: Long?,      // null for V1-only database entries
+    val confidence: Int    // number of independent submitters
+)
+
+data class AccurateRipDiscPressing(
+    val discId1: Long,
+    val discId2: Long,
+    val tracks: Map<Int, AccurateRipTrackMetadata>  // 1-based track number
+)
+```
+
+---
+
+## Worked Example 1 — `dBAR-011-000cb4d1-006e975f-9507580b.bin`
+
+A real AccurateRip response for an 11-track disc. Full file: 224 bytes, V2 format, 2 pressings.
+
+### Filename decode
 
 ```
 dBAR - 011        - 000cb4d1 - 006e975f - 9507580b .bin
        trackCount   id1        id2        id3(CDDB)
 ```
 
-The CDN directory path is derived from the last three hex digits of `id1` (`000cb4d1`), reading right to left: `1/d/4/`. The full URL is:
+CDN path from `id1 = 000cb4d1` → digits at positions 7/6/5 (right to left): `1/d/4/`
 
-```
-http://www.accuraterip.com/accuraterip/1/d/4/dBAR-011-000cb4d1-006e975f-9507580b.bin
-```
+Full URL: `http://www.accuraterip.com/accuraterip/1/d/4/dBAR-011-000cb4d1-006e975f-9507580b.bin`
 
-### File structure
+### Byte budget
 
-The file contains **2 pressings × (13-byte header + 11 × 9-byte track records) = 112 bytes each = 224 bytes total**. The dry-run V2 pass consumes all 224 bytes exactly, so the format is **V2**.
+2 × (13 header + 11 × 9 tracks) = 2 × 112 = **224 bytes** ✓
 
 ### Pressing 1 — bytes 0–111
 
@@ -105,11 +204,7 @@ Byte  0       : 0x0b              → trackCount = 11
 Bytes 1–4     : d1 b4 0c 00 LE   → discId1 = 0x000cb4d1
 Bytes 5–8     : 5f 97 6e 00 LE   → discId2 = 0x006e975f
 Bytes 9–12    : 0b 58 07 95 LE   → cddb    = 0x9507580b  (consumed, discarded)
-```
 
-Track records follow at bytes 13–111, 9 bytes each:
-
-```
 Track 01  04 53d11a01 30a3889f  → conf=4  crcV2=0x011ad153  crcV1=0x9f88a330
 Track 02  04 60a97926 eb580283  → conf=4  crcV2=0x2679a960  crcV1=0x830258eb
 Track 03  04 e024f368 cafa5ab5  → conf=4  crcV2=0x68f324e0  crcV1=0xb55afaca
@@ -123,189 +218,98 @@ Track 10  04 a06e18b6 5b7b356e  → conf=4  crcV2=0xb6186ea0  crcV1=0x6e357b5b
 Track 11  04 3ffc154c f4d6bf8a  → conf=4  crcV2=0x4c15fc3f  crcV1=0x8abfd6f4
 ```
 
-Within each 9-byte track record, remember the field order trap: the first 4-byte chunk is `crcV2`, the second is `crcV1`. For Track 01, the raw bytes after the confidence byte are `53 d1 1a 01` (= `0x011ad153` LE) and `30 a3 88 9f` (= `0x9f88a330` LE). The parser maps these as `firstCrc → crcV2`, `secondCrc → crcV1`.
-
-Confidence = 4 on every track means 4 independent users submitted identical checksums for this pressing.
+For Track 01: bytes after the confidence byte are `53 d1 1a 01` → `0x011ad153` LE = `crcV2`, then `30 a3 88 9f` → `0x9f88a330` LE = `crcV1`. The reversed field order requires explicit mapping in the parser.
 
 ### Pressing 2 — bytes 112–223 (V2-only pressing)
 
-The header is identical to pressing 1 (same disc, different pressing record):
-
-```
-Byte  112     : 0x0b              → trackCount = 11
-Bytes 113–116 : d1 b4 0c 00 LE   → discId1 = 0x000cb4d1
-Bytes 117–120 : 5f 97 6e 00 LE   → discId2 = 0x006e975f
-Bytes 121–124 : 0b 58 07 95 LE   → cddb    = 0x9507580b
-```
-
-Track records:
+Header identical to pressing 1. Track records:
 
 ```
 Track 01  02 10058811 00000000  → conf=2  crcV2=0x11880510  crcV1=0x00000000
-Track 02  02 882fa2b8 00000000  → conf=2  crcV2=0xb8a22f88  crcV1=0x00000000
 ...
 Track 11  02 43ab2975 00000000  → conf=2  crcV2=0x7529ab43  crcV1=0x00000000
 ```
 
-All `crcV1` fields are `0x00000000`. This is a **V2-only pressing**: the two submitters used a ripper that computed V2 hashes but did not back-calculate V1. AccurateRip stores zero as a sentinel for an absent V1 value within a V2 record.
-
-This is safe in the BitPerfect verifier because the elimination logic checks `dbTrack.crcV2 != null` to decide which hash to use. Since `crcV2` is non-null (and non-zero) for every track in pressing 2, the V2 branch is always taken and the zero V1 fields are never compared against anything. If `crcV2` were null, falling through to compare a computed checksum against `0x00000000` would be a false match risk — but that situation can't arise for a V2 record.
-
-Confidence = 2 here, versus 4 for pressing 1, indicating fewer submitters. If a rip matches pressing 2 but not pressing 1, the UI will report confidence 2.
+All `crcV1 = 0x00000000`. This is a V2-only pressing: submitters used a V2-capable ripper that did not back-calculate V1. Zero is AccurateRip's sentinel for an absent V1 field in a V2 record. This is safe in BitPerfect because the elimination logic checks `dbTrack.crcV2 != null` — since `crcV2` is non-null and non-zero for every track here, the V2 branch is always taken and the zero V1 fields are never used.
 
 ---
 
 ## Worked Example 2 — `dBAR-012-00151845-00c504b0-a70de90c.bin`
 
-This file is a much richer real-world response: **16 pressings** of a 12-track disc, totalling **1936 bytes**. It illustrates several patterns not visible in the first example.
+A much richer response: **16 pressings** of a 12-track disc, totalling **1936 bytes**.
 
-### Filename and byte budget
+### Byte budget
 
-```
-dBAR - 012        - 00151845 - 00c504b0 - a70de90c .bin
-       trackCount   id1        id2        id3(CDDB)
-```
+16 × (13 + 12 × 9) = 16 × 121 = **1936 bytes** ✓
 
-CDN path derived from `id1 = 00151845` → digits at positions 7/6/5 (right to left): `5/4/8/`.
+CDN path from `id1 = 00151845` → `5/4/8/`
 
-Per pressing: 13 header + 12 × 9 = **121 bytes**. 16 × 121 = **1936 bytes** — exact file size confirmed.
+### Confidence gradient
 
-### Confidence gradient across pressings
+The pressings are ordered by submission count, showing clear stratification:
 
-Unlike the first file where all pressings had uniform confidence, this file shows a clear gradient reflecting how many users have submitted each pressing:
-
-| Pressings | Confidence range | Character |
+| Pressings | Confidence | Character |
 |---|---|---|
-| 1 | 18–19 | High-confidence primary pressing (most common version) |
-| 2 | 17 | Second most common pressing |
-| 3 | 10–12 | Another well-verified variant |
-| 4–5 | 8–10 | Less common pressings, still reliable |
+| 1 | 18–19 | Primary pressing — most commonly ripped version |
+| 2 | 17 | Second most common |
+| 3 | 10–12 | Well-verified variant |
+| 4–5 | 8–10 | Less common, still reliable |
 | 6–8 | 4–7 | Minority pressings |
-| 9–15 | 2–4, V2-only | Modern V2-only submissions; no V1 back-calculation |
-| 16 | 0–2, partial | Partially submitted pressing (see below) |
+| 9–15 | 2–4, V2-only | Modern V2-only submissions |
+| 16 | 0–2, partial | Partially submitted pressing |
 
-Track 12 consistently has slightly lower confidence than the rest across pressings 1–8 — a real-world pattern where the final track of a disc attracts fewer complete submissions, possibly due to users stopping after audible verification of early tracks.
-
-### Per-pressing confidence variation (Pressing 3)
-
-Within Pressing 3, individual tracks have different confidence values:
-
-```
-Track 01: conf=12   Track 06: conf=11   Track 11: conf=12
-Track 02: conf=12   Track 07: conf=11   Track 12: conf=10  ← lowest
-Track 03: conf=11   Track 08: conf=11
-Track 04: conf=12   Track 09: conf=11
-Track 05: conf=12   Track 10: conf=12
-```
-
-This is valid — confidence is stored per track, not per pressing. Different users may have submitted partial datasets (e.g. only some tracks), so individual tracks within a pressing can have different submission counts.
-
-### V2-only pressings (9–15)
-
-Pressings 9–15 all have `crcV1 = 0x00000000` across every track, identical to the pattern seen in pressing 2 of the first example. This confirms it is a systematic characteristic of submissions from V2-capable rippers that don't back-compute V1, not a quirk of any single file.
+Confidence is per-track, not per-pressing. Pressing 3 shows tracks individually ranging from 10–12, because different submitters may have sent partial datasets.
 
 ### Pressing 16 — partial submission (bytes 1815–1935)
 
-This pressing is structurally valid but contains tracks with all-zero confidence **and** all-zero CRCs:
-
 ```
-Track 01: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
-Track 02: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
-Track 03: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
-Track 04: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
-Track 05: conf=2  crcV2=0xa9cf82b5  crcV1=0x00000000
-Track 06: conf=2  crcV2=0xd760597e  crcV1=0x00000000
-Track 07: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
-Track 08: conf=2  crcV2=0xff35c7b2  crcV1=0x00000000
-Track 09: conf=2  crcV2=0x340f4faf  crcV1=0x00000000
-Track 10: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
-Track 11: conf=2  crcV2=0x696cf005  crcV1=0x00000000
-Track 12: conf=0  crcV2=0x00000000  crcV1=0x00000000  ← no data
+Track 01: conf=0  crcV2=0x00000000  ← no data
+Track 02: conf=0  crcV2=0x00000000  ← no data
+Track 03: conf=0  crcV2=0x00000000  ← no data
+Track 04: conf=0  crcV2=0x00000000  ← no data
+Track 05: conf=2  crcV2=0xa9cf82b5
+Track 06: conf=2  crcV2=0xd760597e
+Track 07: conf=0  crcV2=0x00000000  ← no data
+Track 08: conf=2  crcV2=0xff35c7b2
+...
 ```
 
-Six of the twelve tracks have zero confidence and zero CRCs — AccurateRip's sentinel for "no submissions received for this track in this pressing". The other six have real V2 hashes with confidence 2.
+Six tracks have `conf=0` and `crcV2=0x00000000`. When elimination reaches one of these tracks, BitPerfect compares the computed checksum against zero — a real rip will almost never produce zero, so this pressing is correctly dropped. The pressing only survives if every non-zero track matches AND the computed checksum coincidentally equals zero on all-zero tracks, which is astronomically unlikely.
 
-This has a direct consequence in BitPerfect's candidate elimination. When the verifier encounters a track where `pressing.tracks[trackNumber]` returns a record with `crcV2 == 0x00000000`, it will compare the computed checksum against zero. A real rip will virtually never produce a zero checksum, so pressing 16 will be correctly eliminated on any all-zero track. However, the elimination logic uses `dbTrack.crcV2 != null` to decide the V2 branch — and `crcV2` here is non-null (it's zero, not absent) — meaning BitPerfect will attempt a V2 comparison of `computed != 0x00000000` and drop this pressing cleanly. The pressing would only survive if the computed V2 checksum were coincidentally zero, which is astronomically unlikely.
+### Comparison
 
-### Comparison summary
-
-| Property | Example 1 (`dBAR-011-...`) | Example 2 (`dBAR-012-...`) |
+| Property | Example 1 | Example 2 |
 |---|---|---|
 | File size | 224 bytes | 1936 bytes |
-| Format | V2 | V2 |
 | Pressings | 2 | 16 |
 | Tracks | 11 | 12 |
-| Bytes per pressing | 112 | 121 |
 | Max confidence | 4 | 19 |
-| V2-only pressings | 1 (pressing 2) | 8 (pressings 9–16) |
-| Partial pressing | None | 1 (pressing 16, 6 tracks missing) |
+| V2-only pressings | 1 | 8 (pressings 9–16) |
+| Partial pressing | None | 1 (pressing 16) |
 | Per-track confidence variation | No | Yes |
-
----
-
-## Stage 3 — Binary Parsing (`AccurateRipVerifier.parseAccurateRipResponse`)
-
-The `.bin` file is a concatenation of **disc pressing records**, one per known pressing. Each record has a 13-byte header followed by a variable-length track array. All values are **little-endian**.
-
-### Binary layout
-
-```
-Header (13 bytes):
-  [0]     trackCount  : UInt8
-  [1..4]  discId1     : UInt32 LE
-  [5..8]  discId2     : UInt32 LE
-  [9..12] cddbId      : UInt32 LE  — consumed and discarded (see note below)
-
-Per-track entry, repeated trackCount times:
-  V1 format (5 bytes):
-    [0]    confidence  : UInt8
-    [1..4] crcV1       : UInt32 LE
-
-  V2 format (9 bytes):
-    [0]    confidence  : UInt8
-    [1..4] crcV2       : UInt32 LE  ← stored FIRST in binary
-    [5..8] crcV1       : UInt32 LE  ← stored SECOND in binary
-```
-
-The CDDB field must be strictly consumed even though it is not stored. Failing to read it shifts the buffer position by 4 bytes, causing the confidence byte of every subsequent track to be read from CDDB data. This was a real bug caught by the `CDDB bytes do not appear in parsed CRC` regression test, which reproduces the exact White Blood Cells disc that exposed it.
-
-### V1 vs V2 auto-detection
-
-AccurateRip responses carry no explicit format header. The parser performs a **dry-run** before parsing: it advances through the entire `ByteBuffer` treating every track record as 9 bytes (V2 size). If the pointer aligns exactly with the end of the file (`buf.remaining() == 0`), the file is parsed as V2. Otherwise it falls back to 5-byte V1 records.
-
-This is reliable in practice because a given `.bin` file is internally consistent — all pressing records within it use the same format.
-
-The field order reversal in V2 is a common trap: the binary layout puts `crcV2` first and `crcV1` second, so the parsing logic explicitly maps `firstCrc → crcV2` and `secondCrc → crcV1` when in V2 mode.
-
-### Result model
-
-```kotlin
-data class AccurateRipTrackMetadata(
-    val crcV1: Long,       // 32-bit checksum stored as unsigned Long
-    val crcV2: Long?,      // null for V1-only database entries
-    val confidence: Int    // number of independent submitters who reported this CRC
-)
-
-data class AccurateRipDiscPressing(
-    val discId1: Long,
-    val discId2: Long,
-    val tracks: Map<Int, AccurateRipTrackMetadata>  // 1-based track number → metadata
-)
-```
-
-Parsing returns a `List<AccurateRipDiscPressing>` — every pressing the database holds for this disc.
 
 ---
 
 ## Stage 4 — Checksum Accumulation (`ChecksumAccumulator.kt`)
 
-A `ChecksumAccumulator` is created per track at the start of each rip. As decoded PCM data arrives in chunks from the ripping loop, `accumulate(pcmData)` is called repeatedly. It computes both V1 and V2 checksums in a single pass over the data.
+A `ChecksumAccumulator` is created per track at the start of each rip. As decoded PCM sectors arrive in chunks, `accumulate(pcmData)` is called repeatedly, computing V1 and V2 in a single pass.
 
-> Note: `AccurateRipVerifier.computeChecksumChunk()` is an older single-pass helper that remains in the codebase but is marked `@Deprecated`. The canonical hot-path is `ChecksumAccumulator.accumulate()`.
+> `AccurateRipVerifier.computeChecksumChunk()` is an older single-pass helper marked `@Deprecated`. The canonical hot-path is `ChecksumAccumulator.accumulate()`.
 
 ### The checksum algorithm
 
-Both algorithms iterate over every 4-byte stereo sample frame. The four bytes are assembled into a single unsigned 32-bit value (`sampleValue`) in little-endian order.
+Both algorithms iterate over every 4-byte stereo sample frame assembled as a little-endian `UInt32`.
+
+```mermaid
+flowchart TD
+    P["4 bytes of PCM\n(little-endian UInt32 = sampleValue)"]
+    P --> V1C["V1:\nchecksum += sampleValue × pos\nchecksum &= 0xFFFFFFFF"]
+    P --> MUL["V2:\nproduct = sampleValue × pos\n(full 64-bit)"]
+    MUL --> SPLIT["lo = product & 0xFFFFFFFF\nhi = product >> 32"]
+    SPLIT --> V2C["checksum += lo + hi\nchecksum &= 0xFFFFFFFF"]
+    V1C --> NEXT["pos++\nnext sample"]
+    V2C --> NEXT
+```
 
 **V1:**
 ```
@@ -315,20 +319,35 @@ checksum &= 0xFFFFFFFF
 
 **V2:**
 ```
-product = sampleValue × samplePosition   // full 64-bit product retained
+product = sampleValue × samplePosition   // full 64-bit
 lo = product & 0xFFFFFFFF
 hi = (product >> 32) & 0xFFFFFFFF
 checksum += lo + hi
 checksum &= 0xFFFFFFFF
 ```
 
-V2's fold of the 64-bit product (`lo + hi`) is what differentiates it from V1. It was introduced to detect mastering errors — specifically from certain pressing plants that produced consistent off-by-one artefacts at 32-bit word boundaries — that V1 silently passed.
-
-`samplePosition` is 1-based and starts at 1 for the first sample of the track. It is threaded through successive `accumulate()` calls via the `samplePosition` field, making chunk boundaries fully transparent to the algorithm.
+V2's `lo + hi` fold detects a class of mastering errors — from certain pressing plants that produced consistent off-by-one artefacts at 32-bit word boundaries — that V1 silently passes. `samplePosition` is 1-based, threaded through successive `accumulate()` calls so chunk boundaries are transparent.
 
 ### Exclusion windows
 
-The first and last 2940 samples (5 sectors = 5 × 588 samples) **of the disc** — not of each track, but of the first track and last track respectively — are excluded from the checksum. This compensates for the fact that different drives apply different amounts of pregap/postgap silence at disc boundaries, which would otherwise produce divergent checksums across identical rips.
+The first and last 2940 samples (5 sectors = 5 × 588) of the disc are excluded — not of each track, but of the first and last track specifically. This compensates for drives applying different amounts of pregap/postgap silence at disc boundaries.
+
+```mermaid
+block-beta
+    columns 11
+    space:1
+    A["Track 1"]:5
+    B["Tracks 2–N−1"]:3
+    C["Track N"]:2
+
+    space:1
+    skip1["skip\n2940 samples"]:1
+    inc1["included"]:3
+    incm["all included"]:3
+    incn["included"]:1
+    skip2["skip\n2940 samples"]:1
+    space:1
+```
 
 ```kotlin
 val skipStart = if (isFirstTrack) 2940L else 0L
@@ -339,35 +358,49 @@ if (currentSamplePos >= skipStart && currentSamplePos <= totalSamples - skipEnd)
 }
 ```
 
-The boundaries are **inclusive**: sample index 2940 is the first sample included for the first track, and `totalSamples - 2940` is the last sample included for the last track. Middle tracks have `skipStart = 0` and `skipEnd = 0`, so every sample contributes.
+> ⚠️ **Known spec divergence:** The reference implementations (whipper, accuraterip-checksum/C, EAC) use a strict `> skipStart` condition, making position 2941 the first included sample for the first track. BitPerfect uses `>= skipStart`, making position 2940 the first included. In practice this is masked by multi-pressing databases — if any pressing was submitted by a ripper with the same boundary, it will match. But for discs with few pressings submitted exclusively by EAC/dBpoweramp, track 1 verification may intermittently fail. See the gap analysis.
 
 ### Drive offset compensation
 
-CD drives have a read offset: the physical head starts a few samples early or late relative to the nominal track boundary. BitPerfect stores this per-drive in settings, converged via the calibration flow described below. Before checksum accumulation begins, the drive offset is decomposed in `RipManager`:
+CD drives have a per-model read offset. Before accumulation begins, `RipManager` decomposes the stored offset:
 
-- `tocOffset` — whole sectors to shift (`offset ÷ 588`, rounded toward zero)
-- `sampleOffset` — remaining fractional samples (`offset mod 588`)
-- `skipBytes` — bytes to trim from the first sector's PCM (`sampleOffset × 4`)
+- `tocOffset` — whole sectors (`offset ÷ 588`, rounded toward zero) — shifts the LBA range read
+- `sampleOffset` — fractional samples (`offset mod 588`)
+- `skipBytes` — bytes trimmed from the first sector (`sampleOffset × 4`)
 
-This ensures the PCM fed into `ChecksumAccumulator` is correctly aligned to the track boundary as AccurateRip defines it, independently of where the drive physically started reading.
+This aligns the PCM fed to `ChecksumAccumulator` with the track boundary AccurateRip expects, regardless of where the drive physically started reading.
 
 ### Finalisation
 
-Once all chunks for a track are processed, `finalise()` returns a `Pair<Long, Long>` of `(crcV1, crcV2)`, both masked to 32 bits via `and 0xFFFFFFFFL`. These are the values submitted to verification.
+`finalise()` returns `Pair<Long, Long>` of `(crcV1, crcV2)`, both masked to 32 bits.
 
 ---
 
 ## Stage 5 — Verification (`RipManager.kt`)
 
-Once all sectors for a track are ripped and the FLAC is written, the finalised checksums are compared against the database using a **progressive candidate elimination** algorithm.
+After all sectors for a track are ripped and the FLAC written, the finalised checksums are compared against the database using **progressive candidate elimination**.
 
-### The candidate pool
+### Candidate elimination
 
-Before the track loop begins, `activePressingCandidates` is initialised as a `MutableSet` containing every `AccurateRipDiscPressing` returned from the database. This pool is maintained at the **disc level** across all tracks — not reset per track — which is essential. Without this, a rip could match Track 1 of Pressing A and Track 2 of Pressing B and incorrectly report a verified result.
+```mermaid
+flowchart TD
+    START["disc rip begins\nactivePressingCandidates =\nall pressings from DB"]
 
-### Elimination process
+    START --> LOOP["next track completes\n→ (crcV1, crcV2) finalised"]
 
-After each track completes, the pool is pruned:
+    LOOP --> ELIM["retainAll pressing where:\n  if pressing has crcV2 → crcV2 == computed V2\n  else                  → crcV1 == computed V1"]
+
+    ELIM --> CHECK{candidates\nremaining?}
+
+    CHECK -->|yes, more tracks| LOOP
+    CHECK -->|yes, disc complete| SUCCESS["SUCCESS\nreport max confidence\nand matched version"]
+    CHECK -->|no, DB had entries| WARN["WARNING\nmismatch — bad rip\nor wrong drive offset"]
+    CHECK -->|no, not in DB| UNVER["UNVERIFIED"]
+```
+
+The pool is maintained at disc level across all tracks. Without this, a rip could match Track 1 of Pressing A and Track 2 of Pressing B and incorrectly pass. A pressing is eliminated the moment any single track fails to match.
+
+### Elimination logic
 
 ```kotlin
 activePressingCandidates.retainAll { pressing ->
@@ -380,41 +413,43 @@ activePressingCandidates.retainAll { pressing ->
 }
 ```
 
-A pressing is kept only if its checksum matches for this track. V2 takes precedence when the database entry has one; otherwise V1 is used. A pressing is permanently eliminated the moment any single track fails to match.
+V2 takes precedence when the database entry has one. A pressing with `crcV2 = null` is a V1-only entry and falls through to the V1 comparison.
 
 ### Status classification
 
 | Condition | Status |
 |---|---|
-| `activePressingCandidates` non-empty | `SUCCESS` — at least one pressing matches all tracks so far |
-| Pool reached zero, but database had entries | `WARNING` — rip is likely bad or drive offset is wrong |
-| Track absent from database entirely | `UNVERIFIED` — cannot confirm either way |
+| `activePressingCandidates` non-empty | `SUCCESS` |
+| Pool empty, database had entries | `WARNING` |
+| Track absent from database entirely | `UNVERIFIED` |
 
-The matched version (1 or 2) and the maximum confidence score across surviving pressings are also recorded. Confidence represents the number of independent submitters — a value of 3 or higher is generally considered reliable.
+The matched version (1 or 2) and maximum confidence across surviving pressings are also reported. Confidence ≥ 3 is generally considered reliable. When reporting expected checksums for the UI or log, BitPerfect always reads from the original unfiltered `expectedChecksums` list, never from the filtered candidate pool — so the display accurately shows what the database holds even after all candidates are eliminated.
 
-### Expected checksums always from the full database
-
-When populating the "expected checksums" fields for UI display and logging, BitPerfect always reads from the original unfiltered `expectedChecksums` list, never from `activePressingCandidates`. This ensures the UI accurately shows what the database actually holds even when verification fails and the candidate pool is empty.
-
-### Logging
-
-Results are written to a per-album `accuraterip.jsonl` file via `writeAccurateRipJsonl`. Each line is a JSON object containing `isVerified`, `checksumMatched`, `matchedVersion`, `confidence`, `inDatabase`, `checksumV1`/`checksumV2` as `0xHEX` strings, and the full lists of expected V1 and V2 checksums from the database. This forensic log is independent of the FLAC file and survives a re-import.
+Results are written to a per-album `accuraterip.jsonl` file containing `isVerified`, `checksumMatched`, `matchedVersion`, `confidence`, `inDatabase`, `checksumV1`/`checksumV2` as `0xHEX` strings, and the full expected checksum lists.
 
 ---
 
 ## Drive Offset Calibration (`OffsetCalibrationViewModel.kt`)
 
-AccurateRip is also the mechanism used to calibrate the per-drive sample offset. The flow:
+AccurateRip is also the mechanism used to determine the per-drive sample read offset.
 
-1. The user inserts a **key disc** — one that exists in the AccurateRip database with high confidence
-2. `checkIsKeyDisc` confirms it before attempting calibration
-3. The disc is ripped across a sweep of candidate offsets (three independent discs for a robust result)
-4. For each candidate offset, the computed checksums are matched against AccurateRip
-5. Each disc produces a **set of offsets** that yield a verified match
-6. The three sets are intersected — the offset satisfying all three discs is the true drive offset
-7. If the intersection contains exactly one value, calibration succeeds; if empty, the discs disagree (unusual drive behaviour); if multiple values survive, the one closest to zero is selected
+```mermaid
+flowchart TD
+    A["Insert key disc\n(must be in AR database)"] --> B["checkIsKeyDisc\n→ confirm HTTP 200"]
+    B -->|not in DB| FAIL["abort — choose a different disc"]
+    B -->|in DB| C["Rip disc N times\nacross a sweep of candidate offsets"]
+    C --> D["For each candidate offset:\ncompute checksums → match against AR\n→ collect set of matching offsets"]
+    D --> E["Repeat for up to 3 discs\nto get 3 independent sets"]
+    E --> F["Intersect all sets"]
+    F --> G{intersection\nsize?}
+    G -->|exactly 1| PASS["Calibration SUCCESS\nstore that offset"]
+    G -->|empty| AMBIG["Discs disagree\n— unusual drive behaviour"]
+    G -->|> 1| CLOSEST["Select value\nclosest to zero"]
+```
 
-For the ASUS SDRW-08D2S-U used in development this process converges on **+6 samples**.
+The intersection approach prevents a false result from a single lucky match at an incorrect offset. The ASUS SDRW-08D2S-U used in development converges on **+6 samples**.
+
+Note: if only one key disc is available, the intersection degenerates to a single set — it still finds the correct offset, but provides no cross-disc confirmation.
 
 ---
 
@@ -424,7 +459,101 @@ For the ASUS SDRW-08D2S-U used in development this process converges on **+6 sam
 |---|---|---|
 | Missing CDDB field consumption | Buffer offset wrong for all tracks — confidence byte read from CDDB data | Added `buffer.getInt()` to consume the 4-byte CDDB before reading track records |
 | V2 field order misread | `crcV1` and `crcV2` swapped in parsed output | Corrected: binary stores `crcV2` first, `crcV1` second in V2 format |
-| `audioLeadOutLba` vs `leadOutLba` for CD-Extra | Wrong disc ID, CDN miss for all CD-Extra discs | Use `audioLeadOutLba` (session-1 lead-out) when present |
+| `audioLeadOutLba` vs `leadOutLba` for CD-Extra | Wrong disc ID, CDN miss for all CD-Extra discs | Use `audioLeadOutLba` (session-1 lead-out) for id1/id2 when present |
 | Inter-session gap constant | `11250` used instead of `11400` frames | Corrected constant |
 | 64-bit overflow in V1 accumulator | `sampleValue × samplePosition` overflowed without masking | Mask result to `0xFFFFFFFFL` after each sample |
-| dBAR header parsed as 9 bytes | CDDB field not consumed, producing phantom expected values | Full 13-byte header now consumed |
+| dBAR header parsed as 9 bytes | CDDB 4-byte field not consumed, producing phantom expected values | Full 13-byte header now consumed |
+
+---
+
+## Gap Analysis & Known Issues
+
+### Issue 1 — Exclusion Window Off-By-One at Track Start ⚠️ Medium Severity
+
+**Location:** `ChecksumAccumulator.accumulate()` and `AccurateRipVerifier.computeChecksumChunk()`
+
+BitPerfect uses `currentSamplePos >= skipStart` making position 2940 the first included sample. The reference implementations (whipper, accuraterip-checksum/C, EAC, dBpoweramp) use a strict `>`, making position 2941 the first included.
+
+The difference per track is exactly `sample[2940] × 2940 mod 2³²` — for any non-silence sample at that position, this produces a completely different checksum from the database value.
+
+**Why it doesn't always fail in practice:** The AccurateRip database aggregates submissions from many rippers, some of which historically used the same `>= 2940` boundary. A disc with 16 pressings submitted by diverse rippers will likely have at least one entry matching BitPerfect's boundary. A disc with 1–2 pressings submitted exclusively by EAC will not. Verification reliability is therefore disc-dependent.
+
+**The end boundary is correct:** `<= totalSamples - skipEnd` matches the reference (`< totalSamples - skipEnd + 1`). Only the start is affected.
+
+**Fix:**
+```kotlin
+// Both ChecksumAccumulator.accumulate() and AccurateRipVerifier.computeChecksumChunk()
+// Change:
+currentSamplePos >= skipStart
+// To:
+currentSamplePos > skipStart
+```
+
+Update the `ChecksumAccumulatorTest` test name and assertion: the test currently asserts the buggy behaviour as correct.
+
+---
+
+### Issue 2 — Silent Byte Truncation on Non-Sector-Aligned Input ⚠️ Medium Severity
+
+**Location:** `ChecksumAccumulator.accumulate()`
+
+```kotlin
+for (i in 0 until (pcmData.size / 4) * 4 step 4)
+```
+
+Trailing 1–3 bytes are silently dropped if `pcmData.size % 4 != 0`. They are not carried over — they vanish from the checksum permanently. In the current call path (whole 2352-byte sectors, `2352 % 4 == 0`) this never fires. However the `skipBytes` trimming path produces slices where `skipBytes % 4 != 0` is theoretically possible.
+
+**Fix:** Add a precondition:
+```kotlin
+require(pcmData.size % 4 == 0) { "PCM data must be whole sample frames (multiple of 4 bytes)" }
+```
+
+---
+
+### Issue 3 — freedb CDDB Leadout Asymmetry Undocumented 🟢 Low
+
+On CD-Extra, `id1` and `id2` use `audioLeadOutLba` while `id3` (freedb) always uses `leadOutLba`. This is intentional but undocumented in code comments. An implementer reading only the code would likely use the same lead-out for all three components. The `maxOf(lsn, 1L)` guard for negative LSN (when LBA < 150) is similarly unexplained.
+
+---
+
+### Issue 4 — matchedVersion Ambiguous for Mixed V1/V2 Survivors 🟢 Low
+
+**Location:** `RipManager.kt`
+
+```kotlin
+if (activePressingCandidates.any { it.tracks[trackNumber]?.crcV2 == finalChecksumV2 }) 2 else 1
+```
+
+If both a V1-only pressing and a V2 pressing survive elimination, `matchedVersion = 2` is reported even though the V1 pressing also independently verified the rip. The result is correct (the rip is verified) but the version signal is overstated. No test covers this mixed-version survival case.
+
+---
+
+### Issue 5 — Single-Track Disc Under ~80 Seconds Produces Zero Checksum 🟢 Low
+
+When `isFirstTrack = isLastTrack = true` and `totalSamples < 5881`, the inclusion window `(> skipStart) AND (<= totalSamples - skipEnd)` is empty or inverted — no samples accumulate and the checksum is 0. Since `0x00000000` is also the zero-sentinel used in partial database submissions (pressing 16 in example 2), a coincidental false match is theoretically possible, though astronomically unlikely in practice.
+
+---
+
+### Issue 6 — No Ground-Truth Disc ID Test Against Real `.bin` Filenames 🟢 Low
+
+The test suite verifies disc IDs for several known discs but none correspond to the two example `.bin` files. Adding test fixtures that reconstruct the TOC for those discs and assert that `computeAccurateRipDiscId` produces the IDs embedded in the filenames would provide end-to-end ground truth linking the ID algorithm to real fetched database files.
+
+---
+
+### Issue 7 — Deprecated `computeChecksumChunk` Has a Stale Self-Referential Message 🟢 Low
+
+The deprecation reads `"Replaced by computeChecksumChunk — remove after RipManager is updated in Chunk 2"`. It names itself as its own replacement and references a stale milestone. Should be corrected to reference `ChecksumAccumulator` or the method removed.
+
+---
+
+### Summary Table
+
+| # | Severity | Area | Issue | Fix |
+|---|---|---|---|---|
+| 1 | 🟡 Medium | Checksum | Start boundary includes pos 2940; reference starts at 2941. Intermittent track 1 mismatch on low-pressing discs. | `>= skipStart` → `> skipStart` in two places |
+| 2 | 🟡 Medium | Checksum | Non-multiple-of-4 input silently drops trailing bytes | Add `require(pcmData.size % 4 == 0)` |
+| 3 | 🟢 Low | Disc ID | CD-Extra leadout asymmetry (id3 uses global leadout) undocumented | Add code comment |
+| 4 | 🟢 Low | Verification | `matchedVersion` overstates V2 when V1 pressing also survives | Document or fix |
+| 5 | 🟢 Low | Checksum | Single-track disc < 80s produces zero checksum | Guard or document |
+| 6 | 🟢 Low | Tests | No disc ID test uses real `.bin` filenames as ground truth | Add fixtures |
+| 7 | 🟢 Low | Housekeeping | `@Deprecated` message names itself and references stale milestone | Fix message or delete method |
