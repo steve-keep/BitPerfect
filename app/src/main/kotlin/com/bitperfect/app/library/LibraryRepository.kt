@@ -13,6 +13,9 @@ import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.channels.BufferOverflow
@@ -267,6 +270,117 @@ open class LibraryRepository(private val context: Context) {
             lower.startsWith("an ") -> lower.substring(3)
             else -> lower
         }
+    }
+
+
+    open fun getListeningStatistics(outputFolderUriString: String?): ListeningStats? {
+        if (outputFolderUriString.isNullOrBlank()) {
+            return null
+        }
+
+        val parentDir = try {
+            DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+        } catch (e: Exception) {
+            null
+        }
+
+        if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) {
+            return null
+        }
+
+        val recentFile = try {
+             parentDir.findFile("recently-played.jsonl")
+        } catch (e: Exception) { null } ?: return null
+
+        var totalTimeListenedMs = 0L
+        val artistPlayCounts = mutableMapOf<String, Int>()
+        // Top tracks counting Map<Pair<Title, Artist>, Count>
+        val allTimeSongs = mutableMapOf<Pair<String, String>, Int>()
+        val thisMonthSongs = mutableMapOf<Pair<String, String>, Int>()
+        val thisYearSongs = mutableMapOf<Pair<String, String>, Int>()
+
+        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        val currentMonth = now.monthValue
+        val currentYear = now.year
+
+        var artistArtUriFallback = mutableMapOf<String, Uri>()
+
+        try {
+            context.contentResolver.openInputStream(recentFile.uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        if (line!!.isBlank()) continue
+                        try {
+                            val json = JSONObject(line!!)
+                            val timestamp = json.optLong("timestamp", 0L)
+                            val durationMs = json.optLong("durationMs", 0L)
+                            val artistName = json.optString("artist")
+                            val trackTitle = json.optString("trackTitle")
+                            val albumId = json.optLong("albumId", -1L)
+
+                            if (artistName.isNotEmpty() && trackTitle.isNotEmpty()) {
+                                totalTimeListenedMs += durationMs
+                                artistPlayCounts[artistName] = artistPlayCounts.getOrDefault(artistName, 0) + 1
+
+                                val songKey = Pair(trackTitle, artistName)
+                                allTimeSongs[songKey] = allTimeSongs.getOrDefault(songKey, 0) + 1
+
+                                if (timestamp > 0) {
+                                    val playDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault())
+                                    if (playDate.year == currentYear) {
+                                        thisYearSongs[songKey] = thisYearSongs.getOrDefault(songKey, 0) + 1
+                                        if (playDate.monthValue == currentMonth) {
+                                            thisMonthSongs[songKey] = thisMonthSongs.getOrDefault(songKey, 0) + 1
+                                        }
+                                    }
+                                }
+
+                                if (albumId != -1L && !artistArtUriFallback.containsKey(artistName)) {
+                                    val albumArtBaseUri = Uri.parse("content://media/external/audio/albumart")
+                                    artistArtUriFallback[artistName] = ContentUris.withAppendedId(albumArtBaseUri, albumId)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // ignore malformed line
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+
+        val topArtistEntry = artistPlayCounts.entries.maxByOrNull { it.value }
+        val topArtist = topArtistEntry?.let { entry ->
+            var thumbUriStr = getArtistThumbnailUrl(entry.key, outputFolderUriString)
+            val thumbUri = if (thumbUriStr != null) Uri.parse(thumbUriStr) else artistArtUriFallback[entry.key]
+            TopArtist(entry.key, entry.value, thumbUri)
+        }
+
+        val topSongsAllTime = allTimeSongs.entries
+            .sortedByDescending { it.value }
+            .take(5)
+            .map { TopSong(it.key.first, it.key.second, it.value) }
+
+        val topSongsThisMonth = thisMonthSongs.entries
+            .sortedByDescending { it.value }
+            .take(3)
+            .map { TopSong(it.key.first, it.key.second, it.value) }
+
+        val topSongsThisYear = thisYearSongs.entries
+            .sortedByDescending { it.value }
+            .take(3)
+            .map { TopSong(it.key.first, it.key.second, it.value) }
+
+        return ListeningStats(
+            mostListenedArtist = topArtist,
+            totalTimeListenedMs = totalTimeListenedMs,
+            topSongsAllTime = topSongsAllTime,
+            topSongsThisMonth = topSongsThisMonth,
+            topSongsThisYear = topSongsThisYear
+        )
     }
 
     open fun getLibrary(outputFolderUriString: String?): List<ArtistInfo> {

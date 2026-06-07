@@ -7,6 +7,7 @@ import com.bitperfect.app.library.ArtistInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.library.TrackInfo
 import com.bitperfect.app.library.LibraryRepository
+import com.bitperfect.app.library.ListeningStats
 
 import androidx.media3.common.MediaItem
 import com.bitperfect.core.utils.SettingsManager
@@ -114,6 +115,8 @@ open class AppViewModel(
 
     private val _totalAlbumsCount = MutableStateFlow(0)
     val totalAlbumsCount: StateFlow<Int> = _totalAlbumsCount
+    private val _listeningStats = MutableStateFlow<ListeningStats?>(null)
+    val listeningStats: StateFlow<ListeningStats?> = _listeningStats
     private val _recentlyPlayedAlbums = MutableStateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>>(emptyList())
     val recentlyPlayedAlbums: StateFlow<List<com.bitperfect.app.library.RecentlyPlayedItem>> = _recentlyPlayedAlbums
 
@@ -469,6 +472,7 @@ open class AppViewModel(
             _recentlyPlayedAlbums.value = cached.recentlyPlayed
             _rediscoverAlbums.value = cached.rediscover
             _latestRippedAlbums.value = cached.newReleases
+            _listeningStats.value = cached.listeningStats
         }
 
         loadLibrary()
@@ -741,6 +745,8 @@ open class AppViewModel(
             _totalAlbumsCount.value = loadedArtists.sumOf { it.albums.size }
 
             val recent = libraryRepository.getRecentlyPlayedAlbums(uriString, 50)
+            val stats = libraryRepository.getListeningStatistics(uriString)
+            _listeningStats.value = stats
             val artistCounts = mutableMapOf<String, Int>()
             for ((artistInfo, _) in recent) {
                 artistCounts[artistInfo.name] = artistCounts.getOrDefault(artistInfo.name, 0) + 1
