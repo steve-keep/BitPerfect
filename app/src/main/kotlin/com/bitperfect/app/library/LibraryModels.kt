@@ -22,3 +22,23 @@ data class TrackInfo(
     val dataPath: String? = null,
     val filePath: String? = null
 )
+
+data class TopArtist(
+    val artistName: String,
+    val playCount: Int,
+    val artUri: Uri? = null
+)
+
+data class TopSong(
+    val trackTitle: String,
+    val artistName: String,
+    val playCount: Int
+)
+
+data class ListeningStats(
+    val mostListenedArtist: TopArtist?,
+    val totalTimeListenedMs: Long,
+    val topSongsAllTime: List<TopSong>,
+    val topSongsThisMonth: List<TopSong>,
+    val topSongsThisYear: List<TopSong>
+)

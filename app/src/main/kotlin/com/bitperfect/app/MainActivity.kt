@@ -525,7 +525,7 @@ class MainActivity : ComponentActivity() {
                                     TopAppBar(
                                         title = {
                                             Text(
-                                                text = "About",
+                                                text = "Statistics",
                                                 maxLines = 1,
                                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
@@ -548,7 +548,8 @@ class MainActivity : ComponentActivity() {
                             ) { scaffoldPadding ->
                                 Box(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
                                     AboutScreen(
-                                        driveOffsetRepository = driveOffsetRepository
+                                        driveOffsetRepository = driveOffsetRepository,
+                                        viewModel = appViewModel
                                     )
                                 }
                             }

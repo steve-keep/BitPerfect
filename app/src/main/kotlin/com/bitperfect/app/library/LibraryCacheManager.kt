@@ -20,8 +20,9 @@ class LibraryCacheManager(private val context: Context) {
             val recentlyPlayed = parseRecentlyPlayed(json.optJSONArray("recentlyPlayed"))
             val rediscover = parseAlbumsList(json.optJSONArray("rediscover"))
             val newReleases = parseAlbumsList(json.optJSONArray("newReleases"))
+            val listeningStats = parseListeningStats(json.optJSONObject("listeningStats"))
 
-            HomeListsCache(recentlyPlayed, rediscover, newReleases)
+            HomeListsCache(recentlyPlayed, rediscover, newReleases, listeningStats)
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -31,13 +32,17 @@ class LibraryCacheManager(private val context: Context) {
     fun saveCachedLists(
         recentlyPlayed: List<RecentlyPlayedItem>,
         rediscover: List<Pair<ArtistInfo, AlbumInfo>>,
-        newReleases: List<Pair<ArtistInfo, AlbumInfo>>
+        newReleases: List<Pair<ArtistInfo, AlbumInfo>>,
+        listeningStats: ListeningStats? = null
     ) {
         try {
             val json = JSONObject()
             json.put("recentlyPlayed", serializeRecentlyPlayed(recentlyPlayed))
             json.put("rediscover", serializeAlbumsList(rediscover))
             json.put("newReleases", serializeAlbumsList(newReleases))
+            if (listeningStats != null) {
+                json.put("listeningStats", serializeListeningStats(listeningStats))
+            }
 
             cacheFile.writeText(json.toString(), Charsets.UTF_8)
         } catch (e: Exception) {
@@ -156,10 +161,78 @@ class LibraryCacheManager(private val context: Context) {
         obj.put("name", artist.name)
         return obj
     }
+
+    private fun parseListeningStats(json: JSONObject?): ListeningStats? {
+        if (json == null) return null
+        try {
+            val mostListenedArtist = parseTopArtist(json.optJSONObject("mostListenedArtist"))
+            val totalTimeListenedMs = json.optLong("totalTimeListenedMs", 0L)
+            val topSongsAllTime = parseTopSongs(json.optJSONArray("topSongsAllTime"))
+            val topSongsThisMonth = parseTopSongs(json.optJSONArray("topSongsThisMonth"))
+            val topSongsThisYear = parseTopSongs(json.optJSONArray("topSongsThisYear"))
+            return ListeningStats(mostListenedArtist, totalTimeListenedMs, topSongsAllTime, topSongsThisMonth, topSongsThisYear)
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
+    private fun parseTopArtist(json: JSONObject?): TopArtist? {
+        if (json == null) return null
+        val artistName = json.optString("artistName", "")
+        if (artistName.isEmpty()) return null
+        val playCount = json.optInt("playCount", 0)
+        val artUriStr = json.optString("artUri", null)
+        val artUri = if (!artUriStr.isNullOrEmpty() && artUriStr != "null") Uri.parse(artUriStr) else null
+        return TopArtist(artistName, playCount, artUri)
+    }
+
+    private fun parseTopSongs(array: JSONArray?): List<TopSong> {
+        val result = mutableListOf<TopSong>()
+        if (array == null) return result
+        for (i in 0 until array.length()) {
+            val json = array.optJSONObject(i) ?: continue
+            val trackTitle = json.optString("trackTitle", "")
+            val artistName = json.optString("artistName", "")
+            val playCount = json.optInt("playCount", 0)
+            if (trackTitle.isNotEmpty() && artistName.isNotEmpty()) {
+                result.add(TopSong(trackTitle, artistName, playCount))
+            }
+        }
+        return result
+    }
+
+    private fun serializeListeningStats(stats: ListeningStats): JSONObject {
+        val obj = JSONObject()
+        if (stats.mostListenedArtist != null) {
+            val artistObj = JSONObject()
+            artistObj.put("artistName", stats.mostListenedArtist.artistName)
+            artistObj.put("playCount", stats.mostListenedArtist.playCount)
+            artistObj.put("artUri", stats.mostListenedArtist.artUri?.toString())
+            obj.put("mostListenedArtist", artistObj)
+        }
+        obj.put("totalTimeListenedMs", stats.totalTimeListenedMs)
+        obj.put("topSongsAllTime", serializeTopSongs(stats.topSongsAllTime))
+        obj.put("topSongsThisMonth", serializeTopSongs(stats.topSongsThisMonth))
+        obj.put("topSongsThisYear", serializeTopSongs(stats.topSongsThisYear))
+        return obj
+    }
+
+    private fun serializeTopSongs(list: List<TopSong>): JSONArray {
+        val array = JSONArray()
+        for (song in list) {
+            val obj = JSONObject()
+            obj.put("trackTitle", song.trackTitle)
+            obj.put("artistName", song.artistName)
+            obj.put("playCount", song.playCount)
+            array.put(obj)
+        }
+        return array
+    }
 }
 
 data class HomeListsCache(
     val recentlyPlayed: List<RecentlyPlayedItem>,
     val rediscover: List<Pair<ArtistInfo, AlbumInfo>>,
-    val newReleases: List<Pair<ArtistInfo, AlbumInfo>>
+    val newReleases: List<Pair<ArtistInfo, AlbumInfo>>,
+    val listeningStats: ListeningStats? = null
 )
