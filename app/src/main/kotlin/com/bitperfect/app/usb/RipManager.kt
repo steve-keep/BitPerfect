@@ -942,26 +942,76 @@ class RipManager(
                 }
 
                 // Now build metadata with analysis
-                val metadataBytes = buildFlacMetadata(
-                    totalSamples = totalSamples,
-                    artist = normalizeMeta(metadata.artistName),
-                    album = normalizeMeta(metadata.albumTitle),
-                    title = normalizeMeta(trackTitle),
-                    track = trackNumber,
-                    year = metadata.year,
-                    genre = metadata.genre?.let { normalizeMeta(it) },
-                    albumArtist = metadata.albumArtist?.let { normalizeMeta(it) },
-                    mbReleaseId = metadata.mbReleaseId,
-                    accurateRipUrl = accurateRipUrl,
-                    artworkBytes = artworkBytes,
-                    plainLyrics = lyricsResult?.plainLyrics,
-                    syncedLyrics = lyricsResult?.syncedLyrics,
-                    discNumber = metadata.discNumber,
-                    totalDiscs = metadata.totalDiscs,
-                    releaseTags = metadata.releaseTags,
-                    trackTags = metadata.trackTags.getOrNull(i) ?: emptyList(),
-                    audioAnalysis = audioAnalysis
-                )
+                val (metadataBytes, currentChecksumV1, currentChecksumV2) = run {
+                    val currentPair = checksumAccumulator.finalise()
+                    val cV1 = currentPair.first
+                    val cV2 = currentPair.second
+
+                    val currentActiveCandidates = activePressingCandidates.toMutableSet()
+                    currentActiveCandidates.retainAll { pressing ->
+                        val dbTrack = pressing.tracks[trackNumber] ?: return@retainAll false
+                        if (dbTrack.crcV2 != null) {
+                            dbTrack.crcV2 == cV2
+                        } else {
+                            dbTrack.crcV1 == cV1
+                        }
+                    }
+
+                    val currentMatchedVersion = if (currentActiveCandidates.isNotEmpty()) {
+                        if (currentActiveCandidates.any { it.tracks[trackNumber]?.crcV2 == cV2 }) 2 else 1
+                    } else null
+
+                    val currentMatchedConfidence = if (currentActiveCandidates.isNotEmpty()) {
+                        currentActiveCandidates.mapNotNull { it.tracks[trackNumber]?.confidence }.maxOrNull()
+                    } else null
+
+                    val currentExpectedV1 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV1 }.distinct()
+                    val currentExpectedV2 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV2 }.distinct()
+                    val currentHasExpected = currentExpectedV1.isNotEmpty() || currentExpectedV2.isNotEmpty()
+
+                    val currentStatus = if (currentActiveCandidates.isNotEmpty()) {
+                        RipStatus.SUCCESS
+                    } else if (!currentHasExpected) {
+                        RipStatus.UNVERIFIED
+                    } else {
+                        RipStatus.WARNING
+                    }
+
+                    val currentStatusString = when {
+                        currentStatus == RipStatus.SUCCESS -> buildString {
+                            append("VERIFIED (v$currentMatchedVersion")
+                            currentMatchedConfidence?.let { append(", confidence $it") }
+                            append(")")
+                        }
+                        currentExpectedV1.isNotEmpty() || currentExpectedV2.isNotEmpty() -> "MISMATCH"
+                        else -> "NOT_IN_DB"
+                    }
+
+                    val bytes = buildFlacMetadata(
+                        totalSamples = totalSamples,
+                        artist = normalizeMeta(metadata.artistName),
+                        album = normalizeMeta(metadata.albumTitle),
+                        title = normalizeMeta(trackTitle),
+                        track = trackNumber,
+                        year = metadata.year,
+                        genre = metadata.genre?.let { normalizeMeta(it) },
+                        albumArtist = metadata.albumArtist?.let { normalizeMeta(it) },
+                        mbReleaseId = metadata.mbReleaseId,
+                        accurateRipUrl = accurateRipUrl,
+                        artworkBytes = artworkBytes,
+                        plainLyrics = lyricsResult?.plainLyrics,
+                        syncedLyrics = lyricsResult?.syncedLyrics,
+                        discNumber = metadata.discNumber,
+                        totalDiscs = metadata.totalDiscs,
+                        releaseTags = metadata.releaseTags,
+                        trackTags = metadata.trackTags.getOrNull(i) ?: emptyList(),
+                        audioAnalysis = audioAnalysis,
+                        computedChecksumV1 = cV1,
+                        computedChecksumV2 = cV2,
+                        accurateRipStatus = currentStatusString
+                    )
+                    Triple(bytes, cV1, cV2)
+                }
 
                 val rawStream = context.contentResolver.openOutputStream(destFile.uri)
                     ?: throw java.io.IOException("Cannot open SAF output stream")
@@ -988,9 +1038,8 @@ class RipManager(
                 )
 
                 ripSucceeded = true
-                val pair = checksumAccumulator.finalise()
-                finalChecksumV1 = pair.first
-                finalChecksumV2 = pair.second
+                finalChecksumV1 = currentChecksumV1
+                finalChecksumV2 = currentChecksumV2
             } catch (e: Exception) {
                 AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
                 updateTrackState(
@@ -1381,7 +1430,10 @@ class RipManager(
         totalDiscs: Int?,
         releaseTags: List<String> = emptyList(),
         trackTags: List<String> = emptyList(),
-        audioAnalysis: AudioAnalysis? = null
+        audioAnalysis: AudioAnalysis? = null,
+        computedChecksumV1: Long? = null,
+        computedChecksumV2: Long? = null,
+        accurateRipStatus: String? = null
     ): ByteArray {
         val out = ByteArrayOutputStream()
         // fLaC
@@ -1455,6 +1507,16 @@ class RipManager(
                 comments.add("ACCURATERIPDISCID=${match.groupValues[1]}")
             }
         }
+        if (computedChecksumV1 != null) {
+            comments.add("ACCURATERIP_V1=${String.format("%08X", computedChecksumV1 and 0xFFFFFFFFL)}")
+        }
+        if (computedChecksumV2 != null) {
+            comments.add("ACCURATERIP_V2=${String.format("%08X", computedChecksumV2 and 0xFFFFFFFFL)}")
+        }
+        if (accurateRipStatus != null) {
+            comments.add("ACCURATERIPRESULT=$accurateRipStatus")
+        }
+
         if (plainLyrics != null) comments.add("LYRICS=$plainLyrics")
         if (syncedLyrics != null) comments.add("SYNCEDLYRICS=$syncedLyrics")
         comments.add("BITDEPTH=16")
