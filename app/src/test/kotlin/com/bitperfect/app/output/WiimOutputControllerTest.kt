@@ -307,5 +307,10 @@ class WiimOutputControllerTest {
             isAccessible = true
             invoke(controller)
         }
+
+        // Wait for coroutine to finish cancellation
+        val jobField = controller.javaClass.getDeclaredField("pollingJob")
+        jobField.isAccessible = true
+        (jobField.get(controller) as? kotlinx.coroutines.Job)?.join()
     }
 }
