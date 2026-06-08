@@ -477,7 +477,8 @@ fun NowPlayingScreen(
                         LyricsCard(
                             lrcLines = lrcLines,
                             positionMs = positionMs,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            activeColor = primaryColor
                         )
                     }
                 }

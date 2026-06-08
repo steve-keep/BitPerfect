@@ -37,7 +37,8 @@ import kotlin.math.abs
 fun LyricsCard(
     lrcLines: List<LrcLine>,
     positionMs: Long,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    activeColor: Color = Primary
 ) {
     if (lrcLines.isEmpty()) return
 
@@ -117,7 +118,7 @@ fun LyricsCard(
                     distance == 2       -> 0.55f
                     else                -> 0.25f
                 }
-                val targetColor = if (index == activeIndex) Primary else Color.White
+                val targetColor = if (index == activeIndex) activeColor else Color.White
 
                 // Add an animated scale effect for the active lyric
                 val targetScale = if (index == activeIndex) 1.1f else 1.0f
