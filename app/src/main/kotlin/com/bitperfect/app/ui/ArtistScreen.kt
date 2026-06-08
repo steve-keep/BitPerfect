@@ -157,29 +157,46 @@ fun ArtistScreen(
                         var isExpanded by remember { mutableStateOf(false) }
                         var hasOverflow by remember { mutableStateOf(false) }
 
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = bio!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = if (isExpanded) Int.MAX_VALUE else 3,
-                                overflow = TextOverflow.Ellipsis,
-                                onTextLayout = { textLayoutResult ->
-                                    if (!isExpanded && textLayoutResult.hasVisualOverflow) {
-                                        hasOverflow = true
-                                    }
-                                }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            shape = MaterialTheme.shapes.large,
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
-                            if (hasOverflow || isExpanded) {
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = if (isExpanded) "Read less" else "Read more",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "About",
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .padding(top = 4.dp)
-                                        .clickable { isExpanded = !isExpanded }
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = bio!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    onTextLayout = { textLayoutResult ->
+                                        if (!isExpanded && textLayoutResult.hasVisualOverflow) {
+                                            hasOverflow = true
+                                        }
+                                    }
+                                )
+                                if (hasOverflow || isExpanded) {
+                                    Text(
+                                        text = if (isExpanded) "Read less" else "Read more",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .padding(top = 4.dp)
+                                            .clickable { isExpanded = !isExpanded }
+                                    )
+                                }
                             }
                         }
                     }
