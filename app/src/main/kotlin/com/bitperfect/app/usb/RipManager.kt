@@ -1,6 +1,7 @@
 package com.bitperfect.app.usb
 
 import android.content.Context
+import com.bitperfect.app.usb.RipConfig
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.documentfile.provider.DocumentFile
@@ -49,6 +50,37 @@ import org.json.JSONObject
 import java.io.InputStreamReader
 import java.io.BufferedReader
 import com.bitperfect.core.models.LyricsResult
+
+
+data class OutputDirs(val artistDir: DocumentFile, val albumDir: DocumentFile)
+
+fun interface DirectoryResolver {
+    fun fromTreeUri(context: Context, uri: Uri): DocumentFile?
+}
+
+internal fun setupOutputDirectory(
+    context: Context,
+    outputFolderUriString: String,
+    artistName: String,
+    albumTitle: String,
+    resolver: DirectoryResolver = DirectoryResolver { ctx, uri -> DocumentFile.fromTreeUri(ctx, uri) }
+): OutputDirs {
+    val baseUri = Uri.parse(outputFolderUriString)
+    val parentDir = resolver.fromTreeUri(context, baseUri)
+    if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) {
+        throw java.io.IOException("Invalid output directory: $outputFolderUriString")
+    }
+    val safeArtist = artistName.replace("/", "_")
+    val safeAlbum = albumTitle.replace("/", "_")
+    val artistDir = parentDir.findFile(safeArtist)
+        ?: parentDir.createDirectory(safeArtist)
+        ?: throw java.io.IOException("Could not create artist directory: $safeArtist")
+    val albumDir = artistDir.findFile(safeAlbum)
+        ?: artistDir.createDirectory(safeAlbum)
+        ?: throw java.io.IOException("Could not create album directory: $safeAlbum")
+    return OutputDirs(artistDir, albumDir)
+}
+
 
 enum class RipStatus {
     IDLE, RIPPING, VERIFYING, SUCCESS, UNVERIFIED, WARNING, ERROR, CANCELLED
@@ -137,6 +169,8 @@ class RipManager(
         }
         AppLogger.d("RipManager", "Drive offset: $driveOffset samples")
 
+        val config = RipConfig.from(driveOffset)
+
         val logger = DefaultForensicRipLogger()
         val driveFirmware = DeviceStateManager.driveStatus.value.info?.firmware
 
@@ -149,8 +183,8 @@ class RipManager(
                 androidVersion = "Android ${android.os.Build.VERSION.RELEASE}",
                 timestampIso = nowIso,
                 mode = RipMode.SECURE,
-                chunkSize = 16,
-                overlapSize = 6,
+                chunkSize = config.chunkSize,
+                overlapSize = config.overlapSize,
                 driveVendor = driveVendor,
                 driveModel = driveProduct,
                 driveFirmware = driveFirmware,
@@ -159,22 +193,20 @@ class RipManager(
             )
         )
 
-        val baseUri = Uri.parse(outputFolderUriString)
-        val parentDir = DocumentFile.fromTreeUri(context, baseUri)
-        if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) {
-            AppLogger.e("RipManager", "Invalid output directory")
+        val dirs = try {
+            setupOutputDirectory(
+                context,
+                outputFolderUriString,
+                metadata.artistName,
+                metadata.albumTitle
+            )
+        } catch (e: java.io.IOException) {
+            AppLogger.e("RipManager", "Failed to set up output directory: ${e.message}")
             return@withContext
         }
 
-        // Create Artist/Album structure
-        val safeArtist = metadata.artistName.replace("/", "_")
-        val safeAlbum = metadata.albumTitle.replace("/", "_")
-
-        val artistDir = parentDir.findFile(safeArtist) ?: parentDir.createDirectory(safeArtist)
-        if (artistDir == null) {
-            AppLogger.e("RipManager", "Could not create artist directory")
-            return@withContext
-        }
+        val artistDir = dirs.artistDir
+        albumDir = dirs.albumDir
 
         val metricsCollector = ReadSizeMetricsCollector()
         val allStreamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
@@ -205,26 +237,9 @@ class RipManager(
             }
         }
 
-        albumDir = artistDir.findFile(safeAlbum) ?: artistDir.createDirectory(safeAlbum)
-        if (albumDir == null) {
-            AppLogger.e("RipManager", "Could not create album directory")
-            return@withContext
-        }
 
         val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
 
-        val tocOffset = run {
-            var toc = driveOffset / 588
-            var rem = driveOffset % 588
-            if (rem < 0) { rem += 588; toc-- }
-            toc
-        }
-        val sampleOffset = run {
-            var rem = driveOffset % 588
-            if (rem < 0) rem += 588
-            rem
-        }
-        val skipBytes = sampleOffset * 4
         var overreadBuffer: ByteArray? = null
 
         while (trackQueue.isNotEmpty()) {
@@ -320,14 +335,11 @@ class RipManager(
 
                 val analyser = AudioAnalyser()
 
-                val chunkSize = 16 // read ~16 sectors at a time
-                val overlapSize = 6
-                AppLogger.d("RipManager", "[US-014] Atomic read sizing configured. ChunkSize=$chunkSize sectors, Overlap=$overlapSize sectors")
-                require(chunkSize > overlapSize) { "chunkSize must be greater than overlapSize" }
-                var advanceSize = chunkSize - overlapSize
+                AppLogger.d("RipManager", "[US-014] Atomic read sizing configured. ChunkSize=${config.chunkSize} sectors, Overlap=${config.overlapSize} sectors")
+                var advanceSize = config.chunkSize - config.overlapSize
 
                 val overlapVerifier = com.bitperfect.app.ripping.paranoia.OverlapVerifier(
-                    overlapSizeSectors = overlapSize
+                    overlapSizeSectors = config.overlapSize
                 )
                 val rereadEngine = com.bitperfect.app.ripping.paranoia.RereadEngine(verifier = overlapVerifier, maxRereads = 6)
                 val recoveryCoordinator = com.bitperfect.app.ripping.paranoia.RecoveryCoordinator(
@@ -342,19 +354,19 @@ class RipManager(
 
                 var pendingChunk: VerifiedChunk? = null
 
-                val lbaStart = entry.lba + tocOffset
+                val lbaStart = entry.lba + config.tocOffset
 
                 val (firstLba, lastReadableLba) = ripLbaRange(
                     trackLba      = entry.lba,
                     nextLba       = nextLba,
-                    tocOffset     = tocOffset,
+                    tocOffset     = config.tocOffset,
                     pregapOffset  = toc.pregapOffset,
                     isLastTrack   = isLastTrack
                 )
                 // Log if LBA 0 clamping occurred (Track 1 on standard disc with zero drive offset)
-                if (firstLba == 1 && (entry.lba + tocOffset - toc.pregapOffset) <= 0) {
+                if (firstLba == 1 && (entry.lba + config.tocOffset - toc.pregapOffset) <= 0) {
                     AppLogger.w("RipManager", "LBA 0 clamp applied for track $trackNumber — " +
-                        "firstLba adjusted from ${entry.lba + tocOffset - toc.pregapOffset} to 1")
+                        "firstLba adjusted from ${entry.lba + config.tocOffset - toc.pregapOffset} to 1")
                 }
 
                 var isFirstSector = true
@@ -369,15 +381,15 @@ class RipManager(
 
                 val effectiveTotalSectors = lastReadableLba - firstLba + 1
 
-                val expectedTotalSectors = if (isLastTrack) totalSectors - tocOffset else totalSectors
+                val expectedTotalSectors = if (isLastTrack) totalSectors - config.tocOffset else totalSectors
                 val missingStartSectors = expectedTotalSectors - effectiveTotalSectors
 
                 if (missingStartSectors > 0) {
                     AppLogger.w("RipManager", "Prepending $missingStartSectors sectors of silence due to LBA clamp")
                     val silenceBytes = ByteArray(missingStartSectors * 2352)
 
-                    val trimmedSilence = if (isFirstSector && skipBytes > 0) {
-                        silenceBytes.copyOfRange(skipBytes, silenceBytes.size)
+                    val trimmedSilence = if (isFirstSector && config.skipBytes > 0) {
+                        silenceBytes.copyOfRange(config.skipBytes, silenceBytes.size)
                     } else {
                         silenceBytes
                     }
@@ -391,9 +403,9 @@ class RipManager(
 
 
                 while (sectorsRead < effectiveTotalSectors && !isCancelled) {
-                    val sectorsToRead = minOf(chunkSize, effectiveTotalSectors - sectorsRead)
+                    val sectorsToRead = minOf(config.chunkSize, effectiveTotalSectors - sectorsRead)
 
-                    metricsCollector.recordAttempt(chunkSize)
+                    metricsCollector.recordAttempt(config.chunkSize)
 
                     val readStartLba = firstLba + sectorsRead
                     val readStartTime = android.os.SystemClock.elapsedRealtime()
@@ -410,11 +422,11 @@ class RipManager(
                                 followedSeekRecovery = wasPreviousReadRecovery
                             )
                         )
-                        metricsCollector.recordSuccessfulRead(chunkSize)
+                        metricsCollector.recordSuccessfulRead(config.chunkSize)
                         wasPreviousReadRecovery = false
                         val sectorsActuallyRead = pcmData.size / 2352
                         if (sectorsActuallyRead < sectorsToRead) {
-                            metricsCollector.recordShortRead(chunkSize)
+                            metricsCollector.recordShortRead(config.chunkSize)
                             AppLogger.w("RipManager", "Short read at LBA ${firstLba + sectorsRead}: " +
                                 "got $sectorsActuallyRead of $sectorsToRead sectors")
                             logger.record(RipLogEvent.TransportAnomaly(
@@ -450,7 +462,7 @@ class RipManager(
                             trackOverlapVerifications++
 
                             if (match) {
-                                AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize} confidence=HIGH")
+                                AppLogger.d("RipManager", "overlap_match track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - config.overlapSize} confidence=HIGH")
                                 val fpWasEligible = fastPathEvaluator.state.eligible
                                 trackFastPathChunks++
                                 fastPathEvaluator.reportMatch(currentChunkConfidence)
@@ -469,8 +481,8 @@ class RipManager(
                                 expectedTotalOverlapTrimmedSamples += overlapVerifier.overlapSizeBytes / 4
                             } else {
                                 trackOverlapFailures++
-                                metricsCollector.recordOverlapFailure(chunkSize)
-                                AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - overlapSize}")
+                                metricsCollector.recordOverlapFailure(config.chunkSize)
+                                AppLogger.w("RipManager", "overlap_mismatch track=$trackNumber lba=${currentChunk.startLba} overlapStartLba=${pChunk.endLba - config.overlapSize}")
                                 logger.record(RipLogEvent.OverlapMismatchDetected(
                                     trackNumber = trackNumber,
                                     lbaStart = currentChunk.startLba,
@@ -541,7 +553,7 @@ class RipManager(
                                     }
                                     for (i in 0 until metadata.rereadAttempts) {
                                         trackEscalations++
-                                        metricsCollector.recordRereadEscalation(chunkSize)
+                                        metricsCollector.recordRereadEscalation(config.chunkSize)
                                     }
                                     totalAttempts += metadata.rereadAttempts
                                     if (metadata.strategy == "overlap_recovery") {
@@ -764,7 +776,7 @@ class RipManager(
                         pendingChunk = currentChunk
 
                         if (committedPcm != null && committedPcm.isNotEmpty()) {
-                            val trimmed = if (isFirstSector && skipBytes > 0) committedPcm.copyOfRange(skipBytes, committedPcm.size) else committedPcm
+                            val trimmed = if (isFirstSector && config.skipBytes > 0) committedPcm.copyOfRange(config.skipBytes, committedPcm.size) else committedPcm
                             encoder.encode(trimmed)
                             checksumAccumulator.accumulate(trimmed)
                             analyser.feed(trimmed)
@@ -774,13 +786,13 @@ class RipManager(
 
 
                         val dynamicAdvance = currentChunk.pcm.size / 2352 - overlapVerifier.overlapSizeBytes / 2352
-                        val isFinalChunk = (sectorsRead + dynamicAdvance) >= effectiveTotalSectors || currentChunk.pcm.size / 2352 < chunkSize
+                        val isFinalChunk = (sectorsRead + dynamicAdvance) >= effectiveTotalSectors || currentChunk.pcm.size / 2352 < config.chunkSize
 
                         if (isFinalChunk) {
                             if (pendingChunk != null) {
                                 val finalCommitted = overlapVerifier.commitVerifiedAudio(pendingChunk!!, isFinal = true)
                                 if (finalCommitted.isNotEmpty()) {
-                                    val trimmed = if (isFirstSector && skipBytes > 0) finalCommitted.copyOfRange(skipBytes, finalCommitted.size) else finalCommitted
+                                    val trimmed = if (isFirstSector && config.skipBytes > 0) finalCommitted.copyOfRange(config.skipBytes, finalCommitted.size) else finalCommitted
                                     encoder.encode(trimmed)
                                     checksumAccumulator.accumulate(trimmed)
                                     analyser.feed(trimmed)
@@ -795,7 +807,7 @@ class RipManager(
                             sectorsRead += advanceSize
                         }
                     } else {
-                        metricsCollector.recordTransportFailure(chunkSize)
+                        metricsCollector.recordTransportFailure(config.chunkSize)
                         logger.record(RipLogEvent.TransportAnomaly(
                             trackNumber = trackNumber,
                             anomalyType = "TRANSPORT_FAILURE",
@@ -843,7 +855,7 @@ class RipManager(
                     updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
                 }
 
-                if (sampleOffset > 0) {
+                if (config.sampleOffset > 0) {
                     if (!isLastTrack) {
                         val overreadPcm = session.readSectors(lbaStart + totalSectors - toc.pregapOffset, 1)
                         if (overreadPcm == null) {
@@ -853,13 +865,13 @@ class RipManager(
                             }
                             throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors - toc.pregapOffset} after 3 attempts") // see UsbReadSession.MAX_RETRIES
                         }
-                        val toFeed = overreadPcm.copyOfRange(0, skipBytes)
+                        val toFeed = overreadPcm.copyOfRange(0, config.skipBytes)
                         encoder.encode(toFeed)
                         checksumAccumulator.accumulate(toFeed)
                         analyser.feed(toFeed)
-                        overreadBuffer = overreadPcm.copyOfRange(skipBytes, overreadPcm.size)
+                        overreadBuffer = overreadPcm.copyOfRange(config.skipBytes, overreadPcm.size)
                     } else {
-                        val silence = ByteArray(skipBytes)
+                        val silence = ByteArray(config.skipBytes)
                         encoder.encode(silence)
                         checksumAccumulator.accumulate(silence)
                         analyser.feed(silence)
@@ -869,8 +881,8 @@ class RipManager(
                     overreadBuffer = null
                 }
 
-                if (isLastTrack && tocOffset > 0) {
-                    val silence = ByteArray(tocOffset * 2352)
+                if (isLastTrack && config.tocOffset > 0) {
+                    val silence = ByteArray(config.tocOffset * 2352)
                     encoder.encode(silence)
                     checksumAccumulator.accumulate(silence)
                     analyser.feed(silence)
