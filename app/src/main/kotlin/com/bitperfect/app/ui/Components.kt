@@ -630,7 +630,7 @@ fun LibrarySection(
             .fillMaxSize()
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    awaitFirstDown(pass = PointerEventPass.Initial)
+                    awaitFirstDown(pass = PointerEventPass.Main)
                     focusManager.clearFocus()
                 }
             }
