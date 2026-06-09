@@ -1,7 +1,6 @@
 package com.bitperfect.app.usb
 
 import android.content.Context
-import com.bitperfect.app.usb.RipConfig
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.documentfile.provider.DocumentFile
@@ -50,6 +49,9 @@ import org.json.JSONObject
 import java.io.InputStreamReader
 import java.io.BufferedReader
 import com.bitperfect.core.models.LyricsResult
+import com.bitperfect.app.usb.TrackRipResult
+import com.bitperfect.app.usb.TrackRipStats
+import com.bitperfect.core.models.TocEntry
 
 
 data class OutputDirs(val artistDir: DocumentFile, val albumDir: DocumentFile)
@@ -160,161 +162,57 @@ class RipManager(
         }
     }
 
-    suspend fun startRipping(session: UsbReadSession) = withContext(Dispatchers.IO) {
-        val driveOffset: Int = try {
-            DriveOffsetRepository(context).findOffset(driveVendor, driveProduct)?.offset ?: 0
-        } catch (e: Exception) {
-            AppLogger.w("RipManager", "Could not determine drive offset, defaulting to 0: ${e.message}")
-            0
-        }
-        AppLogger.d("RipManager", "Drive offset: $driveOffset samples")
+internal suspend fun ripTrack(
+    context: android.content.Context,
+    trackNumber: Int,
+    i: Int,
+    entry: com.bitperfect.core.models.TocEntry,
+    nextLba: Int,
+    totalSectors: Int,
+    totalSamples: Long,
+    trackTitle: String,
+    lyricsResult: com.bitperfect.core.models.LyricsResult?,
+    destFile: androidx.documentfile.provider.DocumentFile,
+    config: RipConfig,
+    toc: com.bitperfect.core.models.DiscToc,
+    metadata: com.bitperfect.core.models.DiscMetadata,
+    accurateRipUrl: String?,
+    artworkBytes: ByteArray?,
+    expectedChecksums: List<com.bitperfect.core.services.AccurateRipDiscPressing>,
+    activePressingCandidates: Set<com.bitperfect.core.services.AccurateRipDiscPressing>,
+    session: UsbReadSession,
+    metricsCollector: com.bitperfect.app.ripping.profiler.ReadSizeMetricsCollector,
+    logger: com.bitperfect.app.ripping.logging.DefaultForensicRipLogger,
+    incomingOverreadBuffer: ByteArray?,
+    isCancelled: () -> Boolean,
+    trackStartTimeMs: Long,
+    onProgress: (Float, com.bitperfect.app.ripping.paranoia.RipConfidence?, List<com.bitperfect.app.ripping.paranoia.SuspiciousRead>?) -> Unit
+): TrackRipResult {
+    var outputStream: java.io.OutputStream? = null
+    var tempOutputStream: java.io.OutputStream? = null
+    var encoder: FlacEncoder? = null
+    var finalChecksumV1 = 0L
+    var finalChecksumV2 = 0L
+    var sectorsRead = 0
 
-        val config = RipConfig.from(driveOffset)
+    var lastCommittedPcm: ByteArray? = null
+    var totalOverlapTrimmedSamples = 0L
+    var expectedTotalOverlapTrimmedSamples = 0L
 
-        val logger = DefaultForensicRipLogger()
-        val driveFirmware = DeviceStateManager.driveStatus.value.info?.firmware
+    var trackChunksRead = 0
+    var trackOverlapVerifications = 0
+    var trackOverlapFailures = 0
+    var trackAlignmentChecks = 0
+    var trackDriftEvents = 0
+    var trackRecoveryWindows = 0
+    var trackEscalations = 0
+    var trackFastPathChunks = 0
 
-        val nowIso = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+    val streamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
+    var overreadBuffer = incomingOverreadBuffer
 
-        logger.record(
-            RipLogEvent.SessionStarted(
-                appVersion = "BitPerfect ${BuildConfig.VERSION_NAME}",
-                deviceModel = android.os.Build.MODEL,
-                androidVersion = "Android ${android.os.Build.VERSION.RELEASE}",
-                timestampIso = nowIso,
-                mode = RipMode.SECURE,
-                chunkSize = config.chunkSize,
-                overlapSize = config.overlapSize,
-                driveVendor = driveVendor,
-                driveModel = driveProduct,
-                driveFirmware = driveFirmware,
-                albumTitle = metadata.albumTitle,
-                artistName = metadata.artistName
-            )
-        )
-
-        val dirs = try {
-            setupOutputDirectory(
-                context,
-                outputFolderUriString,
-                metadata.artistName,
-                metadata.albumTitle
-            )
-        } catch (e: java.io.IOException) {
-            AppLogger.e("RipManager", "Failed to set up output directory: ${e.message}")
-            return@withContext
-        }
-
-        val artistDir = dirs.artistDir
-        albumDir = dirs.albumDir
-
-        val metricsCollector = ReadSizeMetricsCollector()
-        val allStreamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
-
-        launch {
-            try {
-                val existingFile = artistDir.findFile("artist.json")
-                if (existingFile == null) {
-                    val responseBody = audioDbRepository.fetchArtist(metadata.artistName)
-                    if (responseBody != null) {
-                        val file = artistDir.createFile("application/json", "artist.json")
-                        if (file != null) {
-                            context.contentResolver.openOutputStream(file.uri)?.use { out ->
-                                out.write(responseBody.toByteArray(Charsets.UTF_8))
-                            }
-                            AppLogger.d("RipManager", "Successfully fetched and saved artist.json")
-                        } else {
-                            AppLogger.e("RipManager", "Could not create artist.json file")
-                        }
-                    } else {
-                        AppLogger.w("RipManager", "Failed to fetch artist.json from AudioDB")
-                    }
-                } else {
-                    AppLogger.d("RipManager", "artist.json already exists, skipping fetch")
-                }
-            } catch (e: Exception) {
-                AppLogger.w("RipManager", "Failed to fetch artist.json: ${e.message}")
-            }
-        }
-
-
-        val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
-
-        var overreadBuffer: ByteArray? = null
-
-        while (trackQueue.isNotEmpty()) {
-            if (isCancelled) break
-
-            val trackNumber = trackQueue.poll() ?: break
-
-            val trackStartTimeMs = android.os.SystemClock.elapsedRealtime()
-
-            // Track Statistics
-            var trackChunksRead = 0
-            var trackOverlapVerifications = 0
-            var trackOverlapFailures = 0
-            var trackAlignmentChecks = 0
-            var trackDriftEvents = 0
-            var trackRecoveryWindows = 0
-            var trackEscalations = 0
-            var trackFastPathChunks = 0
-
-            val i = trackNumber - 1
-            if (i < 0 || i >= toc.tracks.size) continue
-
-            val entry = toc.tracks[i]
-            val trackTitle = metadata.trackTitles.getOrNull(i) ?: "Track $trackNumber"
-            val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.effectiveAudioLeadOutLba
-            val totalSectors = nextLba - entry.lba
-            val totalSamples = totalSectors.toLong() * 588L
-
-            updateTrackState(trackNumber, RipStatus.RIPPING, 0f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
-            logger.record(RipLogEvent.TrackStarted(trackNumber, trackTitle))
-
-            if (isCancelled) break
-
-            val lyricsResult = (lyricsMap[trackNumber] as? LyricsFetchResult.Success)?.lyrics
-
-            val safeTitle = trackTitle.replace("/", "_")
-
-            val totalDiscs = metadata.totalDiscs
-            val discNumber = metadata.discNumber
-            val filename = if (totalDiscs != null && totalDiscs > 1 && discNumber != null) {
-                String.format("%d-%02d %s.flac", discNumber, trackNumber, safeTitle)
-            } else {
-                String.format("%02d - %s.flac", trackNumber, safeTitle)
-            }
-
-            albumDir?.findFile(filename)?.delete()
-            val destFile = albumDir?.createFile("audio/flac", filename)
-            if (destFile == null) {
-                AppLogger.e("RipManager", "Failed to create SAF destination for track $trackNumber")
-                updateTrackState(
-                    trackNumber = trackNumber,
-                    status = RipStatus.ERROR,
-                    progress = 0f,
-                    errorMessage = "Failed to create destination file",
-                    startLba = entry.lba,
-                    endLba = nextLba,
-                    totalSectors = totalSectors,
-                    sectorsRead = 0,
-                    totalSamples = totalSamples,
-                    durationSeconds = 0.0,
-                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
-                )
-                continue
-            }
-
-            var outputStream: java.io.OutputStream? = null
-            var tempOutputStream: java.io.OutputStream? = null
-            var encoder: FlacEncoder? = null
-            var finalChecksumV1 = 0L
-            var finalChecksumV2 = 0L
-            var sectorsRead = 0
-
-            var lastCommittedPcm: ByteArray? = null
-            var totalOverlapTrimmedSamples = 0L
-            var expectedTotalOverlapTrimmedSamples = 0L
+    var currentConfidence = com.bitperfect.app.ripping.paranoia.RipConfidence.HIGH
+    val currentSuspiciousRegions = mutableListOf<com.bitperfect.app.ripping.paranoia.SuspiciousRead>()
 
             val tempFile = java.io.File(context.cacheDir, "temp_rip_$trackNumber.flac")
             var ripSucceeded = false
@@ -388,6 +286,7 @@ class RipManager(
                     AppLogger.w("RipManager", "Prepending $missingStartSectors sectors of silence due to LBA clamp")
                     val silenceBytes = ByteArray(missingStartSectors * 2352)
 
+                    val missingStartSectors = if (firstLba < 0) -firstLba else 0
                     val trimmedSilence = if (isFirstSector && config.skipBytes > 0) {
                         silenceBytes.copyOfRange(config.skipBytes, silenceBytes.size)
                     } else {
@@ -402,7 +301,7 @@ class RipManager(
                 }
 
 
-                while (sectorsRead < effectiveTotalSectors && !isCancelled) {
+                while (sectorsRead < effectiveTotalSectors && !isCancelled()) {
                     val sectorsToRead = minOf(config.chunkSize, effectiveTotalSectors - sectorsRead)
 
                     metricsCollector.recordAttempt(config.chunkSize)
@@ -659,19 +558,12 @@ class RipManager(
                                     else -> currentChunk
                                 }
 
-                                val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
-                                val currentSuspiciousRegions = state.suspiciousRegions.toMutableList()
+
                                 currentSuspiciousRegions.add(suspiciousRead)
 
                                 // Logging for driftEvent is handled directly in RereadEngine
 
-                                updateTrackState(
-                                    trackNumber = trackNumber,
-                                    status = state.status,
-                                    progress = state.progress,
-                                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
-                                    suspiciousRegions = currentSuspiciousRegions
-                                )
+                                onProgress(sectorsRead.toFloat() / effectiveTotalSectors, currentConfidence, currentSuspiciousRegions)
 
                                 committedPcm = overlapVerifier.commitVerifiedAudio(pChunk, isFinal = false)
 
@@ -681,8 +573,7 @@ class RipManager(
                             }
                         }
 
-                        val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
-                        var trackConfidence = confidenceEvaluator.aggregateTrackConfidence(state.confidence, currentChunkConfidence)
+                        var trackConfidence = confidenceEvaluator.aggregateTrackConfidence(currentConfidence, currentChunkConfidence)
 
                         if (committedPcm != null && lastCommittedPcm != null) {
                             val alignmentResult = alignmentValidator.validateBoundary(
@@ -763,14 +654,9 @@ class RipManager(
                             }
                         }
 
-                        if (trackConfidence != state.confidence) {
-                            updateTrackState(
-                                trackNumber = trackNumber,
-                                status = state.status,
-                                progress = state.progress,
-                                extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
-                                confidence = trackConfidence
-                            )
+                        if (trackConfidence != currentConfidence) {
+                            currentConfidence = trackConfidence
+                            onProgress(sectorsRead.toFloat() / effectiveTotalSectors, currentConfidence, currentSuspiciousRegions)
                         }
 
                         pendingChunk = currentChunk
@@ -816,12 +702,10 @@ class RipManager(
                                 "${String.format("%.1f", sectorsRead * 100.0 / effectiveTotalSectors)}%)"
                         ))
                         if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
-                            isCancelled = true
-                            throw java.io.IOException("Disc removed or drive not ready during rip")
+                            return TrackRipResult.Failed("Disc removed or drive not ready during rip")
                         }
 
-                        val state = _trackStates.value[trackNumber] ?: TrackRipState(trackNumber)
-                        val newConfidence = confidenceEvaluator.aggregateTrackConfidence(state.confidence, RipConfidence.DAMAGED)
+                        val newConfidence = confidenceEvaluator.aggregateTrackConfidence(currentConfidence, RipConfidence.DAMAGED)
 
                         val suspiciousRead = SuspiciousRead(
                             startLba = firstLba + sectorsRead,
@@ -832,18 +716,12 @@ class RipManager(
                             rereadAttempts = 3, // UsbReadSession.MAX_RETRIES
                             recovered = false
                         )
-                        val currentSuspiciousRegions = state.suspiciousRegions.toMutableList()
+
                         currentSuspiciousRegions.add(suspiciousRead)
 
-                        if (newConfidence != state.confidence || state.suspiciousRegions.size != currentSuspiciousRegions.size) {
-                            updateTrackState(
-                                trackNumber = trackNumber,
-                                status = state.status,
-                                progress = state.progress,
-                                extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
-                                confidence = newConfidence,
-                                suspiciousRegions = currentSuspiciousRegions
-                            )
+                        if (newConfidence != currentConfidence || currentSuspiciousRegions.size > 0) {
+                            currentConfidence = newConfidence
+                            onProgress(sectorsRead.toFloat() / effectiveTotalSectors, newConfidence, currentSuspiciousRegions)
                         }
 
                         throw java.io.IOException(
@@ -852,7 +730,11 @@ class RipManager(
                         ) // see UsbReadSession.MAX_RETRIES
                     }
 
-                    updateTrackState(trackNumber, RipStatus.RIPPING, sectorsRead.toFloat() / effectiveTotalSectors, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
+                    onProgress(sectorsRead.toFloat() / effectiveTotalSectors, currentConfidence, currentSuspiciousRegions)
+                }
+
+                if (isCancelled()) {
+                    return TrackRipResult.Cancelled
                 }
 
                 if (config.sampleOffset > 0) {
@@ -860,8 +742,7 @@ class RipManager(
                         val overreadPcm = session.readSectors(lbaStart + totalSectors - toc.pregapOffset, 1)
                         if (overreadPcm == null) {
                             if (DeviceStateManager.driveStatus.value !is DriveStatus.DiscReady) {
-                                isCancelled = true
-                                throw java.io.IOException("Disc removed or drive not ready during rip")
+                                return TrackRipResult.Failed("Disc removed or drive not ready during rip")
                             }
                             throw java.io.IOException("Failed to read overshoot sector ${lbaStart + totalSectors - toc.pregapOffset} after 3 attempts") // see UsbReadSession.MAX_RETRIES
                         }
@@ -895,26 +776,18 @@ class RipManager(
                     expectedTotalOverlapTrimmedSamples = expectedTotalOverlapTrimmedSamples
                 )
 
-                val currentState = _trackStates.value[trackNumber]
-                if (currentState != null) {
-                    val finalConfidence = confidenceEvaluator.evaluateAlignmentConfidence(currentState.confidence, finalTrackValidation)
-                    if (finalConfidence != currentState.confidence) {
-                        updateTrackState(
-                            trackNumber = trackNumber,
-                            status = currentState.status,
-                            progress = currentState.progress,
-                            extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
-                            confidence = finalConfidence
-                        )
-                    }
+                val finalConfidence = confidenceEvaluator.evaluateAlignmentConfidence(currentConfidence, finalTrackValidation)
+                if (finalConfidence != currentConfidence) {
+                    currentConfidence = finalConfidence
+                    onProgress(sectorsRead.toFloat() / effectiveTotalSectors, finalConfidence, currentSuspiciousRegions)
                 }
 
-                allStreamingReads.addAll(streamingReads)
+
 
                 val streamingResult = streamingBehaviorAnalyzer.analyze(
                     reads = streamingReads,
                     overlapFailures = trackOverlapFailures,
-                    rereads = currentState?.suspiciousRegions?.sumOf { it.rereadAttempts } ?: 0,
+                    rereads = currentSuspiciousRegions.sumOf { it.rereadAttempts } ?: 0,
                     recoveryWindows = trackRecoveryWindows
                 )
                 if (streamingResult.classification != com.bitperfect.app.ripping.streaming.StreamingClassification.STABLE_STREAMING) {
@@ -1036,38 +909,32 @@ class RipManager(
                     fis.copyTo(outputStream)
                 }
 
-                updateTrackState(
-                    trackNumber = trackNumber,
-                    status = RipStatus.RIPPING,
-                    progress = sectorsRead.toFloat() / totalSectors,
-                    startLba = entry.lba,
-                    endLba = nextLba,
-                    totalSectors = totalSectors,
-                    sectorsRead = sectorsRead + missingStartSectors,
-                    totalSamples = totalSamples,
-                    durationSeconds = (sectorsRead + missingStartSectors).toLong() * 588L / 44100.0,
-                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
+                ripSucceeded = true
+                val stats = TrackRipStats(
+                    chunksRead = trackChunksRead,
+                    overlapVerifications = trackOverlapVerifications,
+                    overlapFailures = trackOverlapFailures,
+                    alignmentChecks = trackAlignmentChecks,
+                    driftEvents = trackDriftEvents,
+                    recoveryWindows = trackRecoveryWindows,
+                    escalations = trackEscalations,
+                    fastPathChunks = trackFastPathChunks
                 )
 
-                ripSucceeded = true
-                finalChecksumV1 = currentChecksumV1
-                finalChecksumV2 = currentChecksumV2
+                return TrackRipResult.Success(
+                    checksumV1 = currentChecksumV1,
+                    checksumV2 = currentChecksumV2,
+                    sectorsRead = sectorsRead,
+                    missingStartSectors = missingStartSectors,
+                    confidence = currentConfidence,
+                    suspiciousRegions = currentSuspiciousRegions,
+                    stats = stats,
+                    overreadBuffer = overreadBuffer,
+                    streamingReads = streamingReads
+                )
             } catch (e: Exception) {
                 AppLogger.e("RipManager", "Error ripping track $trackNumber", e)
-                updateTrackState(
-                    trackNumber = trackNumber,
-                    status = RipStatus.ERROR,
-                    progress = sectorsRead.toFloat() / totalSectors,
-                    errorMessage = e.message ?: "Unknown error",
-                    startLba = entry.lba,
-                    endLba = nextLba,
-                    totalSectors = totalSectors,
-                    sectorsRead = sectorsRead,
-                    totalSamples = totalSamples,
-                    durationSeconds = sectorsRead.toLong() * 588L / 44100.0,
-                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
-                )
-                continue
+                return TrackRipResult.Failed(e.message ?: "Unknown error")
             } finally {
                 try {
                     encoder?.stop()
@@ -1100,23 +967,248 @@ class RipManager(
 
                 if (closeException != null) {
                     AppLogger.e("RipManager", "Error closing output stream for track $trackNumber", closeException)
+                    return TrackRipResult.Failed("Failed to save file: ${closeException.message ?: "Unknown error"}")
+                }
+            }
+
+}
+
+
+    suspend fun startRipping(session: UsbReadSession) = withContext(Dispatchers.IO) {
+        val driveOffset: Int = try {
+            DriveOffsetRepository(context).findOffset(driveVendor, driveProduct)?.offset ?: 0
+        } catch (e: Exception) {
+            AppLogger.w("RipManager", "Could not determine drive offset, defaulting to 0: ${e.message}")
+            0
+        }
+        AppLogger.d("RipManager", "Drive offset: $driveOffset samples")
+
+        val config = RipConfig.from(driveOffset)
+
+        val logger = DefaultForensicRipLogger()
+        val driveFirmware = DeviceStateManager.driveStatus.value.info?.firmware
+
+        val nowIso = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+
+        logger.record(
+            RipLogEvent.SessionStarted(
+                appVersion = "BitPerfect ${BuildConfig.VERSION_NAME}",
+                deviceModel = android.os.Build.MODEL,
+                androidVersion = "Android ${android.os.Build.VERSION.RELEASE}",
+                timestampIso = nowIso,
+                mode = RipMode.SECURE,
+                chunkSize = config.chunkSize,
+                overlapSize = config.overlapSize,
+                driveVendor = driveVendor,
+                driveModel = driveProduct,
+                driveFirmware = driveFirmware,
+                albumTitle = metadata.albumTitle,
+                artistName = metadata.artistName
+            )
+        )
+
+        val dirs = try {
+            setupOutputDirectory(
+                context,
+                outputFolderUriString,
+                metadata.artistName,
+                metadata.albumTitle
+            )
+        } catch (e: java.io.IOException) {
+            AppLogger.e("RipManager", "Failed to set up output directory: ${e.message}")
+            return@withContext
+        }
+
+        val artistDir = dirs.artistDir
+        albumDir = dirs.albumDir
+
+        val metricsCollector = ReadSizeMetricsCollector()
+        val allStreamingReads = mutableListOf<com.bitperfect.app.ripping.streaming.SequentialReadTelemetry>()
+
+        launch {
+            try {
+                val existingFile = artistDir.findFile("artist.json")
+                if (existingFile == null) {
+                    val responseBody = audioDbRepository.fetchArtist(metadata.artistName)
+                    if (responseBody != null) {
+                        val file = artistDir.createFile("application/json", "artist.json")
+                        if (file != null) {
+                            context.contentResolver.openOutputStream(file.uri)?.use { out ->
+                                out.write(responseBody.toByteArray(Charsets.UTF_8))
+                            }
+                            AppLogger.d("RipManager", "Successfully fetched and saved artist.json")
+                        } else {
+                            AppLogger.e("RipManager", "Could not create artist.json file")
+                        }
+                    } else {
+                        AppLogger.w("RipManager", "Failed to fetch artist.json from AudioDB")
+                    }
+                } else {
+                    AppLogger.d("RipManager", "artist.json already exists, skipping fetch")
+                }
+            } catch (e: Exception) {
+                AppLogger.w("RipManager", "Failed to fetch artist.json: ${e.message}")
+            }
+        }
+
+
+        val accurateRipUrl = AccurateRipService().getAccurateRipUrl(toc)
+
+        var overreadBuffer: ByteArray? = null
+
+        while (trackQueue.isNotEmpty()) {
+            if (isCancelled) break
+
+            val trackNumber = trackQueue.poll() ?: break
+
+            val trackStartTimeMs = android.os.SystemClock.elapsedRealtime()
+
+            // Track Statistics
+            var trackChunksRead = 0
+            var trackOverlapVerifications = 0
+            var trackOverlapFailures = 0
+            var trackAlignmentChecks = 0
+            var trackDriftEvents = 0
+            var trackRecoveryWindows = 0
+            var trackEscalations = 0
+            var trackFastPathChunks = 0
+
+            val i = trackNumber - 1
+            if (i < 0 || i >= toc.tracks.size) continue
+
+            val entry = toc.tracks[i]
+            val trackTitle = metadata.trackTitles.getOrNull(i) ?: "Track $trackNumber"
+            val nextLba = if (i + 1 < toc.tracks.size) toc.tracks[i + 1].lba else toc.effectiveAudioLeadOutLba
+            val totalSectors = nextLba - entry.lba
+            val totalSamples = totalSectors.toLong() * 588L
+
+            updateTrackState(trackNumber, RipStatus.RIPPING, 0f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
+            logger.record(RipLogEvent.TrackStarted(trackNumber, trackTitle))
+
+            if (isCancelled) break
+
+            val lyricsResult = (lyricsMap[trackNumber] as? LyricsFetchResult.Success)?.lyrics
+
+            val safeTitle = trackTitle.replace("/", "_")
+
+            val totalDiscs = metadata.totalDiscs
+            val discNumber = metadata.discNumber
+            val filename = if (totalDiscs != null && totalDiscs > 1 && discNumber != null) {
+                String.format("%d-%02d %s.flac", discNumber, trackNumber, safeTitle)
+            } else {
+                String.format("%02d - %s.flac", trackNumber, safeTitle)
+            }
+
+            albumDir?.findFile(filename)?.delete()
+            val destFile = albumDir?.createFile("audio/flac", filename)
+            if (destFile == null) {
+                AppLogger.e("RipManager", "Failed to create SAF destination for track $trackNumber")
+                updateTrackState(
+                    trackNumber = trackNumber,
+                    status = RipStatus.ERROR,
+                    progress = 0f,
+                    errorMessage = "Failed to create destination file",
+                    startLba = entry.lba,
+                    endLba = nextLba,
+                    totalSectors = totalSectors,
+                    sectorsRead = 0,
+                    totalSamples = totalSamples,
+                    durationSeconds = 0.0,
+                    extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
+                )
+                continue
+            }
+
+
+            val ripResult = ripTrack(
+                context = context,
+                trackNumber = trackNumber,
+                i = i,
+                entry = entry,
+                nextLba = nextLba,
+                totalSectors = totalSectors,
+                totalSamples = totalSamples,
+                trackTitle = trackTitle,
+                lyricsResult = lyricsResult,
+                destFile = destFile,
+                config = config,
+                toc = toc,
+                metadata = metadata,
+                accurateRipUrl = accurateRipUrl,
+                artworkBytes = artworkBytes,
+                expectedChecksums = expectedChecksums,
+                activePressingCandidates = activePressingCandidates.toSet(),
+                session = session,
+                metricsCollector = metricsCollector,
+                logger = logger,
+                incomingOverreadBuffer = overreadBuffer,
+                isCancelled = { isCancelled },
+                trackStartTimeMs = trackStartTimeMs,
+                onProgress = { fraction, confidence, suspiciousRegions ->
+                    updateTrackState(
+                        trackNumber = trackNumber,
+                        status = RipStatus.RIPPING,
+                        progress = fraction,
+                        extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
+                        confidence = confidence,
+                        suspiciousRegions = suspiciousRegions
+                    )
+                }
+            )
+
+            var finalChecksumV1 = 0L
+            var finalChecksumV2 = 0L
+
+            when (ripResult) {
+                is TrackRipResult.Cancelled -> break
+                is TrackRipResult.Failed -> {
                     updateTrackState(
                         trackNumber = trackNumber,
                         status = RipStatus.ERROR,
-                        progress = sectorsRead.toFloat() / totalSectors,
-                        errorMessage = "Failed to save file: ${closeException.message ?: "Unknown error"}",
+                        progress = 0f,
+                        errorMessage = ripResult.reason,
                         startLba = entry.lba,
                         endLba = nextLba,
                         totalSectors = totalSectors,
-                        sectorsRead = sectorsRead,
+                        sectorsRead = 0,
                         totalSamples = totalSamples,
-                        durationSeconds = sectorsRead.toLong() * 588L / 44100.0,
+                        durationSeconds = 0.0,
                         extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
                     )
                     continue
                 }
-            }
+                is TrackRipResult.Success -> {
+                    overreadBuffer = ripResult.overreadBuffer
+                    finalChecksumV1 = ripResult.checksumV1
+                    finalChecksumV2 = ripResult.checksumV2
+                    val sectorsRead = ripResult.sectorsRead
+                    val missingStartSectors = ripResult.missingStartSectors
+                    trackChunksRead = ripResult.stats.chunksRead
+                    trackOverlapVerifications = ripResult.stats.overlapVerifications
+                    trackOverlapFailures = ripResult.stats.overlapFailures
+                    trackAlignmentChecks = ripResult.stats.alignmentChecks
+                    trackDriftEvents = ripResult.stats.driftEvents
+                    trackRecoveryWindows = ripResult.stats.recoveryWindows
+                    trackEscalations = ripResult.stats.escalations
+                    trackFastPathChunks = ripResult.stats.fastPathChunks
+                    allStreamingReads.addAll(ripResult.streamingReads)
 
+                    updateTrackState(
+                        trackNumber = trackNumber,
+                        status = RipStatus.RIPPING,
+                        progress = sectorsRead.toFloat() / totalSectors,
+                        startLba = entry.lba,
+                        endLba = nextLba,
+                        totalSectors = totalSectors,
+                        sectorsRead = sectorsRead + missingStartSectors,
+                        totalSamples = totalSamples,
+                        durationSeconds = (sectorsRead + missingStartSectors).toLong() * 588L / 44100.0,
+                        extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0,
+                        confidence = ripResult.confidence,
+                        suspiciousRegions = ripResult.suspiciousRegions
+                    )
+                }
+            }
             MediaScannerHelper.scanSafUri(context, destFile.uri)
 
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
