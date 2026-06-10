@@ -38,5 +38,11 @@ data class TrackVerificationResult(
     val matchedVersion: Int?,
     val matchedConfidence: Int?,
     val allExpectedV1: List<Long>,
-    val allExpectedV2: List<Long>
+    val allExpectedV2: List<Long>,
+    val hasExpected: Boolean
 )
+
+sealed class WriteTrackResult {
+    object Success : WriteTrackResult()
+    data class Failed(val reason: String) : WriteTrackResult()
+}

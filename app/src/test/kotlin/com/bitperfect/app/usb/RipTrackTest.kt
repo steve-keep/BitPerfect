@@ -113,6 +113,8 @@ class RipTrackTest {
 
         assertEquals("checksumV1 mismatch", 0L, success.checksumV1)
         assertEquals("checksumV2 mismatch", 0L, success.checksumV2)
+        assertEquals("sectorsRead mismatch", 2, success.sectorsRead)
+        assertEquals("missingStartSectors mismatch", 1, success.missingStartSectors)
     }
 
     @Test

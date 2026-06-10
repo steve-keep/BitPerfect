@@ -1,16 +1,22 @@
 package com.bitperfect.app.usb
 
+import androidx.test.core.app.ApplicationProvider
 import com.bitperfect.core.services.AccurateRipDiscPressing
 import com.bitperfect.core.services.AccurateRipTrackMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class VerifyTrackTest {
 
     private fun mockRipManager() = RipManager(
-        context = org.mockito.Mockito.mock(android.content.Context::class.java),
+        context = ApplicationProvider.getApplicationContext(),
         outputFolderUriString = "",
         toc = com.bitperfect.core.models.DiscToc(emptyList(), 0, 0),
         metadata = com.bitperfect.core.models.DiscMetadata("", "", emptyList(), mbReleaseId = ""),
