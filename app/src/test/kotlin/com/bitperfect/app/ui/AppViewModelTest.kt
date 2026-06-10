@@ -77,6 +77,7 @@ class AppViewModelTest {
         mockLookupMusicBrainz = { null } // default stub
 
         mockDriveStatusFlow = MutableStateFlow(DriveStatus.NoDrive)
+        DeviceStateManager.initialize(application)
         val field = DeviceStateManager::class.java.getDeclaredField("driveStatus")
         field.isAccessible = true
 
@@ -86,11 +87,6 @@ class AppViewModelTest {
             // It might be uninitialized
         }
         field.set(DeviceStateManager, mockDriveStatusFlow)
-
-        // Reset the singleton so tests run independently
-        val detectorField = DeviceStateManager::class.java.getDeclaredField("usbDriveDetector")
-        detectorField.isAccessible = true
-        detectorField.set(DeviceStateManager, null)
 
         val mockLibraryRepository = org.mockito.Mockito.mock(com.bitperfect.app.library.LibraryRepository::class.java)
         org.mockito.Mockito.`when`(mockLibraryRepository.onLibraryUpdated).thenReturn(kotlinx.coroutines.flow.MutableSharedFlow())
