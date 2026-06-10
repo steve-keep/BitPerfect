@@ -268,6 +268,10 @@ open class OutputRepository(
             val existingUpnp = _availableDevices.value.filterIsInstance<OutputDevice.Upnp>()
             devices.addAll(existingUpnp)
 
+            // Keep existing UsbDac devices
+            val existingUsbDac = _availableDevices.value.filterIsInstance<OutputDevice.UsbDac>()
+            devices.addAll(existingUsbDac)
+
             _availableDevices.value = devices
 
             if (btDevices.isNotEmpty() && _activeDevice.value is OutputDevice.ThisPhone && userSelectedDevice == null) {

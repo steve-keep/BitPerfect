@@ -7,11 +7,11 @@ plugins {
 
 android {
     namespace 'com.bitperfect.app'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.bitperfect.app"
-        minSdk 28
+        minSdk 29
         targetSdk 34
         versionCode project.findProperty("versionCode")?.toInteger() ?: 1
         versionName project.findProperty("versionName") ?: "1.0"
@@ -128,6 +128,7 @@ task jacocoTestCoverageVerification(type: JacocoCoverageVerification, dependsOn:
 }
 
 dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'com.google.mlkit:genai-prompt:1.0.0-beta1'
 

@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -36,6 +37,7 @@ class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var wiimCastPlayer: WiimCastPlayer? = null
+    private var isUsingUsbAudioSink = false
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val libraryRepository: LibraryRepository by lazy { LibraryRepository(this) }
@@ -43,9 +45,8 @@ class PlaybackService : MediaLibraryService() {
     private val outputRepository: OutputRepository
         get() = (application as BitPerfectApplication).outputRepository
 
-    override fun onCreate() {
-        super.onCreate()
-
+    @androidx.media3.common.util.UnstableApi
+    private fun buildExoPlayer(useUsbAudioSink: Boolean = false): ExoPlayer {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -60,12 +61,25 @@ class PlaybackService : MediaLibraryService() {
             )
             .build()
 
-        val exoPlayer = ExoPlayer.Builder(this)
+        val renderersFactory = if (useUsbAudioSink) {
+            UsbAudioRenderersFactory(this)
+        } else {
+            DefaultRenderersFactory(this)
+        }
+
+        isUsingUsbAudioSink = useUsbAudioSink
+
+        return ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setLoadControl(loadControl)
             .build()
+    }
 
+    override fun onCreate() {
+        super.onCreate()
+
+        val exoPlayer = buildExoPlayer()
         player = exoPlayer
 
         val sessionActivityPendingIntent = PendingIntent.getActivity(
@@ -88,25 +102,63 @@ class PlaybackService : MediaLibraryService() {
 
     private fun handleDeviceSwitch(target: OutputDevice) {
         val session = mediaLibrarySession ?: return
-        val exo = player ?: return
 
-        if (target is OutputDevice.Upnp) {
-            // Pause local playback so audio doesn't come from both sources
-            exo.pause()
+        when (target) {
+            is OutputDevice.Upnp -> {
+                // Pause local playback so audio doesn't come from both sources
+                player?.pause()
+                // Release any existing WiimCastPlayer before creating a new one
+                wiimCastPlayer?.release()
 
-            // Release any existing WiimCastPlayer before creating a new one
-            wiimCastPlayer?.release()
+                val newCastPlayer = WiimCastPlayer(this, target)
+                wiimCastPlayer = newCastPlayer
+                session.player = newCastPlayer
+            }
+            is OutputDevice.UsbDac -> {
+                wiimCastPlayer?.release()
+                wiimCastPlayer = null
 
-            val newCastPlayer = WiimCastPlayer(this, target)
-            wiimCastPlayer = newCastPlayer
-            session.player = newCastPlayer
+                // Capture state from current player before releasing
+                val currentPosition = player?.currentPosition ?: 0L
+                val wasPlaying = player?.isPlaying ?: false
+                val currentMediaItem = player?.currentMediaItem
 
-        } else {
-            // Switching back to local — restore ExoPlayer as the session player
-            session.player = exo
+                player?.release()
+                val newPlayer = buildExoPlayer(useUsbAudioSink = true)
+                player = newPlayer
 
-            wiimCastPlayer?.release()
-            wiimCastPlayer = null
+                // Restore state
+                currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
+                newPlayer.prepare()
+                if (wasPlaying) newPlayer.play()
+
+                session.player = newPlayer
+            }
+            else -> {
+                // Switching back to local — rebuild with DefaultRenderersFactory
+                // if we were previously on UsbDac
+                wiimCastPlayer?.release()
+                wiimCastPlayer = null
+
+                if (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth) {
+                    if (isUsingUsbAudioSink) {
+                        val currentPosition = player?.currentPosition ?: 0L
+                        val wasPlaying = player?.isPlaying ?: false
+                        val currentMediaItem = player?.currentMediaItem
+
+                        player?.release()
+                        val newPlayer = buildExoPlayer(useUsbAudioSink = false)
+                        player = newPlayer
+
+                        // Restore state
+                        currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
+                        newPlayer.prepare()
+                        if (wasPlaying) newPlayer.play()
+                    }
+                }
+
+                session.player = player ?: return
+            }
         }
     }
 
