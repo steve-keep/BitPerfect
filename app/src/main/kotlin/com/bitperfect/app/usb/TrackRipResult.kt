@@ -32,3 +32,11 @@ sealed class TrackRipResult {
 
     object Cancelled : TrackRipResult()
 }
+
+data class TrackVerificationResult(
+    val finalStatus: RipStatus,
+    val matchedVersion: Int?,
+    val matchedConfidence: Int?,
+    val allExpectedV1: List<Long>,
+    val allExpectedV2: List<Long>
+)
