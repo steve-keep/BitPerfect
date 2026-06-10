@@ -162,6 +162,65 @@ class RipManager(
         }
     }
 
+internal fun verifyTrack(
+    trackNumber: Int,
+    checksumV1: Long,
+    checksumV2: Long,
+    activePressingCandidates: MutableSet<com.bitperfect.core.services.AccurateRipDiscPressing>,
+    expectedChecksums: List<com.bitperfect.core.services.AccurateRipDiscPressing>
+): TrackVerificationResult {
+    // Verify checksum — prefer V2 match, fall back to V1.
+    // A pressing must match on whichever version its database entry carries.
+    activePressingCandidates.retainAll { pressing ->
+        val dbTrack = pressing.tracks[trackNumber] ?: return@retainAll false
+        if (dbTrack.crcV2 != null) {
+            dbTrack.crcV2 == checksumV2
+        } else {
+            dbTrack.crcV1 == checksumV1
+        }
+    }
+
+    val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
+        if (activePressingCandidates.any { it.tracks[trackNumber]?.crcV2 == checksumV2 }) 2 else 1
+    } else {
+        null
+    }
+
+    val matchedConfidence: Int? = if (activePressingCandidates.isNotEmpty()) {
+        activePressingCandidates
+            .mapNotNull { it.tracks[trackNumber]?.confidence }
+            .maxOrNull()
+    } else null
+
+    // Always derive expected hash lists from the full original database — never
+    // from the filtered candidates — so the log always shows what AR actually holds.
+    val allExpectedV1 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV1 }.distinct()
+    val allExpectedV2 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV2 }.distinct()
+    val hasExpected = allExpectedV1.isNotEmpty() || allExpectedV2.isNotEmpty()
+
+    val finalStatus = if (activePressingCandidates.isNotEmpty()) {
+        RipStatus.SUCCESS
+    } else if (!hasExpected) {
+        RipStatus.UNVERIFIED
+    } else {
+        RipStatus.WARNING
+    }
+
+    if (!hasExpected) {
+        AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
+    } else if (matchedVersion == null) {
+        AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
+    }
+
+    return TrackVerificationResult(
+        finalStatus = finalStatus,
+        matchedVersion = matchedVersion,
+        matchedConfidence = matchedConfidence,
+        allExpectedV1 = allExpectedV1,
+        allExpectedV2 = allExpectedV2
+    )
+}
+
 internal suspend fun ripTrack(
     context: android.content.Context,
     trackNumber: Int,
@@ -1063,16 +1122,6 @@ internal suspend fun ripTrack(
 
             val trackStartTimeMs = android.os.SystemClock.elapsedRealtime()
 
-            // Track Statistics
-            var trackChunksRead = 0
-            var trackOverlapVerifications = 0
-            var trackOverlapFailures = 0
-            var trackAlignmentChecks = 0
-            var trackDriftEvents = 0
-            var trackRecoveryWindows = 0
-            var trackEscalations = 0
-            var trackFastPathChunks = 0
-
             val i = trackNumber - 1
             if (i < 0 || i >= toc.tracks.size) continue
 
@@ -1183,14 +1232,6 @@ internal suspend fun ripTrack(
                     finalChecksumV2 = ripResult.checksumV2
                     val sectorsRead = ripResult.sectorsRead
                     val missingStartSectors = ripResult.missingStartSectors
-                    trackChunksRead = ripResult.stats.chunksRead
-                    trackOverlapVerifications = ripResult.stats.overlapVerifications
-                    trackOverlapFailures = ripResult.stats.overlapFailures
-                    trackAlignmentChecks = ripResult.stats.alignmentChecks
-                    trackDriftEvents = ripResult.stats.driftEvents
-                    trackRecoveryWindows = ripResult.stats.recoveryWindows
-                    trackEscalations = ripResult.stats.escalations
-                    trackFastPathChunks = ripResult.stats.fastPathChunks
                     allStreamingReads.addAll(ripResult.streamingReads)
 
                     updateTrackState(
@@ -1213,60 +1254,25 @@ internal suspend fun ripTrack(
 
             updateTrackState(trackNumber, RipStatus.VERIFYING, 1f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
 
-            // Verify checksum — prefer V2 match, fall back to V1.
-            // A pressing must match on whichever version its database entry carries.
-            activePressingCandidates.retainAll { pressing ->
-                val dbTrack = pressing.tracks[trackNumber] ?: return@retainAll false
-                if (dbTrack.crcV2 != null) {
-                    dbTrack.crcV2 == finalChecksumV2
-                } else {
-                    dbTrack.crcV1 == finalChecksumV1
-                }
-            }
-
-            val matchedVersion = if (activePressingCandidates.isNotEmpty()) {
-                if (activePressingCandidates.any { it.tracks[trackNumber]?.crcV2 == finalChecksumV2 }) 2 else 1
-            } else {
-                null
-            }
-
-            val matchedConfidence: Int? = if (activePressingCandidates.isNotEmpty()) {
-                activePressingCandidates
-                    .mapNotNull { it.tracks[trackNumber]?.confidence }
-                    .maxOrNull()
-            } else null
-
-            // Always derive expected hash lists from the full original database — never
-            // from the filtered candidates — so the log always shows what AR actually holds.
-            val allExpectedV1 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV1 }.distinct()
-            val allExpectedV2 = expectedChecksums.mapNotNull { it.tracks[trackNumber]?.crcV2 }.distinct()
-            val hasExpected = allExpectedV1.isNotEmpty() || allExpectedV2.isNotEmpty()
-
-            val finalStatus = if (activePressingCandidates.isNotEmpty()) {
-                RipStatus.SUCCESS
-            } else if (!hasExpected) {
-                RipStatus.UNVERIFIED
-            } else {
-                RipStatus.WARNING
-            }
-
-            if (!hasExpected) {
-                AppLogger.d("RipManager", "Track $trackNumber not in AccurateRip database.")
-            } else if (matchedVersion == null) {
-                AppLogger.w("RipManager", "Checksum mismatch for track $trackNumber.")
-            }
+            val verification = verifyTrack(
+                trackNumber = trackNumber,
+                checksumV1 = finalChecksumV1,
+                checksumV2 = finalChecksumV2,
+                activePressingCandidates = activePressingCandidates,
+                expectedChecksums = expectedChecksums
+            )
 
             updateTrackState(
                 trackNumber = trackNumber,
-                status = finalStatus,
+                status = verification.finalStatus,
                 progress = 1f,
                 accurateRipUrl = accurateRipUrl,
                 computedChecksumV1 = finalChecksumV1,
                 computedChecksumV2 = finalChecksumV2,
-                expectedChecksumsV1 = allExpectedV1,
-                expectedChecksumsV2 = allExpectedV2,
-                matchedVersion = matchedVersion,
-                arConfidence = matchedConfidence,
+                expectedChecksumsV1 = verification.allExpectedV1,
+                expectedChecksumsV2 = verification.allExpectedV2,
+                matchedVersion = verification.matchedVersion,
+                arConfidence = verification.matchedConfidence,
                 extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
             )
 
@@ -1303,14 +1309,14 @@ internal suspend fun ripTrack(
                     durationSeconds = currentState.durationSeconds,
                     extractionTimeSeconds = currentState.extractionTimeSeconds,
                     summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
-                        chunksRead = trackChunksRead,
-                        overlapVerifications = trackOverlapVerifications,
-                        overlapFailures = trackOverlapFailures,
-                        alignmentChecks = trackAlignmentChecks,
-                        driftEvents = trackDriftEvents,
-                        recoveryWindows = trackRecoveryWindows,
-                        escalations = trackEscalations,
-                        fastPathChunks = trackFastPathChunks
+                        chunksRead = if (ripResult is TrackRipResult.Success) ripResult.stats.chunksRead else 0,
+                        overlapVerifications = if (ripResult is TrackRipResult.Success) ripResult.stats.overlapVerifications else 0,
+                        overlapFailures = if (ripResult is TrackRipResult.Success) ripResult.stats.overlapFailures else 0,
+                        alignmentChecks = if (ripResult is TrackRipResult.Success) ripResult.stats.alignmentChecks else 0,
+                        driftEvents = if (ripResult is TrackRipResult.Success) ripResult.stats.driftEvents else 0,
+                        recoveryWindows = if (ripResult is TrackRipResult.Success) ripResult.stats.recoveryWindows else 0,
+                        escalations = if (ripResult is TrackRipResult.Success) ripResult.stats.escalations else 0,
+                        fastPathChunks = if (ripResult is TrackRipResult.Success) ripResult.stats.fastPathChunks else 0
                     )
                 ))
             }

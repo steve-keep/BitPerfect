@@ -111,7 +111,8 @@ class RipTrackTest {
         assertTrue("Expected Success, got $result", result is TrackRipResult.Success)
         val success = result as TrackRipResult.Success
 
-
+        assertEquals("checksumV1 mismatch", 0L, success.checksumV1)
+        assertEquals("checksumV2 mismatch", 0L, success.checksumV2)
     }
 
     @Test
