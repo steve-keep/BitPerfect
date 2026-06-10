@@ -6,8 +6,12 @@ import kotlinx.coroutines.flow.StateFlow
 
 object DeviceStateManager {
     private var usbDriveDetector: UsbDriveDetector? = null
+    private var usbAudioDacDetector: UsbAudioDacDetector? = null
 
     lateinit var driveStatus: StateFlow<DriveStatus>
+        private set
+
+    lateinit var dacState: StateFlow<UsbDacState>
         private set
 
     fun initialize(context: Context) {
@@ -15,6 +19,10 @@ object DeviceStateManager {
             val detector = UsbDriveDetector(context.applicationContext)
             usbDriveDetector = detector
             driveStatus = detector.driveStatus
+
+            val dacDetector = UsbAudioDacDetector(context.applicationContext)
+            usbAudioDacDetector = dacDetector
+            dacState = dacDetector.state
         }
     }
 

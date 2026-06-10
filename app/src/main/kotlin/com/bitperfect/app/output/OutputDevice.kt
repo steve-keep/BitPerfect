@@ -1,5 +1,7 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.app.usb.UacProtocol
+
 sealed class OutputDevice {
     abstract val id: String
     abstract val displayName: String
@@ -30,5 +32,14 @@ sealed class OutputDevice {
     ) : OutputDevice() {
         override val id = udn
         override val displayName = friendlyName
+    }
+
+    data class UsbDac(
+        val device: android.hardware.usb.UsbDevice,
+        val protocol: UacProtocol,
+        val productName: String,
+    ) : OutputDevice() {
+        override val id = "usb_dac_${device.deviceId}"
+        override val displayName = productName
     }
 }

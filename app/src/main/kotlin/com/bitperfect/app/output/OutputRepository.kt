@@ -25,6 +25,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothA2dp
+import com.bitperfect.app.usb.DeviceStateManager
+import com.bitperfect.app.usb.UsbDacState
 
 open class OutputRepository(
     private val context: Context,
@@ -104,6 +106,18 @@ open class OutputRepository(
                 _availableDevices.value = current
             }
         }
+
+        scope.launch {
+            DeviceStateManager.dacState.collect { dacState ->
+                val current = _availableDevices.value.toMutableList()
+                current.removeAll { it is OutputDevice.UsbDac }
+                if (dacState is UsbDacState.Connected) {
+                    current.add(OutputDevice.UsbDac(dacState.device, dacState.protocol, dacState.productName))
+                }
+                _availableDevices.value = current
+            }
+        }
+
         upnpManager.start()
     }
 
@@ -221,6 +235,8 @@ open class OutputRepository(
                         }
                         controller
                     }
+                    is OutputDevice.UsbDac ->
+                        LocalOutputController(context, playerRepository)
                 }
 
                 if (!isLocalToLocal) {
