@@ -217,8 +217,36 @@ internal fun verifyTrack(
         matchedVersion = matchedVersion,
         matchedConfidence = matchedConfidence,
         allExpectedV1 = allExpectedV1,
-        allExpectedV2 = allExpectedV2
+        allExpectedV2 = allExpectedV2,
+        hasExpected = hasExpected
     )
+}
+
+internal fun writeTrackFile(
+    context: android.content.Context,
+    destFile: androidx.documentfile.provider.DocumentFile,
+    metadataBytes: ByteArray,
+    tempFile: java.io.File
+): WriteTrackResult {
+    var outputStream: java.io.OutputStream? = null
+    return try {
+        val rawStream = context.contentResolver.openOutputStream(destFile.uri)
+            ?: return WriteTrackResult.Failed("openOutputStream returned null for ${destFile.name}")
+        outputStream = java.io.BufferedOutputStream(rawStream, 1024 * 1024)
+        outputStream.write(metadataBytes)
+        tempFile.inputStream().use { it.copyTo(outputStream) }
+        outputStream.flush()
+        WriteTrackResult.Success
+    } catch (e: Exception) {
+        destFile.delete()
+        WriteTrackResult.Failed(e.message ?: "Unknown write error")
+    } finally {
+        try {
+            outputStream?.close()
+        } catch (e: Exception) {
+            // Ignore close exceptions, already returning result or failing
+        }
+    }
 }
 
 internal suspend fun ripTrack(
@@ -957,15 +985,9 @@ internal suspend fun ripTrack(
                     Triple(bytes, cV1, cV2)
                 }
 
-                val rawStream = context.contentResolver.openOutputStream(destFile.uri)
-                    ?: throw java.io.IOException("Cannot open SAF output stream")
-                outputStream = BufferedOutputStream(rawStream, 1024 * 1024)
-
-                outputStream.write(metadataBytes)
-
-                // Copy temp file audio to final stream
-                java.io.FileInputStream(tempFile).use { fis ->
-                    fis.copyTo(outputStream)
+                when (val writeResult = writeTrackFile(context, destFile, metadataBytes, tempFile)) {
+                    is WriteTrackResult.Failed -> return TrackRipResult.Failed(writeResult.reason)
+                    WriteTrackResult.Success -> { /* continue */ }
                 }
 
                 ripSucceeded = true
@@ -1006,28 +1028,7 @@ internal suspend fun ripTrack(
                     AppLogger.w("RipManager", "Failed to close temp output stream in finally block: ${e.message}")
                 }
 
-                var closeException: Exception? = null
-                try {
-                    outputStream?.close()
-                } catch (e: Exception) {
-                    closeException = e
-                }
                 tempFile.delete()
-
-                // Delete the zero-byte or partial SAF file if the rip failed, so it does
-                // not create a ghost MediaStore entry that blocks re-ripping the track.
-                if (!ripSucceeded) {
-                    try {
-                        context.contentResolver.delete(destFile.uri, null, null)
-                    } catch (e: Exception) {
-                        AppLogger.w("RipManager", "Failed to delete incomplete SAF file for track $trackNumber: ${e.message}")
-                    }
-                }
-
-                if (closeException != null) {
-                    AppLogger.e("RipManager", "Error closing output stream for track $trackNumber", closeException)
-                    return TrackRipResult.Failed("Failed to save file: ${closeException.message ?: "Unknown error"}")
-                }
             }
 
 }
