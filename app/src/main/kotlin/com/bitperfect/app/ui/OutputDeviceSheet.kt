@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -100,6 +101,7 @@ fun OutputDeviceSheet(
                         is OutputDevice.ThisPhone -> Icons.Default.PhoneAndroid
                         is OutputDevice.Bluetooth -> Icons.Default.BluetoothAudio
                         is OutputDevice.Upnp -> Icons.Default.Speaker
+                        is OutputDevice.UsbDac -> Icons.Default.Usb
                     }
 
                     Icon(
@@ -145,6 +147,12 @@ fun OutputDeviceSheet(
 
                             Text(
                                 text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                        } else if (device is OutputDevice.UsbDac) {
+                            Text(
+                                text = "USB · ${device.protocol.name} · Bit-perfect",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.5f)
                             )
