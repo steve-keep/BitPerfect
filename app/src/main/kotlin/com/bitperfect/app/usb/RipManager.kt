@@ -1206,9 +1206,6 @@ internal suspend fun ripTrack(
                 }
             )
 
-            var finalChecksumV1 = 0L
-            var finalChecksumV2 = 0L
-
             when (ripResult) {
                 is TrackRipResult.Cancelled -> break
                 is TrackRipResult.Failed -> {
@@ -1229,8 +1226,6 @@ internal suspend fun ripTrack(
                 }
                 is TrackRipResult.Success -> {
                     overreadBuffer = ripResult.overreadBuffer
-                    finalChecksumV1 = ripResult.checksumV1
-                    finalChecksumV2 = ripResult.checksumV2
                     val sectorsRead = ripResult.sectorsRead
                     val missingStartSectors = ripResult.missingStartSectors
                     allStreamingReads.addAll(ripResult.streamingReads)
@@ -1249,77 +1244,78 @@ internal suspend fun ripTrack(
                         confidence = ripResult.confidence,
                         suspiciousRegions = ripResult.suspiciousRegions
                     )
-                }
-            }
-            MediaScannerHelper.scanSafUri(context, destFile.uri)
 
-            updateTrackState(trackNumber, RipStatus.VERIFYING, 1f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
+                    MediaScannerHelper.scanSafUri(context, destFile.uri)
 
-            val verification = verifyTrack(
-                trackNumber = trackNumber,
-                checksumV1 = finalChecksumV1,
-                checksumV2 = finalChecksumV2,
-                activePressingCandidates = activePressingCandidates,
-                expectedChecksums = expectedChecksums
-            )
+                    updateTrackState(trackNumber, RipStatus.VERIFYING, 1f, extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0)
 
-            updateTrackState(
-                trackNumber = trackNumber,
-                status = verification.finalStatus,
-                progress = 1f,
-                accurateRipUrl = accurateRipUrl,
-                computedChecksumV1 = finalChecksumV1,
-                computedChecksumV2 = finalChecksumV2,
-                expectedChecksumsV1 = verification.allExpectedV1,
-                expectedChecksumsV2 = verification.allExpectedV2,
-                matchedVersion = verification.matchedVersion,
-                arConfidence = verification.matchedConfidence,
-                extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
-            )
-
-            val currentState = _trackStates.value[trackNumber]
-            if (currentState != null) {
-                writeAccurateRipJsonl(albumDir, currentState)
-
-                val accurateRipStatusString = when {
-                    currentState.status == RipStatus.SUCCESS -> buildString {
-                        append("VERIFIED (v${currentState.matchedVersion}")
-                        currentState.arConfidence?.let { append(", confidence $it") }
-                        append(")")
-                    }
-                    currentState.expectedChecksumsV1.isNotEmpty() || currentState.expectedChecksumsV2.isNotEmpty() -> "MISMATCH"
-                    else -> "NOT_IN_DB"
-                }
-
-                logger.record(RipLogEvent.TrackCompleted(
-                    trackNumber = trackNumber,
-                    confidence = currentState.confidence,
-                    rereads = currentState.suspiciousRegions.sumOf { it.rereadAttempts },
-                    suspiciousReads = currentState.suspiciousRegions.size,
-                    status = currentState.status,
-                    accurateRipStatus = accurateRipStatusString,
-                    arConfidence = currentState.arConfidence,
-                    computedChecksumV1 = currentState.computedChecksumV1,
-                    computedChecksumV2 = currentState.computedChecksumV2,
-                    expectedChecksumsV1 = currentState.expectedChecksumsV1,
-                    expectedChecksumsV2 = currentState.expectedChecksumsV2,
-                    startLba = currentState.startLba,
-                    endLba = currentState.endLba,
-                    totalSectors = currentState.totalSectors,
-                    sectorsRead = currentState.sectorsRead,
-                    durationSeconds = currentState.durationSeconds,
-                    extractionTimeSeconds = currentState.extractionTimeSeconds,
-                    summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
-                        chunksRead = if (ripResult is TrackRipResult.Success) ripResult.stats.chunksRead else 0,
-                        overlapVerifications = if (ripResult is TrackRipResult.Success) ripResult.stats.overlapVerifications else 0,
-                        overlapFailures = if (ripResult is TrackRipResult.Success) ripResult.stats.overlapFailures else 0,
-                        alignmentChecks = if (ripResult is TrackRipResult.Success) ripResult.stats.alignmentChecks else 0,
-                        driftEvents = if (ripResult is TrackRipResult.Success) ripResult.stats.driftEvents else 0,
-                        recoveryWindows = if (ripResult is TrackRipResult.Success) ripResult.stats.recoveryWindows else 0,
-                        escalations = if (ripResult is TrackRipResult.Success) ripResult.stats.escalations else 0,
-                        fastPathChunks = if (ripResult is TrackRipResult.Success) ripResult.stats.fastPathChunks else 0
+                    val verification = verifyTrack(
+                        trackNumber = trackNumber,
+                        checksumV1 = ripResult.checksumV1,
+                        checksumV2 = ripResult.checksumV2,
+                        activePressingCandidates = activePressingCandidates,
+                        expectedChecksums = expectedChecksums
                     )
-                ))
+
+                    updateTrackState(
+                        trackNumber = trackNumber,
+                        status = verification.finalStatus,
+                        progress = 1f,
+                        accurateRipUrl = accurateRipUrl,
+                        computedChecksumV1 = ripResult.checksumV1,
+                        computedChecksumV2 = ripResult.checksumV2,
+                        expectedChecksumsV1 = verification.allExpectedV1,
+                        expectedChecksumsV2 = verification.allExpectedV2,
+                        matchedVersion = verification.matchedVersion,
+                        arConfidence = verification.matchedConfidence,
+                        extractionTimeSeconds = (android.os.SystemClock.elapsedRealtime() - trackStartTimeMs) / 1000.0
+                    )
+
+                    val currentState = _trackStates.value[trackNumber]
+                    if (currentState != null) {
+                        writeAccurateRipJsonl(albumDir, currentState)
+
+                        val accurateRipStatusString = when {
+                            currentState.status == RipStatus.SUCCESS -> buildString {
+                                append("VERIFIED (v${currentState.matchedVersion}")
+                                currentState.arConfidence?.let { append(", confidence $it") }
+                                append(")")
+                            }
+                            currentState.expectedChecksumsV1.isNotEmpty() || currentState.expectedChecksumsV2.isNotEmpty() -> "MISMATCH"
+                            else -> "NOT_IN_DB"
+                        }
+
+                        logger.record(RipLogEvent.TrackCompleted(
+                            trackNumber = trackNumber,
+                            confidence = currentState.confidence,
+                            rereads = currentState.suspiciousRegions.sumOf { it.rereadAttempts },
+                            suspiciousReads = currentState.suspiciousRegions.size,
+                            status = currentState.status,
+                            accurateRipStatus = accurateRipStatusString,
+                            arConfidence = currentState.arConfidence,
+                            computedChecksumV1 = currentState.computedChecksumV1,
+                            computedChecksumV2 = currentState.computedChecksumV2,
+                            expectedChecksumsV1 = currentState.expectedChecksumsV1,
+                            expectedChecksumsV2 = currentState.expectedChecksumsV2,
+                            startLba = currentState.startLba,
+                            endLba = currentState.endLba,
+                            totalSectors = currentState.totalSectors,
+                            sectorsRead = currentState.sectorsRead,
+                            durationSeconds = currentState.durationSeconds,
+                            extractionTimeSeconds = currentState.extractionTimeSeconds,
+                            summary = com.bitperfect.app.ripping.logging.RipLogEvent.TrackRipSummary(
+                                chunksRead = ripResult.stats.chunksRead,
+                                overlapVerifications = ripResult.stats.overlapVerifications,
+                                overlapFailures = ripResult.stats.overlapFailures,
+                                alignmentChecks = ripResult.stats.alignmentChecks,
+                                driftEvents = ripResult.stats.driftEvents,
+                                recoveryWindows = ripResult.stats.recoveryWindows,
+                                escalations = ripResult.stats.escalations,
+                                fastPathChunks = ripResult.stats.fastPathChunks
+                            )
+                        ))
+                    }
+                }
             }
         }
 
