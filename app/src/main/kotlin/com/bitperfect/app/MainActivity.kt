@@ -220,6 +220,7 @@ class MainActivity : ComponentActivity() {
             )
 
             val driveStatus by appViewModel.driveStatus.collectAsState()
+            val dacState by appViewModel.dacState.collectAsState()
 
             val activeDevice by appViewModel.activeDevice.collectAsState()
             val availableDevices by appViewModel.availableDevices.collectAsState()
@@ -652,6 +653,7 @@ class MainActivity : ComponentActivity() {
                     OutputDeviceSheet(
                         devices = availableDevices,
                         activeDevice = activeDevice,
+                        dacState = dacState,
                         isDiscovering = isDiscovering,
                         wiimVolume = wiimVolume,
                         onWiimVolumeChanged = { appViewModel.setWiimVolume(it) },

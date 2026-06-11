@@ -115,6 +115,11 @@ open class OutputRepository(
                     current.add(OutputDevice.UsbDac(dacState.device, dacState.protocol, dacState.productName))
                 }
                 _availableDevices.value = current
+
+                if (dacState is UsbDacState.Absent && _activeDevice.value is OutputDevice.UsbDac) {
+                    Log.w("OutputRepository", "USB DAC disconnected while active — falling back to ThisPhone")
+                    switchTo(OutputDevice.ThisPhone, emptyList(), 0)
+                }
             }
         }
 

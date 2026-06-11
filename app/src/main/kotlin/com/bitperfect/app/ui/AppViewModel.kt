@@ -33,6 +33,7 @@ import android.content.Intent
 
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
+import com.bitperfect.app.usb.UsbDacState
 import com.bitperfect.app.usb.RipManager
 import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.app.usb.TrackRipState
@@ -187,6 +188,7 @@ open class AppViewModel(
 
 
     open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus
+    val dacState: StateFlow<UsbDacState> = DeviceStateManager.dacState
 
     data class TagsViewState(val filePath: String, val tags: List<Pair<String, String>>)
 
