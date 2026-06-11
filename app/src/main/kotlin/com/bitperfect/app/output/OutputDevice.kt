@@ -41,5 +41,19 @@ sealed class OutputDevice {
     ) : OutputDevice() {
         override val id = "usb_dac_${device.deviceId}"
         override val displayName = productName
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is UsbDac) return false
+            if (device.deviceId != other.device.deviceId) return false
+            if (protocol != other.protocol) return false
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = device.deviceId
+            result = 31 * result + protocol.hashCode()
+            return result
+        }
     }
 }

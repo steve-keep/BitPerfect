@@ -58,6 +58,7 @@ fun NowPlayingBar(
     currentTrackArtist: String?,
     currentAlbumArtUri: Uri?,
     enabled: Boolean,
+    isBitPerfect: Boolean = false,
     isExternalOutput: Boolean,
     onPlayPause: () -> Unit,
     onOutputDeviceClick: () -> Unit,
@@ -138,6 +139,14 @@ fun NowPlayingBar(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.testTag("now_playing_artist")
+                                )
+                            }
+                            if (isBitPerfect) {
+                                Text(
+                                    text = "BIT-PERFECT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    maxLines = 1
                                 )
                             }
                         }

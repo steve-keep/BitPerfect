@@ -387,7 +387,8 @@ open class AppViewModel(
 
     init {
         viewModelScope.launch(ioDispatcher) {
-            currentTrack.collectLatest { track ->
+            combine(currentTrack, activeDevice) { track, device -> track to device }.collectLatest { (track, device) ->
+                if (device is OutputDevice.UsbDac) { _trackFormatInfo.value = "BIT-PERFECT · 44.1 kHz · 16-bit"; return@collectLatest }
                 if (track == null || track.dataPath == null) {
                     _trackFormatInfo.value = null
                     return@collectLatest
