@@ -87,36 +87,9 @@ fun OutputDeviceSheet(
 
         android.util.Log.d("OutputDeviceSheet", "Rendering output devices: ${devices.map { it.displayName }}")
 
-        if (dacState is UsbDacState.PermissionPending) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Usb,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.4f),
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text(
-                        "USB DAC",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White.copy(alpha = 0.4f)
-                    )
-                    Text(
-                        "Waiting for permission…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.3f)
-                    )
-                }
-            }
-        }
 
-        devices.forEach { device ->
+
+        val renderDevice: @Composable (OutputDevice) -> Unit = { device ->
             androidx.compose.runtime.key(device.id) {
             val isActive = device == activeDevice
 
@@ -271,6 +244,39 @@ fun OutputDeviceSheet(
             }
             }
         }
+
+        devices.filter { it !is OutputDevice.Upnp }.forEach { renderDevice(it) }
+
+        if (dacState is UsbDacState.PermissionPending) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Usb,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        "USB DAC",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White.copy(alpha = 0.4f)
+                    )
+                    Text(
+                        "Waiting for permission…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.3f)
+                    )
+                }
+            }
+        }
+
+        devices.filter { it is OutputDevice.Upnp }.forEach { renderDevice(it) }
 
         if (isDiscovering && devices.none { it is OutputDevice.Upnp }) {
             Text(

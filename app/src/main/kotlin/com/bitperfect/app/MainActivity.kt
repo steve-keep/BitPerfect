@@ -625,6 +625,8 @@ class MainActivity : ComponentActivity() {
                                 currentTrackArtist = currentTrackArtist,
                                 currentAlbumArtUri = currentAlbumArtUri,
                                 enabled = isControllerReady,
+                                isBitPerfect = activeDevice is OutputDevice.UsbDac,
+
                                 isExternalOutput = isExternalOutput,
                                 onPlayPause = { appViewModel.togglePlayPause() },
                                 onOutputDeviceClick = { openOutputSheetWithPermissionCheck() },
