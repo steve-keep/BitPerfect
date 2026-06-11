@@ -40,6 +40,7 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.bitperfect.app.output.OutputDevice
 import com.bitperfect.app.ui.theme.VerificationGreen
+import com.bitperfect.app.usb.UsbDacState
 import androidx.compose.material3.ExperimentalMaterial3Api
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +48,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 fun OutputDeviceSheet(
     devices: List<OutputDevice>,
     activeDevice: OutputDevice,
+    dacState: UsbDacState = UsbDacState.Absent,
     isDiscovering: Boolean = false,
     wiimVolume: Int = 50,
     onWiimVolumeChanged: (Int) -> Unit = {},
@@ -84,6 +86,35 @@ fun OutputDeviceSheet(
         }
 
         android.util.Log.d("OutputDeviceSheet", "Rendering output devices: ${devices.map { it.displayName }}")
+
+        if (dacState is UsbDacState.PermissionPending) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Usb,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        "USB DAC",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White.copy(alpha = 0.4f)
+                    )
+                    Text(
+                        "Waiting for permission…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.3f)
+                    )
+                }
+            }
+        }
 
         devices.forEach { device ->
             androidx.compose.runtime.key(device.id) {
