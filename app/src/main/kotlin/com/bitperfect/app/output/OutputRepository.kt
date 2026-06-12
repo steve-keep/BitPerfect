@@ -30,7 +30,7 @@ import android.content.IntentFilter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothA2dp
 import com.bitperfect.app.usb.DeviceStateManager
-import com.bitperfect.app.usb.UsbDacState
+import com.bitperfect.app.BitPerfectApplication
 
 open class OutputRepository(
     private val context: Context,
@@ -112,15 +112,16 @@ open class OutputRepository(
         }
 
         scope.launch {
-            DeviceStateManager.dacState.collect { dacState ->
-                val current = _availableDevices.value.toMutableList()
-                current.removeAll { it is OutputDevice.UsbDac }
-                if (dacState is UsbDacState.Connected) {
-                    current.add(OutputDevice.UsbDac(dacState.device, dacState.protocol, dacState.productName))
-                }
+            val registry = (context.applicationContext as BitPerfectApplication).outputPluginRegistry
+            registry.availableDevices.collect { pluginDevices ->
+                val current = _availableDevices.value
+                    .filter { it is OutputDevice.ThisPhone || it is OutputDevice.Bluetooth || it is OutputDevice.Upnp }
+                    .toMutableList()
+                current.addAll(pluginDevices)
                 _availableDevices.value = current
 
-                if (dacState is UsbDacState.Absent && _activeDevice.value is OutputDevice.UsbDac) {
+                val active = _activeDevice.value
+                if (active is OutputDevice.UsbDac && pluginDevices.none { it is OutputDevice.UsbDac }) {
                     Log.w("OutputRepository", "USB DAC disconnected while active — falling back to ThisPhone")
                     switchTo(OutputDevice.ThisPhone, emptyList(), 0)
                 }
@@ -277,9 +278,9 @@ open class OutputRepository(
             val existingUpnp = _availableDevices.value.filterIsInstance<OutputDevice.Upnp>()
             devices.addAll(existingUpnp)
 
-            // Keep existing UsbDac devices
-            val existingUsbDac = _availableDevices.value.filterIsInstance<OutputDevice.UsbDac>()
-            devices.addAll(existingUsbDac)
+            // Add plugin devices
+            val registry = (context.applicationContext as BitPerfectApplication).outputPluginRegistry
+            devices.addAll(registry.availableDevices.value)
 
             _availableDevices.value = devices
 

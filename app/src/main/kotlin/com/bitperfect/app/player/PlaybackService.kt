@@ -32,11 +32,18 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
+import com.bitperfect.plugin.usbdac.UsbAudioRenderersFactory
+import com.bitperfect.core.output.CoreTrackInfo
+import com.bitperfect.core.output.PlaybackHandoffState
+import com.bitperfect.core.output.PlayerProvider
+
+
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var wiimCastPlayer: WiimCastPlayer? = null
+    private var activeProvider: PlayerProvider? = null
     private var isUsingUsbAudioSink = false
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -46,6 +53,34 @@ class PlaybackService : MediaLibraryService() {
         get() = (application as BitPerfectApplication).outputRepository
 
     @androidx.media3.common.util.UnstableApi
+
+    private fun buildHandoffState(): PlaybackHandoffState {
+        val currentPlayer = player
+        val items = (0 until (currentPlayer?.mediaItemCount ?: 0)).map { i ->
+            currentPlayer!!.getMediaItemAt(i)
+        }
+        val tracks = items.map { item ->
+            val meta = item.mediaMetadata
+            CoreTrackInfo(
+                id           = item.mediaId.toLongOrNull() ?: 0L,
+                title        = meta.title?.toString() ?: "",
+                artist       = meta.artist?.toString() ?: "",
+                albumTitle   = meta.albumTitle?.toString() ?: "",
+                durationMs   = 0L,
+                trackNumber  = meta.trackNumber ?: 0,
+                filePath     = null,
+                dataPath     = null,
+                albumId      = -1L,
+            )
+        }
+        return PlaybackHandoffState(
+            tracks        = tracks,
+            currentIndex  = currentPlayer?.currentMediaItemIndex ?: 0,
+            positionMs    = currentPlayer?.currentPosition ?: 0L,
+            playWhenReady = currentPlayer?.playWhenReady ?: false,
+        )
+    }
+
     private fun buildExoPlayer(useUsbAudioSink: Boolean = false): ExoPlayer {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -108,14 +143,18 @@ class PlaybackService : MediaLibraryService() {
                 // Pause local playback so audio doesn't come from both sources
                 player?.pause()
                 // Release any existing WiimCastPlayer before creating a new one
-                wiimCastPlayer?.release()
+                activeProvider?.release()
+        activeProvider = null
+        wiimCastPlayer?.release()
 
                 val newCastPlayer = WiimCastPlayer(this, target)
                 wiimCastPlayer = newCastPlayer
                 session.player = newCastPlayer
             }
             is OutputDevice.UsbDac -> {
-                wiimCastPlayer?.release()
+                activeProvider?.release()
+        activeProvider = null
+        wiimCastPlayer?.release()
                 wiimCastPlayer = null
 
                 // Capture state from current player before releasing
@@ -137,7 +176,9 @@ class PlaybackService : MediaLibraryService() {
             else -> {
                 // Switching back to local — rebuild with DefaultRenderersFactory
                 // if we were previously on UsbDac
-                wiimCastPlayer?.release()
+                activeProvider?.release()
+        activeProvider = null
+        wiimCastPlayer?.release()
                 wiimCastPlayer = null
 
                 if (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth) {
@@ -514,6 +555,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        activeProvider?.release()
+        activeProvider = null
         wiimCastPlayer?.release()
         wiimCastPlayer = null
         serviceScope.cancel()  // stops the activeDevice collection coroutine

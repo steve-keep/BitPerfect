@@ -1,4 +1,4 @@
-package com.bitperfect.app.usb
+package com.bitperfect.plugin.usbdac
 
 import android.app.PendingIntent
 import android.content.Context
