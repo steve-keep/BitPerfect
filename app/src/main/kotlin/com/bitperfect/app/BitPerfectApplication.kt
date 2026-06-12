@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit
 import com.bitperfect.app.output.OutputRepository
 import com.bitperfect.app.output.SpeakerTypeProvider
 import com.bitperfect.app.player.PlayerRepository
+import com.bitperfect.core.output.OutputPluginRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,8 +29,12 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
     lateinit var speakerTypeProvider: SpeakerTypeProvider
         private set
 
+    val outputPluginRegistry = OutputPluginRegistry()
+
     override fun onCreate() {
         super.onCreate()
+        // TODO Phase 2: register(UsbDacOutputPlugin(this))
+        // TODO Phase 3: register(WiimOutputPlugin(this))
         val crashHandler = CrashHandler(this)
         Thread.setDefaultUncaughtExceptionHandler(crashHandler)
 

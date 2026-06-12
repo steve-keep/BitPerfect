@@ -1,5 +1,7 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.core.output.OutputDevice
+
 import java.net.URL
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager

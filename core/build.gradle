@@ -93,6 +93,10 @@ dependencies {
     implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'androidx.core:core-ktx:1.13.1'
 
+    def media3_version = "1.3.1"
+    implementation "androidx.media3:media3-common:${media3_version}"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+
     // Ktor for networking
     def ktor_version = "2.3.10"
     implementation "io.ktor:ktor-client-core:$ktor_version"

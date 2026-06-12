@@ -3,7 +3,7 @@ package com.bitperfect.app.ui
 import android.app.Application
 import com.bitperfect.app.output.OutputRepository
 import com.bitperfect.app.player.PlayerRepository
-import com.bitperfect.app.output.OutputDevice
+import com.bitperfect.core.output.OutputDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

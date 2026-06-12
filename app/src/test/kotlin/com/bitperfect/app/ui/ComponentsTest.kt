@@ -44,7 +44,7 @@ class ComponentsTest {
     @Test
     fun verifyConnectingState() {
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
-        Mockito.`when`(mockViewModel.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.app.output.OutputDevice.ThisPhone))
+        Mockito.`when`(mockViewModel.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.core.output.OutputDevice.ThisPhone))
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.Connecting(null)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
@@ -63,7 +63,7 @@ class ComponentsTest {
     fun verifyEmptyState() {
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
         val driveInfo = DriveInfo("ASUS", "BW-16D1HT", null, true, 0, 0, "")
-        Mockito.`when`(mockViewModel.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.app.output.OutputDevice.ThisPhone))
+        Mockito.`when`(mockViewModel.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.core.output.OutputDevice.ThisPhone))
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.Empty(driveInfo)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))
@@ -82,7 +82,7 @@ class ComponentsTest {
     fun verifyDiscReadyState() {
         val mockViewModel = Mockito.mock(AppViewModel::class.java)
         val driveInfo = DriveInfo("ASUS", "BW-16D1HT", null, true, 0, 0, "")
-        Mockito.`when`(mockViewModel.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.app.output.OutputDevice.ThisPhone))
+        Mockito.`when`(mockViewModel.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.core.output.OutputDevice.ThisPhone))
         Mockito.`when`(mockViewModel.driveStatus).thenReturn(MutableStateFlow(DriveStatus.DiscReady(driveInfo)))
         Mockito.`when`(mockViewModel.discMetadata).thenReturn(MutableStateFlow(null))
         Mockito.`when`(mockViewModel.coverArtUrl).thenReturn(MutableStateFlow(null))

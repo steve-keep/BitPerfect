@@ -697,7 +697,7 @@ class AppViewModelTest {
         val mockOutputRepo = mock(com.bitperfect.app.output.OutputRepository::class.java)
         val mockLibraryRepo = mock(com.bitperfect.app.library.LibraryRepository::class.java)
 
-        org.mockito.Mockito.`when`(mockOutputRepo.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.app.output.OutputDevice.Upnp("uuid", "WiiM", null, null, "", null, null, null)))
+        org.mockito.Mockito.`when`(mockOutputRepo.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.core.output.OutputDevice.Upnp("uuid", "WiiM", null, null, "", null, null, null)))
         org.mockito.Mockito.`when`(mockOutputRepo.availableDevices).thenReturn(MutableStateFlow(emptyList()))
         org.mockito.Mockito.`when`(mockOutputRepo.isDiscovering).thenReturn(MutableStateFlow(false))
         org.mockito.Mockito.`when`(mockOutputRepo.wiimVolume).thenReturn(MutableStateFlow(50))

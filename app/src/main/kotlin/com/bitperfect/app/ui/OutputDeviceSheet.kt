@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import com.bitperfect.app.output.OutputDevice
+import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.app.ui.theme.VerificationGreen
 import com.bitperfect.app.usb.UsbDacState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,8 +130,8 @@ fun OutputDeviceSheet(
                                 if (device.batteryPercent != null) {
                                     append(" · ")
                                     append(when {
-                                        device.batteryPercent > 60 -> "High"
-                                        device.batteryPercent > 30 -> "Medium"
+                                        (device.batteryPercent ?: 0) > 60 -> "High"
+                                        (device.batteryPercent ?: 0) > 30 -> "Medium"
                                         else -> "Low"
                                     })
                                 }

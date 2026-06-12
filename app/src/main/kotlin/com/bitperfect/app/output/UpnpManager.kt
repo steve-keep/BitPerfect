@@ -1,5 +1,7 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.core.output.OutputDevice
+
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log

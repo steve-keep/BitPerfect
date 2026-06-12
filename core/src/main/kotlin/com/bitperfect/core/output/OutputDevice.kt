@@ -1,6 +1,4 @@
-package com.bitperfect.app.output
-
-import com.bitperfect.app.usb.UacProtocol
+package com.bitperfect.core.output
 
 sealed class OutputDevice {
     abstract val id: String
