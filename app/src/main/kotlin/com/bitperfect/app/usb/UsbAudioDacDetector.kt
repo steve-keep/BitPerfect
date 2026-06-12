@@ -1,5 +1,7 @@
 package com.bitperfect.app.usb
 
+import com.bitperfect.core.output.UacProtocol
+
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context

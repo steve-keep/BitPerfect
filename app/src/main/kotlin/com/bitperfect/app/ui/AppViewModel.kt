@@ -71,7 +71,7 @@ import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
 import com.bitperfect.app.output.OutputRepository
-import com.bitperfect.app.output.OutputDevice
+import com.bitperfect.core.output.OutputDevice
 data class TrackListViewState(
     val title: String,
     val artistName: String,

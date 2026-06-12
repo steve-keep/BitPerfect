@@ -1,5 +1,7 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.core.output.OutputDevice
+
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

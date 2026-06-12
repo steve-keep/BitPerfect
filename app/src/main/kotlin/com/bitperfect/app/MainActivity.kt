@@ -29,7 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
-import com.bitperfect.app.output.OutputDevice
+import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.app.ui.OutputDeviceSheet
 import androidx.compose.foundation.layout.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle

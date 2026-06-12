@@ -1,5 +1,7 @@
 package com.bitperfect.app.output
 
+import com.bitperfect.core.output.OutputDevice
+
 import android.content.Context
 import com.bitperfect.app.library.TrackInfo
 import io.mockk.Runs

@@ -1,5 +1,7 @@
 package com.bitperfect.app.usb
 
+import com.bitperfect.core.output.UacProtocol
+
 sealed interface UsbDacState {
     data object Absent : UsbDacState
     data object PermissionPending : UsbDacState
@@ -9,5 +11,3 @@ sealed interface UsbDacState {
         val productName: String,
     ) : UsbDacState
 }
-
-enum class UacProtocol { UAC1, UAC2 }
