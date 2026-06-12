@@ -1,4 +1,4 @@
-package com.bitperfect.app.player
+package com.bitperfect.plugin.usbdac
 
 import android.content.Context
 import androidx.media3.common.util.UnstableApi

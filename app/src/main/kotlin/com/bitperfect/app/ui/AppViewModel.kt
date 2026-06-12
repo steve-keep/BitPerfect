@@ -33,7 +33,7 @@ import android.content.Intent
 
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
-import com.bitperfect.app.usb.UsbDacState
+import com.bitperfect.plugin.usbdac.UsbDacState
 import com.bitperfect.app.usb.RipManager
 import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.app.usb.TrackRipState

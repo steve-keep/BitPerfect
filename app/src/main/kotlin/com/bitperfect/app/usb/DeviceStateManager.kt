@@ -3,6 +3,8 @@ package com.bitperfect.app.usb
 import android.content.Context
 import android.hardware.usb.UsbEndpoint
 import kotlinx.coroutines.flow.StateFlow
+import com.bitperfect.plugin.usbdac.UsbDacState
+import com.bitperfect.plugin.usbdac.UsbAudioDacDetector
 
 object DeviceStateManager {
     private var usbDriveDetector: UsbDriveDetector? = null

@@ -40,7 +40,7 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.app.ui.theme.VerificationGreen
-import com.bitperfect.app.usb.UsbDacState
+import com.bitperfect.plugin.usbdac.UsbDacState
 import androidx.compose.material3.ExperimentalMaterial3Api
 
 @OptIn(ExperimentalMaterial3Api::class)
