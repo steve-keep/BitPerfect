@@ -298,6 +298,7 @@ open class LibraryRepository(private val context: Context) {
         val allTimeSongs = mutableMapOf<Pair<String, String>, Int>()
         val thisMonthSongs = mutableMapOf<Pair<String, String>, Int>()
         val thisYearSongs = mutableMapOf<Pair<String, String>, Int>()
+        val songAlbums = mutableMapOf<Pair<String, String>, Pair<Long, String>>()
 
         val now = ZonedDateTime.now(ZoneId.systemDefault())
         val currentMonth = now.monthValue
@@ -325,6 +326,8 @@ open class LibraryRepository(private val context: Context) {
 
                                 val songKey = Pair(trackTitle, artistName)
                                 allTimeSongs[songKey] = allTimeSongs.getOrDefault(songKey, 0) + 1
+                                val albumTitle = json.optString("albumTitle", "")
+                                songAlbums[songKey] = Pair(albumId, albumTitle)
 
                                 if (timestamp > 0) {
                                     val playDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault())
@@ -362,17 +365,26 @@ open class LibraryRepository(private val context: Context) {
         val topSongsAllTime = allTimeSongs.entries
             .sortedByDescending { it.value }
             .take(5)
-            .map { TopSong(it.key.first, it.key.second, it.value) }
+            .map {
+                val albumInfo = songAlbums[it.key]
+                TopSong(it.key.first, it.key.second, it.value, albumInfo?.first ?: -1L, albumInfo?.second ?: "")
+            }
 
         val topSongsThisMonth = thisMonthSongs.entries
             .sortedByDescending { it.value }
             .take(3)
-            .map { TopSong(it.key.first, it.key.second, it.value) }
+            .map {
+                val albumInfo = songAlbums[it.key]
+                TopSong(it.key.first, it.key.second, it.value, albumInfo?.first ?: -1L, albumInfo?.second ?: "")
+            }
 
         val topSongsThisYear = thisYearSongs.entries
             .sortedByDescending { it.value }
             .take(3)
-            .map { TopSong(it.key.first, it.key.second, it.value) }
+            .map {
+                val albumInfo = songAlbums[it.key]
+                TopSong(it.key.first, it.key.second, it.value, albumInfo?.first ?: -1L, albumInfo?.second ?: "")
+            }
 
         return ListeningStats(
             mostListenedArtist = topArtist,

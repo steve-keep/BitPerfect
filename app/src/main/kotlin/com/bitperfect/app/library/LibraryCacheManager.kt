@@ -194,8 +194,10 @@ class LibraryCacheManager(private val context: Context) {
             val trackTitle = json.optString("trackTitle", "")
             val artistName = json.optString("artistName", "")
             val playCount = json.optInt("playCount", 0)
+            val albumId = json.optLong("albumId", -1L)
+            val albumTitle = json.optString("albumTitle", "")
             if (trackTitle.isNotEmpty() && artistName.isNotEmpty()) {
-                result.add(TopSong(trackTitle, artistName, playCount))
+                result.add(TopSong(trackTitle, artistName, playCount, albumId, albumTitle))
             }
         }
         return result
@@ -224,6 +226,8 @@ class LibraryCacheManager(private val context: Context) {
             obj.put("trackTitle", song.trackTitle)
             obj.put("artistName", song.artistName)
             obj.put("playCount", song.playCount)
+            obj.put("albumId", song.albumId)
+            obj.put("albumTitle", song.albumTitle)
             array.put(obj)
         }
         return array
