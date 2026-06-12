@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.launch
+import com.bitperfect.app.ui.theme.Primary
 import com.bitperfect.app.ui.theme.TextSecondary
 
 private fun numberToWord(n: Int): String {
@@ -283,7 +284,7 @@ fun TrackListScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.CheckCircle,
                                                     contentDescription = "Success - tap for details",
-                                                    tint = displayColor,
+                                                    tint = Primary,
                                                     modifier = Modifier.size(32.dp)
                                                 )
                                             }
