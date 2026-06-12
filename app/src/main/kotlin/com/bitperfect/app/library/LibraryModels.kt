@@ -32,7 +32,9 @@ data class TopArtist(
 data class TopSong(
     val trackTitle: String,
     val artistName: String,
-    val playCount: Int
+    val playCount: Int,
+    val albumId: Long = -1L,
+    val albumTitle: String = ""
 )
 
 data class ListeningStats(

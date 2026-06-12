@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -28,7 +29,11 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 @Composable
-fun AboutScreen(driveOffsetRepository: DriveOffsetRepository, viewModel: AppViewModel) {
+fun AboutScreen(
+    driveOffsetRepository: DriveOffsetRepository,
+    viewModel: AppViewModel,
+    onNavigateToAlbum: (Long, String) -> Unit = { _, _ -> }
+) {
     val generatedAt by driveOffsetRepository.generatedAt.collectAsState()
     val stats by viewModel.listeningStats.collectAsState()
 
@@ -127,7 +132,7 @@ fun AboutScreen(driveOffsetRepository: DriveOffsetRepository, viewModel: AppView
             if (statsVal.topSongsAllTime.isNotEmpty()) {
                 item {
                     StatCard(title = "Top 5 Songs", icon = Icons.Default.TrendingUp) {
-                        SongList(songs = statsVal.topSongsAllTime)
+                        SongList(songs = statsVal.topSongsAllTime, onNavigateToAlbum = onNavigateToAlbum)
                     }
                 }
             }
@@ -135,7 +140,7 @@ fun AboutScreen(driveOffsetRepository: DriveOffsetRepository, viewModel: AppView
             if (statsVal.topSongsThisMonth.isNotEmpty()) {
                 item {
                     StatCard(title = "Most Listened This Month", icon = Icons.Default.CalendarToday) {
-                        SongList(songs = statsVal.topSongsThisMonth)
+                        SongList(songs = statsVal.topSongsThisMonth, onNavigateToAlbum = onNavigateToAlbum)
                     }
                 }
             }
@@ -143,7 +148,7 @@ fun AboutScreen(driveOffsetRepository: DriveOffsetRepository, viewModel: AppView
             if (statsVal.topSongsThisYear.isNotEmpty()) {
                 item {
                     StatCard(title = "Most Listened This Year", icon = Icons.Default.CalendarToday) {
-                        SongList(songs = statsVal.topSongsThisYear)
+                        SongList(songs = statsVal.topSongsThisYear, onNavigateToAlbum = onNavigateToAlbum)
                     }
                 }
             }
@@ -153,7 +158,7 @@ fun AboutScreen(driveOffsetRepository: DriveOffsetRepository, viewModel: AppView
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Row(
@@ -198,7 +203,7 @@ private fun StatCard(title: String, icon: ImageVector, content: @Composable () -
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -222,11 +227,15 @@ private fun StatCard(title: String, icon: ImageVector, content: @Composable () -
 }
 
 @Composable
-private fun SongList(songs: List<TopSong>) {
+private fun SongList(songs: List<TopSong>, onNavigateToAlbum: (Long, String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         songs.forEachIndexed { index, song ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = song.albumId != -1L) {
+                        onNavigateToAlbum(song.albumId, song.albumTitle)
+                    },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

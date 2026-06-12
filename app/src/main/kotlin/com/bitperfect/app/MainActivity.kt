@@ -550,7 +550,11 @@ class MainActivity : ComponentActivity() {
                                 Box(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
                                     AboutScreen(
                                         driveOffsetRepository = driveOffsetRepository,
-                                        viewModel = appViewModel
+                                        viewModel = appViewModel,
+                                        onNavigateToAlbum = { albumId, albumTitle ->
+                                            appViewModel.selectAlbum(albumId, albumTitle)
+                                            navController.navigate(AppRoutes.TrackList)
+                                        }
                                     )
                                 }
                             }
