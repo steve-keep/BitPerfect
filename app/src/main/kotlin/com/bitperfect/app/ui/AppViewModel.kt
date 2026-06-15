@@ -295,7 +295,7 @@ open class AppViewModel(
                     artist = item.mediaMetadata.artist?.toString() ?: "Unknown Artist",
                     albumTitle = item.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
                     trackNumber = item.mediaMetadata.trackNumber ?: 0,
-                    durationMs = 0L,
+                    durationMs = item.mediaMetadata.extras?.getLong("track_duration_ms") ?: 0L,
                     albumId = item.mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L
                 )
             }

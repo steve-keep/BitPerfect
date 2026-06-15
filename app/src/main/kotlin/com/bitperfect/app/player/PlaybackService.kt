@@ -66,11 +66,11 @@ class PlaybackService : MediaLibraryService() {
                 title        = meta.title?.toString() ?: "",
                 artist       = meta.artist?.toString() ?: "",
                 albumTitle   = meta.albumTitle?.toString() ?: "",
-                durationMs   = 0L,
+                durationMs   = meta.extras?.getLong("track_duration_ms") ?: 0L,
                 trackNumber  = meta.trackNumber ?: 0,
-                filePath     = null,
-                dataPath     = null,
-                albumId      = -1L,
+                filePath     = meta.extras?.getString("track_file_path"),
+                dataPath     = meta.extras?.getString("track_data_path"),
+                albumId      = meta.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L,
             )
         }
         return PlaybackHandoffState(
