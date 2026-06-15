@@ -56,6 +56,10 @@ class DefaultForensicRipLogger : ForensicRipLogger {
         if (sessionStarted.driveFirmware != null) {
             sb.append("Firmware: ${sessionStarted.driveFirmware}\n")
         }
+        val initialSpeedEvent = events.filterIsInstance<RipLogEvent.DriveSpeedChanged>().firstOrNull { it.reason == "rip_start" }
+        if (initialSpeedEvent != null) {
+            sb.append("Drive speed             : ${if (initialSpeedEvent.speed.kbps == 705) "4x" else "2x"}\n")
+        }
         sb.append("\n")
 
         val driveAnalysis = events.filterIsInstance<RipLogEvent.DriveAnalysisCompleted>().lastOrNull()
@@ -131,6 +135,7 @@ class DefaultForensicRipLogger : ForensicRipLogger {
                     is RipLogEvent.MultiPassComparisonCompleted -> it.trackNumber == trackNumber
                     is RipLogEvent.ReadConsistencyScored -> it.trackNumber == trackNumber
                     is RipLogEvent.TargetedSectorRecoveryLogged -> it.trackNumber == trackNumber
+                    is RipLogEvent.DriveSpeedChanged -> it.trackNumber == trackNumber
                     else -> false
                 }
             }
@@ -157,6 +162,19 @@ class DefaultForensicRipLogger : ForensicRipLogger {
                 0.0
             }
             sb.append("Extraction speed ${String.format("%.1f", extractionSpeed)} X\n\n")
+
+            val speedChangeEvents = trackEvents.filterIsInstance<RipLogEvent.DriveSpeedChanged>()
+            for (speedEvent in speedChangeEvents) {
+                if (speedEvent.reason.startsWith("persistent_chunk_failure")) {
+                    val lbaMatch = "lba=(\\d+)".toRegex().find(speedEvent.reason)
+                    val lba = lbaMatch?.groupValues?.get(1) ?: "XXXX"
+                    sb.append("Drive speed             : ${if (speedEvent.speed.kbps == 352) "2x" else "4x"} (reduced due to persistent read failure at LBA $lba)\n")
+                }
+            }
+            if (speedChangeEvents.isNotEmpty()) {
+                sb.append("\n")
+            }
+
 
             sb.append("Confidence: ${trackCompleted.confidence.name}\n")
             sb.append("AccurateRip: ${trackCompleted.accurateRipStatus}\n")

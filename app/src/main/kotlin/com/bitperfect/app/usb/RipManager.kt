@@ -270,6 +270,8 @@ internal suspend fun ripTrack(
     session: UsbReadSession,
     metricsCollector: com.bitperfect.app.ripping.profiler.ReadSizeMetricsCollector,
     logger: com.bitperfect.app.ripping.logging.DefaultForensicRipLogger,
+    currentDriveSpeedParam: DriveSpeed,
+    onSpeedReduced: (DriveSpeed) -> Unit,
     incomingOverreadBuffer: ByteArray?,
     isCancelled: () -> Boolean,
     trackStartTimeMs: Long,
@@ -290,6 +292,7 @@ internal suspend fun ripTrack(
     var trackOverlapVerifications = 0
     var trackOverlapFailures = 0
     var trackAlignmentChecks = 0
+    var currentDriveSpeed = currentDriveSpeedParam
     var trackDriftEvents = 0
     var trackRecoveryWindows = 0
     var trackEscalations = 0
@@ -500,6 +503,15 @@ internal suspend fun ripTrack(
                                         } else null
                                     }
                                 )
+
+                                if (recoveryResult is RereadRecoveryResult.Failed) {
+                                    if (currentDriveSpeed != DriveSpeed.SPEED_2X) {
+                                        AppLogger.w("RipManager", "Persistent chunk failure at lba=${currentChunk.startLba}, reducing drive speed to 2×")
+                                        onSpeedReduced(DriveSpeed.SPEED_2X)
+                                        currentDriveSpeed = DriveSpeed.SPEED_2X
+                                        logger.record(RipLogEvent.DriveSpeedChanged(trackNumber, currentDriveSpeed, "persistent_chunk_failure lba=${currentChunk.startLba}"))
+                                    }
+                                }
 
                                 val metadataHistory = when (recoveryResult) {
                                     is RereadRecoveryResult.Recovered -> recoveryResult.metadataHistory
@@ -1048,7 +1060,29 @@ internal suspend fun ripTrack(
         val logger = DefaultForensicRipLogger()
         val driveFirmware = DeviceStateManager.driveStatus.value.info?.firmware
 
+        var speedCmd: SetCdSpeedCommand? = null
+        var currentDriveSpeed = DriveSpeed.SPEED_4X
+        val transport = DeviceStateManager.getTransport()
+        val outEndpoint = DeviceStateManager.getOutEndpoint()
+        val inEndpoint = DeviceStateManager.getInEndpoint()
+        if (transport != null && outEndpoint != null && inEndpoint != null) {
+            speedCmd = SetCdSpeedCommand(transport, outEndpoint, inEndpoint)
+            val ok = speedCmd.execute(DriveSpeed.SPEED_4X)
+            AppLogger.i("RipManager", "Drive speed set to 4× (705 KB/s): success=$ok")
+        } else {
+            AppLogger.w("RipManager", "Could not set drive speed: transport or endpoints unavailable")
+        }
+
+        val onSpeedReduced: (DriveSpeed) -> Unit = { newSpeed ->
+            val ok = speedCmd?.execute(newSpeed) ?: false
+            AppLogger.w("RipManager", "Drive speed reduced to 2× (352 KB/s): success=$ok")
+            currentDriveSpeed = newSpeed
+        }
+
+
         val nowIso = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+
+        logger.record(RipLogEvent.DriveSpeedChanged(null, currentDriveSpeed, "rip_start"))
 
         logger.record(
             RipLogEvent.SessionStarted(
@@ -1191,6 +1225,8 @@ internal suspend fun ripTrack(
                 session = session,
                 metricsCollector = metricsCollector,
                 logger = logger,
+                currentDriveSpeedParam = currentDriveSpeed,
+                onSpeedReduced = onSpeedReduced,
                 incomingOverreadBuffer = overreadBuffer,
                 isCancelled = { isCancelled },
                 trackStartTimeMs = trackStartTimeMs,

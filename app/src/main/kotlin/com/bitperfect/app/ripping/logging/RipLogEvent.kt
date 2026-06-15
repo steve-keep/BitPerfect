@@ -15,6 +15,13 @@ enum class RipMode {
 
 sealed interface RipLogEvent {
 
+    data class DriveSpeedChanged(
+        val trackNumber: Int?,
+        val speed: com.bitperfect.app.usb.DriveSpeed,
+        val reason: String
+    ) : RipLogEvent
+
+
     data class SessionStarted(
         val appVersion: String,
         val deviceModel: String,
