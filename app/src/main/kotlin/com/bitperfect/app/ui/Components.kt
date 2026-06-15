@@ -742,8 +742,7 @@ fun LibrarySection(
                                                 drawRect(
                                                     brush = Brush.horizontalGradient(
                                                         colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                                                    ),
-                                                    blendMode = BlendMode.ColorBurn
+                                                    )
                                                 )
                                             }
                                     )
