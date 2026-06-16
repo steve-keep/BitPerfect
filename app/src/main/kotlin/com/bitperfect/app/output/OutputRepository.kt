@@ -232,19 +232,7 @@ open class OutputRepository(
                         LocalOutputController(context, playerRepository)
                     is OutputDevice.Bluetooth ->
                         BluetoothOutputController(context, playerRepository, target)
-                    is OutputDevice.Upnp -> {
-                        val controller = WiimOutputController(context, target)
-                        wiimCollectionJob = scope.launch {
-                            launch { controller.isPlaying.collect { _wiimIsPlaying.value = it } }
-                            launch { controller.positionMs.collect { _wiimPositionMs.value = it } }
-                            launch { controller.volume.collect { _wiimVolume.value = it } }
-                            launch { controller.currentTrackIndex.collect { _wiimCurrentTrackIndex.value = it } }
-                            launch { controller.currentTitle.collect { _wiimCurrentTitle.value = it } }
-                            launch { controller.currentArtist.collect { _wiimCurrentArtist.value = it } }
-                            launch { controller.currentAlbum.collect { _wiimCurrentAlbum.value = it } }
-                        }
-                        controller
-                    }
+                    is OutputDevice.Upnp -> LocalOutputController(context, playerRepository)
                     is OutputDevice.UsbDac ->
                         LocalOutputController(context, playerRepository)
                 }

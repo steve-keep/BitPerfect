@@ -3,7 +3,7 @@ package com.bitperfect.app.output
 import com.bitperfect.core.output.OutputDevice
 
 import android.content.Context
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
@@ -175,9 +175,9 @@ class WiimOutputControllerTest {
     @Test
     fun `takeOver with tracks serves M3U8 playlist correctly via FlacHttpServer`() = runTest {
         val tracks = listOf(
-            TrackInfo(1L, "Track 1", 1, 1500L, artist = "Artist A"),
-            TrackInfo(2L, "Track 2", 2, 2500L, artist = "Artist B"),
-            TrackInfo(3L, "Track 3", 3, 3500L, artist = "Artist C")
+            TrackInfo(id = 1L, title = "Track 1", artist = "Artist A", albumTitle = "", durationMs = 1500L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L),
+            TrackInfo(id = 2L, title = "Track 2", artist = "Artist B", albumTitle = "", durationMs = 2500L, trackNumber = 2, filePath = null, dataPath = null, albumId = -1L),
+            TrackInfo(id = 3L, title = "Track 3", artist = "Artist C", albumTitle = "", durationMs = 3500L, trackNumber = 3, filePath = null, dataPath = null, albumId = -1L)
         )
 
         controller.takeOver(tracks, startIndex = 0, startPositionMs = 0L)
@@ -223,9 +223,9 @@ class WiimOutputControllerTest {
     @Test
     fun `takeOver sends correct sequence of SOAP actions using playlist URI`() = runTest {
         val tracks = listOf(
-            TrackInfo(1L, "Track 1", 1, 1000L),
-            TrackInfo(2L, "Track 2", 2, 2000L),
-            TrackInfo(3L, "Track 3", 3, 3000L)
+            TrackInfo(id = 1L, title = "Track 1", artist = "", albumTitle = "", durationMs = 1000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L),
+            TrackInfo(id = 2L, title = "Track 2", artist = "", albumTitle = "", durationMs = 2000L, trackNumber = 2, filePath = null, dataPath = null, albumId = -1L),
+            TrackInfo(id = 3L, title = "Track 3", artist = "", albumTitle = "", durationMs = 3000L, trackNumber = 3, filePath = null, dataPath = null, albumId = -1L)
         )
 
         // Mock sendLinkPlayCommand to always return true, simulating success

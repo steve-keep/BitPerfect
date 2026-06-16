@@ -21,7 +21,6 @@ import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.BitPerfectApplication
 import com.bitperfect.app.output.OutputRepository
 import com.bitperfect.core.output.OutputDevice
-import com.bitperfect.app.output.WiimCastPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
