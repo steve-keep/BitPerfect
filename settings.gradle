@@ -1,2 +1,2 @@
-include ':app', ':core', ':plugin-usb-dac'
+include ':app', ':core', ':plugin-usb-dac', ':plugin-wiim'
 rootProject.name = "BitPerfect"

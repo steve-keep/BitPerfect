@@ -5,7 +5,7 @@ import com.bitperfect.core.output.OutputDevice
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +13,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+
+import com.bitperfect.plugin.wiim.FlacHttpServer
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -29,10 +31,10 @@ import java.net.URL
 class WiimOutputController(
     private val context: Context,
     private val target: OutputDevice.Upnp
-) : OutputController {
+) {
 
     private val scope = CoroutineScope(Dispatchers.IO + Job())
-    private var httpServer: FlacHttpServer? = null
+    private var httpServer: com.bitperfect.plugin.wiim.FlacHttpServer? = null
     private var wifiIp: String? = null
 
     private val _isPlaying = MutableStateFlow(false)
@@ -142,7 +144,7 @@ class WiimOutputController(
         return null
     }
 
-    override suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
+    suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
         val trackList = tracks
         val index = startIndex
         wifiIp = getWifiIpAddress()
@@ -153,6 +155,7 @@ class WiimOutputController(
 
         httpServer?.stop()
         httpServer = FlacHttpServer(context, trackList)
+        httpServer?.serverIp = wifiIp ?: "127.0.0.1"
         httpServer?.start(5000, false)
 
         val port = httpServer?.listeningPort ?: -1
@@ -202,37 +205,37 @@ class WiimOutputController(
         startPolling()
     }
 
-    override suspend fun skipNext() {
+    suspend fun skipNext() {
         withContext(Dispatchers.IO) {
             sendSoapAction("Next", "<InstanceID>0</InstanceID>")
         }
     }
 
-    override suspend fun skipPrev() {
+    suspend fun skipPrev() {
         withContext(Dispatchers.IO) {
             sendSoapAction("Previous", "<InstanceID>0</InstanceID>")
         }
     }
 
-    override suspend fun play() {
+    suspend fun play() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:resume")
         }
     }
 
-    override suspend fun pause() {
+    suspend fun pause() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:pause")
         }
     }
 
-    override suspend fun togglePlayPause() {
+    suspend fun togglePlayPause() {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:onepause")
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) {
+    suspend fun seekTo(positionMs: Long) {
         withContext(Dispatchers.IO) {
             val h = positionMs / 3600000
             val m = (positionMs % 3600000) / 60000
@@ -249,7 +252,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun getPositionMs(): Long = withContext(Dispatchers.IO) {
+    suspend fun getPositionMs(): Long = withContext(Dispatchers.IO) {
         val response = sendSoapActionWithResponse(
             "GetPositionInfo",
             """
@@ -276,7 +279,7 @@ class WiimOutputController(
         return@withContext 0L
     }
 
-    override suspend fun appendToQueue(track: TrackInfo) {
+    suspend fun appendToQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -291,7 +294,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
+    suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -306,7 +309,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun insertNextInQueue(track: TrackInfo) {
+    suspend fun insertNextInQueue(track: TrackInfo) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -322,7 +325,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
+    suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -338,7 +341,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
+    suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -353,7 +356,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun removeFromQueue(index: Int) {
+    suspend fun removeFromQueue(index: Int) {
         val server = httpServer ?: return
         val ip = wifiIp ?: return
         val port = server.listeningPort
@@ -368,7 +371,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun release() {
+    suspend fun release() {
         stopPolling()
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:stop")
@@ -376,7 +379,7 @@ class WiimOutputController(
         }
     }
 
-    override suspend fun setVolume(volume: Int) {
+    suspend fun setVolume(volume: Int) {
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:vol:${volume.coerceIn(0, 100)}")
         }
@@ -451,136 +454,5 @@ class WiimOutputController(
         return null
     }
 
-    private inner class FlacHttpServer(val context: Context, initialTrackList: List<TrackInfo>) : NanoHTTPD(0) {
 
-        private val trackList = java.util.concurrent.CopyOnWriteArrayList(initialTrackList)
-
-        fun appendTrack(track: TrackInfo) {
-            trackList.add(track)
-        }
-
-        fun appendTracks(tracks: List<TrackInfo>) {
-            trackList.addAll(tracks)
-        }
-
-        fun insertTrackAfterIndex(track: TrackInfo, afterIndex: Int) {
-            val insertAt = (afterIndex + 1).coerceIn(0, trackList.size)
-            trackList.add(insertAt, track)
-        }
-
-        fun insertTracksAfterIndex(tracks: List<TrackInfo>, afterIndex: Int) {
-            val insertAt = (afterIndex + 1).coerceIn(0, trackList.size)
-            trackList.addAll(insertAt, tracks)
-        }
-
-        fun moveTrack(fromIndex: Int, toIndex: Int) {
-            if (fromIndex == toIndex) return
-            val from = fromIndex.coerceIn(0, trackList.size - 1)
-            val to = toIndex.coerceIn(0, trackList.size - 1)
-            val track = trackList.removeAt(from)
-            trackList.add(to, track)
-        }
-
-        fun removeTrack(index: Int) {
-            if (index !in trackList.indices) return
-            trackList.removeAt(index)
-        }
-
-        override fun serve(session: IHTTPSession): Response {
-            val uri = session.uri
-
-            if (uri == "/playlist.m3u8") {
-                val sb = StringBuilder("#EXTM3U\n")
-                val ip = wifiIp ?: "127.0.0.1"
-                for (track in trackList) {
-                    val trackUrl = "http://$ip:$listeningPort/track/${track.id}.flac"
-                    val duration = if (track.durationMs > 0) track.durationMs / 1000 else -1
-                    sb.append("#EXTINF:$duration,${track.artist} - ${track.title}\n")
-                    sb.append("$trackUrl\n")
-                }
-                return newFixedLengthResponse(Response.Status.OK, "audio/x-mpegurl", sb.toString())
-            }
-
-            if (uri.startsWith("/art/") && uri.endsWith(".jpg")) {
-                val albumIdStr = uri.substringAfter("/art/").substringBefore(".jpg")
-                val albumId = albumIdStr.toLongOrNull() ?: -1L
-                if (albumId < 0) return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
-                val artUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"), albumId
-                )
-                val stream = try {
-                    context.contentResolver.openInputStream(artUri)
-                } catch (e: Exception) {
-                    null
-                } ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
-                return newChunkedResponse(Response.Status.OK, "image/jpeg", stream)
-            }
-
-            if (!uri.startsWith("/track/") || !uri.endsWith(".flac")) {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
-            }
-
-            val trackIdString = uri.substringAfter("/track/").substringBefore(".flac")
-            val trackId = trackIdString.toLongOrNull() ?: -1L
-            val track = trackList.find { it.id == trackId }
-            if (track == null) {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Track Not Found")
-            }
-
-            val filePath = track.filePath ?: track.dataPath
-            if (filePath == null) {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Path Not Found")
-            }
-            val file = File(filePath)
-            if (!file.exists()) {
-                return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Not Found")
-            }
-
-            val rangeHeader = session.headers["range"]
-            val fileLen = file.length()
-
-            var startFrom: Long = 0
-            var endAt: Long = -1
-            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-                val range = rangeHeader.substring(6).split("-")
-                startFrom = try {
-                    range[0].toLong()
-                } catch (e: NumberFormatException) {
-                    0
-                }
-                endAt = try {
-                    if (range.size > 1 && range[1].isNotEmpty()) range[1].toLong() else -1
-                } catch (e: NumberFormatException) {
-                    -1
-                }
-            }
-
-            if (rangeHeader != null && startFrom >= 0) {
-                if (startFrom >= fileLen) {
-                    val res = newFixedLengthResponse(Response.Status.RANGE_NOT_SATISFIABLE, MIME_PLAINTEXT, "")
-                    res.addHeader("Content-Range", "bytes 0-0/$fileLen")
-                    return res
-                }
-
-                if (endAt < 0) {
-                    endAt = fileLen - 1
-                }
-
-                var newLen = endAt - startFrom + 1
-                if (newLen < 0) {
-                    newLen = 0
-                }
-
-                val fis = FileInputStream(file)
-                fis.skip(startFrom)
-
-                val res = newFixedLengthResponse(Response.Status.PARTIAL_CONTENT, "audio/flac", fis, newLen)
-                res.addHeader("Content-Range", "bytes $startFrom-$endAt/$fileLen")
-                return res
-            } else {
-                val fis = FileInputStream(file)
-                return newFixedLengthResponse(Response.Status.OK, "audio/flac", fis, fileLen)
-            }
-        }
-    }
 }

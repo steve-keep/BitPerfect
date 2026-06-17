@@ -8,7 +8,7 @@ import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
@@ -79,7 +79,7 @@ class WiimCastPlayer(
         val tracks = mediaItems.mapNotNull { item -> item.toTrackInfo() }
 
         scope.launch(Dispatchers.IO) {
-            controller.takeOver(tracks, startIndex, startPositionMs)
+            controller.takeOver(tracks as List<com.bitperfect.core.output.CoreTrackInfo>, startIndex, startPositionMs)
         }
 
         return Futures.immediateVoidFuture()
