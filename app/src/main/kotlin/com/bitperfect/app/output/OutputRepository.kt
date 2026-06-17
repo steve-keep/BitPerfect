@@ -189,10 +189,7 @@ open class OutputRepository(
 
     open suspend fun setVolume(volume: Int) {
         val controller = activeController
-        if (controller is WiimOutputController) {
-            controller.setVolume(volume)
-            _wiimVolume.value = volume.coerceIn(0, 100)
-        }
+        // Stubbed for Phase 3a
     }
 
     // --- Device switching ---
@@ -232,7 +229,13 @@ open class OutputRepository(
                         LocalOutputController(context, playerRepository)
                     is OutputDevice.Bluetooth ->
                         BluetoothOutputController(context, playerRepository, target)
-                    is OutputDevice.Upnp -> LocalOutputController(context, playerRepository)
+                                        is OutputDevice.Upnp -> {
+                        // Stubbed for Phase 3a
+                        val controller = LocalOutputController(context, playerRepository)
+                        wiimCollectionJob = scope.launch {
+                        }
+                        controller
+                    }
                     is OutputDevice.UsbDac ->
                         LocalOutputController(context, playerRepository)
                 }
