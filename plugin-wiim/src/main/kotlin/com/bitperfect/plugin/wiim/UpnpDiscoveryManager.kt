@@ -1,4 +1,4 @@
-package com.bitperfect.app.output
+package com.bitperfect.plugin.wiim
 
 import com.bitperfect.core.output.OutputDevice
 
@@ -20,12 +20,12 @@ import java.net.InetAddress
 import java.net.MulticastSocket
 import java.net.URL
 
-class UpnpManager(
+class UpnpDiscoveryManager(
     private val context: Context,
     fetchJson: ((String) -> JSONObject?)? = null
 ) {
 
-    private val TAG = "UpnpManager"
+    private val TAG = "UpnpDiscoveryManager"
     private val fetchJsonConfigured: (String) -> JSONObject? = fetchJson ?: { url -> fetchLinkPlayJson(url) }
 
     private val _isDiscovering = MutableStateFlow(false)

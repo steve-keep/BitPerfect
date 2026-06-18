@@ -21,7 +21,6 @@ import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.BitPerfectApplication
 import com.bitperfect.app.output.OutputRepository
 import com.bitperfect.core.output.OutputDevice
-import com.bitperfect.app.output.WiimCastPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,8 +41,7 @@ import com.bitperfect.core.output.PlayerProvider
 class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
-    private var wiimCastPlayer: WiimCastPlayer? = null
-    private var activeProvider: PlayerProvider? = null
+        private var activeProvider: PlayerProvider? = null
     private var isUsingUsbAudioSink = false
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -140,22 +138,24 @@ class PlaybackService : MediaLibraryService() {
 
         when (target) {
             is OutputDevice.Upnp -> {
-                // Pause local playback so audio doesn't come from both sources
                 player?.pause()
-                // Release any existing WiimCastPlayer before creating a new one
                 activeProvider?.release()
-        activeProvider = null
-        wiimCastPlayer?.release()
+                activeProvider = null
 
-                val newCastPlayer = WiimCastPlayer(this, target)
-                wiimCastPlayer = newCastPlayer
-                session.player = newCastPlayer
+                val registry = (application as com.bitperfect.app.BitPerfectApplication).outputPluginRegistry
+                val plugin = registry.pluginFor(target)
+                if (plugin != null) {
+                    val handoff = buildHandoffState()
+                    val provider = plugin.createPlayerProvider(this, target, handoff)
+                    activeProvider = provider
+                    session.player = provider.player
+                } else {
+                    session.player = player ?: return
+                }
             }
             is OutputDevice.UsbDac -> {
                 activeProvider?.release()
         activeProvider = null
-        wiimCastPlayer?.release()
-                wiimCastPlayer = null
 
                 // Capture state from current player before releasing
                 val currentPosition = player?.currentPosition ?: 0L
@@ -178,8 +178,6 @@ class PlaybackService : MediaLibraryService() {
                 // if we were previously on UsbDac
                 activeProvider?.release()
         activeProvider = null
-        wiimCastPlayer?.release()
-                wiimCastPlayer = null
 
                 if (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth) {
                     if (isUsingUsbAudioSink) {
@@ -557,8 +555,6 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         activeProvider?.release()
         activeProvider = null
-        wiimCastPlayer?.release()
-        wiimCastPlayer = null
         serviceScope.cancel()  // stops the activeDevice collection coroutine
 
         mediaLibrarySession?.apply {

@@ -15,12 +15,6 @@ fun fakeOutputRepository(application: Application, playerRepository: PlayerRepos
         val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
         override val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
         override val availableDevices: StateFlow<List<OutputDevice>> = MutableStateFlow(listOf<OutputDevice>()).asStateFlow()
-        override val wiimPositionMs: StateFlow<Long> = MutableStateFlow(0L).asStateFlow()
-        override val wiimCurrentTrackIndex: StateFlow<Int> = MutableStateFlow(-1).asStateFlow()
-        override val wiimCurrentTitle: StateFlow<String?> = MutableStateFlow<String?>(null).asStateFlow()
-        override val wiimCurrentArtist: StateFlow<String?> = MutableStateFlow<String?>(null).asStateFlow()
-        override val wiimCurrentAlbum: StateFlow<String?> = MutableStateFlow<String?>(null).asStateFlow()
-
         override suspend fun takeOverAndPlay(tracks: List<com.bitperfect.app.library.TrackInfo>, startIndex: Int) {
             playerRepository.playTrack(tracks, startIndex)
         }

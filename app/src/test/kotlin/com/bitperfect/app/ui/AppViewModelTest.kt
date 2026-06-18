@@ -691,54 +691,6 @@ class AppViewModelTest {
     }
 
     @Test
-    fun testSkipDelegationForUpnpDevice() = runTest(testScheduler) {
-        val application = ApplicationProvider.getApplicationContext<Application>()
-        val mockPlayerRepo = mock(PlayerRepository::class.java)
-        val mockOutputRepo = mock(com.bitperfect.app.output.OutputRepository::class.java)
-        val mockLibraryRepo = mock(com.bitperfect.app.library.LibraryRepository::class.java)
-
-        org.mockito.Mockito.`when`(mockOutputRepo.activeDevice).thenReturn(MutableStateFlow(com.bitperfect.core.output.OutputDevice.Upnp("uuid", "WiiM", null, null, "", null, null, null)))
-        org.mockito.Mockito.`when`(mockOutputRepo.availableDevices).thenReturn(MutableStateFlow(emptyList()))
-        org.mockito.Mockito.`when`(mockOutputRepo.isDiscovering).thenReturn(MutableStateFlow(false))
-        org.mockito.Mockito.`when`(mockOutputRepo.wiimVolume).thenReturn(MutableStateFlow(50))
-        org.mockito.Mockito.`when`(mockOutputRepo.isPlaying).thenReturn(MutableStateFlow(false))
-        org.mockito.Mockito.`when`(mockOutputRepo.wiimPositionMs).thenReturn(MutableStateFlow(0L))
-        org.mockito.Mockito.`when`(mockOutputRepo.wiimCurrentTrackIndex).thenReturn(MutableStateFlow(-1))
-
-        org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
-        org.mockito.Mockito.`when`(mockPlayerRepo.currentMediaId).thenReturn(MutableStateFlow(null))
-        org.mockito.Mockito.`when`(mockPlayerRepo.currentIndex).thenReturn(MutableStateFlow(0))
-        org.mockito.Mockito.`when`(mockPlayerRepo.currentTrackTitle).thenReturn(MutableStateFlow(null))
-        org.mockito.Mockito.`when`(mockPlayerRepo.currentAlbumArtUri).thenReturn(MutableStateFlow(null))
-        org.mockito.Mockito.`when`(mockPlayerRepo.positionMs).thenReturn(MutableStateFlow(0L))
-        val recentlyPlayedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
-        try {
-            org.mockito.Mockito.`when`(mockPlayerRepo.onRecentlyPlayedUpdated).thenReturn(recentlyPlayedFlow)
-        } catch(e: Exception) {
-            org.mockito.Mockito.doReturn(recentlyPlayedFlow).`when`(mockPlayerRepo).onRecentlyPlayedUpdated
-        }
-
-        val libraryUpdatedFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
-        try {
-            org.mockito.Mockito.`when`(mockLibraryRepo.onLibraryUpdated).thenReturn(libraryUpdatedFlow)
-        } catch(e: Exception) {
-            org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepo).onLibraryUpdated
-        }
-
-        val vm = AppViewModel(application, mockPlayerRepo, mockOutputRepo, mockLibraryRepo, testDispatcher)
-
-        vm.skipNext()
-        advanceUntilIdle()
-        verify(mockOutputRepo).skipNext()
-        verify(mockPlayerRepo, org.mockito.Mockito.never()).skipNext()
-
-        vm.skipPrev()
-        advanceUntilIdle()
-        verify(mockOutputRepo).skipPrev()
-        verify(mockPlayerRepo, org.mockito.Mockito.never()).skipPrev()
-    }
-
-    @Test
     fun testShareRipInfo_withNonWarningTrack_isNoOp() = runTest(testScheduler) {
         viewModel._ripStates.value = mapOf(
             1 to TrackRipState(

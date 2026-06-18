@@ -1,4 +1,4 @@
-package com.bitperfect.app.output
+package com.bitperfect.plugin.wiim
 
 import com.bitperfect.core.output.OutputDevice
 

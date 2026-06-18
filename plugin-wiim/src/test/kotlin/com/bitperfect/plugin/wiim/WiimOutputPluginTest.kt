@@ -3,7 +3,7 @@ package com.bitperfect.plugin.wiim
 import android.content.Context
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.core.output.OutputPluginRegistry
-import com.bitperfect.app.output.UpnpManager
+
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -29,7 +29,7 @@ class WiimOutputPluginTest {
             val context = mockk<Context>(relaxed = true)
             val registry = mockk<OutputPluginRegistry>(relaxed = true)
             val devicesFlow = MutableStateFlow<List<OutputDevice.Upnp>>(emptyList())
-            val manager = mockk<UpnpManager>(relaxed = true)
+            val manager = mockk<UpnpDiscoveryManager>(relaxed = true)
             every { manager.devices } returns devicesFlow
 
             val plugin = WiimOutputPlugin(context) { manager }
@@ -53,7 +53,7 @@ class WiimOutputPluginTest {
     @Test
     fun `release stops discovery manager`() {
         val context = mockk<Context>(relaxed = true)
-        val manager = mockk<UpnpManager>(relaxed = true)
+        val manager = mockk<UpnpDiscoveryManager>(relaxed = true)
         every { manager.devices } returns MutableStateFlow(emptyList())
 
         val plugin = WiimOutputPlugin(context) { manager }

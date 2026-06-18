@@ -2,7 +2,7 @@ package com.bitperfect.plugin.wiim
 
 import android.content.Context
 import androidx.media3.common.util.UnstableApi
-import com.bitperfect.app.output.UpnpManager
+
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.core.output.OutputPlugin
 import com.bitperfect.core.output.OutputPluginRegistry
@@ -17,14 +17,14 @@ import kotlinx.coroutines.launch
 @UnstableApi
 class WiimOutputPlugin(
     private val appContext: Context,
-    private val discoveryManagerFactory: (Context) -> UpnpManager =
-        { ctx -> UpnpManager(ctx) }
+    private val discoveryManagerFactory: (Context) -> UpnpDiscoveryManager =
+        { ctx -> UpnpDiscoveryManager(ctx) }
 ) : OutputPlugin {
 
     override val deviceType: String = "upnp_wiim"
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var discoveryManager: UpnpManager? = null
+    private var discoveryManager: UpnpDiscoveryManager? = null
 
     override fun attach(registry: OutputPluginRegistry) {
         val manager = discoveryManagerFactory(appContext)
