@@ -3,6 +3,7 @@ package com.bitperfect.app.player
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
+import androidx.media3.common.C
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
 import java.util.UUID
@@ -40,6 +41,11 @@ open class PlayerRepository(
     fun interface MediaControllerFactory {
         fun build(context: Context, token: SessionToken): ListenableFuture<MediaController>
     }
+
+    fun setVolume(volume: Int) {
+        controller?.setDeviceVolume(volume, C.VOLUME_FLAG_SHOW_UI)
+    }
+
 
     private class DefaultMediaControllerFactory : MediaControllerFactory {
         override fun build(context: Context, token: SessionToken): ListenableFuture<MediaController> {
@@ -85,6 +91,9 @@ open class PlayerRepository(
     private val _positionMs = MutableStateFlow(0L)
     open val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
+    private val _deviceVolume = MutableStateFlow(50)
+    val deviceVolume: StateFlow<Int> = _deviceVolume.asStateFlow()
+
     private val _syncedLyrics = MutableStateFlow<String?>(null)
     open val syncedLyrics: StateFlow<String?> = _syncedLyrics.asStateFlow()
 
@@ -95,6 +104,10 @@ open class PlayerRepository(
     open val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
 
     private val listener = object : Player.Listener {
+        override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
+            _deviceVolume.value = volume
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = controller?.isPlaying ?: false
         }

@@ -1,4 +1,4 @@
-package com.bitperfect.app.output
+package com.bitperfect.plugin.wiim
 
 import com.bitperfect.core.output.OutputDevice
 
@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class UpnpManagerTest {
+class UpnpDiscoveryManagerTest {
 
     private val playerJsonNoDeviceName = JSONObject("""
         {"type":"0","ch":"0","mode":"2","loop":"4","eq":"0","vendor":"","status":"stop","curpos":"11091","offset_pts":"11091","totlen":"170933","Title":"6D79206D696E642069732061206D6F756E7461696E","Artist":"446566746F6E6573","Album":"70726976617465206D75736963","alarmflag":"0","plicount":"0","plicurr":"0","vol":"30","mute":"0"}
@@ -31,7 +31,7 @@ class UpnpManagerTest {
 
     @Test
     fun `mergeDeviceJson - getStatusEx has DeviceName, getPlayerStatusEx does not`() {
-        val manager = UpnpManager(mockContext)
+        val manager = UpnpDiscoveryManager(mockContext)
         val device = manager.mergeDeviceJson(
             playerJson = playerJsonNoDeviceName,
             statusJson = statusJsonWithDeviceName,
@@ -46,7 +46,7 @@ class UpnpManagerTest {
 
     @Test
     fun `mergeDeviceJson - both responses null (non-WiiM device)`() {
-        val manager = UpnpManager(mockContext)
+        val manager = UpnpDiscoveryManager(mockContext)
         val device = manager.mergeDeviceJson(
             playerJson = null,
             statusJson = null,
@@ -59,7 +59,7 @@ class UpnpManagerTest {
 
     @Test
     fun `mergeDeviceJson - getStatusEx fails (null), getPlayerStatusEx succeeds with no DeviceName`() {
-        val manager = UpnpManager(mockContext)
+        val manager = UpnpDiscoveryManager(mockContext)
         val device = manager.mergeDeviceJson(
             playerJson = playerJsonNoDeviceName,
             statusJson = null,
@@ -74,7 +74,7 @@ class UpnpManagerTest {
 
     @Test
     fun `mergeDeviceJson - getStatusEx fails (null), getPlayerStatusEx succeeds and has DeviceName`() {
-        val manager = UpnpManager(mockContext)
+        val manager = UpnpDiscoveryManager(mockContext)
         val device = manager.mergeDeviceJson(
             playerJson = playerJsonWithDeviceName,
             statusJson = null,

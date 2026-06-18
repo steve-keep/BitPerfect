@@ -48,40 +48,20 @@ open class OutputRepository(
     private val _activeDevice = MutableStateFlow<OutputDevice>(OutputDevice.ThisPhone)
     open val activeDevice: StateFlow<OutputDevice> = _activeDevice.asStateFlow()
 
-    private val _wiimIsPlaying = MutableStateFlow(false)
-    private val _wiimPositionMs = MutableStateFlow(0L)
-    open val wiimPositionMs: StateFlow<Long> = _wiimPositionMs.asStateFlow()
 
-    private val _wiimVolume = MutableStateFlow(50)
-    open val wiimVolume: StateFlow<Int> = _wiimVolume.asStateFlow()
 
-    private val _wiimCurrentTrackIndex = MutableStateFlow(-1)
-    open val wiimCurrentTrackIndex: StateFlow<Int> = _wiimCurrentTrackIndex.asStateFlow()
 
-    private val _wiimCurrentTitle = MutableStateFlow<String?>(null)
-    open val wiimCurrentTitle: StateFlow<String?> = _wiimCurrentTitle.asStateFlow()
 
-    private val _wiimCurrentArtist = MutableStateFlow<String?>(null)
-    open val wiimCurrentArtist: StateFlow<String?> = _wiimCurrentArtist.asStateFlow()
 
-    private val _wiimCurrentAlbum = MutableStateFlow<String?>(null)
-    open val wiimCurrentAlbum: StateFlow<String?> = _wiimCurrentAlbum.asStateFlow()
 
-    open val isPlaying: StateFlow<Boolean> = combine(
-        _activeDevice,
-        _wiimIsPlaying,
-        playerRepository.isPlaying
-    ) { device, wiimPlaying, localPlaying ->
-        if (device is OutputDevice.Upnp) wiimPlaying else localPlaying
-    }.stateIn(scope, SharingStarted.Eagerly, false)
+    open val isPlaying: StateFlow<Boolean> = playerRepository.isPlaying
+        .stateIn(scope, SharingStarted.Eagerly, false)
 
-    private val upnpManager = UpnpManager(context)
-    open val isDiscovering: StateFlow<Boolean> = upnpManager.isDiscovering
+    open val isDiscovering: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
 
     private val switchMutex = kotlinx.coroutines.sync.Mutex()
     @Volatile private var activeController: OutputController = LocalOutputController(context, playerRepository)
 
-    private var wiimCollectionJob: kotlinx.coroutines.Job? = null
 
     private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -101,21 +81,13 @@ open class OutputRepository(
             IntentFilter(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
         )
 
-        scope.launch {
-            upnpManager.devices.collect { upnpDevices ->
-                Log.d("OutputRepository", "UPnP devices from manager: ${upnpDevices.map { it.friendlyName }}")
-                val current = _availableDevices.value.filter { it !is OutputDevice.Upnp }.toMutableList()
-                current.addAll(upnpDevices)
-                Log.d("OutputRepository", "Combined output devices: ${current.map { it.displayName }}")
-                _availableDevices.value = current
-            }
-        }
+
 
         scope.launch {
             val registry = (context.applicationContext as BitPerfectApplication).outputPluginRegistry
             registry.availableDevices.collect { pluginDevices ->
                 val current = _availableDevices.value
-                    .filter { it is OutputDevice.ThisPhone || it is OutputDevice.Bluetooth || it is OutputDevice.Upnp }
+            .filter { it is OutputDevice.ThisPhone || it is OutputDevice.Bluetooth }
                     .toMutableList()
                 current.addAll(pluginDevices)
                 _availableDevices.value = current
@@ -128,22 +100,16 @@ open class OutputRepository(
             }
         }
 
-        upnpManager.start()
-    }
+            }
 
     // Add a cleanup method to stop discovery when app closes
     fun release() {
-        upnpManager.stop()
-        try {
+                try {
             context.unregisterReceiver(bluetoothReceiver)
         } catch (e: Exception) {}
     }
 
-    fun optimisticallyFlipWiimPlaying() {
-        if (_activeDevice.value is OutputDevice.Upnp) {
-            _wiimIsPlaying.value = !_wiimIsPlaying.value
-        }
-    }
+
 
     // --- Playback delegation ---
     // AppViewModel calls these instead of PlayerRepository directly.
@@ -205,16 +171,6 @@ open class OutputRepository(
         scope.launch(Dispatchers.Main) {
             switchMutex.withLock {
                 val positionMs = activeController.getPositionMs()
-
-                wiimCollectionJob?.cancel()
-                _wiimIsPlaying.value = false
-                _wiimPositionMs.value = 0L
-                _wiimVolume.value = 50
-                _wiimCurrentTrackIndex.value = -1
-                _wiimCurrentTitle.value = null
-                _wiimCurrentArtist.value = null
-                _wiimCurrentAlbum.value = null
-
                 val isLocalToLocal = (activeController is LocalOutputController || activeController is BluetoothOutputController) &&
                                      (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth)
 
@@ -229,13 +185,7 @@ open class OutputRepository(
                         LocalOutputController(context, playerRepository)
                     is OutputDevice.Bluetooth ->
                         BluetoothOutputController(context, playerRepository, target)
-                                        is OutputDevice.Upnp -> {
-                        // Stubbed for Phase 3a
-                        val controller = LocalOutputController(context, playerRepository)
-                        wiimCollectionJob = scope.launch {
-                        }
-                        controller
-                    }
+                                        is OutputDevice.Upnp -> LocalOutputController(context, playerRepository)
                     is OutputDevice.UsbDac ->
                         LocalOutputController(context, playerRepository)
                 }
@@ -264,11 +214,6 @@ open class OutputRepository(
             val devices = mutableListOf<OutputDevice>(OutputDevice.ThisPhone)
             val btDevices = fetchConnectedA2dpDevices()
             devices.addAll(btDevices)
-
-            // Keep existing UPnP devices
-            val existingUpnp = _availableDevices.value.filterIsInstance<OutputDevice.Upnp>()
-            devices.addAll(existingUpnp)
-
             // Add plugin devices
             val registry = (context.applicationContext as BitPerfectApplication).outputPluginRegistry
             devices.addAll(registry.availableDevices.value)

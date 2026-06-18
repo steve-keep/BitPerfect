@@ -11,7 +11,7 @@ import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.core.output.PlaybackHandoffState
 import com.bitperfect.core.output.PlayerProvider
-import com.bitperfect.app.output.WiimCastPlayer
+
 
 @UnstableApi
 internal class WiimPlayerProvider(
