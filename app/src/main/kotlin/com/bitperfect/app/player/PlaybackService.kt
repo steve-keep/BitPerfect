@@ -155,23 +155,29 @@ class PlaybackService : MediaLibraryService() {
             }
             is OutputDevice.UsbDac -> {
                 activeProvider?.release()
-        activeProvider = null
+                activeProvider = null
 
-                // Capture state from current player before releasing
-                val currentPosition = player?.currentPosition ?: 0L
-                val wasPlaying = player?.isPlaying ?: false
-                val currentMediaItem = player?.currentMediaItem
-
-                player?.release()
-                val newPlayer = buildExoPlayer(useUsbAudioSink = true)
-                player = newPlayer
-
-                // Restore state
-                currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
-                newPlayer.prepare()
-                if (wasPlaying) newPlayer.play()
-
-                session.player = newPlayer
+                val registry = (application as com.bitperfect.app.BitPerfectApplication)
+                    .outputPluginRegistry
+                val plugin = registry.pluginFor(target)
+                if (plugin != null) {
+                    val handoff = buildHandoffState()
+                    val provider = plugin.createPlayerProvider(this, target, handoff)
+                    activeProvider = provider
+                    session.player = provider.player
+                } else {
+                    // Fallback: no plugin registered, build manually
+                    val currentPosition = player?.currentPosition ?: 0L
+                    val wasPlaying = player?.isPlaying ?: false
+                    val currentMediaItem = player?.currentMediaItem
+                    player?.release()
+                    val newPlayer = buildExoPlayer(useUsbAudioSink = true)
+                    player = newPlayer
+                    currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
+                    newPlayer.prepare()
+                    if (wasPlaying) newPlayer.play()
+                    session.player = newPlayer
+                }
             }
             else -> {
                 // Switching back to local — rebuild with DefaultRenderersFactory
