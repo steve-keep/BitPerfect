@@ -6,7 +6,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.test.core.app.ApplicationProvider
 import com.bitperfect.app.library.ArtistInfo
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
@@ -251,8 +251,8 @@ class AppViewModelTest {
     @Test
     fun testCurrentTrackTitleResolution() = runTest(testScheduler) {
         val tracks = listOf(
-            TrackInfo(1L, "First Song", 1, 1000L, 1, 100L),
-            TrackInfo(2L, "Second Song", 2, 2000L, 1, 100L)
+            TrackInfo(id = 1L, title = "First Song", artist = "", albumTitle = "", durationMs = 1000L, trackNumber = 1, filePath = null, dataPath = null, albumId = 100L, discNumber = 1),
+            TrackInfo(id = 2L, title = "Second Song", artist = "", albumTitle = "", durationMs = 2000L, trackNumber = 2, filePath = null, dataPath = null, albumId = 100L, discNumber = 1)
         )
 
         // Use a test-specific mock repository to allow mutating state flows
@@ -661,7 +661,7 @@ class AppViewModelTest {
         // AppViewModel delegates play/pause/seek to OutputRepository now.
         // For skip actions, it delegates to OutputRepository if device is UPnP, otherwise PlayerRepository.
 
-        val tracks = listOf(TrackInfo(1L, "Test", 1, 1000L))
+        val tracks = listOf(TrackInfo(id = 1L, title = "Test", artist = "", albumTitle = "", durationMs = 1000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L))
 
         viewModel.playAlbum(tracks)
         advanceUntilIdle()

@@ -10,7 +10,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import com.bitperfect.core.output.CoreTrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.core.output.OutputPlugin
 import com.bitperfect.core.output.OutputPluginRegistry
@@ -98,9 +98,9 @@ class UsbDacOutputPlugin(
 }
 
 /**
- * Converts a [CoreTrackInfo] into a Media3 [MediaItem] with a MediaStore URI.
+ * Converts a [TrackInfo] into a Media3 [MediaItem] with a MediaStore URI.
  */
-private fun CoreTrackInfo.toMediaItem(context: Context): MediaItem {
+private fun TrackInfo.toMediaItem(context: Context): MediaItem {
     val uri = ContentUris.withAppendedId(
         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
     )

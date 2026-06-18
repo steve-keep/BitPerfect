@@ -7,7 +7,7 @@ import android.provider.MediaStore
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
-import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.core.output.PlaybackHandoffState
 import com.bitperfect.core.output.PlayerProvider

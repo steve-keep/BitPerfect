@@ -12,7 +12,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.core.utils.SettingsManager
 import androidx.documentfile.provider.DocumentFile

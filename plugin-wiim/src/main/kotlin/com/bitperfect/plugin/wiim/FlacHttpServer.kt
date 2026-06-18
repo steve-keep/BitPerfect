@@ -3,7 +3,7 @@ package com.bitperfect.plugin.wiim
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
-import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import fi.iki.elonen.NanoHTTPD
 import java.io.File
 import java.io.FileInputStream

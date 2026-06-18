@@ -5,7 +5,7 @@ import com.bitperfect.core.output.OutputDevice
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
-import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bitperfect.app.library.ArtistInfo
 import com.bitperfect.app.player.PlayerRepository
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.library.LibraryRepository
 import com.bitperfect.app.library.ListeningStats
 
@@ -288,7 +288,9 @@ open class AppViewModel(
                     albumTitle = item.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
                     trackNumber = item.mediaMetadata.trackNumber ?: 0,
                     durationMs = item.mediaMetadata.extras?.getLong("track_duration_ms") ?: 0L,
-                    albumId = item.mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L
+                    albumId = item.mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L,
+                    filePath = null,
+                    dataPath = null
                 )
             }
         }
@@ -830,9 +832,14 @@ open class AppViewModel(
                 TrackInfo(
                     id = index.toLong(),
                     title = trackTitle,
+                    artist = meta?.albumArtist ?: "Unknown Artist",
+                    albumTitle = meta?.albumTitle ?: "Unknown Album",
                     trackNumber = index + 1,
                     durationMs = durationMs,
-                    discNumber = meta?.discNumber ?: 1
+                    discNumber = meta?.discNumber ?: 1,
+                    albumId = -1L,
+                    filePath = null,
+                    dataPath = null
                 )
             }
 

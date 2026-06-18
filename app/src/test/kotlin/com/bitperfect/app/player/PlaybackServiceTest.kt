@@ -8,7 +8,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaSession
 import com.bitperfect.app.library.LibraryRepository
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.library.ArtistInfo
 import com.bitperfect.app.library.AlbumInfo
 import com.google.common.util.concurrent.ListenableFuture
@@ -66,7 +66,7 @@ class PlaybackServiceTest {
             title = "Test Track",
             trackNumber = 5,
             durationMs = 3000L,
-            discNumber = 1,
+            discNumber = 1, artist = "Artist", albumTitle = "AlbumTitle", filePath = null, dataPath = null,
             albumId = albumId
         )
 
@@ -177,7 +177,7 @@ class PlaybackServiceTest {
             title = "Track 1",
             trackNumber = 1,
             durationMs = 3000L,
-            discNumber = 1,
+            discNumber = 1, artist = "Artist", albumTitle = "AlbumTitle", filePath = null, dataPath = null,
             albumId = albumId
         )
 
@@ -186,7 +186,7 @@ class PlaybackServiceTest {
             title = "Track 2",
             trackNumber = 2,
             durationMs = 3000L,
-            discNumber = 1,
+            discNumber = 1, artist = "Artist", albumTitle = "AlbumTitle", filePath = null, dataPath = null,
             albumId = albumId
         )
 
