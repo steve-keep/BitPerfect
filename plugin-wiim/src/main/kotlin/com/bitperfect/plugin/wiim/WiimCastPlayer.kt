@@ -5,6 +5,7 @@ import com.bitperfect.core.output.OutputDevice
 import android.content.Context
 import android.os.Bundle
 import android.os.Looper
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
@@ -44,6 +45,12 @@ class WiimCastPlayer(
                 invalidateState()
             }
         }
+
+        scope.launch {
+            controller.volume.collect {
+                invalidateState()
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -52,8 +59,16 @@ class WiimCastPlayer(
 
     override fun getState(): State {
         val playlist = currentPlaylist.mapIndexed { index, item ->
+            val meta = item.mediaMetadata
+            val durationUs = meta.extras
+                ?.getLong("track_duration_ms", 0L)
+                ?.takeIf { it > 0L }
+                ?.let { it * 1_000L }
+                ?: C.TIME_UNSET
             SimpleBasePlayer.MediaItemData.Builder(item.mediaId)
                 .setMediaItem(item)
+                .setMediaMetadata(meta)
+                .setDurationUs(durationUs)
                 .build()
         }
         return State.Builder()
@@ -65,6 +80,7 @@ class WiimCastPlayer(
             )
             .setPlaybackState(if (playlist.isEmpty()) Player.STATE_IDLE else Player.STATE_READY)
             .setContentPositionMs { controller.positionMs.value }
+            .setDeviceVolume(controller.volume.value)
             .build()
     }
 

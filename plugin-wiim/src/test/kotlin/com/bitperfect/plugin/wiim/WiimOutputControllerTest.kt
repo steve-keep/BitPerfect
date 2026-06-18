@@ -293,7 +293,7 @@ class WiimOutputControllerTest {
 
         // Wait for values to be set
         var attempts = 0
-        while (controller.currentTitle.value != "Test Title" && attempts < 30) {
+                while ((controller.currentTitle.value != "Test Title" || controller.currentArtist.value != "Test Artist" || controller.currentAlbum.value != "Test Album") && attempts < 30) {
             kotlinx.coroutines.delay(100)
             attempts++
         }
