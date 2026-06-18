@@ -9,19 +9,7 @@ sealed interface RecentlyPlayedItem {
     data class AlbumItem(val album: AlbumInfo) : RecentlyPlayedItem
     data class ArtistGroupItem(val artistName: String, val thumbnailUrl: String) : RecentlyPlayedItem
 }
-data class TrackInfo(
-    val id: Long,
-    val title: String,
-    val trackNumber: Int,
-    val durationMs: Long,
-    val discNumber: Int = 1,
-    val albumId: Long = -1L,
-    val albumTitle: String = "Unknown Album",
-    val artist: String = "Unknown Artist",
-    val isAccurateRipVerified: Boolean = false,
-    val dataPath: String? = null,
-    val filePath: String? = null
-)
+typealias TrackInfo = com.bitperfect.core.output.TrackInfo
 
 data class TopArtist(
     val artistName: String,

@@ -8,7 +8,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.util.Log
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,10 +60,7 @@ open class OutputRepository(
     open val isDiscovering: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
 
     private val switchMutex = kotlinx.coroutines.sync.Mutex()
-    @Volatile private var activeController: OutputController = LocalOutputController(context, playerRepository)
-
-
-    private val bluetoothReceiver = object : BroadcastReceiver() {
+        private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED) {
                 val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, BluetoothProfile.STATE_DISCONNECTED)
@@ -115,46 +112,45 @@ open class OutputRepository(
     // AppViewModel calls these instead of PlayerRepository directly.
 
     open suspend fun takeOverAndPlay(tracks: List<TrackInfo>, startIndex: Int) {
-        activeController.takeOver(tracks, startIndex, 0L)
+        playerRepository.playTrack(tracks, startIndex)
     }
 
-    open suspend fun play() = activeController.play()
-    open suspend fun pause() = activeController.pause()
+    open suspend fun play() = playerRepository.play()
+    open suspend fun pause() = playerRepository.pause()
     open suspend fun togglePlayPause() {
-        activeController.togglePlayPause()
+        playerRepository.togglePlayPause()
     }
-    open suspend fun seekTo(positionMs: Long) = activeController.seekTo(positionMs)
-    open suspend fun getPositionMs(): Long = activeController.getPositionMs()
+    open suspend fun seekTo(positionMs: Long) = playerRepository.seekTo(positionMs)
+    open suspend fun getPositionMs(): Long = playerRepository.positionMs.value
 
-    open suspend fun skipNext() = activeController.skipNext()
-    open suspend fun skipPrev() = activeController.skipPrev()
+    open suspend fun skipNext() = playerRepository.skipNext()
+    open suspend fun skipPrev() = playerRepository.skipPrev()
 
     open suspend fun appendToQueue(track: TrackInfo) {
-        activeController.appendToQueue(track)
+        playerRepository.addToQueue(track)
     }
 
     open suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
-        activeController.appendAlbumToQueue(tracks)
+        playerRepository.addAlbumToQueue(tracks)
     }
 
     open suspend fun insertNextInQueue(track: TrackInfo) {
-        activeController.insertNextInQueue(track)
+        playerRepository.playNext(track)
     }
 
     open suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
-        activeController.insertAlbumNextInQueue(tracks)
+        playerRepository.playAlbumNext(tracks)
     }
 
     open suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
-        activeController.reorderQueue(fromIndex, toIndex)
+        playerRepository.moveMediaItem(fromIndex, toIndex)
     }
 
     open suspend fun removeFromQueue(index: Int) {
-        activeController.removeFromQueue(index)
+        playerRepository.removeMediaItem(index)
     }
 
     open suspend fun setVolume(volume: Int) {
-        val controller = activeController
         // Stubbed for Phase 3a
     }
 
@@ -170,34 +166,20 @@ open class OutputRepository(
     fun switchTo(target: OutputDevice, currentTracks: List<TrackInfo>, currentIndex: Int) {
         scope.launch(Dispatchers.Main) {
             switchMutex.withLock {
-                val positionMs = activeController.getPositionMs()
-                val isLocalToLocal = (activeController is LocalOutputController || activeController is BluetoothOutputController) &&
-                                     (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth)
-
-                if (!isLocalToLocal) {
-                    activeController.release()
-                } else if (activeController is LocalOutputController) {
-                    (activeController as LocalOutputController).clearCommunicationDeviceOnly()
-                }
-
-                val newController: OutputController = when (target) {
-                    is OutputDevice.ThisPhone ->
-                        LocalOutputController(context, playerRepository)
-                    is OutputDevice.Bluetooth ->
-                        BluetoothOutputController(context, playerRepository, target)
-                                        is OutputDevice.Upnp -> LocalOutputController(context, playerRepository)
-                    is OutputDevice.UsbDac ->
-                        LocalOutputController(context, playerRepository)
-                }
-
-                if (!isLocalToLocal) {
-                    newController.takeOver(currentTracks, currentIndex, positionMs)
-                } else if (newController is LocalOutputController) {
-                    newController.applyCommunicationDeviceOnly()
-                }
-
-                activeController = newController
                 _activeDevice.value = target
+
+                when (target) {
+                    is OutputDevice.ThisPhone,
+                    is OutputDevice.UsbDac,
+                    is OutputDevice.Bluetooth -> {
+                        val positionMs = playerRepository.positionMs.value
+                        playerRepository.playTrack(currentTracks, currentIndex)
+                        if (positionMs > 0) playerRepository.seekTo(positionMs)
+                    }
+                    is OutputDevice.Upnp -> {
+                        // Handled by PlaybackService via WiimOutputPlugin
+                    }
+                }
             }
         }
     }
@@ -222,18 +204,7 @@ open class OutputRepository(
 
             if (btDevices.isNotEmpty() && _activeDevice.value is OutputDevice.ThisPhone && userSelectedDevice == null) {
                 // Auto switch to first connected Bluetooth device if current is ThisPhone and user hasn't overridden it
-                // Don't take over if we're just initializing to avoid wiping state
                 switchMutex.withLock {
-                    val positionMs = activeController.getPositionMs()
-                    if (activeController is LocalOutputController) {
-                        (activeController as LocalOutputController).clearCommunicationDeviceOnly()
-                    } else {
-                        activeController.release()
-                    }
-                    val newController = BluetoothOutputController(context, playerRepository, btDevices.first())
-                    // Wait, if it's just initialized, takeOver doesn't need to do anything if tracks are empty
-                    // BUT we don't have tracks. Actually, just changing the controller is enough for future playback.
-                    activeController = newController
                     _activeDevice.value = btDevices.first()
                 }
             }

@@ -10,7 +10,7 @@ package com.bitperfect.core.output
  *  - honouring [playWhenReady]
  */
 data class PlaybackHandoffState(
-    val tracks: List<CoreTrackInfo>,
+    val tracks: List<TrackInfo>,
     val currentIndex: Int,
     val positionMs: Long,
     val playWhenReady: Boolean,

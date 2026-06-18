@@ -66,7 +66,7 @@ class TrackListScreenTest {
             artistName = "Test Artist",
             coverArtUrl = null,
             tracks = listOf(
-                com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L) // 2:05
+                com.bitperfect.app.library.TrackInfo(id = 1L, title = "Mock Track Title", artist = "", albumTitle = "", durationMs = 125000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L) // 2:05
             ),
             isCdMode = false
         )
@@ -86,8 +86,8 @@ class TrackListScreenTest {
             artistName = "Test Artist",
             coverArtUrl = null,
             tracks = listOf(
-                com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L), // 2:05
-                com.bitperfect.app.library.TrackInfo(2L, "Mock Track Title 2", 2, 125000L, discNumber = 2) // multi-disc test
+                com.bitperfect.app.library.TrackInfo(id = 1L, title = "Mock Track Title", artist = "", albumTitle = "", durationMs = 125000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L), // 2:05
+                com.bitperfect.app.library.TrackInfo(id = 2L, title = "Mock Track Title 2", artist = "", albumTitle = "", durationMs = 125000L, trackNumber = 2, filePath = null, dataPath = null, albumId = -1L, discNumber = 2) // multi-disc test
             ),
             isCdMode = false
         )
@@ -115,7 +115,7 @@ class TrackListScreenTest {
             artistName = "Test Artist",
             coverArtUrl = null,
             tracks = listOf(
-                com.bitperfect.app.library.TrackInfo(1L, "Mock Track Title", 1, 125000L)
+                com.bitperfect.app.library.TrackInfo(id = 1L, title = "Mock Track Title", artist = "", albumTitle = "", durationMs = 125000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L)
             ),
             isCdMode = false
         )

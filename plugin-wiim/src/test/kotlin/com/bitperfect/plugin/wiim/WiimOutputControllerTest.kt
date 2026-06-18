@@ -3,7 +3,7 @@ package com.bitperfect.plugin.wiim
 import com.bitperfect.core.output.OutputDevice
 
 import android.content.Context
-import com.bitperfect.core.output.CoreTrackInfo as TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every

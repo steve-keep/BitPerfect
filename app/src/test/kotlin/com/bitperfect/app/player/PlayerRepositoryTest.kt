@@ -6,7 +6,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.bitperfect.app.library.TrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.test.runTest
@@ -124,7 +124,7 @@ class PlayerRepositoryTest {
 
         val repository = PlayerRepository(mockContext)
 
-        val tracks = listOf(TrackInfo(1L, "Track 1", 1, 1000L))
+        val tracks = listOf(TrackInfo(id = 1L, title = "Track 1", artist = "", albumTitle = "", durationMs = 1000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L))
         // Calling with null controller simply doesn't crash
         repository.playAlbum(tracks)
         assertEquals(1, tracks.size)

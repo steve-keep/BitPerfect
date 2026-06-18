@@ -602,7 +602,7 @@ open class LibraryRepository(private val context: Context) {
                     }
                 }
 
-                tracks.add(TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath, dataPath))
+                tracks.add(TrackInfo(id, title, artist, albumTitle, durationMs, baseTrackNumber, dataPath, dataPath, albumId, discNumber, isVerified))
             }
         }
 
@@ -710,7 +710,7 @@ open class LibraryRepository(private val context: Context) {
                     }
                 }
 
-                return TrackInfo(id, title, baseTrackNumber, durationMs, discNumber, albumId, albumTitle, artist, isVerified, dataPath, dataPath)
+                return TrackInfo(id, title, artist, albumTitle, durationMs, baseTrackNumber, dataPath, dataPath, albumId, discNumber, isVerified)
             }
         }
 

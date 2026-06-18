@@ -32,7 +32,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
 import com.bitperfect.plugin.usbdac.UsbAudioRenderersFactory
-import com.bitperfect.core.output.CoreTrackInfo
+import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.core.output.PlaybackHandoffState
 import com.bitperfect.core.output.PlayerProvider
 
@@ -59,7 +59,7 @@ class PlaybackService : MediaLibraryService() {
         }
         val tracks = items.map { item ->
             val meta = item.mediaMetadata
-            CoreTrackInfo(
+            TrackInfo(
                 id           = item.mediaId.toLongOrNull() ?: 0L,
                 title        = meta.title?.toString() ?: "",
                 artist       = meta.artist?.toString() ?: "",
