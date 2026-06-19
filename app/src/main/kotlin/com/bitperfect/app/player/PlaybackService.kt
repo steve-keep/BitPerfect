@@ -148,7 +148,10 @@ class PlaybackService : MediaLibraryService() {
                     val handoff = buildHandoffState()
                     val provider = plugin.createPlayerProvider(this, target, handoff)
                     activeProvider = provider
+                    // Set session.player FIRST so Media3 can reset the session state,
+                    // then activate the provider to populate the queue afterwards.
                     session.player = provider.player
+                    (provider as? com.bitperfect.plugin.wiim.WiimPlayerProvider)?.activate()
                 } else {
                     session.player = player ?: return
                 }
@@ -523,6 +526,8 @@ class PlaybackService : MediaLibraryService() {
                         val uri = ContentUris.withAppendedId(
                             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId
                         )
+                        // Fast path: metadata already populated. Reattach URI only.
+                        // buildUpon() preserves MediaMetadata including extras Bundle.
                         resolvedItems.add(mediaItem.buildUpon().setUri(uri).build())
                     } else {
                         // Slow path: bare mediaId from Android Auto browsing.
