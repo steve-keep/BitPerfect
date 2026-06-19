@@ -138,6 +138,8 @@ class PlaybackService : MediaLibraryService() {
 
         when (target) {
             is OutputDevice.Upnp -> {
+                val wasPlaying = player?.isPlaying ?: false
+                val handoff = buildHandoffState()
                 player?.pause()
                 activeProvider?.release()
                 activeProvider = null
@@ -145,13 +147,24 @@ class PlaybackService : MediaLibraryService() {
                 val registry = (application as com.bitperfect.app.BitPerfectApplication).outputPluginRegistry
                 val plugin = registry.pluginFor(target)
                 if (plugin != null) {
-                    val handoff = buildHandoffState()
-                    val provider = plugin.createPlayerProvider(this, target, handoff)
+                    val handoffWithPlay = handoff.copy(playWhenReady = wasPlaying)
+                    val provider = plugin.createPlayerProvider(this, target, handoffWithPlay)
                     activeProvider = provider
                     // Set session.player FIRST so Media3 can reset the session state,
                     // then activate the provider to populate the queue afterwards.
                     session.player = provider.player
                     (provider as? com.bitperfect.plugin.wiim.WiimPlayerProvider)?.activate()
+
+                    // Re-emit metadata so NowPlaying doesn't go blank while WiimCastPlayer
+                    // propagates state back through the session asynchronously.
+                    val firstTrack = handoffWithPlay.tracks.getOrNull(handoffWithPlay.currentIndex)
+                    val playerRepo = (application as com.bitperfect.app.BitPerfectApplication).playerRepository
+                    playerRepo.overrideMetadataFromHandoff(
+                        trackTitle = firstTrack?.title,
+                        artist = firstTrack?.artist,
+                        albumTitle = firstTrack?.albumTitle,
+                        isPlaying = wasPlaying
+                    )
                 } else {
                     session.player = player ?: return
                 }
