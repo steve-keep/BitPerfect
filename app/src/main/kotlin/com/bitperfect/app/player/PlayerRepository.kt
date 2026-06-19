@@ -276,6 +276,25 @@ open class PlayerRepository(
 
     private var pendingPlayPause = false
 
+    /**
+     * Directly sets metadata StateFlows from a known handoff state.
+     * Called by PlaybackService after switching session.player to a plugin
+     * player (e.g. WiimCastPlayer), where Media3 fires onMediaItemTransition(null)
+     * before the new player's queue is populated.
+     */
+    fun overrideMetadataFromHandoff(
+        trackTitle: String?,
+        artist: String?,
+        albumTitle: String?,
+        isPlaying: Boolean
+    ) {
+        _currentTrackTitle.value = trackTitle
+        _currentTrackArtist.value = artist
+        _currentAlbumTitle.value = albumTitle
+        _isPlaying.value = isPlaying
+    }
+
+
     open suspend fun connect() {
         try {
             // Check context package name first to prevent NPE inside Media3 ComponentName when mocked context is used in tests

@@ -518,6 +518,27 @@ open class AppViewModel(
             }
         }
         viewModelScope.launch {
+            playerRepository.currentTimeline.collect { items ->
+                // Only backfill — don't overwrite if the user is actively playing something
+                // we set explicitly via playAlbum/playTrack.
+                if (items.isNotEmpty() && _playingTracks.value.isEmpty()) {
+                    _playingTracks.value = items.map { item ->
+                        TrackInfo(
+                            id          = item.mediaId.toLongOrNull() ?: -1L,
+                            title       = item.mediaMetadata.title?.toString() ?: "",
+                            artist      = item.mediaMetadata.artist?.toString() ?: "",
+                            albumTitle  = item.mediaMetadata.albumTitle?.toString() ?: "",
+                            trackNumber = item.mediaMetadata.trackNumber ?: 0,
+                            durationMs  = item.mediaMetadata.extras?.getLong("track_duration_ms") ?: 0L,
+                            albumId     = item.mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L,
+                            filePath    = item.mediaMetadata.extras?.getString("track_file_path"),
+                            dataPath    = item.mediaMetadata.extras?.getString("track_data_path")
+                        )
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
             driveStatus.collectLatest { status ->
                 if (status is DriveStatus.DiscReady && status.toc != null) {
                     viewModelScope.launch(ioDispatcher) {
