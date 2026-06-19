@@ -7,56 +7,30 @@ import android.provider.MediaStore
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
-import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.core.output.OutputDevice
 import com.bitperfect.core.output.PlaybackHandoffState
 import com.bitperfect.core.output.PlayerProvider
-
+import com.bitperfect.core.output.TrackInfo
 
 @UnstableApi
-internal class WiimPlayerProvider(
+class WiimPlayerProvider(
     context: Context,
     device: OutputDevice.Upnp,
-    handoffState: PlaybackHandoffState,
+    private val handoffState: PlaybackHandoffState,
 ) : PlayerProvider {
 
     private val castPlayer = WiimCastPlayer(context, device)
 
     override val player = castPlayer
 
-    init {
-        val mediaItems = handoffState.tracks.map { track ->
-            val extras = Bundle().apply {
-                putLong("track_duration_ms", track.durationMs)
-                track.filePath?.let { putString("track_file_path", it) }
-                track.dataPath?.let { putString("track_data_path", it) }
-            }
-            val artUri = if (track.albumId != -1L) {
-                ContentUris.withAppendedId(
-                    android.net.Uri.parse("content://media/external/audio/albumart"),
-                    track.albumId
-                )
-            } else null
-
-            MediaItem.Builder()
-                .setMediaId("${track.id}")
-                .setUri(
-                    ContentUris.withAppendedId(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id
-                    )
-                )
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(track.title)
-                        .setArtist(track.artist)
-                        .setAlbumTitle(track.albumTitle)
-                        .setTrackNumber(track.trackNumber)
-                        .setArtworkUri(artUri)
-                        .setExtras(extras)
-                        .build()
-                )
-                .build()
-        }
+    /**
+     * Must be called by [PlaybackService] AFTER setting [player] on the
+     * [MediaLibrarySession]. Media3 resets the session player's queue when
+     * [session.player] is assigned, so we must populate the queue afterwards
+     * to avoid being overwritten.
+     */
+    fun activate() {
+        val mediaItems = handoffState.tracks.map { it.toMediaItem() }
         castPlayer.setMediaItems(
             mediaItems,
             handoffState.currentIndex,
@@ -68,4 +42,37 @@ internal class WiimPlayerProvider(
     override fun release() {
         castPlayer.release()
     }
+}
+
+private fun TrackInfo.toMediaItem(): MediaItem {
+    val extras = Bundle().apply {
+        putLong("track_duration_ms", durationMs)
+        filePath?.let { putString("track_file_path", it) }
+        dataPath?.let { putString("track_data_path", it) }
+    }
+    val artUri = if (albumId != -1L) {
+        ContentUris.withAppendedId(
+            android.net.Uri.parse("content://media/external/audio/albumart"),
+            albumId
+        )
+    } else null
+
+    return MediaItem.Builder()
+        .setMediaId("$id")
+        .setUri(
+            ContentUris.withAppendedId(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
+            )
+        )
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(title)
+                .setArtist(artist)
+                .setAlbumTitle(albumTitle)
+                .setTrackNumber(trackNumber)
+                .setArtworkUri(artUri)
+                .setExtras(extras)
+                .build()
+        )
+        .build()
 }
