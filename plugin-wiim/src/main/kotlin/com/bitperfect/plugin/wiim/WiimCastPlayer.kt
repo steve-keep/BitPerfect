@@ -26,20 +26,20 @@ class WiimCastPlayer(
     private val controller = WiimOutputController(context, targetDevice)
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
-    // Snapshot of the playlist handed to handleSetMediaItems; needed to rebuild
-    // State.playlist so the session timeline stays non-empty.
     private var currentPlaylist: List<MediaItem> = emptyList()
     private var currentIndex: Int = 0
 
+    @androidx.annotation.VisibleForTesting
+    internal var pendingPlayWhenReady: Boolean = false
+
     init {
-        // Feed WiimOutputController's isPlaying into the session state
         scope.launch {
             controller.isPlaying.collect { playing ->
+                if (playing) pendingPlayWhenReady = false
                 invalidateState()
             }
         }
 
-        // Feed position into the session state
         scope.launch {
             controller.positionMs.collect { posMs ->
                 invalidateState()
@@ -52,10 +52,6 @@ class WiimCastPlayer(
             }
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // SimpleBasePlayer contract
-    // ---------------------------------------------------------------------------
 
     override fun getState(): State {
         val playlist = currentPlaylist.mapIndexed { index, item ->
@@ -75,7 +71,7 @@ class WiimCastPlayer(
             .setPlaylist(playlist)
             .setCurrentMediaItemIndex(if (playlist.isEmpty()) 0 else currentIndex)
             .setPlayWhenReady(
-                controller.isPlaying.value,
+                pendingPlayWhenReady || controller.isPlaying.value,
                 Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST
             )
             .setPlaybackState(if (playlist.isEmpty()) Player.STATE_IDLE else Player.STATE_READY)
@@ -102,6 +98,7 @@ class WiimCastPlayer(
     }
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        pendingPlayWhenReady = playWhenReady
         scope.launch {
             if (playWhenReady) controller.play() else controller.pause()
         }
@@ -128,10 +125,6 @@ class WiimCastPlayer(
         return Futures.immediateVoidFuture()
     }
 
-    // ---------------------------------------------------------------------------
-    // MediaItem → TrackInfo reconstruction
-    // ---------------------------------------------------------------------------
-
     private fun MediaItem.toTrackInfo(): TrackInfo? {
         val trackId = mediaId.toLongOrNull() ?: return null
         val extras: Bundle = mediaMetadata.extras ?: Bundle()
@@ -141,8 +134,6 @@ class WiimCastPlayer(
             trackNumber  = mediaMetadata.trackNumber ?: 0,
             durationMs   = extras.getLong("track_duration_ms", 0L),
             albumId      = mediaId.toLongOrNull()?.let {
-                               // albumId is not directly in MediaItem; derive from artwork URI
-                               // content://media/external/audio/albumart/<albumId>
                                mediaMetadata.artworkUri?.lastPathSegment?.toLongOrNull() ?: -1L
                            } ?: -1L,
             albumTitle   = mediaMetadata.albumTitle?.toString() ?: "",
