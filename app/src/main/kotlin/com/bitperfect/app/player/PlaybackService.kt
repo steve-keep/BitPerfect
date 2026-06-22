@@ -158,12 +158,20 @@ class PlaybackService : MediaLibraryService() {
                     // Re-emit metadata so NowPlaying doesn't go blank while WiimCastPlayer
                     // propagates state back through the session asynchronously.
                     val firstTrack = handoffWithPlay.tracks.getOrNull(handoffWithPlay.currentIndex)
+                    val artUri = if ((firstTrack?.albumId ?: -1L) != -1L) {
+                        android.content.ContentUris.withAppendedId(
+                            android.net.Uri.parse("content://media/external/audio/albumart"),
+                            firstTrack!!.albumId
+                        )
+                    } else null
                     val playerRepo = (application as com.bitperfect.app.BitPerfectApplication).playerRepository
                     playerRepo.overrideMetadataFromHandoff(
-                        trackTitle = firstTrack?.title,
-                        artist = firstTrack?.artist,
-                        albumTitle = firstTrack?.albumTitle,
-                        isPlaying = wasPlaying
+                        mediaId     = firstTrack?.id?.toString(),
+                        trackTitle  = firstTrack?.title,
+                        artist      = firstTrack?.artist,
+                        albumTitle  = firstTrack?.albumTitle,
+                        albumArtUri = artUri,
+                        isPlaying   = wasPlaying
                     )
                 } else {
                     session.player = player ?: return
