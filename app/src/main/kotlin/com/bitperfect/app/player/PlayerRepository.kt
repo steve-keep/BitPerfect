@@ -283,14 +283,18 @@ open class PlayerRepository(
      * before the new player's queue is populated.
      */
     fun overrideMetadataFromHandoff(
+        mediaId: String?,
         trackTitle: String?,
         artist: String?,
         albumTitle: String?,
+        albumArtUri: android.net.Uri?,
         isPlaying: Boolean
     ) {
+        _currentMediaId.value = mediaId
         _currentTrackTitle.value = trackTitle
         _currentTrackArtist.value = artist
         _currentAlbumTitle.value = albumTitle
+        _currentAlbumArtUri.value = albumArtUri
         _isPlaying.value = isPlaying
     }
 
