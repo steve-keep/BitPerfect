@@ -115,20 +115,23 @@ open class PlayerRepository(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        WiimDebugLogger.log("onMediaItemTransition: mediaId=${mediaItem?.mediaId}, title=${mediaItem?.mediaMetadata?.title}")
-            _currentMediaId.value = mediaItem?.mediaId
-            _currentTrackTitle.value = mediaItem?.mediaMetadata?.title?.toString()
-            _currentTrackArtist.value = mediaItem?.mediaMetadata?.artist?.toString()
-            _currentAlbumTitle.value = mediaItem?.mediaMetadata?.albumTitle?.toString()
-            _currentAlbumArtUri.value = mediaItem?.mediaMetadata?.artworkUri
+            // null transition means the session player was swapped (e.g. switching to WiiM).
+            // Ignore it — overrideMetadataFromHandoff has already set correct metadata.
+            // Applying null here would wipe the display for up to several seconds.
+            if (mediaItem == null) return
+
+            WiimDebugLogger.log("onMediaItemTransition: mediaId=${mediaItem.mediaId}, title=${mediaItem.mediaMetadata.title}")
+            _currentMediaId.value = mediaItem.mediaId
+            _currentTrackTitle.value = mediaItem.mediaMetadata.title?.toString()
+            _currentTrackArtist.value = mediaItem.mediaMetadata.artist?.toString()
+            _currentAlbumTitle.value = mediaItem.mediaMetadata.albumTitle?.toString()
+            _currentAlbumArtUri.value = mediaItem.mediaMetadata.artworkUri
             _currentIndex.value = controller?.currentMediaItemIndex ?: 0
 
-            mediaItem?.let { item ->
-                scope.launch {
-                    kotlinx.coroutines.delay(500)
-                    recordRecentlyPlayed(item)
-                    updateSyncedLyrics(item)
-                }
+            scope.launch {
+                kotlinx.coroutines.delay(500)
+                recordRecentlyPlayed(mediaItem)
+                updateSyncedLyrics(mediaItem)
             }
         }
 
