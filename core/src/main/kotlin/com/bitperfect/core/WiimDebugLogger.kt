@@ -1,6 +1,10 @@
 package com.bitperfect.core
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -12,8 +16,15 @@ object WiimDebugLogger {
     private val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
     fun init(context: Context) {
-        logFile = File(context.getExternalFilesDir(null), "wiim_debug.txt").also {
-            it.writeText("=== WiimDebug log started at ${fmt.format(Date())} ===\n")
+        try {
+            // Write to public Downloads folder — visible in any file manager
+            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            logFile = File(downloads, "wiim_debug.txt").also {
+                it.writeText("=== WiimDebug log started at ${fmt.format(Date())} ===\n")
+            }
+            android.util.Log.d("WIIM_DEBUG", "Log file: ${logFile?.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.e("WIIM_DEBUG", "Failed to init log file", e)
         }
     }
 
@@ -23,7 +34,7 @@ object WiimDebugLogger {
         try {
             logFile?.appendText(line)
         } catch (e: Exception) {
-            // ignore
+            android.util.Log.e("WIIM_DEBUG", "Failed to write log", e)
         }
     }
 }
