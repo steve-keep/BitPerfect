@@ -20,14 +20,16 @@ import kotlinx.coroutines.launch
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class WiimCastPlayer(
     private val context: Context,
-    private val targetDevice: OutputDevice.Upnp
+    private val targetDevice: OutputDevice.Upnp,
+    initialPlaylist: List<MediaItem> = emptyList(),
+    initialIndex: Int = 0,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
 
     private val controller = WiimOutputController(context, targetDevice)
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
-    private var currentPlaylist: List<MediaItem> = emptyList()
-    private var currentIndex: Int = 0
+    private var currentPlaylist: List<MediaItem> = initialPlaylist
+    private var currentIndex: Int = initialIndex
 
     @androidx.annotation.VisibleForTesting
     internal var pendingPlayWhenReady: Boolean = false

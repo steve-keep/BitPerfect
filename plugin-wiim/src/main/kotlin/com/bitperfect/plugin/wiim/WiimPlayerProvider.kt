@@ -19,7 +19,12 @@ class WiimPlayerProvider(
     private val handoffState: PlaybackHandoffState,
 ) : PlayerProvider {
 
-    private val castPlayer = WiimCastPlayer(context, device)
+    private val castPlayer = WiimCastPlayer(
+        context         = context,
+        targetDevice    = device,
+        initialPlaylist = handoffState.tracks.map { it.toMediaItem() },
+        initialIndex    = handoffState.currentIndex,
+    )
 
     override val player = castPlayer
 
