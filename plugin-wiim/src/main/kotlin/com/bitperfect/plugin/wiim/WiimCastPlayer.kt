@@ -81,6 +81,19 @@ class WiimCastPlayer(
             .setPlaybackState(if (playlist.isEmpty()) Player.STATE_IDLE else Player.STATE_READY)
             .setContentPositionMs { controller.positionMs.value }
             .setDeviceVolume(controller.volume.value)
+            .setAvailableCommands(
+                Player.Commands.Builder()
+                    .addAll(
+                        Player.COMMAND_PLAY_PAUSE,
+                        Player.COMMAND_SET_MEDIA_ITEM,
+                        Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+                        Player.COMMAND_SEEK_TO_MEDIA_ITEM,
+                        Player.COMMAND_SET_DEVICE_VOLUME,
+                        Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
+                        Player.COMMAND_GET_TIMELINE
+                    )
+                    .build()
+            )
             .build()
     }
 
