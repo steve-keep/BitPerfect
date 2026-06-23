@@ -113,11 +113,11 @@ open class PlayerRepository(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            _currentMediaId.value = controller?.currentMediaItem?.mediaId
-            _currentTrackTitle.value = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
-            _currentTrackArtist.value = controller?.currentMediaItem?.mediaMetadata?.artist?.toString()
-            _currentAlbumTitle.value = controller?.currentMediaItem?.mediaMetadata?.albumTitle?.toString()
-            _currentAlbumArtUri.value = controller?.currentMediaItem?.mediaMetadata?.artworkUri
+            _currentMediaId.value = mediaItem?.mediaId
+            _currentTrackTitle.value = mediaItem?.mediaMetadata?.title?.toString()
+            _currentTrackArtist.value = mediaItem?.mediaMetadata?.artist?.toString()
+            _currentAlbumTitle.value = mediaItem?.mediaMetadata?.albumTitle?.toString()
+            _currentAlbumArtUri.value = mediaItem?.mediaMetadata?.artworkUri
             _currentIndex.value = controller?.currentMediaItemIndex ?: 0
 
             mediaItem?.let { item ->
