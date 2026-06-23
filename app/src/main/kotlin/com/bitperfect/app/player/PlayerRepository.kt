@@ -3,6 +3,7 @@ package com.bitperfect.app.player
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
+import com.bitperfect.core.WiimDebugLogger
 import androidx.media3.common.C
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
@@ -109,10 +110,12 @@ open class PlayerRepository(
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+        WiimDebugLogger.log("onIsPlayingChanged: param=$isPlaying, controller.isPlaying=${controller?.isPlaying}")
             _isPlaying.value = controller?.isPlaying ?: false
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        WiimDebugLogger.log("onMediaItemTransition: mediaId=${mediaItem?.mediaId}, title=${mediaItem?.mediaMetadata?.title}")
             _currentMediaId.value = mediaItem?.mediaId
             _currentTrackTitle.value = mediaItem?.mediaMetadata?.title?.toString()
             _currentTrackArtist.value = mediaItem?.mediaMetadata?.artist?.toString()
@@ -290,6 +293,7 @@ open class PlayerRepository(
         albumArtUri: android.net.Uri?,
         isPlaying: Boolean
     ) {
+        WiimDebugLogger.log("overrideMetadataFromHandoff: mediaId=$mediaId, title=$trackTitle, isPlaying=$isPlaying")
         _currentMediaId.value = mediaId
         _currentTrackTitle.value = trackTitle
         _currentTrackArtist.value = artist

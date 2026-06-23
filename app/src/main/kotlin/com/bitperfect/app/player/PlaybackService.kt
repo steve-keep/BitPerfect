@@ -3,6 +3,7 @@ package com.bitperfect.app.player
 import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Intent
+import com.bitperfect.core.WiimDebugLogger
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.media3.common.AudioAttributes
@@ -140,6 +141,7 @@ class PlaybackService : MediaLibraryService() {
             is OutputDevice.Upnp -> {
                 val wasPlaying = player?.isPlaying ?: false
                 val handoff = buildHandoffState()
+                WiimDebugLogger.log("1. handleDeviceSwitch Upnp START: wasPlaying=$wasPlaying, handoff.tracks=${handoff.tracks.size}, handoff.currentIndex=${handoff.currentIndex}, firstTrack=${handoff.tracks.getOrNull(handoff.currentIndex)?.title}")
                 player?.pause()
                 activeProvider?.release()
                 activeProvider = null
@@ -153,7 +155,10 @@ class PlaybackService : MediaLibraryService() {
                     // Set session.player FIRST so Media3 can reset the session state,
                     // then activate the provider to populate the queue afterwards.
                     session.player = provider.player
+                    WiimDebugLogger.log("2. session.player assigned")
+
                     (provider as? com.bitperfect.plugin.wiim.WiimPlayerProvider)?.activate()
+                    WiimDebugLogger.log("3. activate() returned")
 
                     // Re-emit metadata so NowPlaying doesn't go blank while WiimCastPlayer
                     // propagates state back through the session asynchronously.
@@ -173,6 +178,7 @@ class PlaybackService : MediaLibraryService() {
                         albumArtUri = artUri,
                         isPlaying   = wasPlaying
                     )
+                    WiimDebugLogger.log("4. overrideMetadataFromHandoff done: mediaId=${firstTrack?.id}, title=${firstTrack?.title}")
                 } else {
                     session.player = player ?: return
                 }
@@ -189,6 +195,7 @@ class PlaybackService : MediaLibraryService() {
                     val provider = plugin.createPlayerProvider(this, target, handoff)
                     activeProvider = provider
                     session.player = provider.player
+
                 } else {
                     // Fallback: no plugin registered, build manually
                     val currentPosition = player?.currentPosition ?: 0L
