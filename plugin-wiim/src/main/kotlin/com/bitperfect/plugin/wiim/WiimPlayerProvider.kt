@@ -2,6 +2,7 @@ package com.bitperfect.plugin.wiim
 
 import android.content.ContentUris
 import android.content.Context
+import com.bitperfect.core.WiimDebugLogger
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
@@ -35,6 +36,7 @@ class WiimPlayerProvider(
      * to avoid being overwritten.
      */
     fun activate() {
+        WiimDebugLogger.log("activate START: tracks=${handoffState.tracks.size}, index=${handoffState.currentIndex}, playWhenReady=${handoffState.playWhenReady}")
         val mediaItems = handoffState.tracks.map { it.toMediaItem() }
         castPlayer.setMediaItems(
             mediaItems,

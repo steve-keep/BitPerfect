@@ -1,6 +1,7 @@
 package com.bitperfect.plugin.wiim
 
 import com.bitperfect.core.output.OutputDevice
+import com.bitperfect.core.WiimDebugLogger
 
 import android.content.Context
 import android.os.Bundle
@@ -56,6 +57,7 @@ class WiimCastPlayer(
     }
 
     override fun getState(): State {
+        WiimDebugLogger.log("getState: playlist.size=${currentPlaylist.size}, currentIndex=$currentIndex, pendingPlay=$pendingPlayWhenReady, controllerIsPlaying=${controller.isPlaying.value}")
         val playlist = currentPlaylist.mapIndexed { index, item ->
             val meta = item.mediaMetadata
             val durationUs = meta.extras
@@ -87,6 +89,7 @@ class WiimCastPlayer(
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<*> {
+        WiimDebugLogger.log("handleSetMediaItems: ${mediaItems.size} items, startIndex=$startIndex")
         currentPlaylist = mediaItems.toList()
         currentIndex = startIndex
 
@@ -100,6 +103,7 @@ class WiimCastPlayer(
     }
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        WiimDebugLogger.log("handleSetPlayWhenReady: $playWhenReady")
         pendingPlayWhenReady = playWhenReady
         scope.launch {
             if (playWhenReady) controller.play() else controller.pause()
