@@ -189,8 +189,12 @@ fun TrackListScreen(
                         }
                     }
 
-                    val isFullyVerified = remember(state.tracks) {
-                        state.tracks.isNotEmpty() && state.tracks.all { it.isAccurateRipVerified }
+                    val isFullyVerified = remember(state.tracks, state.expectedTrackCount) {
+                        state.tracks.isNotEmpty() && state.tracks.all { it.isAccurateRipVerified } && (state.expectedTrackCount == null || state.tracks.size >= state.expectedTrackCount)
+                    }
+
+                    val isMissingTracks = remember(state.tracks, state.expectedTrackCount) {
+                        state.expectedTrackCount != null && state.tracks.size < state.expectedTrackCount
                     }
 
                     val isAlbumPlaying = remember(isPlaying, currentMediaId, state.tracks) {
@@ -207,6 +211,7 @@ fun TrackListScreen(
                             isRipping = isRipping && state.isCdMode,
                             overallProgress = overallProgress,
                             isFullyVerified = isFullyVerified,
+                            isMissingTracks = isMissingTracks,
                             isAlbumPlaying = isAlbumPlaying,
                             isAwaitingEject = awaitingEjectToCommit,
                             onEjectClick = { viewModel.ejectDrive() },

@@ -190,7 +190,7 @@ class PlaybackServiceTest {
             albumId = albumId
         )
 
-        `when`(mockLibraryRepository.getTracksForAlbum(eq(albumId), any())).thenReturn(listOf(track1, track2))
+        `when`(mockLibraryRepository.getTracksForAlbum(eq(albumId), any())).thenReturn(Pair(listOf(track1, track2), null))
 
         val innerClass = Class.forName("com.bitperfect.app.player.PlaybackService\$BrowseCallback")
         val constructor = innerClass.getDeclaredConstructors()[0]

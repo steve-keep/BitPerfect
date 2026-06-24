@@ -78,7 +78,8 @@ data class TrackListViewState(
     val coverArtUrl: String?,
     val tracks: List<TrackInfo>,
     val isCdMode: Boolean,
-    val otherAlbums: List<com.bitperfect.app.library.AlbumInfo> = emptyList()
+    val otherAlbums: List<com.bitperfect.app.library.AlbumInfo> = emptyList(),
+    val expectedTrackCount: Int? = null
 )
 
 data class RipBannerState(
@@ -671,7 +672,7 @@ open class AppViewModel(
         viewModelScope.launch {
             val allTracks = mutableListOf<TrackInfo>()
             for (album in artist.albums) {
-                allTracks.addAll(libraryRepository.getTracksForAlbum(album.id, settingsManager.outputFolderUri))
+                allTracks.addAll(libraryRepository.getTracksForAlbum(album.id, settingsManager.outputFolderUri).first)
             }
             if (allTracks.isNotEmpty()) {
                 val shuffledTracks = allTracks.shuffled()
@@ -786,7 +787,9 @@ open class AppViewModel(
     }
 
     private suspend fun reloadTracksInternal(albumId: Long, artists: List<ArtistInfo>) {
-        val albumTracks = libraryRepository.getTracksForAlbum(albumId, settingsManager.outputFolderUri)
+        val tracksPair = libraryRepository.getTracksForAlbum(albumId, settingsManager.outputFolderUri)
+        val albumTracks = tracksPair.first
+        val expectedTrackCount = tracksPair.second
 
         var foundAlbum: com.bitperfect.app.library.AlbumInfo? = null
         var foundArtistName = ""
@@ -810,7 +813,8 @@ open class AppViewModel(
             coverArtUrl = coverArtUrl,
             tracks = albumTracks,
             isCdMode = false,
-            otherAlbums = otherAlbums
+            otherAlbums = otherAlbums,
+            expectedTrackCount = expectedTrackCount
         )
     }
 
@@ -1027,7 +1031,7 @@ open class AppViewModel(
             val foundAlbum = foundArtist?.albums?.find { it.title.equals(safeAlbum, ignoreCase = true) }
 
             if (foundAlbum != null) {
-                val firstTrack = libraryRepository.getTracksForAlbum(foundAlbum.id, capturedOutputUri).firstOrNull()
+                val firstTrack = libraryRepository.getTracksForAlbum(foundAlbum.id, capturedOutputUri).first.firstOrNull()
 
                 libraryRepository.appendNewRelease(
                     outputFolderUriString = capturedOutputUri,

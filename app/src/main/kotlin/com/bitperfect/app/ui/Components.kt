@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -140,6 +141,7 @@ fun AlbumHeader(
     isRipping: Boolean = false,
     overallProgress: Float = 0f,
     isFullyVerified: Boolean = false,
+    isMissingTracks: Boolean = false,
     isAlbumPlaying: Boolean = false,
     isAwaitingEject: Boolean = false,
     onEjectClick: () -> Unit = {},
@@ -183,10 +185,15 @@ fun AlbumHeader(
                 error = ColorPainter(Color(0xFF141414))
             )
             Spacer(modifier = Modifier.height(24.dp))
+
             val verifiedIconId = "verified_icon"
+            val missingIconId = "missing_icon"
             val textToDisplay = buildAnnotatedString {
                 append(title)
-                if (isFullyVerified && !isCdMode) {
+                if (isMissingTracks && !isCdMode) {
+                    append(" ")
+                    appendInlineContent(missingIconId, "[icon]")
+                } else if (isFullyVerified && !isCdMode) {
                     append(" ")
                     appendInlineContent(verifiedIconId, "[icon]")
                 }
@@ -208,6 +215,40 @@ fun AlbumHeader(
                             tint = com.bitperfect.app.ui.theme.VerificationGreen,
                             modifier = Modifier.size(24.dp)
                         )
+                    }
+                ),
+                Pair(
+                    missingIconId,
+                    InlineTextContent(
+                        Placeholder(
+                            width = 110.sp,
+                            height = 24.sp,
+                            placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+                        )
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Warning,
+                                    contentDescription = "Tracks Missing",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Missing Tracks",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
                     }
                 )
             )
