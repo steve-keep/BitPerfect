@@ -95,7 +95,10 @@ class AppViewModelTest {
         org.mockito.Mockito.`when`(mockLibraryRepository.getLibrary(org.mockito.Mockito.any())).thenReturn(emptyList())
         org.mockito.Mockito.`when`(mockLibraryRepository.getTotalTracks(org.mockito.Mockito.any())).thenReturn(0)
         org.mockito.Mockito.`when`(mockLibraryRepository.getRecentlyPlayedAlbums(org.mockito.Mockito.any(), org.mockito.Mockito.anyInt())).thenReturn(emptyList())
+
         org.mockito.Mockito.`when`(mockLibraryRepository.getLatestRippedAlbums(org.mockito.Mockito.any(), org.mockito.Mockito.anyInt())).thenReturn(emptyList())
+        org.mockito.Mockito.`when`(mockLibraryRepository.getTracksForAlbum(org.mockito.Mockito.anyLong(), org.mockito.Mockito.any())).thenReturn(Pair(emptyList(), null))
+
 
         // Instantiate with a wrapper lambda that delegates to mockLookupMusicBrainz
         viewModel = AppViewModel(application, mockRepository, fakeOutputRepository(application, mockRepository), mockLibraryRepository, testDispatcher, { mockLookupMusicBrainz(it) })
