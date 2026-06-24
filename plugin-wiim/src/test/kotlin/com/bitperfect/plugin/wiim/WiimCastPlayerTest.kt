@@ -45,9 +45,7 @@ class WiimCastPlayerTest {
 
             // Bypass the Media3 internal queue/runnable dispatch to set the state directly
             // so we can test the specific logic of `getState()`.
-            val field = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady")
-            field.isAccessible = true
-            field.setBoolean(castPlayer, true)
+            castPlayer.pendingPlayWhenReady = true
 
             assertTrue(
                 "getState() must return playWhenReady=true immediately after play() — before polling confirms",
@@ -75,10 +73,7 @@ class WiimCastPlayerTest {
         runTest(UnconfinedTestDispatcher()) {
             val castPlayer = WiimCastPlayer(context, device)
 
-            val field = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady")
-            field.isAccessible = true
-            field.setBoolean(castPlayer, true)
-            field.setBoolean(castPlayer, false)
+            castPlayer.pendingPlayWhenReady = false
 
             assertFalse(
                 "getState() must return playWhenReady=false immediately after pause()",
@@ -93,9 +88,7 @@ class WiimCastPlayerTest {
         runTest(UnconfinedTestDispatcher()) {
             val castPlayer = WiimCastPlayer(context, device)
 
-            val field = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady")
-            field.isAccessible = true
-            field.setBoolean(castPlayer, true)
+            castPlayer.pendingPlayWhenReady = true
 
             val controllerField = WiimCastPlayer::class.java.getDeclaredField("controller")
             controllerField.isAccessible = true
