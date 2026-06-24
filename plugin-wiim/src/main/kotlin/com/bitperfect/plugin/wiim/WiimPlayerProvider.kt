@@ -37,13 +37,12 @@ class WiimPlayerProvider(
      */
     fun activate() {
         WiimDebugLogger.log("activate START: tracks=${handoffState.tracks.size}, index=${handoffState.currentIndex}, playWhenReady=${handoffState.playWhenReady}")
-        val mediaItems = handoffState.tracks.map { it.toMediaItem() }
-        castPlayer.setMediaItems(
-            mediaItems,
-            handoffState.currentIndex,
-            handoffState.positionMs
+        castPlayer.activateWithHandoff(
+            mediaItems      = handoffState.tracks.map { it.toMediaItem() },
+            startIndex      = handoffState.currentIndex,
+            startPositionMs = handoffState.positionMs,
+            playWhenReady   = handoffState.playWhenReady
         )
-        if (handoffState.playWhenReady) castPlayer.play()
     }
 
     override fun release() {

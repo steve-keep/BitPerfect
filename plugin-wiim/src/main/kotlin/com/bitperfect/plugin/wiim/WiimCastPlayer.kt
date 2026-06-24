@@ -97,6 +97,27 @@ class WiimCastPlayer(
             .build()
     }
 
+    fun activateWithHandoff(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long,
+        playWhenReady: Boolean
+    ) {
+        currentPlaylist = mediaItems.toList()
+        currentIndex = startIndex
+        pendingPlayWhenReady = playWhenReady
+        invalidateState()
+
+        val tracks = mediaItems.mapNotNull { it.toTrackInfo() }
+        scope.launch(Dispatchers.IO) {
+            controller.takeOver(tracks, startIndex, startPositionMs, playWhenReady)
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                pendingPlayWhenReady = false
+                invalidateState()
+            }
+        }
+    }
+
     override fun handleSetMediaItems(
         mediaItems: MutableList<MediaItem>,
         startIndex: Int,
@@ -109,7 +130,7 @@ class WiimCastPlayer(
         val tracks = mediaItems.mapNotNull { item -> item.toTrackInfo() }
 
         scope.launch(Dispatchers.IO) {
-            controller.takeOver(tracks as List<com.bitperfect.core.output.TrackInfo>, startIndex, startPositionMs)
+            controller.takeOver(tracks as List<com.bitperfect.core.output.TrackInfo>, startIndex, startPositionMs, false)
         }
 
         return Futures.immediateVoidFuture()

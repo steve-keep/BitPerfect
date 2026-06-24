@@ -3,6 +3,7 @@ package com.bitperfect.plugin.wiim
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import com.bitperfect.core.WiimDebugLogger
 import com.bitperfect.core.output.TrackInfo
 import fi.iki.elonen.NanoHTTPD
 import java.io.File
@@ -46,9 +47,11 @@ internal class FlacHttpServer(val context: Context, initialTrackList: List<Track
     }
 
     override fun serve(session: IHTTPSession): Response {
+        WiimDebugLogger.log("HTTP ${session.method} ${session.uri}")
         val uri = session.uri
 
         if (uri == "/playlist.m3u8") {
+            WiimDebugLogger.log("serving playlist: ${trackList.size} tracks")
             val sb = StringBuilder("#EXTM3U\n")
             val ip = serverIp
             for (track in trackList) {
@@ -83,15 +86,18 @@ internal class FlacHttpServer(val context: Context, initialTrackList: List<Track
         val trackId = trackIdString.toLongOrNull() ?: -1L
         val track = trackList.find { it.id == trackId }
         if (track == null) {
+            WiimDebugLogger.log("track 404: id=$trackId not in trackList (size=${trackList.size})")
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Track Not Found")
         }
 
         val filePath = track.filePath ?: track.dataPath
         if (filePath == null) {
+            WiimDebugLogger.log("track 404: id=$trackId filePath=null dataPath=${track.dataPath}")
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Path Not Found")
         }
         val file = File(filePath)
         if (!file.exists()) {
+            WiimDebugLogger.log("track 404: id=$trackId file does not exist at $filePath")
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Not Found")
         }
 
@@ -133,10 +139,12 @@ internal class FlacHttpServer(val context: Context, initialTrackList: List<Track
             val fis = FileInputStream(file)
             fis.skip(startFrom)
 
+            WiimDebugLogger.log("track 206: id=$trackId bytes=$startFrom-$endAt/$fileLen")
             val res = newFixedLengthResponse(Response.Status.PARTIAL_CONTENT, "audio/flac", fis, newLen)
             res.addHeader("Content-Range", "bytes $startFrom-$endAt/$fileLen")
             return res
         } else {
+            WiimDebugLogger.log("track 200: id=$trackId fileLen=$fileLen")
             val fis = FileInputStream(file)
             return newFixedLengthResponse(Response.Status.OK, "audio/flac", fis, fileLen)
         }

@@ -540,6 +540,11 @@ class PlaybackService : MediaLibraryService() {
                                     .setAlbumTitle(track.albumTitle)
                                     .setTrackNumber(track.trackNumber)
                                     .setArtworkUri(albumArtUri)
+                                    .setExtras(android.os.Bundle().apply {
+                                        putLong("track_duration_ms", track.durationMs)
+                                        putString("track_file_path", track.filePath)
+                                        putString("track_data_path", track.dataPath)
+                                    })
                                     .build()
                             )
                             .build()
