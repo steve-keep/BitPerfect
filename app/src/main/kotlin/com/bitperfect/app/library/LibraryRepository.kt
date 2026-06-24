@@ -521,7 +521,7 @@ open class LibraryRepository(private val context: Context) {
         return null
     }
 
-    open fun getTracksForAlbum(albumId: Long, outputFolderUriString: String?): List<TrackInfo> {
+    open fun getTracksForAlbum(albumId: Long, outputFolderUriString: String?): Pair<List<TrackInfo>, Int?> {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -547,6 +547,7 @@ open class LibraryRepository(private val context: Context) {
         val sortOrder = "${MediaStore.Audio.Media.TRACK} ASC"
 
         val tracks = mutableListOf<TrackInfo>()
+        var expectedTrackCount: Int? = null
 
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -564,7 +565,7 @@ open class LibraryRepository(private val context: Context) {
             val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
             // Cache verification status per folder to avoid reading the jsonl file multiple times for the same album
-            val folderVerificationCache = mutableMapOf<String, Map<String, Boolean>>()
+            val folderVerificationCache = mutableMapOf<String, Pair<Map<String, Boolean>, Int?>>()
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
@@ -586,19 +587,21 @@ open class LibraryRepository(private val context: Context) {
 
                     if (albumFolderName != null && artistFolderName != null) {
                         val cacheKey = "$artistFolderName/$albumFolderName"
-                        val verificationMap = folderVerificationCache.getOrPut(cacheKey) {
+                        val cacheResult: Pair<Map<String, Boolean>, Int?> = folderVerificationCache.getOrPut(cacheKey) {
                             try {
                                 val treeUri = Uri.parse(outputFolderUriString)
                                 val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
                                 val artistDoc = rootDoc?.findFile(artistFolderName)
                                 val albumDoc = artistDoc?.findFile(albumFolderName)
-                                if (albumDoc != null) readVerificationMapForFolder(albumDoc) else emptyMap()
+                                if (albumDoc != null) readVerificationMapForFolder(albumDoc) else Pair(emptyMap<String, Boolean>(), null as Int?)
                             } catch (e: Exception) {
-                                emptyMap()
+                                Pair(emptyMap<String, Boolean>(), null as Int?)
                             }
                         }
+                        val verificationMap = cacheResult.first
+                        if (expectedTrackCount == null) expectedTrackCount = cacheResult.second
                         val key = "$discNumber-$baseTrackNumber"
-                        isVerified = verificationMap[key] ?: false
+                        isVerified = cacheResult.first[key] ?: false
                     }
                 }
 
@@ -606,13 +609,14 @@ open class LibraryRepository(private val context: Context) {
             }
         }
 
-        return tracks
+        return Pair(tracks, expectedTrackCount)
     }
 
-    private fun readVerificationMapForFolder(albumDir: DocumentFile): Map<String, Boolean> {
+    private fun readVerificationMapForFolder(albumDir: DocumentFile): Pair<Map<String, Boolean>, Int?> {
         val verificationMap = mutableMapOf<String, Boolean>()
+        var expectedTrackCount: Int? = null
         try {
-            val jsonlFile = albumDir.findFile("BitPerfect.jsonl") ?: return verificationMap
+            val jsonlFile = albumDir.findFile("BitPerfect.jsonl") ?: return Pair(verificationMap, null)
             context.contentResolver.openInputStream(jsonlFile.uri)?.use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream)).use { reader ->
                     reader.forEachLine { line ->
@@ -621,6 +625,10 @@ open class LibraryRepository(private val context: Context) {
                                 val obj = JSONObject(line)
                                 val disc = obj.optInt("disc", -1)
                                 val track = obj.optInt("track", -1)
+                                val totalTracks = if (obj.has("totalTracks")) obj.optInt("totalTracks", -1) else -1
+                                if (totalTracks != -1 && expectedTrackCount == null) {
+                                    expectedTrackCount = totalTracks
+                                }
                                 val accurateRip = obj.optJSONObject("accurateRip")
                                 val isVerified = accurateRip?.optBoolean("isVerified", false) ?: false
                                 if (disc != -1 && track != -1) {
@@ -632,7 +640,7 @@ open class LibraryRepository(private val context: Context) {
                 }
             }
         } catch (e: Exception) { /* ignore */ }
-        return verificationMap
+        return Pair(verificationMap, expectedTrackCount)
     }
 
     open fun getTrack(trackId: Long, outputFolderUriString: String?): TrackInfo? {
@@ -701,12 +709,12 @@ open class LibraryRepository(private val context: Context) {
                             val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
                             val artistDoc = rootDoc?.findFile(artistFolderName)
                             val albumDoc = artistDoc?.findFile(albumFolderName)
-                            if (albumDoc != null) readVerificationMapForFolder(albumDoc) else emptyMap()
+                            if (albumDoc != null) readVerificationMapForFolder(albumDoc) else Pair(emptyMap<String, Boolean>(), null as Int?)
                         } catch (e: Exception) {
-                            emptyMap()
-                        }
+                                Pair(emptyMap<String, Boolean>(), null as Int?)
+                            }
                         val key = "$discNumber-$baseTrackNumber"
-                        isVerified = verificationMap[key] ?: false
+                        isVerified = verificationMap.first[key] ?: false
                     }
                 }
 

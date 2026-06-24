@@ -1309,7 +1309,7 @@ internal suspend fun ripTrack(
 
                     val currentState = _trackStates.value[trackNumber]
                     if (currentState != null) {
-                        writeAccurateRipJsonl(albumDir, currentState)
+                        writeAccurateRipJsonl(albumDir, currentState, toc.tracks.size)
 
                         val accurateRipStatusString = when {
                             currentState.status == RipStatus.SUCCESS -> buildString {
@@ -1426,7 +1426,7 @@ internal suspend fun ripTrack(
             .replace('\u2013', '-').replace('\u2014', '-')
             .trim()
 
-    private fun writeAccurateRipJsonl(albumDir: DocumentFile?, state: TrackRipState) {
+    private fun writeAccurateRipJsonl(albumDir: DocumentFile?, state: TrackRipState, totalTracks: Int) {
         val dir = albumDir ?: return
         try {
             var file = dir.findFile("BitPerfect.jsonl")
@@ -1464,6 +1464,7 @@ internal suspend fun ripTrack(
             val newEntry = JSONObject()
             newEntry.put("disc", state.discNumber)
             newEntry.put("track", state.trackNumber)
+            newEntry.put("totalTracks", totalTracks)
 
             val accurateRipObj = JSONObject()
             accurateRipObj.put("isVerified", isVerified)

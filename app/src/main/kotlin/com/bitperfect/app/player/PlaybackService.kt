@@ -524,7 +524,7 @@ class PlaybackService : MediaLibraryService() {
             for (mediaItem in mediaItems) {
                 if (mediaItem.mediaId.startsWith("album_")) {
                     val albumId = mediaItem.mediaId.removePrefix("album_").toLongOrNull() ?: continue
-                    val tracks = libraryRepository.getTracksForAlbum(albumId, settingsManager.outputFolderUri)
+                    val tracks = libraryRepository.getTracksForAlbum(albumId, settingsManager.outputFolderUri).first
 
                     for (track in tracks) {
                         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, track.id)
