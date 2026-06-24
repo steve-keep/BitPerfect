@@ -1424,6 +1424,7 @@ internal suspend fun ripTrack(
             .replace('\u201C', '"').replace('\u201D', '"')
             .replace('\u2010', '-').replace('\u2011', '-').replace('\u2012', '-')
             .replace('\u2013', '-').replace('\u2014', '-')
+            .replace("\u2026", "...")
             .trim()
 
     private fun writeAccurateRipJsonl(albumDir: DocumentFile?, state: TrackRipState, totalTracks: Int) {
