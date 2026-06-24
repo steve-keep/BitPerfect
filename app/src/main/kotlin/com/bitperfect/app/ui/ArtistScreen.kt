@@ -3,8 +3,11 @@ package com.bitperfect.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -18,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +32,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.bitperfect.app.R
@@ -43,6 +48,7 @@ fun ArtistScreen(
     val thumbnailUrl by viewModel.selectedArtistThumbnail.collectAsState()
     val bio by viewModel.selectedArtistBio.collectAsState()
     val totalAlbumsCount by viewModel.totalAlbumsCount.collectAsState()
+    val similarArtists by viewModel.similarArtists.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (artist != null) {
@@ -201,6 +207,98 @@ fun ArtistScreen(
                         }
                     }
                 }
+                if (similarArtists.isNotEmpty()) {
+
+                    item {
+
+                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+
+                            Text(
+
+                                text = "Similar Artists",
+
+                                style = MaterialTheme.typography.titleMedium,
+
+                                fontWeight = FontWeight.Bold,
+
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+
+                            )
+
+                            LazyRow(
+
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+
+                                contentPadding = PaddingValues(horizontal = 16.dp)
+
+                            ) {
+
+                                items(similarArtists) { similar ->
+
+                                    val thumbUrl by produceState<String?>(initialValue = null, similar.name) {
+
+                                        value = viewModel.getSimilarArtistThumbnailUrl(similar.name)
+
+                                    }
+
+                                    Column(
+
+                                        modifier = Modifier
+
+                                            .width(88.dp)
+
+                                            .clickable { viewModel.selectArtist(similar.name) },
+
+                                        horizontalAlignment = Alignment.CenterHorizontally
+
+                                    ) {
+
+                                        AsyncImage(
+
+                                            model = thumbUrl,
+
+                                            contentDescription = similar.name,
+
+                                            modifier = Modifier
+
+                                                .size(72.dp)
+
+                                                .clip(androidx.compose.foundation.shape.CircleShape)
+
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+
+                                            contentScale = ContentScale.Crop
+
+                                        )
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        Text(
+
+                                            text = similar.name,
+
+                                            style = MaterialTheme.typography.labelSmall,
+
+                                            textAlign = TextAlign.Center,
+
+                                            maxLines = 2,
+
+                                            overflow = TextOverflow.Ellipsis
+
+                                        )
+
+                                    }
+
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
                 items(artist!!.albums) { album ->
                     Row(
                         modifier = Modifier

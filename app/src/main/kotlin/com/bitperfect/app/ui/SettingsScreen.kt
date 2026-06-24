@@ -150,6 +150,191 @@ fun SettingsScreen(
         item {
             Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
                 Text(
+                    text = "LIBRARY MAINTENANCE",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+
+
+        item {
+
+            Row(
+
+                modifier = Modifier
+
+                    .fillMaxWidth()
+
+                    .clickable {
+
+                        android.widget.Toast.makeText(context, "Rebuilding artist index...", android.widget.Toast.LENGTH_SHORT).show()
+
+                        viewModel.rebuildArtistIndex()
+
+                    }
+
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+
+            ) {
+
+                Icon(
+
+                    imageVector = Icons.Default.Folder,
+
+                    contentDescription = "Rebuild artist index",
+
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                    modifier = Modifier.size(24.dp)
+
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+
+                    Text(
+
+                        text = "Rebuild artist index",
+
+                        style = MaterialTheme.typography.titleMedium,
+
+                        color = MaterialTheme.colorScheme.onSurface
+
+                    )
+
+                    Text(
+
+                        text = "Scans your collection to enable Similar Artists",
+
+                        style = MaterialTheme.typography.bodyMedium,
+
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                    )
+
+                }
+
+                Icon(
+
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+
+                    contentDescription = "Navigate",
+
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+
+                )
+
+            }
+
+        }
+
+
+
+        item {
+
+            Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
+
+                Text(
+                    text = "LIBRARY MAINTENANCE",
+
+                    style = MaterialTheme.typography.labelMedium,
+
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                )
+
+            }
+
+        }
+
+
+
+        item {
+
+            Row(
+
+                modifier = Modifier
+
+                    .fillMaxWidth()
+
+                    .clickable {
+
+                        android.widget.Toast.makeText(context, "Rebuilding artist index...", android.widget.Toast.LENGTH_SHORT).show()
+
+                        viewModel.rebuildArtistIndex()
+
+                    }
+
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+
+            ) {
+
+                Icon(
+
+                    imageVector = Icons.Default.Folder,
+
+                    contentDescription = "Rebuild artist index",
+
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                    modifier = Modifier.size(24.dp)
+
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+
+                    Text(
+
+                        text = "Rebuild artist index",
+
+                        style = MaterialTheme.typography.titleMedium,
+
+                        color = MaterialTheme.colorScheme.onSurface
+
+                    )
+
+                    Text(
+
+                        text = "Scans your collection to enable Similar Artists",
+
+                        style = MaterialTheme.typography.bodyMedium,
+
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                    )
+
+                }
+
+                Icon(
+
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+
+                    contentDescription = "Navigate",
+
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+
+                )
+
+            }
+
+        }
+
+
+
+        item {
+
+            Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp)) {
+
+                Text(
                     text = "DISC DRIVE",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -340,6 +525,8 @@ fun SettingsScreen(
         }
     }
 }
+
+
 
 private fun sendDebugInfo(context: android.content.Context, driveInfo: DriveInfo?, toc: com.bitperfect.core.models.DiscToc?, rawToc: ByteArray?, offset: Int?, coverArtUrl: String?, ripStates: Map<Int, com.bitperfect.app.usb.TrackRipState>, discMetadata: com.bitperfect.core.models.DiscMetadata?) {
     val sb = java.lang.StringBuilder()
