@@ -45,9 +45,7 @@ class WiimCastPlayerTest {
 
             // Bypass the Media3 internal queue/runnable dispatch to set the state directly
             // so we can test the specific logic of `getState()`.
-            val field = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady")
-            field.isAccessible = true
-            field.setBoolean(castPlayer, true)
+            castPlayer.pendingPlayWhenReady = true
 
             assertTrue(
                 "getState() must return playWhenReady=true immediately after play() — before polling confirms",
@@ -75,10 +73,7 @@ class WiimCastPlayerTest {
         runTest(UnconfinedTestDispatcher()) {
             val castPlayer = WiimCastPlayer(context, device)
 
-            val field = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady")
-            field.isAccessible = true
-            field.setBoolean(castPlayer, true)
-            field.setBoolean(castPlayer, false)
+            castPlayer.pendingPlayWhenReady = false
 
             assertFalse(
                 "getState() must return playWhenReady=false immediately after pause()",
@@ -93,9 +88,7 @@ class WiimCastPlayerTest {
         runTest(UnconfinedTestDispatcher()) {
             val castPlayer = WiimCastPlayer(context, device)
 
-            val field = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady")
-            field.isAccessible = true
-            field.setBoolean(castPlayer, true)
+            castPlayer.pendingPlayWhenReady = true
 
             val controllerField = WiimCastPlayer::class.java.getDeclaredField("controller")
             controllerField.isAccessible = true
@@ -126,15 +119,13 @@ class WiimCastPlayerTest {
     // -------------------------------------------------------------------------
 
     private fun getPendingPlayWhenReady(castPlayer: WiimCastPlayer): Boolean {
-        val pendingField = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady").apply { isAccessible = true }
-        return pendingField.getBoolean(castPlayer)
+        return castPlayer.pendingPlayWhenReady
     }
 
     private fun getPlayWhenReady(castPlayer: WiimCastPlayer): Boolean {
         // Because Media3 reflection on SimpleBasePlayer.getState() is tricky under Robolectric,
         // we'll fetch the effective boolean by reading pendingPlayWhenReady and the controller directly.
-        val pendingField = WiimCastPlayer::class.java.getDeclaredField("pendingPlayWhenReady").apply { isAccessible = true }
-        if (pendingField.getBoolean(castPlayer)) return true
+        if (castPlayer.pendingPlayWhenReady) return true
 
         val controllerField = WiimCastPlayer::class.java.getDeclaredField("controller")
         controllerField.isAccessible = true

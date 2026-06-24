@@ -144,7 +144,7 @@ class WiimOutputController(
         return null
     }
 
-    suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long) {
+    suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long, playWhenReady: Boolean) {
         val trackList = tracks
         val index = startIndex
         wifiIp = getWifiIpAddress()
@@ -198,6 +198,10 @@ class WiimOutputController(
                         <Target>$targetTime</Target>
                         """.trimIndent()
                     )
+                }
+
+                if (playWhenReady) {
+                    sendLinkPlayCommand("setPlayerCmd:resume")
                 }
             }
         }
