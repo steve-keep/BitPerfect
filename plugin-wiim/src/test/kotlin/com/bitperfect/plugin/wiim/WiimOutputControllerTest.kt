@@ -180,7 +180,7 @@ class WiimOutputControllerTest {
             TrackInfo(id = 3L, title = "Track 3", artist = "Artist C", albumTitle = "", durationMs = 3500L, trackNumber = 3, filePath = null, dataPath = null, albumId = -1L)
         )
 
-        controller.takeOver(tracks, startIndex = 0, startPositionMs = 0L)
+        controller.takeOver(tracks, startIndex = 0, startPositionMs = 0L, playWhenReady = false)
 
         // Give the local server a moment to spin up properly
         kotlinx.coroutines.delay(100)
@@ -231,7 +231,7 @@ class WiimOutputControllerTest {
         // Mock sendLinkPlayCommand to always return true, simulating success
         every { controller["sendLinkPlayCommand"](any<String>()) } returns true
 
-        controller.takeOver(tracks, startIndex = 1, startPositionMs = 0L)
+        controller.takeOver(tracks, startIndex = 1, startPositionMs = 0L, playWhenReady = false)
 
         verify { controller["sendLinkPlayCommand"](match<String> { it.startsWith("setPlayerCmd:playlist:") }) }
 
