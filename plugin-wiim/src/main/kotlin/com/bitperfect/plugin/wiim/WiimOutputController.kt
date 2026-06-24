@@ -1,6 +1,7 @@
 package com.bitperfect.plugin.wiim
 
 import com.bitperfect.core.output.OutputDevice
+import com.bitperfect.core.WiimDebugLogger
 
 import android.content.Context
 import android.net.wifi.WifiManager
@@ -168,8 +169,7 @@ class WiimOutputController(
 
         withContext(Dispatchers.IO) {
             // 1. Load the playlist
-            val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
-            val success = sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            val success = sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
 
             if (success) {
                 // 2. Jump to startIndex (UPnP track numbers are 1-based)
@@ -292,9 +292,8 @@ class WiimOutputController(
         server.appendTrack(track)
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
         }
     }
 
@@ -307,9 +306,8 @@ class WiimOutputController(
         server.appendTracks(tracks)
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
         }
     }
 
@@ -323,9 +321,8 @@ class WiimOutputController(
         server.insertTrackAfterIndex(track, currentIndex)
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
         }
     }
 
@@ -339,9 +336,8 @@ class WiimOutputController(
         server.insertTracksAfterIndex(tracks, currentIndex)
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
         }
     }
 
@@ -354,9 +350,8 @@ class WiimOutputController(
         server.moveTrack(fromIndex, toIndex)
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
         }
     }
 
@@ -369,9 +364,8 @@ class WiimOutputController(
         server.removeTrack(index)
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        val encodedUrl = java.net.URLEncoder.encode(playlistUrl, "UTF-8")
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$encodedUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
         }
     }
 
@@ -400,9 +394,11 @@ class WiimOutputController(
             conn.readTimeout = 3000
             val code = conn.responseCode
             conn.disconnect()
-            code in 200..299
+            val ok = code in 200..299
+            WiimDebugLogger.log("LinkPlay: $command → $code")
+            ok
         } catch (e: Exception) {
-            Log.e("WiimOutputController", "LinkPlay command failed: $command", e)
+            WiimDebugLogger.log("LinkPlay FAILED: $command → ${e.message}")
             false
         }
     }
