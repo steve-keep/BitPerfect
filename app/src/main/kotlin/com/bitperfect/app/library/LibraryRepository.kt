@@ -7,8 +7,14 @@ import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import java.net.URLDecoder
 import java.io.BufferedReader
-import java.io.InputStreamReader
+
+import com.bitperfect.core.utils.AppLogger
 import org.json.JSONObject
+import org.json.JSONArray
+import kotlinx.coroutines.sync.Mutex
+import java.io.InputStreamReader
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.runBlocking
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
@@ -22,6 +28,8 @@ import kotlinx.coroutines.channels.BufferOverflow
 import com.bitperfect.app.usb.MediaScannerHelper
 
 open class LibraryRepository(private val context: Context) {
+
+    internal val artistsJsonMutex = Mutex()
 
     open val onLibraryUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -137,7 +145,7 @@ open class LibraryRepository(private val context: Context) {
         return recentAlbumsMap.values.filter { validAlbumIds.contains(it.second.id) }.takeLast(limit).reversed()
     }
 
-    private fun readFlacTags(filePath: String): Map<String, String> {
+    internal fun readFlacTags(filePath: String): Map<String, String> {
         val file = File(filePath)
         if (!file.exists()) return emptyMap()
 
@@ -206,6 +214,25 @@ open class LibraryRepository(private val context: Context) {
                         val jsonArray = org.json.JSONArray()
                         styleTags.distinct().forEach { jsonArray.put(it) }
                         put("tags", jsonArray)
+                    }
+
+                    if (styleTags.isNotEmpty()) {
+
+                        val updatesObj = JSONObject().apply {
+
+                            val arr = JSONArray()
+
+                            styleTags.distinct().forEach { arr.put(it.lowercase().trim()) }
+
+                            put("styles", arr)
+
+                        }
+
+                        runBlocking {
+
+                            mergeArtistData(outputFolderUriString, artist, updatesObj)
+
+                        }
                     }
 
                 }
@@ -723,5 +750,170 @@ open class LibraryRepository(private val context: Context) {
         }
 
         return null
+    }
+
+    suspend fun mergeArtistData(
+        outputFolderUriString: String?,
+        artistName: String,
+        updates: JSONObject
+    ) {
+        if (outputFolderUriString.isNullOrBlank()) return
+        artistsJsonMutex.withLock {
+            try {
+                val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+                if (parentDir == null || !parentDir.exists() || !parentDir.isDirectory) return@withLock
+
+                val artistsFile = parentDir.findFile("artists.json") ?: parentDir.createFile("application/json", "artists.json")
+                if (artistsFile == null) return@withLock
+
+                val fileContent = context.contentResolver.openInputStream(artistsFile.uri)?.use {
+                    InputStreamReader(it).readText()
+                } ?: ""
+
+                val root = if (fileContent.isNotBlank()) JSONObject(fileContent) else JSONObject()
+                val artistEntry = root.optJSONObject(artistName) ?: JSONObject()
+
+                updates.keys().forEach { key ->
+                    val updateValue = updates.opt(key)
+                    if (updateValue is JSONArray) {
+                        val existingArray = artistEntry.optJSONArray(key) ?: JSONArray()
+                        val set = mutableSetOf<String>()
+
+                        for (i in 0 until existingArray.length()) {
+                            existingArray.optString(i)?.lowercase()?.trim()?.takeIf { it.isNotBlank() }?.let { set.add(it) }
+                        }
+                        for (i in 0 until updateValue.length()) {
+                            updateValue.optString(i)?.lowercase()?.trim()?.takeIf { it.isNotBlank() }?.let { set.add(it) }
+                        }
+
+                        val mergedArray = JSONArray()
+                        set.forEach { mergedArray.put(it) }
+                        artistEntry.put(key, mergedArray)
+                    } else {
+                        artistEntry.put(key, updateValue)
+                    }
+                }
+
+                root.put(artistName, artistEntry)
+
+                context.contentResolver.openOutputStream(artistsFile.uri, "wt")?.use { out ->
+                    out.write(root.toString(2).toByteArray(Charsets.UTF_8))
+                }
+                MediaScannerHelper.scanSafUri(context, artistsFile.uri)
+            } catch (e: Exception) {
+                AppLogger.e("LibraryRepository", "Failed to merge artist data", e)
+            }
+        }
+    }
+
+    suspend fun rebuildArtistIndex(outputFolderUriString: String?) {
+        if (outputFolderUriString.isNullOrBlank()) return
+        try {
+            val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+            if (parentDir != null) {
+                parentDir.findFile("artists.json")?.delete()
+            }
+            val artists = getLibrary(outputFolderUriString)
+            artists.forEach { artist ->
+                val styleTags = mutableSetOf<String>()
+                artist.albums.forEach { album ->
+                    val tracksPair = getTracksForAlbum(album.id, outputFolderUriString)
+                    tracksPair.first.forEach { track ->
+                        val dataPath = track.dataPath ?: return@forEach
+                        val tags = readFlacTags(dataPath)
+                        tags.forEach { (key, value) ->
+                            if (key == "STYLE" || key == "GENRE") {
+                                styleTags.add(value)
+                            }
+                        }
+                    }
+                }
+                if (styleTags.isNotEmpty()) {
+                    val updatesObj = JSONObject().apply {
+                        val arr = JSONArray()
+                        styleTags.distinct().forEach { arr.put(it.lowercase().trim()) }
+                        put("styles", arr)
+                    }
+                    mergeArtistData(outputFolderUriString, artist.name, updatesObj)
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e("LibraryRepository", "Failed to rebuild artist index", e)
+        }
+    }
+
+    suspend fun getSimilarArtists(
+        artistName: String,
+        outputFolderUriString: String?,
+        limit: Int = 6
+    ): List<ArtistInfo> {
+        if (outputFolderUriString.isNullOrBlank()) return emptyList()
+
+        return try {
+            val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
+            val artistsFile = parentDir?.findFile("artists.json") ?: return emptyList()
+
+            val fileContent = context.contentResolver.openInputStream(artistsFile.uri)?.use {
+                InputStreamReader(it).readText()
+            } ?: ""
+
+            if (fileContent.isBlank()) return emptyList()
+            val root = JSONObject(fileContent)
+
+            val targetArtistData = root.optJSONObject(artistName) ?: return emptyList()
+            val targetStylesArray = targetArtistData.optJSONArray("styles") ?: return emptyList()
+
+            val targetStyles = mutableSetOf<String>()
+            for (i in 0 until targetStylesArray.length()) {
+                targetStylesArray.optString(i)?.lowercase()?.trim()?.let { targetStyles.add(it) }
+            }
+            if (targetStyles.isEmpty()) return emptyList()
+
+            val targetMood = targetArtistData.optString("mood")
+
+            val libraryArtists = getLibrary(outputFolderUriString)
+            val candidates = mutableListOf<Pair<ArtistInfo, Pair<Double, Boolean>>>()
+
+            for (artist in libraryArtists) {
+                if (artist.name.equals(artistName, ignoreCase = true)) continue
+
+                val candidateData = root.optJSONObject(artist.name) ?: continue
+                val candidateStylesArray = candidateData.optJSONArray("styles") ?: continue
+
+                val candidateStyles = mutableSetOf<String>()
+                for (i in 0 until candidateStylesArray.length()) {
+                    candidateStylesArray.optString(i)?.lowercase()?.trim()?.let { candidateStyles.add(it) }
+                }
+
+                if (candidateStyles.isEmpty()) continue
+
+                val intersectionSize = targetStyles.intersect(candidateStyles).size
+                val unionSize = targetStyles.union(candidateStyles).size
+                val score = intersectionSize.toDouble() / unionSize
+
+                if (score > 0.0) {
+                    val candidateMood = candidateData.optString("mood")
+                    val moodMatch = candidateMood.isNotBlank() && candidateMood.equals(targetMood, ignoreCase = true)
+                    candidates.add(Pair(artist, Pair(score, moodMatch)))
+                }
+            }
+
+            candidates.sortWith(Comparator { a, b ->
+                val scoreCompare = b.second.first.compareTo(a.second.first)
+                if (scoreCompare != 0) return@Comparator scoreCompare
+
+                val aMoodMatch = a.second.second
+                val bMoodMatch = b.second.second
+                if (aMoodMatch && !bMoodMatch) return@Comparator -1
+                if (!aMoodMatch && bMoodMatch) return@Comparator 1
+
+                a.first.name.compareTo(b.first.name, ignoreCase = true)
+            })
+
+            candidates.take(limit).map { it.first }
+        } catch (e: Exception) {
+            AppLogger.e("LibraryRepository", "Failed to get similar artists", e)
+            emptyList()
+        }
     }
 }

@@ -109,6 +109,14 @@ open class AppViewModel(
     private val accurateRipService = AccurateRipService()
 
     private val _artists = MutableStateFlow<List<ArtistInfo>>(emptyList())
+
+    private val _similarArtists = MutableStateFlow<List<ArtistInfo>>(emptyList())
+
+    val similarArtists: StateFlow<List<ArtistInfo>> = _similarArtists
+
+
+
+    private var rebuildJob: Job? = null
     val artists: StateFlow<List<ArtistInfo>> = _artists
 
     private val _totalTracks = MutableStateFlow(0)
@@ -782,6 +790,11 @@ open class AppViewModel(
                 _selectedArtistThumbnail.value = thumbnailUrl
                 val bio = libraryRepository.getArtistBio(artist.name, settingsManager.outputFolderUri)
                 _selectedArtistBio.value = bio
+
+
+                _similarArtists.value = emptyList()
+
+                _similarArtists.value = libraryRepository.getSimilarArtists(artist.name, settingsManager.outputFolderUri)
             }
         }
     }
@@ -1243,6 +1256,24 @@ open class AppViewModel(
 
         _tagsViewState.value = null
     }
+
+    fun rebuildArtistIndex() {
+
+        if (rebuildJob?.isActive == true) return
+
+        rebuildJob = viewModelScope.launch(ioDispatcher) {
+
+            libraryRepository.rebuildArtistIndex(settingsManager.outputFolderUri)
+
+        }
+
+    }
+
+
+
+    fun getSimilarArtistThumbnailUrl(artistName: String): String? =
+
+        libraryRepository.getArtistThumbnailUrl(artistName, settingsManager.outputFolderUri)
 
     companion object {
         fun factory(application: Application): ViewModelProvider.Factory =
