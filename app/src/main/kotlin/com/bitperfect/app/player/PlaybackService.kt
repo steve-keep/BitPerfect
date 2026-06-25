@@ -1,5 +1,6 @@
 package com.bitperfect.app.player
 
+import com.bitperfect.core.UsbDacDebugLogger
 import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Intent
@@ -136,6 +137,7 @@ class PlaybackService : MediaLibraryService() {
 
         serviceScope.launch {
             (application as BitPerfectApplication).usbDacVolumeFlow.collect { volume ->
+                UsbDacDebugLogger.log("PlaybackService: flow emitted $volume, activeProvider=${activeProvider?.javaClass?.simpleName}")
                 (activeProvider as? ExoPlayerProvider)?.setVolume(volume)
             }
         }
@@ -205,6 +207,7 @@ class PlaybackService : MediaLibraryService() {
                     (provider as? ExoPlayerProvider)?.setVolume(
                         (application as BitPerfectApplication).usbDacVolumeFlow.value
                     )
+                    UsbDacDebugLogger.log("PlaybackService: UsbDac provider created, applied initial volume=${(application as BitPerfectApplication).usbDacVolumeFlow.value}, activeProvider=${activeProvider?.javaClass?.simpleName}")
 
                 } else {
                     // Fallback: no plugin registered, build manually

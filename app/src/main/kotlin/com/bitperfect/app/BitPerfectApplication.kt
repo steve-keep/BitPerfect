@@ -2,6 +2,7 @@ package com.bitperfect.app
 
 import android.app.Application
 import com.bitperfect.core.WiimDebugLogger
+import com.bitperfect.core.UsbDacDebugLogger
 import org.jaudiotagger.tag.TagOptionSingleton
 import com.bitperfect.app.usb.DeviceStateManager
 import coil.ImageLoader
@@ -39,6 +40,7 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         WiimDebugLogger.init(this)
+        UsbDacDebugLogger.init(this)
         super.onCreate()
         outputPluginRegistry.register(UsbDacOutputPlugin(this))
         outputPluginRegistry.register(WiimOutputPlugin(this))
