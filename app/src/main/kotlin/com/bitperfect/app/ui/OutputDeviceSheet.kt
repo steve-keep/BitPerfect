@@ -52,15 +52,25 @@ fun OutputDeviceSheet(
     isDiscovering: Boolean = false,
     wiimVolume: Int = 50,
     onWiimVolumeChanged: (Int) -> Unit = {},
+    usbDacVolume: Float = 0.5f,
+    onUsbDacVolumeChanged: (Float) -> Unit = {},
     onDeviceSelected: (OutputDevice) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var sliderPosition by remember { mutableFloatStateOf(wiimVolume / 100f) }
     var isDraggingVolume by remember { mutableStateOf(false) }
+    var usbDacSliderPosition by remember { mutableFloatStateOf(usbDacVolume) }
+    var isDraggingUsbDacVolume by remember { mutableStateOf(false) }
 
     LaunchedEffect(wiimVolume) {
         if (!isDraggingVolume) {
             sliderPosition = wiimVolume / 100f
+        }
+    }
+
+    LaunchedEffect(usbDacVolume) {
+        if (!isDraggingUsbDacVolume) {
+            usbDacSliderPosition = usbDacVolume
         }
     }
 
@@ -174,7 +184,7 @@ fun OutputDeviceSheet(
                     Column {
                         rowContent()
 
-                        val hasExternalVolume = device is OutputDevice.Upnp
+                        val hasExternalVolume = device is OutputDevice.Upnp || device is OutputDevice.UsbDac
                         if (hasExternalVolume) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -188,47 +198,91 @@ fun OutputDeviceSheet(
                                     tint = VerificationGreen,
                                     modifier = Modifier.size(20.dp)
                                 )
-                                Slider(
-                                    value = sliderPosition,
-                                    onValueChange = {
-                                        isDraggingVolume = true
-                                        sliderPosition = it
-                                    },
-                                    onValueChangeFinished = {
-                                        isDraggingVolume = false
-                                        onWiimVolumeChanged((sliderPosition * 100).roundToInt())
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 8.dp)
-                                        .semantics {
-                                            contentDescription = "WiiM volume, ${(sliderPosition * 100).roundToInt()}%"
+                                if (device is OutputDevice.Upnp) {
+                                    Slider(
+                                        value = sliderPosition,
+                                        onValueChange = {
+                                            isDraggingVolume = true
+                                            sliderPosition = it
                                         },
-                                    colors = androidx.compose.material3.SliderDefaults.colors(
-                                        thumbColor = VerificationGreen,
-                                        activeTrackColor = VerificationGreen,
-                                        inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
-                                    ),
-                                    thumb = {
-                                        androidx.compose.material3.SliderDefaults.Thumb(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            modifier = Modifier.size(12.dp),
-                                            colors = androidx.compose.material3.SliderDefaults.colors(
-                                                thumbColor = VerificationGreen
+                                        onValueChangeFinished = {
+                                            isDraggingVolume = false
+                                            onWiimVolumeChanged((sliderPosition * 100).roundToInt())
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(horizontal = 8.dp)
+                                            .semantics {
+                                                contentDescription = "WiiM volume, ${(sliderPosition * 100).roundToInt()}%"
+                                            },
+                                        colors = androidx.compose.material3.SliderDefaults.colors(
+                                            thumbColor = VerificationGreen,
+                                            activeTrackColor = VerificationGreen,
+                                            inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
+                                        ),
+                                        thumb = {
+                                            androidx.compose.material3.SliderDefaults.Thumb(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                modifier = Modifier.size(12.dp),
+                                                colors = androidx.compose.material3.SliderDefaults.colors(
+                                                    thumbColor = VerificationGreen
+                                                )
                                             )
-                                        )
-                                    },
-                                    track = { sliderState ->
-                                        androidx.compose.material3.SliderDefaults.Track(
-                                            sliderState = sliderState,
-                                            modifier = Modifier.height(2.dp),
-                                            colors = androidx.compose.material3.SliderDefaults.colors(
-                                                activeTrackColor = VerificationGreen,
-                                                inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
+                                        },
+                                        track = { sliderState ->
+                                            androidx.compose.material3.SliderDefaults.Track(
+                                                sliderState = sliderState,
+                                                modifier = Modifier.height(2.dp),
+                                                colors = androidx.compose.material3.SliderDefaults.colors(
+                                                    activeTrackColor = VerificationGreen,
+                                                    inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
+                                                )
                                             )
-                                        )
-                                    }
-                                )
+                                        }
+                                    )
+                                } else if (device is OutputDevice.UsbDac) {
+                                    Slider(
+                                        value = usbDacSliderPosition,
+                                        onValueChange = {
+                                            isDraggingUsbDacVolume = true
+                                            usbDacSliderPosition = it
+                                        },
+                                        onValueChangeFinished = {
+                                            isDraggingUsbDacVolume = false
+                                            onUsbDacVolumeChanged(usbDacSliderPosition)
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(horizontal = 8.dp)
+                                            .semantics {
+                                                contentDescription = "USB DAC volume, ${(usbDacSliderPosition * 100).roundToInt()}%"
+                                            },
+                                        colors = androidx.compose.material3.SliderDefaults.colors(
+                                            thumbColor = VerificationGreen,
+                                            activeTrackColor = VerificationGreen,
+                                            inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
+                                        ),
+                                        thumb = {
+                                            androidx.compose.material3.SliderDefaults.Thumb(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                modifier = Modifier.size(12.dp),
+                                                colors = androidx.compose.material3.SliderDefaults.colors(
+                                                    thumbColor = VerificationGreen
+                                                )
+                                            )
+                                        },
+                                        track = { sliderState ->
+                                            androidx.compose.material3.SliderDefaults.Track(
+                                                sliderState = sliderState,
+                                                modifier = Modifier.height(2.dp),
+                                                colors = androidx.compose.material3.SliderDefaults.colors(
+                                                    activeTrackColor = VerificationGreen,
+                                                    inactiveTrackColor = VerificationGreen.copy(alpha = 0.3f)
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
                                 Icon(
                                     imageVector = Icons.Default.VolumeUp,
                                     contentDescription = null,

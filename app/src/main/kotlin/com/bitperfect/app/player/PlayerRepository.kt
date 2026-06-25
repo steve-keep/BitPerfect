@@ -47,6 +47,10 @@ open class PlayerRepository(
         controller?.setDeviceVolume(volume, C.VOLUME_FLAG_SHOW_UI)
     }
 
+    fun setUsbDacVolume(volume: Float) {
+        controller?.setVolume(volume)
+    }
+
 
     private class DefaultMediaControllerFactory : MediaControllerFactory {
         override fun build(context: Context, token: SessionToken): ListenableFuture<MediaController> {

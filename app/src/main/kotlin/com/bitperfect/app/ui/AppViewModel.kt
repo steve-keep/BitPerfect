@@ -165,6 +165,17 @@ open class AppViewModel(
     private val _showOutputSheet = MutableStateFlow(false)
     val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
 
+    private val _usbDacVolume = MutableStateFlow(0.50f)
+    val usbDacVolume: StateFlow<Float> = _usbDacVolume.asStateFlow()
+
+    fun setUsbDacVolume(volume: Float) {
+        val clamped = volume.coerceIn(0f, 1f)
+        _usbDacVolume.value = clamped
+        playerRepository.setUsbDacVolume(clamped)
+    }
+
+    fun adjustUsbDacVolume(delta: Float) = setUsbDacVolume(_usbDacVolume.value + delta)
+
     val wiimVolume: StateFlow<Int> = playerRepository.deviceVolume
 
     fun setWiimVolume(volume: Int) {

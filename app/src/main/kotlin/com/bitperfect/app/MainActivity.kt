@@ -103,16 +103,14 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             val activeDevice = appViewModel.activeDevice.value
-            if (activeDevice is OutputDevice.Upnp) {
-                when (event.keyCode) {
-                    KeyEvent.KEYCODE_VOLUME_UP -> {
-                        appViewModel.adjustWiimVolume(+5)
-                        return true
-                    }
-                    KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                        appViewModel.adjustWiimVolume(-5)
-                        return true
-                    }
+            when {
+                activeDevice is OutputDevice.Upnp -> when (event.keyCode) {
+                    KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustWiimVolume(+5);     return true }
+                    KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustWiimVolume(-5);     return true }
+                }
+                activeDevice is OutputDevice.UsbDac -> when (event.keyCode) {
+                    KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustUsbDacVolume(+0.05f); return true }
+                    KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustUsbDacVolume(-0.05f); return true }
                 }
             }
         }
@@ -226,7 +224,7 @@ class MainActivity : ComponentActivity() {
             val availableDevices by appViewModel.availableDevices.collectAsState()
             val showOutputSheet by appViewModel.showOutputSheet.collectAsState()
             val isExternalOutput = activeDevice !is OutputDevice.ThisPhone
-            val hasExternalVolume = activeDevice is OutputDevice.Upnp
+            val hasExternalVolume = activeDevice is OutputDevice.Upnp || activeDevice is OutputDevice.UsbDac
 
             LaunchedEffect(driveStatus) {
                 if (driveStatus !is DriveStatus.NoDrive && driveStatus !is DriveStatus.NotOptical) {
@@ -656,6 +654,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val isDiscovering by appViewModel.isDiscovering.collectAsState()
                     val wiimVolume by appViewModel.wiimVolume.collectAsState()
+                    val usbDacVolume by appViewModel.usbDacVolume.collectAsState()
                     OutputDeviceSheet(
                         devices = availableDevices,
                         activeDevice = activeDevice,
@@ -663,6 +662,8 @@ class MainActivity : ComponentActivity() {
                         isDiscovering = isDiscovering,
                         wiimVolume = wiimVolume,
                         onWiimVolumeChanged = { appViewModel.setWiimVolume(it) },
+                        usbDacVolume = usbDacVolume,
+                        onUsbDacVolumeChanged = { appViewModel.setUsbDacVolume(it) },
                         onDeviceSelected = { appViewModel.selectOutputDevice(it) }
                     )
                 }
