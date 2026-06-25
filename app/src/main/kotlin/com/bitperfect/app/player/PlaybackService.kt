@@ -22,6 +22,7 @@ import com.bitperfect.core.utils.SettingsManager
 import com.bitperfect.app.BitPerfectApplication
 import com.bitperfect.app.output.OutputRepository
 import com.bitperfect.core.output.OutputDevice
+import com.bitperfect.plugin.usbdac.ExoPlayerProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -132,6 +133,12 @@ class PlaybackService : MediaLibraryService() {
                 handleDeviceSwitch(device)
             }
         }
+
+        serviceScope.launch {
+            (application as BitPerfectApplication).usbDacVolumeFlow.collect { volume ->
+                (activeProvider as? ExoPlayerProvider)?.setVolume(volume)
+            }
+        }
     }
 
     private fun handleDeviceSwitch(target: OutputDevice) {
@@ -195,6 +202,9 @@ class PlaybackService : MediaLibraryService() {
                     val provider = plugin.createPlayerProvider(this, target, handoff)
                     activeProvider = provider
                     session.player = provider.player
+                    (provider as? ExoPlayerProvider)?.setVolume(
+                        (application as BitPerfectApplication).usbDacVolumeFlow.value
+                    )
 
                 } else {
                     // Fallback: no plugin registered, build manually

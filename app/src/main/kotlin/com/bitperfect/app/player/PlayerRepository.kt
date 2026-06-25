@@ -8,6 +8,7 @@ import androidx.media3.common.C
 import android.provider.MediaStore
 import androidx.media3.common.MediaItem
 import java.util.UUID
+import com.bitperfect.app.BitPerfectApplication
 import android.os.Bundle
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -48,7 +49,7 @@ open class PlayerRepository(
     }
 
     fun setUsbDacVolume(volume: Float) {
-        controller?.setVolume(volume)
+        (context.applicationContext as BitPerfectApplication).usbDacVolumeFlow.value = volume
     }
 
 
