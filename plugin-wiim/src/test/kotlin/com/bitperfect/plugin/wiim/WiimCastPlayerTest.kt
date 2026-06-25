@@ -34,7 +34,8 @@ class WiimCastPlayerTest {
             deviceDescriptionUrl   = "http://192.168.1.100:49152/description.xml",
             avTransportControlUrl  = "http://192.168.1.100:49152/upnp/control/rendertransport1",
             renderingControlUrl    = null,
-            ipAddress              = "192.168.1.100"
+            ipAddress              = "192.168.1.100",
+            linkPlayPort           = 10095
         )
     }
 

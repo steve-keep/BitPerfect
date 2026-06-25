@@ -1,6 +1,7 @@
 package com.bitperfect.plugin.wiim
 
 import com.bitperfect.core.output.OutputDevice
+import com.bitperfect.core.output.DEFAULT_LINKPLAY_PORT
 
 import android.content.Context
 import android.net.wifi.WifiManager
@@ -211,6 +212,7 @@ class UpnpDiscoveryManager(
      */
     private fun probeWiimDevice(ip: String): OutputDevice.Upnp? {
         val baseUrls = listOf(
+            "http://$ip:$DEFAULT_LINKPLAY_PORT",
             "https://$ip:443",
             "https://$ip:4443",
             "http://$ip",
@@ -252,7 +254,11 @@ class UpnpDiscoveryManager(
             ?: playerJson?.optString("uuid")?.takeIf { it.isNotEmpty() }
             ?: ip
 
-        Log.d(TAG, "WiiM confirmed at $baseUrl — name=$friendlyName model=$modelName")
+        val linkPlayPort = try {
+            java.net.URL(baseUrl).port.takeIf { it > 0 } ?: DEFAULT_LINKPLAY_PORT
+        } catch (e: Exception) { DEFAULT_LINKPLAY_PORT }
+
+        Log.d(TAG, "WiiM confirmed at $baseUrl — name=$friendlyName model=$modelName port=$linkPlayPort")
 
         return OutputDevice.Upnp(
             udn = udn,
@@ -262,7 +268,8 @@ class UpnpDiscoveryManager(
             deviceDescriptionUrl = "$baseUrl/httpapi.asp?command=getStatusEx",
             avTransportControlUrl = avTransportControlUrl,
             renderingControlUrl = renderingControlUrl,
-            ipAddress = ip
+            ipAddress = ip,
+            linkPlayPort = linkPlayPort
         )
     }
 

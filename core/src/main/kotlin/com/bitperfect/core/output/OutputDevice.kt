@@ -1,5 +1,7 @@
 package com.bitperfect.core.output
 
+const val DEFAULT_LINKPLAY_PORT = 10095
+
 sealed class OutputDevice {
     abstract val id: String
     abstract val displayName: String
@@ -26,7 +28,8 @@ sealed class OutputDevice {
         val deviceDescriptionUrl: String,
         val avTransportControlUrl: String?,
         val renderingControlUrl: String?,
-        val ipAddress: String?
+        val ipAddress: String?,
+        val linkPlayPort: Int = DEFAULT_LINKPLAY_PORT
     ) : OutputDevice() {
         override val id = udn
         override val displayName = friendlyName
