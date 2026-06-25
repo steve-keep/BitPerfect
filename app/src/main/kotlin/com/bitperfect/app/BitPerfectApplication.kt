@@ -21,6 +21,7 @@ import com.bitperfect.plugin.wiim.WiimOutputPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class BitPerfectApplication : Application(), ImageLoaderFactory {
     lateinit var playerRepository: PlayerRepository
@@ -33,6 +34,8 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
         private set
 
     val outputPluginRegistry = OutputPluginRegistry()
+
+    val usbDacVolumeFlow = MutableStateFlow(0.3f)
 
     override fun onCreate() {
         WiimDebugLogger.init(this)

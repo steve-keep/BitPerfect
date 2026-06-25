@@ -6,7 +6,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.bitperfect.core.output.PlayerProvider
 
 @UnstableApi
-internal class ExoPlayerProvider(
+class ExoPlayerProvider(
     private val exoPlayer: ExoPlayer,
     private val mediaItems: List<MediaItem>,
     private val startIndex: Int,
