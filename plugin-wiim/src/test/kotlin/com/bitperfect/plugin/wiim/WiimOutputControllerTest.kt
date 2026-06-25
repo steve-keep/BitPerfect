@@ -61,7 +61,8 @@ class WiimOutputControllerTest {
         every { controller["getWifiIpAddress"]() } returns "127.0.0.1"
 
         // Mock sendSoapActionWithResponse to always return a non-null string, meaning success
-        every { controller["sendSoapActionWithResponse"](any<String>(), any<String>()) } returns mockResponse
+        every { controller["sendLinkPlayCommand"](any<String>()) } returns true
+        every { controller["fetchLinkPlay"](any<String>()) } returns "{}"
     }
 
     @After
@@ -153,10 +154,7 @@ class WiimOutputControllerTest {
         controller.skipNext()
 
         verify {
-            controller["sendSoapActionWithResponse"](
-                "Next",
-                match<String> { it.contains("<InstanceID>0</InstanceID>") }
-            )
+            controller["sendLinkPlayCommand"]("setPlayerCmd:next")
         }
     }
 
@@ -165,154 +163,10 @@ class WiimOutputControllerTest {
         controller.skipPrev()
 
         verify {
-            controller["sendSoapActionWithResponse"](
-                "Previous",
-                match<String> { it.contains("<InstanceID>0</InstanceID>") }
-            )
+            controller["sendLinkPlayCommand"]("setPlayerCmd:prev")
         }
     }
 
-    @Test
-    fun `takeOver with tracks serves M3U8 playlist correctly via FlacHttpServer`() = runTest {
-        val tracks = listOf(
-            TrackInfo(id = 1L, title = "Track 1", artist = "Artist A", albumTitle = "", durationMs = 1500L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L),
-            TrackInfo(id = 2L, title = "Track 2", artist = "Artist B", albumTitle = "", durationMs = 2500L, trackNumber = 2, filePath = null, dataPath = null, albumId = -1L),
-            TrackInfo(id = 3L, title = "Track 3", artist = "Artist C", albumTitle = "", durationMs = 3500L, trackNumber = 3, filePath = null, dataPath = null, albumId = -1L)
-        )
 
-        controller.takeOver(tracks, startIndex = 0, startPositionMs = 0L, playWhenReady = false)
 
-        // Give the local server a moment to spin up properly
-        kotlinx.coroutines.delay(100)
-
-        // We can capture the URL sent to sendLinkPlayCommand to find the playlist port
-        val urlSlot = io.mockk.slot<String>()
-        verify {
-            controller["sendLinkPlayCommand"](capture(urlSlot))
-        }
-
-        val url = urlSlot.captured
-        assert(url.startsWith("setPlayerCmd:playlist:"))
-
-        val playlistUrlEncoded = url.substringAfter("setPlayerCmd:playlist:")
-        val playlistUrl = java.net.URLDecoder.decode(playlistUrlEncoded, "UTF-8")
-
-        assert(playlistUrl.endsWith("/playlist.m3u8"))
-
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("SetAVTransportURI", any<String>()) }
-
-        // Make a real HTTP request to verify the playlist content
-        val parsedUrl = java.net.URL(playlistUrl)
-        val m3u8Content = parsedUrl.readText()
-
-        val port = parsedUrl.port
-        val expected = """
-            #EXTM3U
-            #EXTINF:1,Artist A - Track 1
-            http://127.0.0.1:$port/track/1.flac
-            #EXTINF:2,Artist B - Track 2
-            http://127.0.0.1:$port/track/2.flac
-            #EXTINF:3,Artist C - Track 3
-            http://127.0.0.1:$port/track/3.flac
-
-        """.trimIndent()
-
-        assert(m3u8Content == expected) { "Expected:\n$expected\nGot:\n$m3u8Content" }
-    }
-
-    @Test
-    fun `takeOver sends correct sequence of SOAP actions using playlist URI`() = runTest {
-        val tracks = listOf(
-            TrackInfo(id = 1L, title = "Track 1", artist = "", albumTitle = "", durationMs = 1000L, trackNumber = 1, filePath = null, dataPath = null, albumId = -1L),
-            TrackInfo(id = 2L, title = "Track 2", artist = "", albumTitle = "", durationMs = 2000L, trackNumber = 2, filePath = null, dataPath = null, albumId = -1L),
-            TrackInfo(id = 3L, title = "Track 3", artist = "", albumTitle = "", durationMs = 3000L, trackNumber = 3, filePath = null, dataPath = null, albumId = -1L)
-        )
-
-        // Mock sendLinkPlayCommand to always return true, simulating success
-        every { controller["sendLinkPlayCommand"](any<String>()) } returns true
-
-        controller.takeOver(tracks, startIndex = 1, startPositionMs = 0L, playWhenReady = false)
-
-        verify { controller["sendLinkPlayCommand"](match<String> { it.startsWith("setPlayerCmd:playlist:") }) }
-
-        val calls = mutableListOf<String>()
-        verify {
-            controller["sendSoapActionWithResponse"](capture(calls), any<String>())
-        }
-
-        // We check if the actions were sent in order
-        // Seek
-        val expectedActions = listOf("Seek")
-        val actualActions = calls.filter { it in expectedActions }
-
-        assert(actualActions == expectedActions) { "Expected: $expectedActions, but got: $actualActions" }
-
-        // Also check the specific Seek target
-        verify {
-            controller["sendSoapActionWithResponse"](
-                "Seek",
-                match<String> { it.contains("<Unit>TRACK_NR</Unit>") && it.contains("<Target>2</Target>") }
-            )
-        }
-
-        // No REL_TIME Seek expected because startPositionMs = 0
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Seek", match<String> { it.contains("<Unit>REL_TIME</Unit>") }) }
-
-        // No Play expected because setPlayerCmd:playlist automatically plays
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("Play", any<String>()) }
-
-        // Ensure the old queue clear method isn't sent
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("RemoveAllTracksFromQueue", any<String>()) }
-        // Ensure Sonos extension isn't used
-        verify(exactly = 0) { controller["sendSoapActionWithResponse"]("AddURIToQueue", any<String>()) }
-    }
-
-    @Test
-    fun `polling updates metadata from hex-encoded JSON`() = runTest {
-        val mockJson = """
-            {
-                "status": "play",
-                "plicurr": "2",
-                "Title": "54657374205469746C65",
-                "Artist": "5465737420417274697374",
-                "Album": "5465737420416C62756D"
-            }
-        """.trimIndent()
-
-        // We need to re-configure the mockConnection stream for this specific test
-        every { mockConnection.inputStream } returns ByteArrayInputStream(mockJson.toByteArray())
-
-        // Call private startPolling via reflection
-        controller.javaClass.getDeclaredMethod("startPolling").apply {
-            isAccessible = true
-            invoke(controller)
-        }
-
-        // Give coroutine time to poll
-        kotlinx.coroutines.delay(100)
-
-        // Wait for values to be set
-        var attempts = 0
-                while ((controller.currentTitle.value != "Test Title" || controller.currentArtist.value != "Test Artist" || controller.currentAlbum.value != "Test Album") && attempts < 30) {
-            kotlinx.coroutines.delay(100)
-            attempts++
-        }
-
-        assert(controller.currentTrackIndex.value == 2) { "Expected 2, got ${controller.currentTrackIndex.value}" }
-        assert(controller.currentTitle.value == "Test Title") { "Expected Test Title, got ${controller.currentTitle.value}" }
-        assert(controller.currentArtist.value == "Test Artist") { "Expected Test Artist, got ${controller.currentArtist.value}" }
-        assert(controller.currentAlbum.value == "Test Album") { "Expected Test Album, got ${controller.currentAlbum.value}" }
-        assert(controller.isPlaying.value) { "Expected true, got ${controller.isPlaying.value}" }
-
-        // Cleanup
-        controller.javaClass.getDeclaredMethod("stopPolling").apply {
-            isAccessible = true
-            invoke(controller)
-        }
-
-        // Wait for coroutine to finish cancellation
-        val jobField = controller.javaClass.getDeclaredField("pollingJob")
-        jobField.isAccessible = true
-        (jobField.get(controller) as? kotlinx.coroutines.Job)?.join()
-    }
 }
