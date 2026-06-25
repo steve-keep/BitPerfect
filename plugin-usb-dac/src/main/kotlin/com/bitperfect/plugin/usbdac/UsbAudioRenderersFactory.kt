@@ -14,12 +14,11 @@ class UsbAudioRenderersFactory(
     context: Context,
 ) : DefaultRenderersFactory(context) {
 
-    var usbAudioSink: UsbAudioSink? = null
-        private set
+    private var scalingSink: ScalingAudioSink? = null
 
     fun setVolume(volume: Float) {
-        usbAudioSink?.setVolume(volume)
-        UsbDacDebugLogger.log("UsbAudioRenderersFactory.setVolume: $volume, sink=${usbAudioSink != null}")
+        scalingSink?.setVolume(volume)
+        UsbDacDebugLogger.log("UsbAudioRenderersFactory.setVolume: $volume, sink=${scalingSink != null}")
     }
 
     override fun buildAudioSink(
@@ -37,6 +36,7 @@ class UsbAudioRenderersFactory(
             forceRouteToSpeaker = false,
         )
 
-        return UsbAudioSink(defaultSink, context, config).also { usbAudioSink = it }
+        val usbSink = UsbAudioSink(defaultSink, context, config)
+        return ScalingAudioSink(usbSink).also { scalingSink = it }
     }
 }
