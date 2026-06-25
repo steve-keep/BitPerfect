@@ -359,12 +359,10 @@ class WiimOutputController(
             val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
             out.write("GET /httpapi.asp?command=$command HTTP/1.0\r\nHost: $ip:$port\r\nConnection: close\r\n\r\n")
             out.flush()
-            val statusLine = `in`.readLine() ?: ""
-            val code = statusLine.substringAfter("HTTP/1.0 ").substringAfter("HTTP/1.1 ")
-                .take(3).toIntOrNull() ?: 0
+            val firstLine = `in`.readLine() ?: ""
             socket.close()
-            val ok = code in 200..299
-            WiimDebugLogger.log("LinkPlay: $command → $code")
+            val ok = firstLine.isNotBlank()
+            WiimDebugLogger.log("LinkPlay: $command → $firstLine")
             ok
         } catch (e: Exception) {
             WiimDebugLogger.log("LinkPlay FAILED: $command → ${e.message}")
