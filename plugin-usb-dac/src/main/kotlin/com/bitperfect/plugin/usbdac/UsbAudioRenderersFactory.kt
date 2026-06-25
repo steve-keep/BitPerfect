@@ -10,7 +10,8 @@ import com.decent.usbaudio.media3.UsbAudioSinkConfig
 
 @UnstableApi
 class UsbAudioRenderersFactory(
-    context: Context
+    context: Context,
+    val gainProcessor: GainAudioProcessor = GainAudioProcessor(),
 ) : DefaultRenderersFactory(context) {
 
     override fun buildAudioSink(
@@ -21,6 +22,7 @@ class UsbAudioRenderersFactory(
         val defaultSink = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(false)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+            .setAudioProcessors(arrayOf(gainProcessor))
             .build()
 
         val config = UsbAudioSinkConfig(

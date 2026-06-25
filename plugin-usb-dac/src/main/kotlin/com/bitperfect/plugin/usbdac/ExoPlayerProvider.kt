@@ -9,27 +9,24 @@ import com.bitperfect.core.output.PlayerProvider
 @UnstableApi
 class ExoPlayerProvider(
     private val exoPlayer: ExoPlayer,
+    private val gainProcessor: GainAudioProcessor,
     private val mediaItems: List<MediaItem>,
     private val startIndex: Int,
     private val startPositionMs: Long,
-    private val playWhenReady: Boolean,
-    startVolume: Float = 0.5f,
+    private val playWhenReady: Boolean
 ) : PlayerProvider {
 
     override val player: ExoPlayer = exoPlayer
 
     init {
-        exoPlayer.volume = startVolume
         exoPlayer.setMediaItems(mediaItems, startIndex, startPositionMs)
         exoPlayer.prepare()
         exoPlayer.playWhenReady = playWhenReady
     }
 
     fun setVolume(volume: Float) {
-        val clamped = volume.coerceIn(0f, 1f)
-        UsbDacDebugLogger.log("ExoPlayerProvider.setVolume: setting $clamped (was ${exoPlayer.volume})")
-        exoPlayer.volume = clamped
-        UsbDacDebugLogger.log("ExoPlayerProvider.setVolume: confirmed exoPlayer.volume=${exoPlayer.volume}")
+        gainProcessor.setVolume(volume)
+        UsbDacDebugLogger.log("ExoPlayerProvider.setVolume: gainProcessor set to $volume")
     }
 
     override fun release() {
