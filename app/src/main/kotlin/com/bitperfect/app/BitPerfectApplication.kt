@@ -36,7 +36,7 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
 
     val outputPluginRegistry = OutputPluginRegistry()
 
-    val usbDacVolumeFlow = MutableStateFlow(0.3f)
+    val usbDacVolumeFlow = MutableStateFlow(0.10f)
 
     override fun onCreate() {
         WiimDebugLogger.init(this)
