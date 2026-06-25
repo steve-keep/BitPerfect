@@ -66,32 +66,19 @@ class WiimOutputController(
         pollingJob = scope.launch {
             while (isActive) {
                 try {
-                    val url = URL("http://${target.ipAddress}:${target.linkPlayPort}/httpapi.asp?command=getPlayerStatusEx")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 2000
-                    conn.readTimeout = 2000
-                    if (conn.responseCode == 200) {
-                        val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                        // LinkPlay API typically uses "status", but check "play_status" just in case.
+                    val body = withContext(Dispatchers.IO) { fetchLinkPlay("getPlayerStatus") }
+                    if (body != null) {
+                        val json = JSONObject(body)
                         val isNowPlaying = json.optString("status") == "play" || json.optString("play_status") == "play"
                         _isPlaying.value = isNowPlaying
-
                         if (isNowPlaying) {
                             val curpos = json.optLong("curpos", -1L)
-                            if (curpos >= 0L) {
-                                _positionMs.value = curpos
-                            }
+                            if (curpos >= 0L) _positionMs.value = curpos
                         }
-
                         val vol = json.optInt("vol", -1)
                         if (vol in 0..100) _volume.value = vol
-
                         _currentTrackIndex.value = json.optInt("plicurr", -1)
-                        _currentTitle.value = decodeHexString(json.optString("Title").takeIf { it.isNotEmpty() })
-                        _currentArtist.value = decodeHexString(json.optString("Artist").takeIf { it.isNotEmpty() })
-                        _currentAlbum.value = decodeHexString(json.optString("Album").takeIf { it.isNotEmpty() })
                     }
-                    conn.disconnect()
                 } catch (e: Exception) {
                     Log.d("WiimOutputController", "Polling error: ${e.message}")
                 }
@@ -168,36 +155,14 @@ class WiimOutputController(
         val playlistUrl = "http://$wifiIp:$port/playlist.m3u8"
 
         withContext(Dispatchers.IO) {
-            // 1. Load the playlist
-            val success = sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            // 1. Load the playlist and jump to startIndex
+            val success = sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:$startIndex")
 
             if (success) {
-                // 2. Jump to startIndex (UPnP track numbers are 1-based)
-                if (startIndex > 0) {
-                    sendSoapAction(
-                        "Seek",
-                        """
-                        <InstanceID>0</InstanceID>
-                        <Unit>TRACK_NR</Unit>
-                        <Target>${startIndex + 1}</Target>
-                        """.trimIndent()
-                    )
-                }
-
-                // 3. Seek within track
+                // 2. Seek within track
                 if (startPositionMs > 0) {
-                    val h = startPositionMs / 3600000
-                    val m = (startPositionMs % 3600000) / 60000
-                    val s = (startPositionMs % 60000) / 1000
-                    val targetTime = String.format("%02d:%02d:%02d", h, m, s)
-                    sendSoapAction(
-                        "Seek",
-                        """
-                        <InstanceID>0</InstanceID>
-                        <Unit>REL_TIME</Unit>
-                        <Target>$targetTime</Target>
-                        """.trimIndent()
-                    )
+                    val positionSec = startPositionMs / 1000
+                    sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
                 }
 
                 if (playWhenReady) {
@@ -211,13 +176,13 @@ class WiimOutputController(
 
     suspend fun skipNext() {
         withContext(Dispatchers.IO) {
-            sendSoapAction("Next", "<InstanceID>0</InstanceID>")
+            sendLinkPlayCommand("setPlayerCmd:next")
         }
     }
 
     suspend fun skipPrev() {
         withContext(Dispatchers.IO) {
-            sendSoapAction("Previous", "<InstanceID>0</InstanceID>")
+            sendLinkPlayCommand("setPlayerCmd:prev")
         }
     }
 
@@ -241,43 +206,22 @@ class WiimOutputController(
 
     suspend fun seekTo(positionMs: Long) {
         withContext(Dispatchers.IO) {
-            val h = positionMs / 3600000
-            val m = (positionMs % 3600000) / 60000
-            val s = (positionMs % 60000) / 1000
-            val targetTime = String.format("%02d:%02d:%02d", h, m, s)
-            sendSoapAction(
-                "Seek",
-                """
-                <InstanceID>0</InstanceID>
-                <Unit>REL_TIME</Unit>
-                <Target>$targetTime</Target>
-                """.trimIndent()
-            )
+            val positionSec = positionMs / 1000
+            sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
         }
     }
 
     suspend fun getPositionMs(): Long = withContext(Dispatchers.IO) {
-        val response = sendSoapActionWithResponse(
-            "GetPositionInfo",
-            """
-            <InstanceID>0</InstanceID>
-            """.trimIndent()
-        )
-
+        val response = fetchLinkPlay("getPlayerStatus")
         if (response != null) {
             try {
-                val relTime = response.substringAfter("<RelTime>", "").substringBefore("</RelTime>")
-                if (relTime.isNotEmpty()) {
-                    val parts = relTime.split(":")
-                    if (parts.size == 3) {
-                        val h = parts[0].toLong()
-                        val m = parts[1].toLong()
-                        val s = parts[2].toLong()
-                        return@withContext (h * 3600000) + (m * 60000) + (s * 1000)
-                    }
+                val json = JSONObject(response)
+                val curpos = json.optLong("curpos", -1L)
+                if (curpos >= 0L) {
+                    return@withContext curpos
                 }
             } catch (e: Exception) {
-                Log.e("WiimOutputController", "Error parsing GetPositionInfo", e)
+                Log.e("WiimOutputController", "Error parsing getPlayerStatus", e)
             }
         }
         return@withContext 0L
@@ -293,7 +237,7 @@ class WiimOutputController(
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
         }
     }
 
@@ -307,7 +251,7 @@ class WiimOutputController(
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
         }
     }
 
@@ -322,7 +266,7 @@ class WiimOutputController(
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
         }
     }
 
@@ -337,7 +281,7 @@ class WiimOutputController(
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
         }
     }
 
@@ -351,7 +295,7 @@ class WiimOutputController(
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
         }
     }
 
@@ -365,7 +309,7 @@ class WiimOutputController(
 
         val playlistUrl = "http://$ip:$port/playlist.m3u8"
         withContext(Dispatchers.IO) {
-            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
         }
     }
 
@@ -383,8 +327,27 @@ class WiimOutputController(
         }
     }
 
-    private fun sendSoapAction(action: String, body: String): Boolean {
-        return sendSoapActionWithResponse(action, body) != null
+
+    private fun fetchLinkPlay(command: String): String? {
+        val ip = target.ipAddress ?: return null
+        val port = target.linkPlayPort
+        return try {
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(ip, port), 3000)
+            socket.soTimeout = 3000
+            val out = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
+            val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
+            out.write("GET /httpapi.asp?command=$command HTTP/1.0\r\nHost: $ip:$port\r\nConnection: close\r\n\r\n")
+            out.flush()
+            val lines = `in`.readLines()
+            socket.close()
+            // Skip HTTP headers, return body
+            val blankIndex = lines.indexOfFirst { it.isBlank() }
+            if (blankIndex >= 0) lines.drop(blankIndex + 1).joinToString("") else null
+        } catch (e: Exception) {
+            WiimDebugLogger.log("fetchLinkPlay FAILED: $command → ${e.message}")
+            null
+        }
     }
 
     private fun sendLinkPlayCommand(command: String): Boolean {
@@ -413,46 +376,6 @@ class WiimOutputController(
         } catch (e: Exception) { null }
     }
 
-    private fun sendSoapActionWithResponse(action: String, body: String): String? {
-        if (target.avTransportControlUrl.isNullOrEmpty()) return null
-        try {
-            val url = URL(target.avTransportControlUrl!!)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "text/xml; charset=\"utf-8\"")
-            connection.setRequestProperty("SOAPAction", "\"urn:schemas-upnp-org:service:AVTransport:1#$action\"")
-
-            val envelope = """
-                <?xml version="1.0" encoding="utf-8"?>
-                <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <s:Body>
-                        <u:$action xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
-                            $body
-                        </u:$action>
-                    </s:Body>
-                </s:Envelope>
-            """.trimIndent()
-
-            connection.outputStream.use { os ->
-                os.write(envelope.toByteArray())
-                os.flush()
-            }
-
-            val responseCode = connection.responseCode
-            if (responseCode in 200..299) {
-                return connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                Log.w("WiimOutputController", "SOAP action $action failed with code $responseCode")
-                Log.w("WiimOutputController", connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "")
-            }
-        } catch (e: Exception) {
-            Log.e("WiimOutputController", "Exception sending SOAP action $action", e)
-        }
-        return null
-    }
 
 
 }
