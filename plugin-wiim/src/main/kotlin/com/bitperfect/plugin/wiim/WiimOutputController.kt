@@ -66,7 +66,7 @@ class WiimOutputController(
         pollingJob = scope.launch {
             while (isActive) {
                 try {
-                    val url = URL("http://${target.ipAddress}/httpapi.asp?command=getPlayerStatusEx")
+                    val url = URL("http://${target.ipAddress}:${target.linkPlayPort}/httpapi.asp?command=getPlayerStatusEx")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.connectTimeout = 2000
                     conn.readTimeout = 2000
@@ -389,7 +389,7 @@ class WiimOutputController(
 
     private fun sendLinkPlayCommand(command: String): Boolean {
         return try {
-            val conn = URL("http://${target.ipAddress}/httpapi.asp?command=$command").openConnection() as HttpURLConnection
+            val conn = URL("http://${target.ipAddress}:${target.linkPlayPort}/httpapi.asp?command=$command").openConnection() as HttpURLConnection
             conn.connectTimeout = 3000
             conn.readTimeout = 3000
             val code = conn.responseCode

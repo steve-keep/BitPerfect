@@ -43,7 +43,8 @@ class WiimOutputPluginTest {
                 deviceDescriptionUrl = "",
                 avTransportControlUrl = "",
                 renderingControlUrl = "",
-                ipAddress = "192.168.1.42"
+                ipAddress = "192.168.1.42",
+                linkPlayPort = 10095
             )
             devicesFlow.value = listOf(device)
 
