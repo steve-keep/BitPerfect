@@ -15,7 +15,9 @@ class ScalingAudioSink(sink: AudioSink) : ForwardingAudioSink(sink) {
     private val volumeScaled = AtomicInteger(10000)
 
     override fun setVolume(volume: Float) {
-        volumeScaled.set((volume.coerceIn(0f, 1f) * 10000).toInt())
+        val clamped = volume.coerceIn(0f, 1f)
+        val gain = if (clamped == 0f) 0f else Math.pow(10.0, ((clamped - 1.0) * 3.0)).toFloat()
+        volumeScaled.set((gain * 10000).toInt())
     }
 
     override fun handleBuffer(

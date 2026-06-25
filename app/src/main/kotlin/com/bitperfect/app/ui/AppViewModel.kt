@@ -166,7 +166,7 @@ open class AppViewModel(
     private val _showOutputSheet = MutableStateFlow(false)
     val showOutputSheet: StateFlow<Boolean> = _showOutputSheet.asStateFlow()
 
-    private val _usbDacVolume = MutableStateFlow(0.50f)
+    private val _usbDacVolume = MutableStateFlow(0.10f)
     val usbDacVolume: StateFlow<Float> = _usbDacVolume.asStateFlow()
 
     fun setUsbDacVolume(volume: Float) {
