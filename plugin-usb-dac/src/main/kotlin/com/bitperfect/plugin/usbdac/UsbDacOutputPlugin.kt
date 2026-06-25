@@ -66,12 +66,12 @@ class UsbDacOutputPlugin(
         val renderersFactory = UsbAudioRenderersFactory(context)
         val exoPlayer = buildExoPlayer(context, renderersFactory)
         return ExoPlayerProvider(
-            exoPlayer     = exoPlayer,
-            gainProcessor = renderersFactory.gainProcessor,
-            mediaItems    = mediaItems,
-            startIndex    = handoffState.currentIndex,
+            exoPlayer       = exoPlayer,
+            renderersFactory = renderersFactory,
+            mediaItems      = mediaItems,
+            startIndex      = handoffState.currentIndex,
             startPositionMs = handoffState.positionMs,
-            playWhenReady = handoffState.playWhenReady,
+            playWhenReady   = handoffState.playWhenReady,
         )
     }
 

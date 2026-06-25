@@ -7,12 +7,20 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.decent.usbaudio.media3.UsbAudioSink
 import com.decent.usbaudio.media3.UsbAudioSinkConfig
+import com.bitperfect.core.UsbDacDebugLogger
 
 @UnstableApi
 class UsbAudioRenderersFactory(
     context: Context,
-    val gainProcessor: GainAudioProcessor = GainAudioProcessor(),
 ) : DefaultRenderersFactory(context) {
+
+    var usbAudioSink: UsbAudioSink? = null
+        private set
+
+    fun setVolume(volume: Float) {
+        usbAudioSink?.setVolume(volume)
+        UsbDacDebugLogger.log("UsbAudioRenderersFactory.setVolume: $volume, sink=${usbAudioSink != null}")
+    }
 
     override fun buildAudioSink(
         context: Context,
@@ -22,7 +30,6 @@ class UsbAudioRenderersFactory(
         val defaultSink = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(false)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-            .setAudioProcessors(arrayOf(gainProcessor))
             .build()
 
         val config = UsbAudioSinkConfig(
@@ -30,6 +37,6 @@ class UsbAudioRenderersFactory(
             forceRouteToSpeaker = false,
         )
 
-        return UsbAudioSink(defaultSink, context, config)
+        return UsbAudioSink(defaultSink, context, config).also { usbAudioSink = it }
     }
 }
