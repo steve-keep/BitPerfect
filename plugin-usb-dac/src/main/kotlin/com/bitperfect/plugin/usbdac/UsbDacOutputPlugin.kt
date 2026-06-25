@@ -63,13 +63,15 @@ class UsbDacOutputPlugin(
         handoffState: PlaybackHandoffState,
     ): PlayerProvider {
         val mediaItems = handoffState.tracks.map { it.toMediaItem(context) }
-        val exoPlayer = buildExoPlayer(context)
+        val renderersFactory = UsbAudioRenderersFactory(context)
+        val exoPlayer = buildExoPlayer(context, renderersFactory)
         return ExoPlayerProvider(
-            exoPlayer    = exoPlayer,
-            mediaItems   = mediaItems,
-            startIndex   = handoffState.currentIndex,
+            exoPlayer     = exoPlayer,
+            gainProcessor = renderersFactory.gainProcessor,
+            mediaItems    = mediaItems,
+            startIndex    = handoffState.currentIndex,
             startPositionMs = handoffState.positionMs,
-            playWhenReady   = handoffState.playWhenReady,
+            playWhenReady = handoffState.playWhenReady,
         )
     }
 
@@ -79,7 +81,10 @@ class UsbDacOutputPlugin(
         scope.cancel()
     }
 
-    private fun buildExoPlayer(context: Context): ExoPlayer {
+    private fun buildExoPlayer(
+        context: Context,
+        renderersFactory: UsbAudioRenderersFactory,
+    ): ExoPlayer {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -89,7 +94,7 @@ class UsbDacOutputPlugin(
             .setBufferDurationsMs(15_000, 50_000, 1_500, 3_000)
             .build()
 
-        return ExoPlayer.Builder(context, UsbAudioRenderersFactory(context))
+        return ExoPlayer.Builder(context, renderersFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setLoadControl(loadControl)
