@@ -1,5 +1,6 @@
 package com.bitperfect.plugin.usbdac
 
+import com.bitperfect.core.UsbDacDebugLogger
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -25,7 +26,10 @@ class ExoPlayerProvider(
     }
 
     fun setVolume(volume: Float) {
-        exoPlayer.volume = volume.coerceIn(0f, 1f)
+        val clamped = volume.coerceIn(0f, 1f)
+        UsbDacDebugLogger.log("ExoPlayerProvider.setVolume: setting $clamped (was ${exoPlayer.volume})")
+        exoPlayer.volume = clamped
+        UsbDacDebugLogger.log("ExoPlayerProvider.setVolume: confirmed exoPlayer.volume=${exoPlayer.volume}")
     }
 
     override fun release() {

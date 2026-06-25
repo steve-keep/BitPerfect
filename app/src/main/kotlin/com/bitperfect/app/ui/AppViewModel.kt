@@ -1,5 +1,6 @@
 package com.bitperfect.app.ui
 
+import com.bitperfect.core.UsbDacDebugLogger
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -171,6 +172,7 @@ open class AppViewModel(
     fun setUsbDacVolume(volume: Float) {
         val clamped = volume.coerceIn(0f, 1f)
         _usbDacVolume.value = clamped
+        UsbDacDebugLogger.log("AppViewModel.setUsbDacVolume: $clamped")
         playerRepository.setUsbDacVolume(clamped)
     }
 

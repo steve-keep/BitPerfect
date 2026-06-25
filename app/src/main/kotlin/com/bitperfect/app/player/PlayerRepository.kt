@@ -1,5 +1,6 @@
 package com.bitperfect.app.player
 
+import com.bitperfect.core.UsbDacDebugLogger
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
@@ -49,6 +50,7 @@ open class PlayerRepository(
     }
 
     fun setUsbDacVolume(volume: Float) {
+        UsbDacDebugLogger.log("PlayerRepository.setUsbDacVolume: writing $volume to flow")
         (context.applicationContext as BitPerfectApplication).usbDacVolumeFlow.value = volume
     }
 
