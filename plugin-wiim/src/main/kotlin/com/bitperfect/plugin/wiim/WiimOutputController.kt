@@ -25,9 +25,7 @@ import android.content.ContentUris
 import android.net.Uri
 import java.io.File
 import java.io.FileInputStream
-import java.net.HttpURLConnection
 import java.net.NetworkInterface
-import java.net.URL
 
 class WiimOutputController(
     private val context: Context,
@@ -351,12 +349,20 @@ class WiimOutputController(
     }
 
     private fun sendLinkPlayCommand(command: String): Boolean {
+        val ip = target.ipAddress ?: return false
+        val port = target.linkPlayPort
         return try {
-            val conn = URL("http://${target.ipAddress}:${target.linkPlayPort}/httpapi.asp?command=$command").openConnection() as HttpURLConnection
-            conn.connectTimeout = 3000
-            conn.readTimeout = 3000
-            val code = conn.responseCode
-            conn.disconnect()
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(ip, port), 3000)
+            socket.soTimeout = 3000
+            val out = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
+            val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
+            out.write("GET /httpapi.asp?command=$command HTTP/1.0\r\nHost: $ip:$port\r\nConnection: close\r\n\r\n")
+            out.flush()
+            val statusLine = `in`.readLine() ?: ""
+            val code = statusLine.substringAfter("HTTP/1.0 ").substringAfter("HTTP/1.1 ")
+                .take(3).toIntOrNull() ?: 0
+            socket.close()
             val ok = code in 200..299
             WiimDebugLogger.log("LinkPlay: $command → $code")
             ok
