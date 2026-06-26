@@ -9,6 +9,9 @@ import android.os.Bundle
 import android.provider.MediaStore
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.session.DefaultMediaNotificationProvider
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -109,11 +112,28 @@ class PlaybackService : MediaLibraryService() {
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setLoadControl(loadControl)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
+    }
+
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID,
+            "Playback",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "BitPerfect playback controls"
+            setShowBadge(false)
+        }
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
     }
 
     override fun onCreate() {
         super.onCreate()
+        createNotificationChannel()
+        setMediaNotificationProvider(DefaultMediaNotificationProvider(this))
 
         val exoPlayer = buildExoPlayer()
         player = exoPlayer
