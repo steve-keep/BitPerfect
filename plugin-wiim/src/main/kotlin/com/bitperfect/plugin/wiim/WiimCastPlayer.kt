@@ -54,6 +54,13 @@ class WiimCastPlayer(
                 invalidateState()
             }
         }
+
+        scope.launch { controller.durationMs.collect { invalidateState() } }
+        scope.launch { controller.isMuted.collect { invalidateState() } }
+        scope.launch { controller.currentTitle.collect { invalidateState() } }
+        scope.launch { controller.currentArtist.collect { invalidateState() } }
+        scope.launch { controller.currentAlbum.collect { invalidateState() } }
+        scope.launch { controller.albumArtUrl.collect { invalidateState() } }
     }
 
     override fun getState(): State {
@@ -65,10 +72,25 @@ class WiimCastPlayer(
                 ?.takeIf { it > 0L }
                 ?.let { it * 1_000L }
                 ?: C.TIME_UNSET
+            var finalDurationUs = durationUs
+            if (index == currentIndex && controller.durationMs.value > 0L) {
+                finalDurationUs = controller.durationMs.value * 1_000L
+            }
+
+            var finalMeta = meta
+            if (index == currentIndex) {
+                val b = finalMeta.buildUpon()
+                controller.currentTitle.value?.let { b.setTitle(it) }
+                controller.currentArtist.value?.let { b.setArtist(it) }
+                controller.currentAlbum.value?.let { b.setAlbumTitle(it) }
+                controller.albumArtUrl.value?.let { b.setArtworkUri(android.net.Uri.parse(it)) }
+                finalMeta = b.build()
+            }
+
             SimpleBasePlayer.MediaItemData.Builder(item.mediaId)
-                .setMediaItem(item)
-                .setMediaMetadata(meta)
-                .setDurationUs(durationUs)
+                .setMediaItem(item.buildUpon().setMediaMetadata(finalMeta).build())
+                .setMediaMetadata(finalMeta)
+                .setDurationUs(finalDurationUs)
                 .build()
         }
         return State.Builder()
@@ -81,6 +103,7 @@ class WiimCastPlayer(
             .setPlaybackState(if (playlist.isEmpty()) Player.STATE_IDLE else Player.STATE_READY)
             .setContentPositionMs { controller.positionMs.value }
             .setDeviceVolume(controller.volume.value)
+
             .setAvailableCommands(
                 Player.Commands.Builder()
                     .addAll(
