@@ -98,6 +98,7 @@ class UsbDacOutputPlugin(
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setLoadControl(loadControl)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
     }
 }
