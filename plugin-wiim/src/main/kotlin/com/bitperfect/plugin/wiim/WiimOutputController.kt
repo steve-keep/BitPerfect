@@ -154,18 +154,16 @@ class WiimOutputController(
 
         withContext(Dispatchers.IO) {
             // 1. Load the playlist and jump to startIndex
-            val success = sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:$startIndex")
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:$startIndex")
 
-            if (success) {
-                // 2. Seek within track
-                if (startPositionMs > 0) {
-                    val positionSec = startPositionMs / 1000
-                    sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
-                }
+            // 2. Seek within track
+            if (startPositionMs > 0) {
+                val positionSec = startPositionMs / 1000
+                sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
+            }
 
-                if (playWhenReady) {
-                    sendLinkPlayCommand("setPlayerCmd:resume")
-                }
+            if (playWhenReady) {
+                sendLinkPlayCommand("setPlayerCmd:resume")
             }
         }
 
@@ -359,11 +357,10 @@ class WiimOutputController(
             val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
             out.write("GET /httpapi.asp?command=$command HTTP/1.0\r\nHost: $ip:$port\r\nConnection: close\r\n\r\n")
             out.flush()
-            val response = `in`.readLines().joinToString("")
+            `in`.readLines() // drain until WiiM closes connection
             socket.close()
-            val ok = response.contains("OK", ignoreCase = true) || response.isNotBlank()
-            WiimDebugLogger.log("LinkPlay: $command → $response")
-            ok
+            WiimDebugLogger.log("LinkPlay: $command → OK")
+            true
         } catch (e: Exception) {
             WiimDebugLogger.log("LinkPlay FAILED: $command → ${e.message}")
             false

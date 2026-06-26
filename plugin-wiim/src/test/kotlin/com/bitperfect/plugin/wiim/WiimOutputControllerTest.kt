@@ -169,4 +169,20 @@ class WiimOutputControllerTest {
 
 
 
+
+
+
+
+    @Test
+    fun `takeOver sends playlist, seek, and resume unconditionally`() = runTest {
+        val tracks = emptyList<TrackInfo>()
+        controller.takeOver(tracks, startIndex = 0, startPositionMs = 5000, playWhenReady = true)
+
+        verifyOrder {
+            controller["sendLinkPlayCommand"](match<String> { it.contains("setPlayerCmd:playlist:") })
+            controller["sendLinkPlayCommand"]("setPlayerCmd:seek:5")
+            controller["sendLinkPlayCommand"]("setPlayerCmd:resume")
+        }
+    }
+
 }
