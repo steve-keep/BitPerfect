@@ -176,13 +176,16 @@ class WiimOutputController(
         httpServer?.stop()
         httpServer = FlacHttpServer(context, trackList)
         httpServer?.serverIp = wifiIp ?: "127.0.0.1"
-        httpServer?.start(5000, false)
+        httpServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true)
 
         val port = httpServer?.listeningPort ?: -1
         if (port <= 0) {
             Log.e("WiimOutputController", "FlacHttpServer failed to bind to a port, aborting takeOver")
             return
         }
+
+        withContext(Dispatchers.IO) { Thread.sleep(200) }
+        WiimDebugLogger.log("FlacHttpServer started on port $port, serverIp=$wifiIp")
 
         val playlistUrl = "http://$wifiIp:$port/playlist.m3u8"
 
