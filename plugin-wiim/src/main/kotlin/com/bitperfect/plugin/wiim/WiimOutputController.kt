@@ -57,6 +57,17 @@ class WiimOutputController(
     private val _currentAlbum = MutableStateFlow<String?>(null)
     val currentAlbum: StateFlow<String?> = _currentAlbum.asStateFlow()
 
+    private val _durationMs = MutableStateFlow(0L)
+    val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    private val _isMuted = MutableStateFlow(false)
+    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
+
+    private val _albumArtUrl = MutableStateFlow<String?>(null)
+    val albumArtUrl: StateFlow<String?> = _albumArtUrl.asStateFlow()
+
+    private var subscriber: UpnpEventSubscriber? = null
+
     private var pollingJob: Job? = null
 
     private fun startPolling() {
@@ -68,19 +79,26 @@ class WiimOutputController(
                     if (body != null) {
                         val json = JSONObject(body)
                         val isNowPlaying = json.optString("status") == "play" || json.optString("play_status") == "play"
-                        _isPlaying.value = isNowPlaying
-                        if (isNowPlaying) {
-                            val curpos = json.optLong("curpos", -1L)
-                            if (curpos >= 0L) _positionMs.value = curpos
+
+                        // Only update from polling if events are not active or for fields events don't provide
+                        val eventsActive = subscriber?.eventsActive == true
+
+                        if (!eventsActive) {
+                            _isPlaying.value = isNowPlaying
+                            if (isNowPlaying) {
+                                val curpos = json.optLong("curpos", -1L)
+                                if (curpos >= 0L) _positionMs.value = curpos
+                            }
+                            val vol = json.optInt("vol", -1)
+                            if (vol in 0..100) _volume.value = vol
                         }
-                        val vol = json.optInt("vol", -1)
-                        if (vol in 0..100) _volume.value = vol
+
                         _currentTrackIndex.value = json.optInt("plicurr", -1)
                     }
                 } catch (e: Exception) {
                     Log.d("WiimOutputController", "Polling error: ${e.message}")
                 }
-                delay(1000)
+                delay(if (subscriber?.eventsActive == true) 5000L else 1000L)
             }
         }
     }
@@ -138,6 +156,22 @@ class WiimOutputController(
             Log.w("WiimOutputController", "Not on Wi-Fi or unable to get IP, ignoring takeOver")
             return
         }
+
+        subscriber?.let { scope.launch { it.stop() } }
+        val s = UpnpEventSubscriber(target, wifiIp!!, scope) { stateChange ->
+            stateChange.isPlaying?.let { _isPlaying.value = it }
+            stateChange.positionMs?.let { _positionMs.value = it }
+            stateChange.durationMs?.let { _durationMs.value = it }
+            stateChange.volume?.let { _volume.value = it }
+            stateChange.isMuted?.let { _isMuted.value = it }
+            stateChange.title?.let { _currentTitle.value = it }
+            stateChange.artist?.let { _currentArtist.value = it }
+            stateChange.album?.let { _currentAlbum.value = it }
+            stateChange.albumArtUrl?.let { _albumArtUrl.value = it }
+        }
+        s.start()
+        subscriber = s
+
 
         httpServer?.stop()
         httpServer = FlacHttpServer(context, trackList)
@@ -311,6 +345,8 @@ class WiimOutputController(
 
     suspend fun release() {
         stopPolling()
+        subscriber?.stop()
+        subscriber = null
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:stop")
             httpServer?.stop()
