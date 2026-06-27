@@ -109,8 +109,8 @@ class MainActivity : ComponentActivity() {
                     KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustWiimVolume(-5);     return true }
                 }
                 activeDevice is OutputDevice.UsbDac -> when (event.keyCode) {
-                    KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustUsbDacVolume(+0.05f); return true }
-                    KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustUsbDacVolume(-0.05f); return true }
+                    KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustUsbDacVolume(+0.10f); return true }
+                    KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustUsbDacVolume(-0.10f); return true }
                 }
             }
         }
