@@ -448,6 +448,7 @@ class WiimOutputController(
             </s:Envelope>
         """.trimIndent()
         return try {
+            WiimDebugLogger.log("SOAP $action endpoint → /upnp/control/PlayQueue1")
             val socket = java.net.Socket()
             socket.connect(java.net.InetSocketAddress(ip, 49152), 3000)
             socket.soTimeout = 5000
@@ -465,7 +466,7 @@ class WiimOutputController(
             val response = `in`.readLines().joinToString("\n")
             socket.close()
             WiimDebugLogger.log("SOAP $action body → ${envelope.take(300)}")
-            WiimDebugLogger.log("SOAP $action → ${response.take(400)}")
+            WiimDebugLogger.log("SOAP $action → ${response.take(600)}")
             response
         } catch (e: Exception) {
             WiimDebugLogger.log("SOAP $action FAILED → ${e.message}")
