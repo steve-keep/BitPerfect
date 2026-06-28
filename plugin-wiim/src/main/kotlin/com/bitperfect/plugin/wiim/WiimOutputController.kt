@@ -176,7 +176,7 @@ class WiimOutputController(
         httpServer?.stop()
         httpServer = FlacHttpServer(context, trackList)
         httpServer?.serverIp = wifiIp ?: "127.0.0.1"
-        httpServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true)
+        httpServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
 
         val port = httpServer?.listeningPort ?: -1
         if (port <= 0) {
