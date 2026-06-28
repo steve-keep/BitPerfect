@@ -464,7 +464,8 @@ class WiimOutputController(
             out.flush()
             val response = `in`.readLines().joinToString("\n")
             socket.close()
-            WiimDebugLogger.log("SOAP $action → ${response.take(120)}")
+            WiimDebugLogger.log("SOAP $action body → ${envelope.take(300)}")
+            WiimDebugLogger.log("SOAP $action → ${response.take(400)}")
             response
         } catch (e: Exception) {
             WiimDebugLogger.log("SOAP $action FAILED → ${e.message}")
