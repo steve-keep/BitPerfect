@@ -13,10 +13,12 @@ class ExoPlayerProvider(
     private val mediaItems: List<MediaItem>,
     private val startIndex: Int,
     private val startPositionMs: Long,
-    private val playWhenReady: Boolean
+    private val playWhenReady: Boolean,
+    private val usbDacVolumeFlow: kotlinx.coroutines.flow.MutableStateFlow<Float>
 ) : PlayerProvider {
 
-    override val player: ExoPlayer = exoPlayer
+    val usbDacPlayer = UsbDacPlayer(exoPlayer, usbDacVolumeFlow)
+    override val player: androidx.media3.common.Player get() = usbDacPlayer
 
     init {
         exoPlayer.setMediaItems(mediaItems, startIndex, startPositionMs)

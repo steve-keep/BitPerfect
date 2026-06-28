@@ -20,7 +20,7 @@ class UsbDacOutputPluginTest {
 
     @Test
     fun `deviceType is usb_dac`() {
-        val plugin = UsbDacOutputPlugin(mockk(relaxed = true))
+        val plugin = UsbDacOutputPlugin(mockk(relaxed = true), kotlinx.coroutines.flow.MutableStateFlow(0.10f))
         assertEquals("usb_dac", plugin.deviceType)
     }
 
@@ -40,6 +40,7 @@ class UsbDacOutputPluginTest {
 
         val plugin = UsbDacOutputPlugin(
             appContext = context,
+            usbDacVolumeFlow = kotlinx.coroutines.flow.MutableStateFlow(0.10f),
             detectorFactory = { mockDetector }
         )
 
@@ -60,6 +61,7 @@ class UsbDacOutputPluginTest {
 
         val plugin = UsbDacOutputPlugin(
             appContext = context,
+            usbDacVolumeFlow = kotlinx.coroutines.flow.MutableStateFlow(0.10f),
             detectorFactory = { mockDetector }
         )
 
