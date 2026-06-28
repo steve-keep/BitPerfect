@@ -50,19 +50,6 @@ internal class FlacHttpServer(val context: Context, initialTrackList: List<Track
         WiimDebugLogger.log("HTTP ${session.method} ${session.uri}")
         val uri = session.uri
 
-        if (uri == "/playlist.m3u8") {
-            WiimDebugLogger.log("serving playlist: ${trackList.size} tracks")
-            val sb = StringBuilder("#EXTM3U\n")
-            val ip = serverIp
-            for (track in trackList) {
-                val trackUrl = "http://$ip:$listeningPort/track/${track.id}.flac"
-                val duration = if (track.durationMs > 0) track.durationMs / 1000 else -1
-                sb.append("#EXTINF:$duration,${track.artist} - ${track.title}\n")
-                sb.append("$trackUrl\n")
-            }
-            return newFixedLengthResponse(Response.Status.OK, "audio/x-mpegurl", sb.toString())
-        }
-
         if (uri.startsWith("/art/") && uri.endsWith(".jpg")) {
             val albumIdStr = uri.substringAfter("/art/").substringBefore(".jpg")
             val albumId = albumIdStr.toLongOrNull() ?: -1L
