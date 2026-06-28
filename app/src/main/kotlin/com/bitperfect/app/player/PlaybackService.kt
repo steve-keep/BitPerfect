@@ -6,6 +6,7 @@ import android.content.ContentUris
 import android.content.Intent
 import com.bitperfect.core.WiimDebugLogger
 import android.os.Bundle
+import android.view.KeyEvent
 import android.provider.MediaStore
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -271,7 +272,41 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    private fun adjustUsbDacVolume(delta: Float) {
+        val app = application as BitPerfectApplication
+        val current = app.usbDacVolumeFlow.value
+        val next = (current + delta).coerceIn(0f, 1f)
+        app.usbDacVolumeFlow.value = next
+        UsbDacDebugLogger.log("PlaybackService.adjustUsbDacVolume: $current -> $next")
+    }
+
     private inner class BrowseCallback : MediaLibrarySession.Callback {
+
+        override fun onMediaButtonEvent(
+            session: MediaSession,
+            controllerInfo: MediaSession.ControllerInfo,
+            intent: Intent
+        ): Boolean {
+            val keyEvent = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+            if (keyEvent.action != KeyEvent.ACTION_DOWN) return false
+
+            val activeDevice = outputRepository.activeDevice.value
+            return when {
+                activeDevice is OutputDevice.UsbDac -> when (keyEvent.keyCode) {
+                    KeyEvent.KEYCODE_VOLUME_UP -> {
+                        adjustUsbDacVolume(+0.10f)
+                        true
+                    }
+                    KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                        adjustUsbDacVolume(-0.10f)
+                        true
+                    }
+                    else -> false
+                }
+                else -> false
+            }
+        }
+
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
