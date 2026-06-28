@@ -454,7 +454,7 @@ class WiimOutputController(
             val out = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
             val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
             val bodyBytes = envelope.toByteArray(Charsets.UTF_8)
-            out.write("POST /upnp/control/renderqueue1 HTTP/1.0\r\n")
+            out.write("POST /upnp/control/PlayQueue1 HTTP/1.0\r\n")
             out.write("Host: $ip:49152\r\n")
             out.write("Content-Type: text/xml; charset=\"utf-8\"\r\n")
             out.write("SOAPACTION: \"$soapAction\"\r\n")
@@ -473,24 +473,46 @@ class WiimOutputController(
         }
     }
 
-    private fun buildQueueXml(listName: String, tracks: List<TrackInfo>, wifiIp: String, port: Int): String {
+    private fun buildQueueXml(
+        listName: String,
+        tracks: List<TrackInfo>,
+        wifiIp: String,
+        port: Int
+    ): String {
         val sb = StringBuilder()
         sb.append("&lt;?xml version=&quot;1.0&quot;?&gt;")
         sb.append("&lt;PlayList&gt;")
         sb.append("&lt;ListName&gt;${listName.escapeXml()}&lt;/ListName&gt;")
         sb.append("&lt;ListInfo&gt;")
-        sb.append("&lt;SourceName&gt;BitPerfect&lt;/SourceName&gt;")
+        sb.append("&lt;SourceName&gt;PC_RemoteLocal&lt;/SourceName&gt;")
+        sb.append("&lt;MarkSearch&gt;0&lt;/MarkSearch&gt;")
+        sb.append("&lt;TrackNumber&gt;${tracks.size}&lt;/TrackNumber&gt;")
         sb.append("&lt;Quality&gt;0&lt;/Quality&gt;")
+        sb.append("&lt;UpdateTime&gt;${System.currentTimeMillis() / 1000}&lt;/UpdateTime&gt;")
+        sb.append("&lt;LastPlayIndex&gt;0&lt;/LastPlayIndex&gt;")
+        sb.append("&lt;AlarmPlayIndex&gt;0&lt;/AlarmPlayIndex&gt;")
+        sb.append("&lt;RealIndex&gt;0&lt;/RealIndex&gt;")
+        sb.append("&lt;SwitchPageMode&gt;0&lt;/SwitchPageMode&gt;")
+        sb.append("&lt;CurrentPage&gt;0&lt;/CurrentPage&gt;")
+        sb.append("&lt;TotalPages&gt;0&lt;/TotalPages&gt;")
+        sb.append("&lt;searching&gt;0&lt;/searching&gt;")
         sb.append("&lt;/ListInfo&gt;")
         sb.append("&lt;Tracks&gt;")
         tracks.forEachIndexed { i, track ->
             val trackUrl = "http://$wifiIp:$port/track/${track.id}.flac"
             val durationSec = if (track.durationMs > 0) track.durationMs / 1000 else 0
-            val didl = buildDIDL(track, trackUrl, durationSec)
+            val h = durationSec / 3600
+            val m = (durationSec % 3600) / 60
+            val s = durationSec % 60
+            val duration = String.format("%d:%02d:%02d", h, m, s)
+            val didl = buildDIDL(track, trackUrl, duration)
             sb.append("&lt;Track${i + 1}&gt;")
             sb.append("&lt;URL&gt;${trackUrl.escapeXml()}&lt;/URL&gt;")
-            sb.append("&lt;Source&gt;BitPerfect&lt;/Source&gt;")
             sb.append("&lt;Metadata&gt;${didl.escapeXml()}&lt;/Metadata&gt;")
+            sb.append("&lt;Id&gt;${track.id}&lt;/Id&gt;")
+            sb.append("&lt;Source&gt;PC_RemoteLocal&lt;/Source&gt;")
+            sb.append("&lt;ChapterNumber&gt;0&lt;/ChapterNumber&gt;")
+            sb.append("&lt;Chapters&gt;&lt;/Chapters&gt;")
             sb.append("&lt;/Track${i + 1}&gt;")
         }
         sb.append("&lt;/Tracks&gt;")
@@ -498,24 +520,28 @@ class WiimOutputController(
         return sb.toString()
     }
 
-    private fun buildDIDL(track: TrackInfo, trackUrl: String, durationSec: Long): String {
-        val h = durationSec / 3600
-        val m = (durationSec % 3600) / 60
-        val s = durationSec % 60
-        val duration = String.format("%d:%02d:%02d", h, m, s)
-        return """<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"
-            xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"
-            xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
-            <item>
-                <dc:title>${track.title.orEmpty().escapeXml()}</dc:title>
-                <dc:creator>${track.artist.orEmpty().escapeXml()}</dc:creator>
-                <upnp:artist>${track.artist.orEmpty().escapeXml()}</upnp:artist>
-                <upnp:album>${track.albumTitle.orEmpty().escapeXml()}</upnp:album>
-                <upnp:albumArtURI></upnp:albumArtURI>
-                <res protocolInfo="http-get:*:audio/flac:*" duration="$duration">$trackUrl</res>
-            </item>
-        </DIDL-Lite>""".trimIndent()
+    private fun buildDIDL(track: TrackInfo, trackUrl: String, duration: String): String {
+        return """<?xml version="1.0"?>
+<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:song="www.linkplay.com/song/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
+<upnp:class>object.item.audioItem.musicTrack</upnp:class>
+<item>
+<song:id>${track.id}</song:id>
+<song:albumid>0</song:albumid>
+<song:singerid>0</song:singerid>
+<song:quality>0</song:quality>
+<song:actualQuality>LOSSLESS</song:actualQuality>
+<song:rate_hz>44100</song:rate_hz>
+<song:format_s>16</song:format_s>
+<song:bitrate>0</song:bitrate>
+<dc:title>${track.title.orEmpty().escapeXml()}</dc:title>
+<upnp:artist>${track.artist.orEmpty().escapeXml()}</upnp:artist>
+<upnp:album>${track.albumTitle.orEmpty().escapeXml()}</upnp:album>
+<upnp:albumArtURI></upnp:albumArtURI>
+<res protocolInfo="http-get:*:audio/flac:DLNA.ORG_PN=FLAC;DLNA.ORG_OP=01;" duration="$duration">$trackUrl</res>
+</item>
+</DIDL-Lite>"""
     }
+
 
     private fun String.escapeXml(): String = this
         .replace("&", "&amp;")
