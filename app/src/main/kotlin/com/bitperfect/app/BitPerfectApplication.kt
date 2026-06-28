@@ -42,7 +42,7 @@ class BitPerfectApplication : Application(), ImageLoaderFactory {
         WiimDebugLogger.init(this)
         UsbDacDebugLogger.init(this)
         super.onCreate()
-        outputPluginRegistry.register(UsbDacOutputPlugin(this))
+        outputPluginRegistry.register(UsbDacOutputPlugin(this, usbDacVolumeFlow))
         outputPluginRegistry.register(WiimOutputPlugin(this))
         val crashHandler = CrashHandler(this)
         Thread.setDefaultUncaughtExceptionHandler(crashHandler)

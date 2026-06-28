@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 @UnstableApi
 class UsbDacOutputPlugin(
     private val appContext: Context,
+    private val usbDacVolumeFlow: kotlinx.coroutines.flow.MutableStateFlow<Float>,
     private val detectorFactory: (Context) -> UsbAudioDacDetector = { ctx -> UsbAudioDacDetector(ctx) }
 ) : OutputPlugin {
 
@@ -72,6 +73,7 @@ class UsbDacOutputPlugin(
             startIndex      = handoffState.currentIndex,
             startPositionMs = handoffState.positionMs,
             playWhenReady   = handoffState.playWhenReady,
+            usbDacVolumeFlow = usbDacVolumeFlow,
         )
     }
 
