@@ -62,6 +62,7 @@ class WiimOutputControllerTest {
 
         // Mock sendSoapActionWithResponse to always return a non-null string, meaning success
         every { controller["sendLinkPlayCommand"](any<String>()) } returns true
+        every { controller["sendSoapToQueue"](any<String>(), any<String>()) } returns "<response></response>"
         every { controller["fetchLinkPlay"](any<String>()) } returns "{}"
     }
 
@@ -174,13 +175,17 @@ class WiimOutputControllerTest {
 
 
     @Test
-    fun `takeOver sends playlist, seek, and resume unconditionally`() = runTest {
+    fun `takeOver sends CreateQueue, PlayQueueWithIndex, and seek`() = runTest {
         val tracks = emptyList<TrackInfo>()
         controller.takeOver(tracks, startIndex = 0, startPositionMs = 5000, playWhenReady = true)
 
         verifyOrder {
-            controller["sendLinkPlayCommand"](match<String> { it.contains("setPlayerCmd:playlist:") })
+            controller["sendSoapToQueue"]("CreateQueue", any<String>())
+            controller["sendSoapToQueue"]("PlayQueueWithIndex", any<String>())
             controller["sendLinkPlayCommand"]("setPlayerCmd:seek:5")
+        }
+
+        verify(exactly = 0) {
             controller["sendLinkPlayCommand"]("setPlayerCmd:resume")
         }
     }
