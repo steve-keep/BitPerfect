@@ -487,21 +487,16 @@ class WiimOutputController(
         port: Int
     ): String {
         val sb = StringBuilder()
+        sb.append("&lt;?xml version=&quot;1.0&quot;?&gt;")
         sb.append("&lt;PlayList&gt;")
         sb.append("&lt;ListName&gt;${listName.escapeXml()}&lt;/ListName&gt;")
         sb.append("&lt;ListInfo&gt;")
+        sb.append("&lt;Radio&gt;0&lt;/Radio&gt;")
         sb.append("&lt;SourceName&gt;PC_RemoteLocal&lt;/SourceName&gt;")
-        sb.append("&lt;MarkSearch&gt;0&lt;/MarkSearch&gt;")
+        sb.append("&lt;PicUrl&gt;&lt;/PicUrl&gt;")
         sb.append("&lt;TrackNumber&gt;${tracks.size}&lt;/TrackNumber&gt;")
+        sb.append("&lt;SearchUrl&gt;&lt;/SearchUrl&gt;")
         sb.append("&lt;Quality&gt;0&lt;/Quality&gt;")
-        sb.append("&lt;UpdateTime&gt;${System.currentTimeMillis() / 1000}&lt;/UpdateTime&gt;")
-        sb.append("&lt;LastPlayIndex&gt;0&lt;/LastPlayIndex&gt;")
-        sb.append("&lt;AlarmPlayIndex&gt;0&lt;/AlarmPlayIndex&gt;")
-        sb.append("&lt;RealIndex&gt;0&lt;/RealIndex&gt;")
-        sb.append("&lt;SwitchPageMode&gt;0&lt;/SwitchPageMode&gt;")
-        sb.append("&lt;CurrentPage&gt;0&lt;/CurrentPage&gt;")
-        sb.append("&lt;TotalPages&gt;0&lt;/TotalPages&gt;")
-        sb.append("&lt;searching&gt;0&lt;/searching&gt;")
         sb.append("&lt;/ListInfo&gt;")
         sb.append("&lt;Tracks&gt;")
         tracks.forEachIndexed { i, track ->
@@ -514,9 +509,10 @@ class WiimOutputController(
             val didl = buildDIDL(track, trackUrl, duration)
             sb.append("&lt;Track${i + 1}&gt;")
             sb.append("&lt;URL&gt;${trackUrl.escapeXml()}&lt;/URL&gt;")
-            sb.append("&lt;Metadata&gt;${didl.escapeXml()}&lt;/Metadata&gt;")
+            sb.append("&lt;Source&gt;OnlineMusic&lt;/Source&gt;")
+            sb.append("&lt;Key&gt;&lt;/Key&gt;")
             sb.append("&lt;Id&gt;${track.id}&lt;/Id&gt;")
-            sb.append("&lt;Source&gt;PC_RemoteLocal&lt;/Source&gt;")
+            sb.append("&lt;Metadata&gt;${didl.escapeXml()}&lt;/Metadata&gt;")
             sb.append("&lt;ChapterNumber&gt;0&lt;/ChapterNumber&gt;")
             sb.append("&lt;Chapters&gt;&lt;/Chapters&gt;")
             sb.append("&lt;/Track${i + 1}&gt;")
@@ -527,22 +523,30 @@ class WiimOutputController(
     }
 
     private fun buildDIDL(track: TrackInfo, trackUrl: String, duration: String): String {
-        return """<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:song="www.linkplay.com/song/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
+        return """<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"
+xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"
+xmlns:song="www.wiimu.com/song/"
+xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
 <upnp:class>object.item.audioItem.musicTrack</upnp:class>
-<item>
+<item id="0">
+<song:subid></song:subid>
+<song:description></song:description>
+<song:skiplimit>0</song:skiplimit>
 <song:id>${track.id}</song:id>
-<song:albumid>0</song:albumid>
+<song:like>0</song:like>
 <song:singerid>0</song:singerid>
+<song:albumid>0</song:albumid>
 <song:quality>0</song:quality>
 <song:actualQuality>LOSSLESS</song:actualQuality>
 <song:rate_hz>44100</song:rate_hz>
 <song:format_s>16</song:format_s>
 <song:bitrate>0</song:bitrate>
+<res protocolInfo="http-get:*:audio/flac:DLNA.ORG_PN=FLAC;DLNA.ORG_OP=01;" duration="$duration">$trackUrl</res>
 <dc:title>${track.title.orEmpty().escapeXml()}</dc:title>
+<dc:creator>${track.artist.orEmpty().escapeXml()}</dc:creator>
 <upnp:artist>${track.artist.orEmpty().escapeXml()}</upnp:artist>
 <upnp:album>${track.albumTitle.orEmpty().escapeXml()}</upnp:album>
 <upnp:albumArtURI></upnp:albumArtURI>
-<res protocolInfo="http-get:*:audio/flac:DLNA.ORG_PN=FLAC;DLNA.ORG_OP=01;" duration="$duration">$trackUrl</res>
 </item>
 </DIDL-Lite>"""
     }
