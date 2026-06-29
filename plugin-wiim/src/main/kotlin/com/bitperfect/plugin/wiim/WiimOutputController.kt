@@ -191,6 +191,8 @@ class WiimOutputController(
             val listName = tracks.firstOrNull()?.albumTitle?.take(15) ?: "BitPerfect"
             val queueXml = buildQueueXml(listName, tracks, wifiIp!!, port)
 
+            WiimDebugLogger.log("QueueContext → ${queueXml.take(500)}")
+
             sendSoapToQueue(
                 action = "CreateQueue",
                 body = """
@@ -440,13 +442,10 @@ class WiimOutputController(
     private fun sendSoapToQueue(action: String, body: String): String? {
         val ip = target.ipAddress ?: return null
         val soapAction = "urn:schemas-wiimu-com:service:PlayQueue:1#$action"
-        val envelope = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
-                        s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-              <s:Body>$body</s:Body>
-            </s:Envelope>
-        """.trimIndent()
+        val envelope = """<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body>${body.trim()}</s:Body>
+</s:Envelope>"""
         return try {
             WiimDebugLogger.log("SOAP $action endpoint → /upnp/control/PlayQueue1")
             val socket = java.net.Socket()
@@ -481,7 +480,6 @@ class WiimOutputController(
         port: Int
     ): String {
         val sb = StringBuilder()
-        sb.append("&lt;?xml version=&quot;1.0&quot;?&gt;")
         sb.append("&lt;PlayList&gt;")
         sb.append("&lt;ListName&gt;${listName.escapeXml()}&lt;/ListName&gt;")
         sb.append("&lt;ListInfo&gt;")
@@ -522,8 +520,7 @@ class WiimOutputController(
     }
 
     private fun buildDIDL(track: TrackInfo, trackUrl: String, duration: String): String {
-        return """<?xml version="1.0"?>
-<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:song="www.linkplay.com/song/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
+        return """<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:song="www.linkplay.com/song/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
 <upnp:class>object.item.audioItem.musicTrack</upnp:class>
 <item>
 <song:id>${track.id}</song:id>
