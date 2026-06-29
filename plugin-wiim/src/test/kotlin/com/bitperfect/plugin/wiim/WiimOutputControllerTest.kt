@@ -182,11 +182,8 @@ class WiimOutputControllerTest {
         verifyOrder {
             controller["sendSoapToQueue"]("CreateQueue", any<String>())
             controller["sendSoapToQueue"]("PlayQueueWithIndex", any<String>())
-            controller["sendLinkPlayCommand"]("setPlayerCmd:seek:5")
-        }
-
-        verify(exactly = 0) {
             controller["sendLinkPlayCommand"]("setPlayerCmd:resume")
+            controller["sendLinkPlayCommand"]("setPlayerCmd:seek:5")
         }
     }
 
