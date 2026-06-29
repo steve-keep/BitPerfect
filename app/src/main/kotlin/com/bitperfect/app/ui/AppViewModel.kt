@@ -600,6 +600,13 @@ open class AppViewModel(
                     _isKeyDisc.value = false
                     if (_trackListViewState.value?.isCdMode == true) {
                         clearTracks()
+                    } else if (!ripRepository.isRipping.value) {
+                        // Disc ejected after a completed rip that already loaded the library (isCdMode=false).
+                        // Still need to clear the rip card state.
+                        ripRepository.clearResults()
+                        hasHandledRipCompletion = false
+                        _awaitingEjectToCommit.value = false
+                        pendingCommitMeta = null
                     }
                 }
             }
