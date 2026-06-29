@@ -31,6 +31,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.bitperfect.core.output.OutputDevice
+import com.bitperfect.core.UsbDacDebugLogger
 import com.bitperfect.app.ui.OutputDeviceSheet
 import androidx.compose.foundation.layout.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -103,6 +104,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val activeDevice = appViewModel.activeDevice.value
+        UsbDacDebugLogger.log("MainActivity.onKeyDown: keyCode=$keyCode activeDevice=$activeDevice")
         when {
             activeDevice is OutputDevice.Upnp -> when (keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustWiimVolume(+5);      return true }
