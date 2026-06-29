@@ -212,6 +212,13 @@ class WiimOutputController(
                 """.trimIndent()
             )
 
+            // Give WiiM a moment to process the queue before playing
+            Thread.sleep(500)
+
+            if (playWhenReady) {
+                sendLinkPlayCommand("setPlayerCmd:resume")
+            }
+
             if (startPositionMs > 0) {
                 val positionSec = startPositionMs / 1000
                 sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
