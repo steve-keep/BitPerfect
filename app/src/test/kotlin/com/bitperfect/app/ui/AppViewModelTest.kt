@@ -10,14 +10,11 @@ import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
+import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.TrackRipState
 import com.bitperfect.app.usb.RipStatus
-import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.RipRepository
 import com.bitperfect.app.usb.RipService
-import com.bitperfect.app.usb.RipStatus as UsbRipStatus
-import com.bitperfect.app.usb.TrackRipState
-import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.google.common.util.concurrent.Futures
