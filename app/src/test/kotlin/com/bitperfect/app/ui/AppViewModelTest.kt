@@ -16,7 +16,8 @@ import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.RipRepository
 import com.bitperfect.app.usb.RipService
 import com.bitperfect.app.usb.RipStatus as UsbRipStatus
-import com.bitperfect.app.usb.TrackRipState as UsbTrackRipState
+import com.bitperfect.app.usb.TrackRipState
+import com.bitperfect.app.usb.RipStatus
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.google.common.util.concurrent.Futures
@@ -447,11 +448,11 @@ class AppViewModelTest {
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to UsbTrackRipState(trackNumber = 1, progress = 1f, status = UsbRipStatus.SUCCESS),
-            2 to UsbTrackRipState(trackNumber = 2, progress = 0.5f, status = UsbRipStatus.RIPPING),
-            3 to UsbTrackRipState(trackNumber = 3, progress = 0f, status = UsbRipStatus.IDLE)
+            1 to TrackRipState(trackNumber = 1, progress = 1f, status = RipStatus.SUCCESS),
+            2 to TrackRipState(trackNumber = 2, progress = 0.5f, status = RipStatus.RIPPING),
+            3 to TrackRipState(trackNumber = 3, progress = 0f, status = RipStatus.IDLE)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
@@ -490,7 +491,7 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
     }
 
     @Test
@@ -502,10 +503,10 @@ class AppViewModelTest {
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to UsbTrackRipState(trackNumber = 1, progress = 1.0f, status = UsbRipStatus.SUCCESS),
-            2 to UsbTrackRipState(trackNumber = 2, progress = 0.5f, status = UsbRipStatus.RIPPING)
+            1 to TrackRipState(trackNumber = 1, progress = 1.0f, status = RipStatus.SUCCESS),
+            2 to TrackRipState(trackNumber = 2, progress = 0.5f, status = RipStatus.RIPPING)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
@@ -542,7 +543,7 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
     }
 
     @Test
@@ -625,9 +626,9 @@ class AppViewModelTest {
         // Ripping finished, isRipping is false, but ripStates is not empty
         (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
         val states = mapOf(
-            1 to UsbTrackRipState(trackNumber = 1, progress = 1.0f, status = UsbRipStatus.SUCCESS)
+            1 to TrackRipState(trackNumber = 1, progress = 1.0f, status = RipStatus.SUCCESS)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
@@ -665,7 +666,7 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
     }
 
     @Test
