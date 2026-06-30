@@ -65,6 +65,30 @@ internal class FlacHttpServer(val context: Context, initialTrackList: List<Track
             return newChunkedResponse(Response.Status.OK, "image/jpeg", stream)
         }
 
+        if (uri == "/playlist.m3u8") {
+            val sb = java.lang.StringBuilder()
+            sb.append("#EXTM3U\n")
+            trackList.forEach { track ->
+                val durationSec = track.durationMs / 1000
+                val title = track.title ?: ""
+                sb.append("#EXTINF:")
+                sb.append(durationSec.toString())
+                sb.append(",")
+                sb.append(title)
+                sb.append("\n")
+
+                val port = this.listeningPort
+                sb.append("http://")
+                sb.append(serverIp)
+                sb.append(":")
+                sb.append(port.toString())
+                sb.append("/track/")
+                sb.append(track.id.toString())
+                sb.append(".flac\n")
+            }
+            return newFixedLengthResponse(Response.Status.OK, "application/vnd.apple.mpegurl", sb.toString())
+        }
+
         if (!uri.startsWith("/track/") || !uri.endsWith(".flac")) {
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
         }

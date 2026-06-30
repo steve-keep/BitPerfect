@@ -188,29 +188,8 @@ class WiimOutputController(
         WiimDebugLogger.log("FlacHttpServer started on port $port, serverIp=$wifiIp")
 
         withContext(Dispatchers.IO) {
-            val listName = tracks.firstOrNull()?.albumTitle?.take(15) ?: "BitPerfect"
-            val queueXml = buildQueueXml(listName, tracks, wifiIp!!, port)
-
-            WiimDebugLogger.log("QueueContext → ${queueXml.take(500)}")
-
-            sendSoapToQueue(
-                action = "CreateQueue",
-                body = """
-                    <u:CreateQueue xmlns:u="urn:schemas-wiimu-com:service:PlayQueue:1">
-                        <QueueContext>$queueXml</QueueContext>
-                    </u:CreateQueue>
-                """.trimIndent()
-            )
-
-            sendSoapToQueue(
-                action = "PlayQueueWithIndex",
-                body = """
-                    <u:PlayQueueWithIndex xmlns:u="urn:schemas-wiimu-com:service:PlayQueue:1">
-                        <QueueName>$listName</QueueName>
-                        <Index>$startIndex</Index>
-                    </u:PlayQueueWithIndex>
-                """.trimIndent()
-            )
+            val playlistUrl = "http://$wifiIp:$port/playlist.m3u8"
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:$startIndex")
 
             if (playWhenReady) {
                 val startTime = System.currentTimeMillis()
@@ -240,9 +219,7 @@ class WiimOutputController(
             if (startPositionMs > 0) {
                 val positionSec = startPositionMs / 1000
                 WiimDebugLogger.log("takeOver: sending seek to $positionSec seconds")
-                // TEMP DIAGNOSTIC: seek disabled to test whether setPlayerCmd:seek breaks PlayQueueWithIndex sessions — see [ticket/issue ref if any]
-                WiimDebugLogger.log("takeOver: [DIAGNOSTIC] skipping seek to $positionSec, letting queue play from start")
-                // sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
+                sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
             }
         }
 
@@ -310,11 +287,10 @@ class WiimOutputController(
 
         server.appendTrack(track)
 
-        // val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        // withContext(Dispatchers.IO) {
-        //     sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
-        // }
-        WiimDebugLogger.log("TODO: Queue mutation not yet migrated to PlayQueue SOAP")
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
+        }
     }
 
     suspend fun appendAlbumToQueue(tracks: List<TrackInfo>) {
@@ -325,11 +301,10 @@ class WiimOutputController(
 
         server.appendTracks(tracks)
 
-        // val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        // withContext(Dispatchers.IO) {
-        //     sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
-        // }
-        WiimDebugLogger.log("TODO: Queue mutation not yet migrated to PlayQueue SOAP")
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
+        }
     }
 
     suspend fun insertNextInQueue(track: TrackInfo) {
@@ -341,11 +316,10 @@ class WiimOutputController(
 
         server.insertTrackAfterIndex(track, currentIndex)
 
-        // val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        // withContext(Dispatchers.IO) {
-        //     sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
-        // }
-        WiimDebugLogger.log("TODO: Queue mutation not yet migrated to PlayQueue SOAP")
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
+        }
     }
 
     suspend fun insertAlbumNextInQueue(tracks: List<TrackInfo>) {
@@ -357,11 +331,10 @@ class WiimOutputController(
 
         server.insertTracksAfterIndex(tracks, currentIndex)
 
-        // val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        // withContext(Dispatchers.IO) {
-        //     sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
-        // }
-        WiimDebugLogger.log("TODO: Queue mutation not yet migrated to PlayQueue SOAP")
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
+        }
     }
 
     suspend fun reorderQueue(fromIndex: Int, toIndex: Int) {
@@ -372,11 +345,10 @@ class WiimOutputController(
 
         server.moveTrack(fromIndex, toIndex)
 
-        // val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        // withContext(Dispatchers.IO) {
-        //     sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
-        // }
-        WiimDebugLogger.log("TODO: Queue mutation not yet migrated to PlayQueue SOAP")
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
+        }
     }
 
     suspend fun removeFromQueue(index: Int) {
@@ -387,11 +359,10 @@ class WiimOutputController(
 
         server.removeTrack(index)
 
-        // val playlistUrl = "http://$ip:$port/playlist.m3u8"
-        // withContext(Dispatchers.IO) {
-        //     sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
-        // }
-        WiimDebugLogger.log("TODO: Queue mutation not yet migrated to PlayQueue SOAP")
+        val playlistUrl = "http://$ip:$port/playlist.m3u8"
+        withContext(Dispatchers.IO) {
+            sendLinkPlayCommand("setPlayerCmd:playlist:$playlistUrl:0")
+        }
     }
 
     suspend fun release() {
@@ -501,83 +472,8 @@ class WiimOutputController(
         }
     }
 
-    private fun buildQueueXml(
-        listName: String,
-        tracks: List<TrackInfo>,
-        wifiIp: String,
-        port: Int
-    ): String {
-        val sb = StringBuilder()
-        sb.append("&lt;?xml version=&quot;1.0&quot;?&gt;")
-        sb.append("&lt;PlayList&gt;")
-        sb.append("&lt;ListName&gt;${listName.escapeXml()}&lt;/ListName&gt;")
-        sb.append("&lt;ListInfo&gt;")
-        sb.append("&lt;Radio&gt;0&lt;/Radio&gt;")
-        sb.append("&lt;SourceName&gt;PC_RemoteLocal&lt;/SourceName&gt;")
-        sb.append("&lt;PicUrl&gt;&lt;/PicUrl&gt;")
-        sb.append("&lt;TrackNumber&gt;${tracks.size}&lt;/TrackNumber&gt;")
-        sb.append("&lt;SearchUrl&gt;&lt;/SearchUrl&gt;")
-        sb.append("&lt;Quality&gt;0&lt;/Quality&gt;")
-        sb.append("&lt;/ListInfo&gt;")
-        sb.append("&lt;Tracks&gt;")
-        tracks.forEachIndexed { i, track ->
-            val trackUrl = "http://$wifiIp:$port/track/${track.id}.flac"
-            val durationSec = if (track.durationMs > 0) track.durationMs / 1000 else 0
-            val h = durationSec / 3600
-            val m = (durationSec % 3600) / 60
-            val s = durationSec % 60
-            val duration = String.format("%d:%02d:%02d", h, m, s)
-            val didl = buildDIDL(track, trackUrl, duration)
-            sb.append("&lt;Track${i + 1}&gt;")
-            sb.append("&lt;URL&gt;${trackUrl.escapeXml()}&lt;/URL&gt;")
-            sb.append("&lt;Source&gt;OnlineMusic&lt;/Source&gt;")
-            sb.append("&lt;Key&gt;&lt;/Key&gt;")
-            sb.append("&lt;Id&gt;${track.id}&lt;/Id&gt;")
-            sb.append("&lt;Metadata&gt;${didl.escapeXml()}&lt;/Metadata&gt;")
-            sb.append("&lt;ChapterNumber&gt;0&lt;/ChapterNumber&gt;")
-            sb.append("&lt;Chapters&gt;&lt;/Chapters&gt;")
-            sb.append("&lt;/Track${i + 1}&gt;")
-        }
-        sb.append("&lt;/Tracks&gt;")
-        sb.append("&lt;/PlayList&gt;")
-        return sb.toString()
-    }
-
-    private fun buildDIDL(track: TrackInfo, trackUrl: String, duration: String): String {
-        return """<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"
-xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"
-xmlns:song="www.wiimu.com/song/"
-xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">
-<upnp:class>object.item.audioItem.musicTrack</upnp:class>
-<item id="0">
-<song:subid></song:subid>
-<song:description></song:description>
-<song:skiplimit>0</song:skiplimit>
-<song:id>${track.id}</song:id>
-<song:like>0</song:like>
-<song:singerid>0</song:singerid>
-<song:albumid>0</song:albumid>
-<song:quality>0</song:quality>
-<song:actualQuality>LOSSLESS</song:actualQuality>
-<song:rate_hz>44100</song:rate_hz>
-<song:format_s>16</song:format_s>
-<song:bitrate>0</song:bitrate>
-<res protocolInfo="http-get:*:audio/flac:DLNA.ORG_PN=FLAC;DLNA.ORG_OP=01;" duration="$duration">$trackUrl</res>
-<dc:title>${track.title.orEmpty().escapeXml()}</dc:title>
-<dc:creator>${track.artist.orEmpty().escapeXml()}</dc:creator>
-<upnp:artist>${track.artist.orEmpty().escapeXml()}</upnp:artist>
-<upnp:album>${track.albumTitle.orEmpty().escapeXml()}</upnp:album>
-<upnp:albumArtURI></upnp:albumArtURI>
-</item>
-</DIDL-Lite>"""
-    }
 
 
-    private fun String.escapeXml(): String = this
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\"", "&quot;")
-        .replace("'", "&apos;")
+
 
 }
