@@ -240,7 +240,9 @@ class WiimOutputController(
             if (startPositionMs > 0) {
                 val positionSec = startPositionMs / 1000
                 WiimDebugLogger.log("takeOver: sending seek to $positionSec seconds")
-                sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
+                // TEMP DIAGNOSTIC: seek disabled to test whether setPlayerCmd:seek breaks PlayQueueWithIndex sessions — see [ticket/issue ref if any]
+                WiimDebugLogger.log("takeOver: [DIAGNOSTIC] skipping seek to $positionSec, letting queue play from start")
+                // sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
             }
         }
 
