@@ -1,3 +1,6 @@
+# Memory/Learnings
+* To intercept system volume hardware button presses without fighting Android's `MediaSession` and `AudioManager`, rely on observing `android.provider.Settings.System.CONTENT_URI` using a `ContentObserver`, mapping the resulting `STREAM_MUSIC` to the application's internal gain flow.
+* Removing `onKeyDown` and `onKeyUp` from `MainActivity` entirely ensures the hardware volume buttons function optimally for system volume control while the observer accurately reflects these changes.
 # BitPerfect Agent Instructions
 
 This project follows a specific design language described in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
