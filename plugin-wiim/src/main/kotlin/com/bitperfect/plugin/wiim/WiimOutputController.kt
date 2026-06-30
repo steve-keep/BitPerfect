@@ -212,8 +212,8 @@ class WiimOutputController(
                 """.trimIndent()
             )
 
-            // Give WiiM a moment to process the queue before playing
-            Thread.sleep(500)
+            // Give WiiM time to fetch and buffer the track before playing
+            Thread.sleep(2500)
 
             if (playWhenReady) {
                 sendLinkPlayCommand("setPlayerCmd:resume")
