@@ -212,15 +212,34 @@ class WiimOutputController(
                 """.trimIndent()
             )
 
-            // Give WiiM time to fetch and buffer the track before playing
-            Thread.sleep(2500)
-
             if (playWhenReady) {
-                sendLinkPlayCommand("setPlayerCmd:resume")
+                val startTime = System.currentTimeMillis()
+                WiimDebugLogger.log("takeOver: starting polling for play status...")
+                var isPlaying = false
+                for (i in 0 until 20) {
+                    val body = fetchLinkPlay("getPlayerStatus")
+                    if (body != null) {
+                        try {
+                            val json = JSONObject(body)
+                            if (json.optString("status") == "play" || json.optString("play_status") == "play") {
+                                isPlaying = true
+                                break
+                            }
+                        } catch (e: Exception) {}
+                    }
+                    Thread.sleep(300)
+                }
+                val elapsed = System.currentTimeMillis() - startTime
+                if (isPlaying) {
+                    WiimDebugLogger.log("takeOver: detected play status after ${elapsed}ms")
+                } else {
+                    WiimDebugLogger.log("takeOver: timed out after 6s waiting for WiiM to report playing status, sending seek anyway")
+                }
             }
 
             if (startPositionMs > 0) {
                 val positionSec = startPositionMs / 1000
+                WiimDebugLogger.log("takeOver: sending seek to $positionSec seconds")
                 sendLinkPlayCommand("setPlayerCmd:seek:$positionSec")
             }
         }

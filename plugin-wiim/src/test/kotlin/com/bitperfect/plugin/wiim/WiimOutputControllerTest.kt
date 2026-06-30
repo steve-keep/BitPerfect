@@ -176,13 +176,15 @@ class WiimOutputControllerTest {
 
     @Test
     fun `takeOver sends CreateQueue, PlayQueueWithIndex, and seek`() = runTest {
+        io.mockk.every { controller["fetchLinkPlay"]("getPlayerStatus") } returns "{\"status\":\"play\"}"
+
         val tracks = emptyList<TrackInfo>()
         controller.takeOver(tracks, startIndex = 0, startPositionMs = 5000, playWhenReady = true)
 
         verifyOrder {
             controller["sendSoapToQueue"]("CreateQueue", any<String>())
             controller["sendSoapToQueue"]("PlayQueueWithIndex", any<String>())
-            controller["sendLinkPlayCommand"]("setPlayerCmd:resume")
+            controller["fetchLinkPlay"]("getPlayerStatus")
             controller["sendLinkPlayCommand"]("setPlayerCmd:seek:5")
         }
     }
