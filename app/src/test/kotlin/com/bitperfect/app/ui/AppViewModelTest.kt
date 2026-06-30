@@ -10,13 +10,11 @@ import com.bitperfect.core.output.TrackInfo
 import com.bitperfect.app.player.PlayerRepository
 import com.bitperfect.app.usb.DeviceStateManager
 import com.bitperfect.app.usb.DriveStatus
+import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.TrackRipState
 import com.bitperfect.app.usb.RipStatus
-import com.bitperfect.app.usb.DriveInfo
 import com.bitperfect.app.usb.RipRepository
 import com.bitperfect.app.usb.RipService
-import com.bitperfect.app.usb.RipStatus as UsbRipStatus
-import com.bitperfect.app.usb.TrackRipState as UsbTrackRipState
 import com.bitperfect.core.models.DiscMetadata
 import com.bitperfect.core.models.DiscToc
 import com.google.common.util.concurrent.Futures
@@ -378,7 +376,9 @@ class AppViewModelTest {
         } catch(e: Exception) {
             org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
         }
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
+        val vm = object : AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher) {
+            override val driveStatus = MutableStateFlow<DriveStatus>(DriveStatus.DiscReady(DriveInfo("Test", "Test", "1", true, 0, 0, "path"), null, null))
+        }
 
         val bannerState = vm.ripBannerState.value
         assertEquals(false, bannerState.isVisible)
@@ -417,7 +417,9 @@ class AppViewModelTest {
         } catch(e: Exception) {
             org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
         }
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
+        val vm = object : AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher) {
+            override val driveStatus = MutableStateFlow<DriveStatus>(DriveStatus.DiscReady(DriveInfo("Test", "Test", "1", true, 0, 0, "path"), null, null))
+        }
 
         // The mockDriveStatusFlow defaults to NoDrive, which causes AppViewModel
         // to call ripSession.cancel(), which immediately sets _isRipping back to false.
@@ -442,16 +444,19 @@ class AppViewModelTest {
     fun testRipBannerState_CountsCompletedTracksCorrectly() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipRepository.getInstance()
+        val isRippingField = RipRepository::class.java.getDeclaredField("_isRipping")
+        isRippingField.isAccessible = true
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
         val ripStatesField = RipRepository::class.java.getDeclaredField("_ripStates")
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to UsbTrackRipState(trackNumber = 1, progress = 1f, status = UsbRipStatus.SUCCESS),
-            2 to UsbTrackRipState(trackNumber = 2, progress = 0.5f, status = UsbRipStatus.RIPPING),
-            3 to UsbTrackRipState(trackNumber = 3, progress = 0f, status = UsbRipStatus.IDLE)
+            1 to TrackRipState(trackNumber = 1, progress = 1f, status = RipStatus.SUCCESS),
+            2 to TrackRipState(trackNumber = 2, progress = 0.5f, status = RipStatus.RIPPING),
+            3 to TrackRipState(trackNumber = 3, progress = 0f, status = RipStatus.IDLE)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
@@ -480,6 +485,9 @@ class AppViewModelTest {
             vm.ripBannerState.collect {}
         }
 
+        advanceUntilIdle()
+        // Now set to false to test the state where rip is complete but banner stays visible
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
         advanceUntilIdle()
 
         val bannerState = vm.ripBannerState.value
@@ -490,22 +498,26 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
     }
 
     @Test
     fun testRipBannerState_CalculatesOverallProgress() = runTest(testScheduler) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val ripSession = RipRepository.getInstance()
+        val isRippingField = RipRepository::class.java.getDeclaredField("_isRipping")
+        isRippingField.isAccessible = true
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
 
         val ripStatesField = RipRepository::class.java.getDeclaredField("_ripStates")
         ripStatesField.isAccessible = true
 
         val states = mapOf(
-            1 to UsbTrackRipState(trackNumber = 1, progress = 1.0f, status = UsbRipStatus.SUCCESS),
-            2 to UsbTrackRipState(trackNumber = 2, progress = 0.5f, status = UsbRipStatus.RIPPING)
+            1 to TrackRipState(trackNumber = 1, progress = 1.0f, status = RipStatus.SUCCESS),
+            2 to TrackRipState(trackNumber = 2, progress = 0.5f, status = RipStatus.RIPPING)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
@@ -535,6 +547,9 @@ class AppViewModelTest {
         }
 
         advanceUntilIdle()
+        // Now set to false to test the state where rip is complete but banner stays visible
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
+        advanceUntilIdle()
 
         val bannerState = vm.ripBannerState.value
         assertEquals(0.75f, bannerState.overallProgress)
@@ -542,7 +557,8 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
     }
 
     @Test
@@ -575,7 +591,9 @@ class AppViewModelTest {
         } catch(e: Exception) {
             org.mockito.Mockito.doReturn(libraryUpdatedFlow).`when`(mockLibraryRepository).onLibraryUpdated
         }
-        val vm = AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher)
+        val vm = object : AppViewModel(application, mockPlayerRepo, fakeOutputRepository(application, mockPlayerRepo), mockLibraryRepository, testDispatcher) {
+            override val driveStatus = MutableStateFlow<DriveStatus>(DriveStatus.DiscReady(DriveInfo("Test", "Test", "1", true, 0, 0, "path"), null, null))
+        }
 
         val discMetadataField = AppViewModel::class.java.getDeclaredField("_discMetadata")
         discMetadataField.isAccessible = true
@@ -622,12 +640,36 @@ class AppViewModelTest {
         val ripStatesField = RipRepository::class.java.getDeclaredField("_ripStates")
         ripStatesField.isAccessible = true
 
-        // Ripping finished, isRipping is false, but ripStates is not empty
-        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
+        // Ensure initially the UI isn't filtering states out due to hasHandledRipCompletion=true logic (from other tests).
+        // Since RipBannerState doesn't filter, it shouldn't matter. But we need to ensure the flow is collected and updated.
+        // Wait, why would it fail with "expected:<true> but was:<false>"?
+        // Because the AppViewModel constructor clears `ripRepository.clearResults()` if `driveStatus` is something else!
+        // No, `hasHandledRipCompletion` logic happens in `init {}`. If `driveStatus.collectLatest` sees `DriveStatus.NoDrive` it might call `ripRepository.clearResults()`.
+        // `fakeOutputRepository` doesn't emit driveStatus, but `DeviceStateManager.driveStatus` does!
+        // `DeviceStateManager` is an object. `AppViewModel` reads `DeviceStateManager.driveStatus`.
+        // By default it might be NoDrive, or Empty.
+        // Since `AppViewModelTest` runs after the fix I just pushed:
+        // `else if (!ripRepository.isRipping.value) { ripRepository.clearResults() }`
+        // Aha! If `isRipping` is false, `AppViewModel` `init` block will CLEAR the results if `driveStatus` is `NoDrive` or `Empty`!
+        // We need to set `DeviceStateManager` to `DiscReady` or simulate that the drive is present for this test, OR make `isRipping` = true first and let the state settle.
+        // Wait! The fix I added:
+        // `else if (!ripRepository.isRipping.value) { ripRepository.clearResults(); hasHandledRipCompletion = false; ... }`
+        // was added to the `DriveStatus.Empty` / `NoDrive` block!
+        // If `DeviceStateManager.driveStatus` defaults to `Empty` or `NoDrive`, then immediately upon creating `AppViewModel`, the `driveStatus` collector runs, sees `Empty` and `isRipping == false`, and calls `ripRepository.clearResults()`.
+        // This clears `ripStates`! So `states.isNotEmpty()` becomes false!
+        // We need to either mock `DeviceStateManager` or set its `driveStatus` to `DiscReady` before creating the ViewModel, OR set `isRipping = true`, create VM, advance, then set `isRipping = false`.
+
+        // Since DeviceStateManager is a singleton, let's just make `AppViewModel` subclass in the test that overrides `driveStatus`, or use `AppViewModel` but we can't easily override it.
+        // `open val driveStatus: StateFlow<DriveStatus> = DeviceStateManager.driveStatus`
+        // We can't mock the object directly. But we can make a custom subclass for the test!
+        // Wait, `AppViewModelTest` creates `AppViewModel`. Let's just create a custom test subclass that overrides `driveStatus`.
+
+        // Set isRipping to true BEFORE initializing VM so it doesn't clear the rip results
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = true
         val states = mapOf(
-            1 to UsbTrackRipState(trackNumber = 1, progress = 1.0f, status = UsbRipStatus.SUCCESS)
+            1 to TrackRipState(trackNumber = 1, progress = 1.0f, status = RipStatus.SUCCESS)
         )
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = states
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = states
 
         val mockPlayerRepo = mock(com.bitperfect.app.player.PlayerRepository::class.java)
         org.mockito.Mockito.`when`(mockPlayerRepo.isPlaying).thenReturn(MutableStateFlow(false))
@@ -657,6 +699,9 @@ class AppViewModelTest {
         }
 
         advanceUntilIdle()
+        // Now set to false to test the state where rip is complete but banner stays visible
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
+        advanceUntilIdle()
 
         val bannerState = vm.ripBannerState.value
         assertEquals(true, bannerState.isVisible) // Visible because states.isNotEmpty()
@@ -665,7 +710,8 @@ class AppViewModelTest {
         job.cancel()
         job.join()
 
-        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, UsbTrackRipState>>).value = emptyMap()
+        (ripStatesField.get(ripSession) as MutableStateFlow<Map<Int, TrackRipState>>).value = emptyMap()
+        (isRippingField.get(ripSession) as MutableStateFlow<Boolean>).value = false
     }
 
     @Test
