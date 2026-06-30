@@ -1,6 +1,10 @@
 package com.bitperfect.app.player
 
 import com.bitperfect.core.UsbDacDebugLogger
+import android.media.AudioManager
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
 import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Intent
@@ -49,6 +53,32 @@ class PlaybackService : MediaLibraryService() {
     private var player: ExoPlayer? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
         private var activeProvider: PlayerProvider? = null
+
+    private var volumeObserver: ContentObserver? = null
+
+    private fun startObservingSystemVolume() {
+        stopObservingSystemVolume()
+
+        val audioManager = getSystemService(AudioManager::class.java)
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+
+        volumeObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                val systemVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                val normalized = systemVolume.toFloat() / maxVolume.toFloat()
+                (application as BitPerfectApplication).usbDacVolumeFlow.value = normalized
+                UsbDacDebugLogger.log("PlaybackService.volumeObserver: systemVolume=$systemVolume/$maxVolume normalized=$normalized")
+            }
+        }
+        contentResolver.registerContentObserver(
+            android.provider.Settings.System.CONTENT_URI, true, volumeObserver!!
+        )
+    }
+
+    private fun stopObservingSystemVolume() {
+        volumeObserver?.let { contentResolver.unregisterContentObserver(it) }
+        volumeObserver = null
+    }
     private var isUsingUsbAudioSink = false
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -169,6 +199,7 @@ class PlaybackService : MediaLibraryService() {
 
         when (target) {
             is OutputDevice.Upnp -> {
+                stopObservingSystemVolume()
                 val wasPlaying = player?.isPlaying ?: false
                 val handoff = buildHandoffState()
                 WiimDebugLogger.log("1. handleDeviceSwitch Upnp START: wasPlaying=$wasPlaying, handoff.tracks=${handoff.tracks.size}, handoff.currentIndex=${handoff.currentIndex}, firstTrack=${handoff.tracks.getOrNull(handoff.currentIndex)?.title}")
@@ -225,6 +256,11 @@ class PlaybackService : MediaLibraryService() {
                     val provider = plugin.createPlayerProvider(this, target, handoff)
                     activeProvider = provider
                     session.player = provider.player
+                    val audioManager = getSystemService(AudioManager::class.java)
+                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val currentDacVolume = (application as BitPerfectApplication).usbDacVolumeFlow.value
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (currentDacVolume * maxVolume).toInt(), 0)
+                    startObservingSystemVolume()
                     (provider as? ExoPlayerProvider)?.setVolume(
                         (application as BitPerfectApplication).usbDacVolumeFlow.value
                     )
@@ -245,6 +281,7 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
             else -> {
+                stopObservingSystemVolume()
                 // Switching back to local — rebuild with DefaultRenderersFactory
                 // if we were previously on UsbDac
                 activeProvider?.release()
@@ -632,6 +669,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        stopObservingSystemVolume()
         activeProvider?.release()
         activeProvider = null
         serviceScope.cancel()  // stops the activeDevice collection coroutine

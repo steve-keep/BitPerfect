@@ -5,11 +5,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.content.Context
-import android.media.AudioManager
+
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.view.KeyEvent
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,7 +31,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.bitperfect.core.output.OutputDevice
-import com.bitperfect.core.UsbDacDebugLogger
+
 import com.bitperfect.app.ui.OutputDeviceSheet
 import androidx.compose.foundation.layout.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -102,31 +102,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val activeDevice = appViewModel.activeDevice.value
-        UsbDacDebugLogger.log("MainActivity.onKeyDown: keyCode=$keyCode activeDevice=$activeDevice")
-        when {
-            activeDevice is OutputDevice.Upnp -> when (keyCode) {
-                KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustWiimVolume(+5);      return true }
-                KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustWiimVolume(-5);      return true }
-            }
-            activeDevice is OutputDevice.UsbDac -> when (keyCode) {
-                KeyEvent.KEYCODE_VOLUME_UP   -> { appViewModel.adjustUsbDacVolume(+0.10f); return true }
-                KeyEvent.KEYCODE_VOLUME_DOWN -> { appViewModel.adjustUsbDacVolume(-0.10f); return true }
-            }
-        }
-        return super.onKeyDown(keyCode, event)
-    }
 
-    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            val activeDevice = appViewModel.activeDevice.value
-            if (activeDevice is OutputDevice.UsbDac || activeDevice is OutputDevice.Upnp) {
-                return true  // consume the up event to suppress system volume UI
-            }
-        }
-        return super.onKeyUp(keyCode, event)
-    }
 
     companion object {
         private var isFirstLaunch = true
@@ -165,7 +141,6 @@ class MainActivity : ComponentActivity() {
 
         settingsManager = SettingsManager(this)
 
-        volumeControlStream = AudioManager.STREAM_MUSIC
 
         setContent {
             val context = androidx.compose.ui.platform.LocalContext.current
