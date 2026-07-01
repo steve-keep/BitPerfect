@@ -32,6 +32,12 @@ class WiimOutputController(
     private val target: OutputDevice.Upnp
 ) {
 
+    // DIAGNOSTIC: set to false to send empty <Metadata> and test whether
+    // populated DIDL-Lite metadata is what blocks WiiM queue playback.
+    // See: forum.wiimhome.com/threads/wiim-mini-cant-resume-queue.5839
+    // TODO: remove this flag once the experiment result is known.
+    private val SEND_DIDL_METADATA = false
+
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var httpServer: com.bitperfect.plugin.wiim.FlacHttpServer? = null
     private var wifiIp: String? = null
@@ -541,6 +547,7 @@ class WiimOutputController(
         wifiIp: String,
         port: Int
     ): String {
+        WiimDebugLogger.log("buildQueueXml: SEND_DIDL_METADATA=$SEND_DIDL_METADATA")
         val sb = StringBuilder()
         sb.append("&lt;?xml version=&quot;1.0&quot;?&gt;")
         sb.append("&lt;PlayList&gt;")
@@ -561,13 +568,20 @@ class WiimOutputController(
             val m = (durationSec % 3600) / 60
             val s = durationSec % 60
             val duration = String.format("%d:%02d:%02d", h, m, s)
-            val didl = buildDIDL(track, trackUrl, duration)
+
+            val metadataField = if (SEND_DIDL_METADATA) {
+                val didl = buildDIDL(track, trackUrl, duration)
+                didl.escapeXml().escapeXml()
+            } else {
+                ""
+            }
+
             sb.append("&lt;Track${i + 1}&gt;")
             sb.append("&lt;URL&gt;${trackUrl.escapeXml()}&lt;/URL&gt;")
             sb.append("&lt;Source&gt;OnlineMusic&lt;/Source&gt;")
             sb.append("&lt;Key&gt;&lt;/Key&gt;")
             sb.append("&lt;Id&gt;${track.id}&lt;/Id&gt;")
-            sb.append("&lt;Metadata&gt;${didl.escapeXml().escapeXml()}&lt;/Metadata&gt;")
+            sb.append("&lt;Metadata&gt;${metadataField}&lt;/Metadata&gt;")
             sb.append("&lt;ChapterNumber&gt;0&lt;/ChapterNumber&gt;")
             sb.append("&lt;Chapters&gt;&lt;/Chapters&gt;")
             sb.append("&lt;/Track${i + 1}&gt;")

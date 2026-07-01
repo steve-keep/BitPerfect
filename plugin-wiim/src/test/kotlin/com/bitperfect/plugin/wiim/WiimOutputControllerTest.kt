@@ -18,6 +18,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -190,6 +191,7 @@ class WiimOutputControllerTest {
     }
 
     @Test
+    @Ignore("Disabled while SEND_DIDL_METADATA experiment is active — see WiimOutputController.SEND_DIDL_METADATA. Re-enable once the flag is reverted to true.")
     fun `takeOver double-escapes DIDL metadata in CreateQueue payload`() = runTest {
         io.mockk.every { controller["fetchLinkPlay"]("getPlayerStatus") } returns "{\"status\":\"play\"}"
 
