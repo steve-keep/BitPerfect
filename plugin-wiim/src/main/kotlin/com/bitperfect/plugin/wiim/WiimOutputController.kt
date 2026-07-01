@@ -533,7 +533,7 @@ class WiimOutputController(
             sb.append("&lt;Source&gt;OnlineMusic&lt;/Source&gt;")
             sb.append("&lt;Key&gt;&lt;/Key&gt;")
             sb.append("&lt;Id&gt;${track.id}&lt;/Id&gt;")
-            sb.append("&lt;Metadata&gt;${didl.escapeXml()}&lt;/Metadata&gt;")
+            sb.append("&lt;Metadata&gt;${didl.escapeXml().escapeXml()}&lt;/Metadata&gt;")
             sb.append("&lt;ChapterNumber&gt;0&lt;/ChapterNumber&gt;")
             sb.append("&lt;Chapters&gt;&lt;/Chapters&gt;")
             sb.append("&lt;/Track${i + 1}&gt;")
