@@ -148,6 +148,31 @@ class WiimOutputController(
         return null
     }
 
+    private suspend fun logPlayQueueServiceDescription() {
+        val ip = target.ipAddress ?: return
+        try {
+            val descUrl = "http://$ip:49152/description.xml"
+            val descXml = java.net.URL(descUrl).readText()
+            WiimDebugLogger.log("description.xml (full) → $descXml")
+
+            // Find the SCPDURL for the PlayQueue service and fetch it
+            val scpdRegex = Regex(
+                "<service>\\s*<serviceType>urn:schemas-wiimu-com:service:PlayQueue:1</serviceType>.*?<SCPDURL>(.*?)</SCPDURL>",
+                RegexOption.DOT_MATCHES_ALL
+            )
+            val scpdPath = scpdRegex.find(descXml)?.groupValues?.get(1)?.trim()
+            if (scpdPath != null) {
+                val scpdUrl = if (scpdPath.startsWith("http")) scpdPath else "http://$ip:49152$scpdPath"
+                val scpdXml = java.net.URL(scpdUrl).readText()
+                WiimDebugLogger.log("PlayQueue SCPD (full) → $scpdXml")
+            } else {
+                WiimDebugLogger.log("PlayQueue SCPD not found in description.xml (service may not be advertised, or regex didn't match — check the full description.xml log line above)")
+            }
+        } catch (e: Exception) {
+            WiimDebugLogger.log("logPlayQueueServiceDescription FAILED → ${e.message}")
+        }
+    }
+
     suspend fun takeOver(tracks: List<TrackInfo>, startIndex: Int, startPositionMs: Long, playWhenReady: Boolean) {
         val trackList = tracks
         val index = startIndex
@@ -188,10 +213,11 @@ class WiimOutputController(
         WiimDebugLogger.log("FlacHttpServer started on port $port, serverIp=$wifiIp")
 
         withContext(Dispatchers.IO) {
+            logPlayQueueServiceDescription()
             val listName = tracks.firstOrNull()?.albumTitle?.take(15) ?: "BitPerfect"
             val queueXml = buildQueueXml(listName, tracks, wifiIp!!, port)
 
-            WiimDebugLogger.log("QueueContext → ${queueXml.take(500)}")
+            WiimDebugLogger.log("QueueContext (full) → $queueXml")
 
             sendSoapToQueue(
                 action = "CreateQueue",
@@ -218,6 +244,11 @@ class WiimOutputController(
                 var isPlaying = false
                 for (i in 0 until 20) {
                     val body = fetchLinkPlay("getPlayerStatus")
+                    WiimDebugLogger.log("getPlayerStatus poll #$i → ${body ?: "(null/failed)"}")
+
+                    val bodyEx = fetchLinkPlay("getPlayerStatusEx")
+                    WiimDebugLogger.log("getPlayerStatusEx poll #$i → ${bodyEx ?: "(null/failed)"}")
+
                     if (body != null) {
                         try {
                             val json = JSONObject(body)
@@ -490,10 +521,13 @@ class WiimOutputController(
             out.write("Connection: close\r\n\r\n")
             out.write(envelope)
             out.flush()
+            WiimDebugLogger.log("SOAP $action request headers → POST /upnp/control/PlayQueue1 HTTP/1.0, Host=$ip:49152, SOAPACTION=\"$soapAction\", Content-Length=${bodyBytes.size}")
             val response = `in`.readLines().joinToString("\n")
             socket.close()
-            WiimDebugLogger.log("SOAP $action body → ${envelope.take(300)}")
-            WiimDebugLogger.log("SOAP $action → ${response.take(600)}")
+            val statusLine = response.lines().firstOrNull() ?: "(no response)"
+            WiimDebugLogger.log("SOAP $action status line → $statusLine")
+            WiimDebugLogger.log("SOAP $action body (full) → $envelope")
+            WiimDebugLogger.log("SOAP $action response (full) → $response")
             response
         } catch (e: Exception) {
             WiimDebugLogger.log("SOAP $action FAILED → ${e.message}")
