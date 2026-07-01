@@ -189,4 +189,61 @@ class WiimOutputControllerTest {
         }
     }
 
+    @Test
+    fun `takeOver double-escapes DIDL metadata in CreateQueue payload`() = runTest {
+        io.mockk.every { controller["fetchLinkPlay"]("getPlayerStatus") } returns "{\"status\":\"play\"}"
+
+        val tracks = listOf(
+            TrackInfo(
+                id = 1L,
+                title = "Rock & Roll \"Live\"",
+                artist = "A & B",
+                albumTitle = "Live at <Venue>",
+                durationMs = 100000L,
+                trackNumber = 1,
+                filePath = "dummy.flac",
+                dataPath = "dummy.flac",
+                albumId = 1L
+            )
+        )
+
+        val slot = io.mockk.slot<String>()
+        io.mockk.every { controller["sendSoapToQueue"]("CreateQueue", capture(slot)) } returns "<response></response>"
+
+        controller.takeOver(tracks, startIndex = 0, startPositionMs = 5000, playWhenReady = true)
+
+        val capturedBody = slot.captured
+
+        assert(capturedBody.contains("&lt;Metadata&gt;&amp;lt;DIDL-Lite")) { "Missing double escaped DIDL-Lite" }
+        assert(!capturedBody.contains("&lt;Metadata&gt;&lt;DIDL-Lite")) { "Should not contain single escaped DIDL-Lite" }
+
+        // Extract QueueContext from the captured SOAP body first to remove the outer SOAP-level escaping
+        val queueContextStart = capturedBody.indexOf("<QueueContext>") + "<QueueContext>".length
+        val queueContextEnd = capturedBody.indexOf("</QueueContext>")
+        val queueContextContent = capturedBody.substring(queueContextStart, queueContextEnd)
+
+        // This is what the outer SOAP parser does
+        val decodedQueueContext = decodeXml(queueContextContent)
+
+        // Extract metadata content from the decoded QueueContext
+        val metadataStart = decodedQueueContext.indexOf("<Metadata>") + "<Metadata>".length
+        val metadataEnd = decodedQueueContext.indexOf("</Metadata>")
+        val metadataContent = decodedQueueContext.substring(metadataStart, metadataEnd)
+
+        // Round-trip decode exactly twice on the Metadata, as instructed
+        val decodedOnce = decodeXml(metadataContent)
+        val decodedTwice = decodeXml(decodedOnce)
+
+        assert(decodedTwice.contains("Rock & Roll \"Live\""))
+        assert(decodedTwice.contains("A & B"))
+        assert(decodedTwice.contains("Live at <Venue>"))
+    }
+
+    private fun decodeXml(input: String): String {
+        return input.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'")
+            .replace("&amp;", "&")
+    }
 }
