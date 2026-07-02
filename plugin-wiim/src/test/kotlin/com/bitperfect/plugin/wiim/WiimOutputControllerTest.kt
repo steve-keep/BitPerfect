@@ -10,12 +10,18 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.mockkObject
 import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verifyOrder
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import com.bitperfect.core.WiimDebugLogger
 import org.junit.After
 import org.junit.Before
 import org.junit.Ignore
@@ -247,5 +253,125 @@ class WiimOutputControllerTest {
             .replace("&quot;", "\"")
             .replace("&apos;", "'")
             .replace("&amp;", "&")
+    }
+
+    @Test
+    fun `fetchLinkPlay uses https for port 443 and returns body on 200`() = runTest {
+        val target = OutputDevice.Upnp(
+            udn = "uuid:123",
+            friendlyName = "WiiM",
+            manufacturer = "LinkPlay",
+            modelName = "Mini",
+            deviceDescriptionUrl = "http://192.168.1.100:49152/description.xml",
+            avTransportControlUrl = "http://192.168.1.100:49152/upnp/control/rendertransport1",
+            renderingControlUrl = null,
+            ipAddress = "192.168.1.100",
+            linkPlayPort = 443
+        )
+        val unmockedController = WiimOutputController(context, target)
+
+        mockkStatic("com.bitperfect.plugin.wiim.SslUtilsKt")
+        val mockConn = mockk<java.net.HttpURLConnection>(relaxed = true)
+        every { openTrustAllConnection("https://192.168.1.100:443/httpapi.asp?command=getStatus") } returns mockConn
+        every { mockConn.responseCode } returns 200
+        every { mockConn.inputStream } returns ByteArrayInputStream("OK".toByteArray())
+
+        val result = unmockedController.fetchLinkPlay("getStatus")
+
+        assertEquals("OK", result)
+        verify { mockConn.connectTimeout = 3000 }
+        verify { mockConn.readTimeout = 3000 }
+        verify { mockConn.disconnect() }
+        unmockkAll()
+    }
+
+    @Test
+    fun `sendLinkPlayCommand uses https for port 4443 and returns true on 200`() = runTest {
+        val target = OutputDevice.Upnp(
+            udn = "uuid:123",
+            friendlyName = "WiiM",
+            manufacturer = "LinkPlay",
+            modelName = "Mini",
+            deviceDescriptionUrl = "http://192.168.1.100:49152/description.xml",
+            avTransportControlUrl = "http://192.168.1.100:49152/upnp/control/rendertransport1",
+            renderingControlUrl = null,
+            ipAddress = "192.168.1.100",
+            linkPlayPort = 4443
+        )
+        val unmockedController = WiimOutputController(context, target)
+
+        mockkStatic("com.bitperfect.plugin.wiim.SslUtilsKt")
+        mockkObject(WiimDebugLogger)
+        every { WiimDebugLogger.log(any()) } just Runs
+        val mockConn = mockk<java.net.HttpURLConnection>(relaxed = true)
+        every { openTrustAllConnection("https://192.168.1.100:4443/httpapi.asp?command=pause") } returns mockConn
+        every { mockConn.responseCode } returns 200
+        every { mockConn.inputStream } returns ByteArrayInputStream("OK".toByteArray())
+
+        val result = unmockedController.sendLinkPlayCommand("pause")
+
+        assertTrue(result)
+        verify { mockConn.connectTimeout = 3000 }
+        verify { mockConn.readTimeout = 3000 }
+        verify { mockConn.disconnect() }
+        verify { WiimDebugLogger.log("LinkPlay: pause → OK") }
+        unmockkAll()
+    }
+
+    @Test
+    fun `fetchLinkPlay uses http for port 10095 and handles non-200 response`() = runTest {
+        val target = OutputDevice.Upnp(
+            udn = "uuid:123",
+            friendlyName = "WiiM",
+            manufacturer = "LinkPlay",
+            modelName = "Mini",
+            deviceDescriptionUrl = "http://192.168.1.100:49152/description.xml",
+            avTransportControlUrl = "http://192.168.1.100:49152/upnp/control/rendertransport1",
+            renderingControlUrl = null,
+            ipAddress = "192.168.1.100",
+            linkPlayPort = 10095
+        )
+        val unmockedController = WiimOutputController(context, target)
+
+        mockkStatic("com.bitperfect.plugin.wiim.SslUtilsKt")
+        mockkObject(WiimDebugLogger)
+        every { WiimDebugLogger.log(any()) } just Runs
+        val mockConn = mockk<java.net.HttpURLConnection>(relaxed = true)
+        every { openTrustAllConnection("http://192.168.1.100:10095/httpapi.asp?command=getStatus") } returns mockConn
+        every { mockConn.responseCode } returns 404
+
+        val result = unmockedController.fetchLinkPlay("getStatus")
+
+        assertNull(result)
+        verify { mockConn.disconnect() }
+        verify { WiimDebugLogger.log("fetchLinkPlay FAILED: getStatus → HTTP 404") }
+        unmockkAll()
+    }
+
+    @Test
+    fun `sendLinkPlayCommand handles exception and returns false`() = runTest {
+        val target = OutputDevice.Upnp(
+            udn = "uuid:123",
+            friendlyName = "WiiM",
+            manufacturer = "LinkPlay",
+            modelName = "Mini",
+            deviceDescriptionUrl = "http://192.168.1.100:49152/description.xml",
+            avTransportControlUrl = "http://192.168.1.100:49152/upnp/control/rendertransport1",
+            renderingControlUrl = null,
+            ipAddress = "192.168.1.100",
+            linkPlayPort = 443
+        )
+        val unmockedController = WiimOutputController(context, target)
+
+        mockkStatic("com.bitperfect.plugin.wiim.SslUtilsKt")
+        mockkObject(WiimDebugLogger)
+        every { WiimDebugLogger.log(any()) } just Runs
+        every { openTrustAllConnection(any()) } throws RuntimeException("Timeout")
+
+        val result = unmockedController.sendLinkPlayCommand("pause")
+
+        assertFalse(result)
+        verify { WiimDebugLogger.log("LinkPlay FAILED: pause → Timeout") }
+        unmockkAll()
     }
 }
