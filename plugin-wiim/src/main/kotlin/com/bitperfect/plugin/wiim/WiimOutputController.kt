@@ -448,46 +448,57 @@ class WiimOutputController(
     }
 
 
-    private fun fetchLinkPlay(command: String): String? {
+    internal fun fetchLinkPlay(command: String): String? {
         val ip = target.ipAddress ?: return null
         val port = target.linkPlayPort
+        val scheme = if (port == 443 || port == 4443) "https" else "http"
+        val url = "$scheme://$ip:$port/httpapi.asp?command=$command"
+        var conn: java.net.HttpURLConnection? = null
         return try {
-            val socket = java.net.Socket()
-            socket.connect(java.net.InetSocketAddress(ip, port), 3000)
-            socket.soTimeout = 3000
-            val out = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
-            val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
-            out.write("GET /httpapi.asp?command=$command HTTP/1.0\r\nHost: $ip:$port\r\nConnection: close\r\n\r\n")
-            out.flush()
-            val lines = `in`.readLines()
-            socket.close()
-            // Skip HTTP headers, return body
-            val blankIndex = lines.indexOfFirst { it.isBlank() }
-            if (blankIndex >= 0) lines.drop(blankIndex + 1).joinToString("") else null
+            conn = openTrustAllConnection(url)
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
+
+            if (conn.responseCode == 200) {
+                conn.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                WiimDebugLogger.log("fetchLinkPlay FAILED: $command → HTTP ${conn.responseCode}")
+                null
+            }
         } catch (e: Exception) {
             WiimDebugLogger.log("fetchLinkPlay FAILED: $command → ${e.message}")
             null
+        } finally {
+            conn?.disconnect()
         }
     }
 
-    private fun sendLinkPlayCommand(command: String): Boolean {
+    internal fun sendLinkPlayCommand(command: String): Boolean {
         val ip = target.ipAddress ?: return false
         val port = target.linkPlayPort
+        val scheme = if (port == 443 || port == 4443) "https" else "http"
+        val url = "$scheme://$ip:$port/httpapi.asp?command=$command"
+        var conn: java.net.HttpURLConnection? = null
         return try {
-            val socket = java.net.Socket()
-            socket.connect(java.net.InetSocketAddress(ip, port), 3000)
-            socket.soTimeout = 3000
-            val out = socket.getOutputStream().bufferedWriter(Charsets.UTF_8)
-            val `in` = socket.getInputStream().bufferedReader(Charsets.UTF_8)
-            out.write("GET /httpapi.asp?command=$command HTTP/1.0\r\nHost: $ip:$port\r\nConnection: close\r\n\r\n")
-            out.flush()
-            `in`.readLines() // drain until WiiM closes connection
-            socket.close()
-            WiimDebugLogger.log("LinkPlay: $command → OK")
-            true
+            conn = openTrustAllConnection(url)
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
+
+            if (conn.responseCode == 200) {
+                try {
+                    conn.inputStream.bufferedReader().use { it.readText() }
+                } catch (e: Exception) {}
+                WiimDebugLogger.log("LinkPlay: $command → OK")
+                true
+            } else {
+                WiimDebugLogger.log("LinkPlay FAILED: $command → HTTP ${conn.responseCode}")
+                false
+            }
         } catch (e: Exception) {
             WiimDebugLogger.log("LinkPlay FAILED: $command → ${e.message}")
             false
+        } finally {
+            conn?.disconnect()
         }
     }
 
