@@ -117,6 +117,44 @@ class WiimCastPlayerTest {
             castPlayer.release()
         }
 
+    @Test
+    fun `handleSetPlayWhenReady waits for takeOver to complete before playing`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val mockController = io.mockk.spyk(WiimOutputController(context, device), recordPrivateCalls = true)
+            val takeOverGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+            io.mockk.coEvery { mockController.takeOver(any(), any(), any(), any()) } coAnswers {
+                takeOverGate.await()
+            }
+
+            io.mockk.coEvery { mockController.play() } returns Unit
+
+            val castPlayer = WiimCastPlayer(context, device, controller = mockController)
+
+            val mediaItems = mutableListOf(androidx.media3.common.MediaItem.Builder().setMediaId("123").build())
+
+            // Call setMediaItems (which launches takeOver in IO)
+            val handleSetMediaItems = WiimCastPlayer::class.java.getDeclaredMethod("handleSetMediaItems", MutableList::class.java, Int::class.java, Long::class.java)
+            handleSetMediaItems.invoke(castPlayer, mediaItems, 0, 0L)
+
+            // Call setPlayWhenReady(true) (which should join the takeOver job)
+            val handleSetPlayWhenReady = WiimCastPlayer::class.java.getDeclaredMethod("handleSetPlayWhenReady", Boolean::class.java)
+            handleSetPlayWhenReady.invoke(castPlayer, true)
+
+            io.mockk.coVerify(exactly = 0) { mockController.play() }
+
+            takeOverGate.complete(Unit)
+
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+            io.mockk.coVerifyOrder {
+                mockController.takeOver(any(), any(), any(), any())
+                mockController.play()
+            }
+
+            castPlayer.release()
+        }
+
     // -------------------------------------------------------------------------
 
     private fun getPendingPlayWhenReady(castPlayer: WiimCastPlayer): Boolean {
