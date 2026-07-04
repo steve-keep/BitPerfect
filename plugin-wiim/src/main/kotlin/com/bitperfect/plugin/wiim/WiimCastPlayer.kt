@@ -17,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class WiimCastPlayer(
@@ -24,9 +26,10 @@ class WiimCastPlayer(
     private val targetDevice: OutputDevice.Upnp,
     initialPlaylist: List<MediaItem> = emptyList(),
     initialIndex: Int = 0,
+    @androidx.annotation.VisibleForTesting
+    internal val controller: WiimOutputController = WiimOutputController(context, targetDevice)
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
 
-    private val controller = WiimOutputController(context, targetDevice)
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
     private var currentPlaylist: List<MediaItem> = initialPlaylist
@@ -34,6 +37,8 @@ class WiimCastPlayer(
 
     @androidx.annotation.VisibleForTesting
     internal var pendingPlayWhenReady: Boolean = false
+
+    private var pendingTakeOverJob: Job? = null
 
     init {
         scope.launch {
@@ -152,8 +157,8 @@ class WiimCastPlayer(
 
         val tracks = mediaItems.mapNotNull { item -> item.toTrackInfo() }
 
-        scope.launch(Dispatchers.IO) {
-            controller.takeOver(tracks as List<com.bitperfect.core.output.TrackInfo>, startIndex, startPositionMs, false)
+        pendingTakeOverJob = scope.launch(Dispatchers.IO) {
+            controller.takeOver(tracks as List<com.bitperfect.core.output.TrackInfo>, startIndex, startPositionMs, pendingPlayWhenReady)
         }
 
         return Futures.immediateVoidFuture()
@@ -163,6 +168,14 @@ class WiimCastPlayer(
         WiimDebugLogger.log("handleSetPlayWhenReady: $playWhenReady")
         pendingPlayWhenReady = playWhenReady
         scope.launch {
+            pendingTakeOverJob?.let { job ->
+                try {
+                    withTimeout(6000) { job.join() }
+                } catch (e: TimeoutCancellationException) {
+                    WiimDebugLogger.log("handleSetPlayWhenReady: takeOver job timed out after 6000ms, proceeding with play/pause anyway")
+                }
+                pendingTakeOverJob = null
+            }
             if (playWhenReady) controller.play() else controller.pause()
         }
         return Futures.immediateVoidFuture()
