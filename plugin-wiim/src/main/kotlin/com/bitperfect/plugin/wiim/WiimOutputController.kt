@@ -79,32 +79,44 @@ class WiimOutputController(
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = scope.launch {
-            while (isActive) {
-                try {
-                    val body = withContext(Dispatchers.IO) { fetchLinkPlay("getPlayerStatus") }
-                    if (body != null) {
-                        val json = JSONObject(body)
-                        val isNowPlaying = json.optString("status") == "play" || json.optString("play_status") == "play"
+            WiimDebugLogger.log("startPolling: loop starting")
+            try {
+                while (isActive) {
+                    try {
+                        val body = withContext(Dispatchers.IO) { fetchLinkPlay("getPlayerStatus") }
+                        if (body != null) {
+                            val json = JSONObject(body)
+                            val status = json.optString("status")
+                            val playStatus = json.optString("play_status")
+                            val isNowPlaying = status == "play" || playStatus == "play"
 
-                        // Only update from polling if events are not active or for fields events don't provide
-                        val eventsActive = subscriber?.eventsActive == true
+                            // Only update from polling if events are not active or for fields events don't provide
+                            val eventsActive = subscriber?.eventsActive == true
+                            val updatedIsPlaying = !eventsActive
 
-                        if (!eventsActive) {
-                            _isPlaying.value = isNowPlaying
-                            if (isNowPlaying) {
-                                val curpos = json.optLong("curpos", -1L)
-                                if (curpos >= 0L) _positionMs.value = curpos
+                            if (!eventsActive) {
+                                _isPlaying.value = isNowPlaying
+                                if (isNowPlaying) {
+                                    val curpos = json.optLong("curpos", -1L)
+                                    if (curpos >= 0L) _positionMs.value = curpos
+                                }
+                                val vol = json.optInt("vol", -1)
+                                if (vol in 0..100) _volume.value = vol
                             }
-                            val vol = json.optInt("vol", -1)
-                            if (vol in 0..100) _volume.value = vol
-                        }
 
-                        _currentTrackIndex.value = json.optInt("plicurr", -1)
+                            _currentTrackIndex.value = json.optInt("plicurr", -1)
+
+                            val updateLogStr = if (updatedIsPlaying) " (set to $isNowPlaying)" else ""
+                            WiimDebugLogger.log("startPolling: status='$status', play_status='$playStatus', isNowPlaying=$isNowPlaying, eventsActive=$eventsActive, updatedIsPlaying=$updatedIsPlaying$updateLogStr")
+                        }
+                    } catch (e: Exception) {
+                        Log.d("WiimOutputController", "Polling error: ${e.javaClass.simpleName}: ${e.message}")
+                        WiimDebugLogger.log("startPolling: Polling error: ${e.javaClass.simpleName}: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    Log.d("WiimOutputController", "Polling error: ${e.message}")
+                    delay(if (subscriber?.eventsActive == true) 5000L else 1000L)
                 }
-                delay(if (subscriber?.eventsActive == true) 5000L else 1000L)
+            } finally {
+                WiimDebugLogger.log("startPolling: loop exited or cancelled")
             }
         }
     }
