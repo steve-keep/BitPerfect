@@ -19,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import com.bitperfect.core.WiimDebugLogger
@@ -27,6 +28,8 @@ import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.test.core.app.ApplicationProvider
+import android.net.wifi.WifiManager
 import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
@@ -41,7 +44,7 @@ class WiimOutputControllerTest {
 
     @Before
     fun setup() {
-        context = mockk<Context>(relaxed = true)
+        context = ApplicationProvider.getApplicationContext<Context>()
         val target = OutputDevice.Upnp(
             udn = "uuid:123",
             friendlyName = "WiiM",
@@ -155,6 +158,19 @@ class WiimOutputControllerTest {
                 // Ignore if already set
             }
         }
+    }
+
+    @Test
+    fun `takeOver acquires WifiLock and release stops it`() = runTest {
+        val tracks = emptyList<TrackInfo>()
+        controller.takeOver(tracks, startIndex = 0, startPositionMs = 0, playWhenReady = true)
+
+        assertNotNull(controller.wifiLock)
+        assertTrue(controller.wifiLock?.isHeld == true)
+
+        controller.release()
+
+        assertFalse(controller.wifiLock?.isHeld == true)
     }
 
     @Test
