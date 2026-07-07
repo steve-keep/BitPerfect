@@ -40,6 +40,7 @@ class WiimOutputController(
 
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var httpServer: com.bitperfect.plugin.wiim.FlacHttpServer? = null
+    internal var wifiLock: WifiManager.WifiLock? = null
     private var wifiIp: String? = null
 
     private val _isPlaying = MutableStateFlow(false)
@@ -217,9 +218,21 @@ class WiimOutputController(
 
 
         httpServer?.stop()
+        if (wifiLock?.isHeld == true) {
+            wifiLock?.release()
+            WiimDebugLogger.log("WifiLock released (stop previous)")
+        }
+
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "WiimFlacServerLock")
+        wifiLock?.setReferenceCounted(false)
+
         httpServer = FlacHttpServer(context, trackList)
         httpServer?.serverIp = wifiIp ?: "127.0.0.1"
         httpServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+
+        wifiLock?.acquire()
+        WiimDebugLogger.log("WifiLock acquired: ${wifiLock?.isHeld}")
 
         val port = httpServer?.listeningPort ?: -1
         if (port <= 0) {
@@ -450,6 +463,10 @@ class WiimOutputController(
         withContext(Dispatchers.IO) {
             sendLinkPlayCommand("setPlayerCmd:stop")
             httpServer?.stop()
+            if (wifiLock?.isHeld == true) {
+                wifiLock?.release()
+                WiimDebugLogger.log("WifiLock released (controller release)")
+            }
         }
     }
 
