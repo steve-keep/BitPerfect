@@ -12,6 +12,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.Build
 import com.bitperfect.core.utils.AppLogger
+import com.bitperfect.core.UsbDebugLogger
 import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -180,6 +181,7 @@ class UsbDriveDetector(
     }
 
     private suspend fun interrogateDevice(device: UsbDevice) {
+        UsbDebugLogger.log("interrogateDevice for ${device.vendorId}:${device.productId}")
         pollingJob?.cancel()
         pollingJob = null
         cleanupConnection()
@@ -223,8 +225,18 @@ class UsbDriveDetector(
             return
         }
 
+        try {
         if (!connection.claimInterface(massStorageInterface, true)) {
             AppLogger.e(TAG, "Could not claim interface")
+            UsbDebugLogger.log("claimInterface FAILED for ${device.vendorId}:${device.productId}")
+            _driveStatus.value = DriveStatus.Error("Could not open device")
+            connection.close()
+            return
+        }
+        UsbDebugLogger.log("claimInterface succeeded for ${device.vendorId}:${device.productId}")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Exception claiming interface", e)
+            UsbDebugLogger.log("claimInterface FAILED for ${device.vendorId}:${device.productId} - ${e.message}")
             _driveStatus.value = DriveStatus.Error("Could not open device")
             connection.close()
             return
@@ -378,20 +390,28 @@ class UsbDriveDetector(
                             if (currentStatus !is DriveStatus.DiscReady) {
                                 val tocResult = readTocWithRetry(currentTransport, currentOutEndpoint, currentInEndpoint)
                                 if (tocResult != null) {
-                                    _driveStatus.value = DriveStatus.DiscReady(info, tocResult.first, tocResult.second)
+                                    val newStatus_380 = DriveStatus.DiscReady(info, tocResult.first, tocResult.second)
+                                    UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_380}")
+                                    _driveStatus.value = newStatus_380
                                 } else {
-                                    _driveStatus.value = DriveStatus.Error("Failed to read disc layout", info)
+                                    val newStatus_382 = DriveStatus.Error("Failed to read disc layout", info)
+                                    UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_382}")
+                                    _driveStatus.value = newStatus_382
                                 }
                             }
                         }
                         TurResult.SPINNING_UP -> {
                             if (currentStatus !is DriveStatus.SpinningUp) {
-                                _driveStatus.value = DriveStatus.SpinningUp(info)
+                                val newStatus_388 = DriveStatus.SpinningUp(info)
+                                UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_388}")
+                                _driveStatus.value = newStatus_388
                             }
                         }
                         TurResult.TRAY_OPEN -> {
                             if (currentStatus !is DriveStatus.Open) {
-                                _driveStatus.value = DriveStatus.Open(info)
+                                val newStatus_393 = DriveStatus.Open(info)
+                                UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_393}")
+                                _driveStatus.value = newStatus_393
                             }
                         }
                         TurResult.NOT_READY -> {
@@ -401,12 +421,16 @@ class UsbDriveDetector(
                                     // Hold in DetectingDisc and keep fast-polling at 250 ms rather than
                                     // dropping to Empty.
                                     if (currentStatus !is DriveStatus.DetectingDisc) {
-                                        _driveStatus.value = DriveStatus.DetectingDisc(info)
+                                        val newStatus_403 = DriveStatus.DetectingDisc(info)
+                                        UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_403}")
+                                        _driveStatus.value = newStatus_403
                                     }
                                 }
                                 else -> {
                                     if (currentStatus !is DriveStatus.Empty) {
-                                        _driveStatus.value = DriveStatus.Empty(info)
+                                        val newStatus_408 = DriveStatus.Empty(info)
+                                        UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_408}")
+                                        _driveStatus.value = newStatus_408
                                     }
                                 }
                             }
@@ -414,7 +438,9 @@ class UsbDriveDetector(
                         TurResult.CONNECTION_DEAD -> {
                             AppLogger.w(TAG, "USB connection dead, attempting silent reconnect")
                             cleanupConnection()
-                            _driveStatus.value = DriveStatus.Connecting()
+                            val newStatus_416 = DriveStatus.Connecting()
+                            UsbDebugLogger.log("State transition: \${_driveStatus.value} -> \${newStatus_416}")
+                            _driveStatus.value = newStatus_416
                             scope.launch {
                                 delay(500)
                                 reconnectWithoutPermissionRequest()
@@ -440,19 +466,23 @@ class UsbDriveDetector(
                     it.productId == targetProductId
                 }
                 if (device != null) {
+                    UsbDebugLogger.log("Reconnect attempt ${attempt + 1}: reconnected successfully")
                     interrogateDevice(device)
                     return@launch
                 }
                 AppLogger.w(TAG, "Reconnect attempt ${attempt + 1}: no device with permission yet")
+                UsbDebugLogger.log("Reconnect attempt ${attempt + 1}: no device with permission yet")
             }
             // All retries failed - surface the error
             AppLogger.e(TAG, "Could not reconnect after 5 attempts")
+            UsbDebugLogger.log("Could not reconnect after 5 attempts")
             _driveStatus.value = DriveStatus.Error("USB reconnect failed — device lost in background")
             scanForDevices()
         }
     }
 
     private fun executeSingleTestUnitReady(transport: UsbTransport, outEndpoint: UsbEndpoint, inEndpoint: UsbEndpoint, tag: Int): TurResult {
+        UsbDebugLogger.log("--- TUR poll tag=$tag ---")
         // CBW: 31 bytes
         val cbw = ByteArray(31)
         val buffer = ByteBuffer.wrap(cbw).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -473,6 +503,7 @@ class UsbDriveDetector(
 
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 15000)
+        UsbDebugLogger.log("TUR tag=$tag cbwSent=$transferred")
         if (transferred < 0) {
             AppLogger.e(TAG, "TUR: Failed to send CBW — timeout, returning NOT_READY")
             return TurResult.NOT_READY
@@ -483,6 +514,7 @@ class UsbDriveDetector(
         // Read CSW (Command Status Wrapper)
         val csw = ByteArray(13)
         transferred = transport.bulkTransfer(inEndpoint, csw, csw.size, 15000)
+        UsbDebugLogger.log("TUR tag=$tag cswRead=$transferred")
         if (transferred < 0) {
             AppLogger.e(TAG, "TUR: Failed to read CSW — timeout, returning NOT_READY")
             return TurResult.NOT_READY
@@ -496,6 +528,7 @@ class UsbDriveDetector(
             return TurResult.NOT_READY
         }
         val status = csw[12]
+        UsbDebugLogger.log("TUR tag=$tag cswStatus=$status")
         if (status != 0.toByte()) {
             AppLogger.d(TAG, "TUR: Drive not ready (status=$status) on tag $tag")
             val senseResult = executeRequestSense(transport, outEndpoint, inEndpoint, tag + 1)
@@ -545,6 +578,7 @@ class UsbDriveDetector(
 
         // Send CBW
         var transferred = transport.bulkTransfer(outEndpoint, cbw, cbw.size, 15000)
+        UsbDebugLogger.log("TUR tag=$tag cbwSent=$transferred")
         if (transferred < 0) return SenseResult.NOT_READY
 
         // Read Data
@@ -560,6 +594,7 @@ class UsbDriveDetector(
         val asc = senseData[12].toInt() and 0xFF
         val ascq = senseData[13].toInt() and 0xFF
 
+        UsbDebugLogger.log("SENSE tag=$tag key=$senseKey asc=$asc ascq=$ascq")
         if (senseKey == 0x02 && asc == 0x04 && ascq == 0x01) {
             return SenseResult.SPINNING_UP
         } else if (senseKey == 0x02 && asc == 0x3A && ascq == 0x02) {
