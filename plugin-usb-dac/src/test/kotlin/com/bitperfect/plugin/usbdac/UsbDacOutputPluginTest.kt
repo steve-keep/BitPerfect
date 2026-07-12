@@ -12,6 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -67,6 +68,8 @@ class UsbDacOutputPluginTest {
 
         plugin.attach(registry)
 
-        verify { registry.updateDevices("usb_dac", emptyList()) }
+        // Allow StateFlow to emit
+        kotlinx.coroutines.delay(50)
+        verify(timeout = 1000) { registry.updateDevices("usb_dac", emptyList()) }
     }
 }
