@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import com.bitperfect.core.WiimDebugLogger
 import com.bitperfect.core.output.TrackInfo
+import android.os.Environment
 import fi.iki.elonen.NanoHTTPD
 import java.io.File
 import java.io.FileInputStream
@@ -83,6 +84,14 @@ internal class FlacHttpServer(val context: Context, initialTrackList: List<Track
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Path Not Found")
         }
         val file = File(filePath)
+
+        val canonicalPath = try { file.canonicalPath } catch (e: Exception) { "" }
+        val externalStoragePath = try { Environment.getExternalStorageDirectory().canonicalPath } catch (e: Exception) { "" }
+        if (canonicalPath.isEmpty() || externalStoragePath.isEmpty() || !canonicalPath.startsWith(externalStoragePath)) {
+            WiimDebugLogger.log("track 403: path traversal attempted or file not on external storage: $canonicalPath")
+            return newFixedLengthResponse(Response.Status.FORBIDDEN, MIME_PLAINTEXT, "Forbidden")
+        }
+
         if (!file.exists()) {
             WiimDebugLogger.log("track 404: id=$trackId file does not exist at $filePath")
             return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "File Not Found")
