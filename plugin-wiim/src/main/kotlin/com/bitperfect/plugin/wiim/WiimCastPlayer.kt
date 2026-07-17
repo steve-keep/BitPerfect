@@ -26,7 +26,7 @@ class WiimCastPlayer(
     private val targetDevice: OutputDevice.Upnp,
     initialPlaylist: List<MediaItem> = emptyList(),
     initialIndex: Int = 0,
-    @androidx.annotation.VisibleForTesting
+    @get:androidx.annotation.VisibleForTesting
     internal val controller: WiimOutputController = WiimOutputController(context, targetDevice)
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
 
@@ -35,7 +35,7 @@ class WiimCastPlayer(
     private var currentPlaylist: List<MediaItem> = initialPlaylist
     private var currentIndex: Int = initialIndex
 
-    @androidx.annotation.VisibleForTesting
+    @get:androidx.annotation.VisibleForTesting
     internal var pendingPlayWhenReady: Boolean = false
 
     private var pendingTakeOverJob: Job? = null

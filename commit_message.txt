@@ -1,0 +1,6 @@
+🧹 Extract MainScreen to improve MainActivity readability
+
+🎯 What: Extracted the massive `setContent` block from `MainActivity.kt` into a new `MainScreen.kt` composable file.
+💡 Why: `MainActivity.kt`'s `onCreate` method was over 500 lines long, making it hard to read and maintain. Extracting the UI into a dedicated component significantly improves separation of concerns.
+✅ Verification: Ran `gradlew check` to verify compilation, linting, and unit tests pass successfully.
+✨ Result: `MainActivity.kt` is now clean, concise, and focused on Activity lifecycle and dependency injection.
