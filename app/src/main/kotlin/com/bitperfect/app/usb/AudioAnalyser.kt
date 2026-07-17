@@ -27,6 +27,11 @@ class AudioAnalyser {
     private val bpmBuffer = FloatArray(bpmWindowSize)
     private var bpmBufferPos = 0
 
+    // FFT trigonometric caching
+    private val maxFftSize = maxOf(stftWindowSize, bpmWindowSize)
+    private val wReTable = FloatArray(maxFftSize / 2)
+    private val wImTable = FloatArray(maxFftSize / 2)
+
     // BPM variables
     private var prevMag = FloatArray(bpmWindowSize / 2)
     private val onsetEnvelope = mutableListOf<Float>()
@@ -241,20 +246,35 @@ class AudioAnalyser {
             val wPi = sin(theta)
             var wRe = 1f
             var wIm = 0f
+
             for (m in 0 until mMax) {
-                for (i in m until n step step) {
-                    val idx1 = 2 * i
-                    val idx2 = 2 * (i + mMax)
-                    val tr = wRe * data[idx2] - wIm * data[idx2 + 1]
-                    val ti = wRe * data[idx2 + 1] + wIm * data[idx2]
-                    data[idx2] = data[idx1] - tr
-                    data[idx2 + 1] = data[idx1 + 1] - ti
-                    data[idx1] += tr
-                    data[idx1 + 1] += ti
-                }
+                wReTable[m] = wRe
+                wImTable[m] = wIm
                 val t = wRe
                 wRe = wRe * wPr - wIm * wPi
                 wIm = wIm * wPr + t * wPi
+            }
+
+            for (i in 0 until n step step) {
+                for (m in 0 until mMax) {
+                    val idx1 = 2 * (i + m)
+                    val idx2 = 2 * (i + m + mMax)
+                    val wr = wReTable[m]
+                    val wi = wImTable[m]
+
+                    val d2r = data[idx2]
+                    val d2i = data[idx2 + 1]
+                    val d1r = data[idx1]
+                    val d1i = data[idx1 + 1]
+
+                    val tr = wr * d2r - wi * d2i
+                    val ti = wr * d2i + wi * d2r
+
+                    data[idx2] = d1r - tr
+                    data[idx2 + 1] = d1i - ti
+                    data[idx1] = d1r + tr
+                    data[idx1 + 1] = d1i + ti
+                }
             }
             mMax = step
         }
