@@ -66,6 +66,18 @@ class ForensicRipLoggerTest {
 
         logger.record(RipLogEvent.TrackStarted(1, "Track 1"))
 
+        logger.record(RipLogEvent.DriveSpeedChanged(
+            trackNumber = 1,
+            speed = com.bitperfect.app.usb.DriveSpeed.SPEED_2X,
+            reason = "persistent_chunk_failure lba=125430"
+        ))
+
+        logger.record(RipLogEvent.DriveSpeedChanged(
+            trackNumber = 1,
+            speed = com.bitperfect.app.usb.DriveSpeed.SPEED_4X,
+            reason = "persistent_chunk_failure"
+        ))
+
         logger.record(RipLogEvent.OverlapMismatchDetected(
             trackNumber = 2,
             lbaStart = 125430,
@@ -167,5 +179,7 @@ class ForensicRipLoggerTest {
         assertTrue(output.contains("Confidence: MEDIUM"))
         assertTrue(output.contains("Rereads: 4"))
         assertTrue(output.contains("AccurateRip: MISMATCH"))
+        assertTrue(output.contains("Drive speed             : 2x (reduced due to persistent read failure at LBA 125430)"))
+        assertTrue(output.contains("Drive speed             : 4x (reduced due to persistent read failure)"))
     }
 }
