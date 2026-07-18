@@ -35,6 +35,9 @@ open class LibraryRepository(private val context: Context) {
     }
 
     internal val artistsJsonMutex = Mutex()
+    private var cachedArtistsData: Map<String, Pair<Set<String>, String>>? = null
+    private var artistsFileLastModified: Long = 0L
+
 
     open val onLibraryUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -800,6 +803,8 @@ open class LibraryRepository(private val context: Context) {
                 context.contentResolver.openOutputStream(artistsFile.uri, "wt")?.use { out ->
                     out.write(root.toString(2).toByteArray(Charsets.UTF_8))
                 }
+                cachedArtistsData = null
+                artistsFileLastModified = 0L
                 MediaScannerHelper.scanSafUri(context, artistsFile.uri)
             } catch (e: Exception) {
                 AppLogger.e("LibraryRepository", "Failed to merge artist data", e)
@@ -810,6 +815,10 @@ open class LibraryRepository(private val context: Context) {
     suspend fun rebuildArtistIndex(outputFolderUriString: String?) {
         if (outputFolderUriString.isNullOrBlank()) return
         try {
+            artistsJsonMutex.withLock {
+                cachedArtistsData = null
+                artistsFileLastModified = 0L
+            }
             val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
             if (parentDir != null) {
                 parentDir.findFile("artists.json")?.delete()
@@ -877,23 +886,49 @@ open class LibraryRepository(private val context: Context) {
             val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
             val artistsFile = parentDir?.findFile("artists.json") ?: return emptyList()
 
-            val fileContent = context.contentResolver.openInputStream(artistsFile.uri)?.use {
-                InputStreamReader(it).readText()
-            } ?: ""
+            val lastModified = artistsFile.lastModified()
+            if (cachedArtistsData == null || lastModified != artistsFileLastModified) {
+                val fileContent = context.contentResolver.openInputStream(artistsFile.uri)?.use {
+                    InputStreamReader(it).readText()
+                } ?: ""
 
-            if (fileContent.isBlank()) return emptyList()
-            val root = JSONObject(fileContent)
+                if (fileContent.isBlank()) return emptyList()
+                val root = JSONObject(fileContent)
 
-            val targetArtistData = root.optJSONObject(artistName) ?: return emptyList()
-            val targetStylesArray = targetArtistData.optJSONArray("styles") ?: return emptyList()
-
-            val targetStyles = mutableSetOf<String>()
-            for (i in 0 until targetStylesArray.length()) {
-                targetStylesArray.optString(i)?.lowercase()?.trim()?.let { targetStyles.add(it) }
+                val newCache = mutableMapOf<String, Pair<Set<String>, String>>()
+                val iterator = root.keys()
+                while (iterator.hasNext()) {
+                    val keyObj = iterator.next()
+                    val keyStr = keyObj as? String ?: keyObj?.toString()
+                    if (keyStr != null) {
+                        val obj = root.optJSONObject(keyStr)
+                        if (obj != null) {
+                            val arr = obj.optJSONArray("styles")
+                            val styles = mutableSetOf<String>()
+                            if (arr != null) {
+                                for (i in 0 until arr.length()) {
+                                    val str = arr.optString(i)
+                                    if (str != null && str.isNotBlank()) {
+                                        styles.add(str.lowercase().trim())
+                                    }
+                                }
+                            }
+                            val mood = obj.optString("mood", "")
+                            newCache[keyStr] = Pair(styles, mood)
+                        }
+                    }
+                }
+                cachedArtistsData = newCache
+                artistsFileLastModified = lastModified
             }
+
+            val cache = cachedArtistsData ?: return emptyList()
+
+            val targetData = cache[artistName] ?: return emptyList()
+            val targetStyles = targetData.first
             if (targetStyles.isEmpty()) return emptyList()
 
-            val targetMood = targetArtistData.optString("mood")
+            val targetMood = targetData.second
 
             val libraryArtists = getLibrary(outputFolderUriString)
             val candidates = mutableListOf<Pair<ArtistInfo, Pair<Double, Boolean>>>()
@@ -901,13 +936,8 @@ open class LibraryRepository(private val context: Context) {
             for (artist in libraryArtists) {
                 if (artist.name.equals(artistName, ignoreCase = true)) continue
 
-                val candidateData = root.optJSONObject(artist.name) ?: continue
-                val candidateStylesArray = candidateData.optJSONArray("styles") ?: continue
-
-                val candidateStyles = mutableSetOf<String>()
-                for (i in 0 until candidateStylesArray.length()) {
-                    candidateStylesArray.optString(i)?.lowercase()?.trim()?.let { candidateStyles.add(it) }
-                }
+                val candidateData = cache[artist.name] ?: continue
+                val candidateStyles = candidateData.first
 
                 if (candidateStyles.isEmpty()) continue
 
@@ -916,7 +946,7 @@ open class LibraryRepository(private val context: Context) {
                 val score = intersectionSize.toDouble() / unionSize
 
                 if (score > 0.0) {
-                    val candidateMood = candidateData.optString("mood")
+                    val candidateMood = candidateData.second
                     val moodMatch = candidateMood.isNotBlank() && candidateMood.equals(targetMood, ignoreCase = true)
                     candidates.add(Pair(artist, Pair(score, moodMatch)))
                 }
