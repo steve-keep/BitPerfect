@@ -14,7 +14,6 @@ import org.json.JSONArray
 import kotlinx.coroutines.sync.Mutex
 import java.io.InputStreamReader
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.runBlocking
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
@@ -29,7 +28,16 @@ import com.bitperfect.app.usb.MediaScannerHelper
 
 open class LibraryRepository(private val context: Context) {
 
+    internal fun escapeSqlLike(value: String): String {
+        return value.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+    }
+
     internal val artistsJsonMutex = Mutex()
+    private var cachedArtistsData: Map<String, Pair<Set<String>, String>>? = null
+    private var artistsFileLastModified: Long = 0L
+
 
     open val onLibraryUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -180,7 +188,7 @@ open class LibraryRepository(private val context: Context) {
         return readFlacTags(dataPath)
     }
 
-    open fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String, trackId: Long? = null) {
+    open suspend fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String, trackId: Long? = null) {
         if (outputFolderUriString.isNullOrBlank()) return
 
         val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
@@ -228,11 +236,7 @@ open class LibraryRepository(private val context: Context) {
 
                         }
 
-                        runBlocking {
-
                             mergeArtistData(outputFolderUriString, artist, updatesObj)
-
-                        }
                     }
 
                 }
@@ -273,8 +277,8 @@ open class LibraryRepository(private val context: Context) {
         val relativePath = getRelativePathFromUri(outputFolderUriString) ?: return 0
 
         val projection = arrayOf(MediaStore.Audio.Media._ID)
-        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-        val selectionArgs = arrayOf("$relativePath/%")
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
+        val selectionArgs = arrayOf("${escapeSqlLike(relativePath)}/%")
 
         var total = 0
         context.contentResolver.query(
@@ -437,9 +441,9 @@ open class LibraryRepository(private val context: Context) {
         )
 
         // Add trailing % for LIKE query
-        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
         // Need a trailing slash to match a directory and everything under it
-        val selectionArgs = arrayOf("$relativePath/%")
+        val selectionArgs = arrayOf("${escapeSqlLike(relativePath)}/%")
 
         val sortOrder = "${MediaStore.Audio.Media.ARTIST} ASC, ${MediaStore.Audio.Media.ALBUM} ASC"
 
@@ -562,12 +566,12 @@ open class LibraryRepository(private val context: Context) {
         val relativePath = getRelativePathFromUri(outputFolderUriString)
 
         val selection = if (relativePath != null) {
-            "${MediaStore.Audio.Media.ALBUM_ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            "${MediaStore.Audio.Media.ALBUM_ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
         } else {
             "${MediaStore.Audio.Media.ALBUM_ID} = ?"
         }
         val selectionArgs = if (relativePath != null) {
-            arrayOf(albumId.toString(), "$relativePath/%")
+            arrayOf(albumId.toString(), "${escapeSqlLike(relativePath)}/%")
         } else {
             arrayOf(albumId.toString())
         }
@@ -685,12 +689,12 @@ open class LibraryRepository(private val context: Context) {
         val relativePath = getRelativePathFromUri(outputFolderUriString)
 
         val selection = if (relativePath != null) {
-            "${MediaStore.Audio.Media._ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            "${MediaStore.Audio.Media._ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
         } else {
             "${MediaStore.Audio.Media._ID} = ?"
         }
         val selectionArgs = if (relativePath != null) {
-            arrayOf(trackId.toString(), "$relativePath/%")
+            arrayOf(trackId.toString(), "${escapeSqlLike(relativePath)}/%")
         } else {
             arrayOf(trackId.toString())
         }
@@ -799,6 +803,8 @@ open class LibraryRepository(private val context: Context) {
                 context.contentResolver.openOutputStream(artistsFile.uri, "wt")?.use { out ->
                     out.write(root.toString(2).toByteArray(Charsets.UTF_8))
                 }
+                cachedArtistsData = null
+                artistsFileLastModified = 0L
                 MediaScannerHelper.scanSafUri(context, artistsFile.uri)
             } catch (e: Exception) {
                 AppLogger.e("LibraryRepository", "Failed to merge artist data", e)
@@ -809,32 +815,59 @@ open class LibraryRepository(private val context: Context) {
     suspend fun rebuildArtistIndex(outputFolderUriString: String?) {
         if (outputFolderUriString.isNullOrBlank()) return
         try {
+            artistsJsonMutex.withLock {
+                cachedArtistsData = null
+                artistsFileLastModified = 0L
+            }
             val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
             if (parentDir != null) {
                 parentDir.findFile("artists.json")?.delete()
             }
-            val artists = getLibrary(outputFolderUriString)
-            artists.forEach { artist ->
-                val styleTags = mutableSetOf<String>()
-                artist.albums.forEach { album ->
-                    val tracksPair = getTracksForAlbum(album.id, outputFolderUriString)
-                    tracksPair.first.forEach { track ->
-                        val dataPath = track.dataPath ?: return@forEach
-                        val tags = readFlacTags(dataPath)
-                        tags.forEach { (key, value) ->
-                            if (key == "STYLE" || key == "GENRE") {
-                                styleTags.add(value)
-                            }
+
+            val relativePath = getRelativePathFromUri(outputFolderUriString) ?: return
+
+            val projection = arrayOf(
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.DATA
+            )
+            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            val selectionArgs = arrayOf("$relativePath/%")
+
+            val artistStyles = mutableMapOf<String, MutableSet<String>>()
+
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+
+                while (cursor.moveToNext()) {
+                    val artistName = cursor.getString(artistCol) ?: continue
+                    val dataPath = cursor.getString(dataCol) ?: continue
+
+                    val tags = readFlacTags(dataPath)
+                    val styleTags = artistStyles.getOrPut(artistName) { mutableSetOf() }
+
+                    tags.forEach { (key, value) ->
+                        if (key == "STYLE" || key == "GENRE") {
+                            styleTags.add(value)
                         }
                     }
                 }
+            }
+
+            artistStyles.forEach { (artistName, styleTags) ->
                 if (styleTags.isNotEmpty()) {
                     val updatesObj = JSONObject().apply {
                         val arr = JSONArray()
                         styleTags.distinct().forEach { arr.put(it.lowercase().trim()) }
                         put("styles", arr)
                     }
-                    mergeArtistData(outputFolderUriString, artist.name, updatesObj)
+                    mergeArtistData(outputFolderUriString, artistName, updatesObj)
                 }
             }
         } catch (e: Exception) {
@@ -853,23 +886,49 @@ open class LibraryRepository(private val context: Context) {
             val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
             val artistsFile = parentDir?.findFile("artists.json") ?: return emptyList()
 
-            val fileContent = context.contentResolver.openInputStream(artistsFile.uri)?.use {
-                InputStreamReader(it).readText()
-            } ?: ""
+            val lastModified = artistsFile.lastModified()
+            if (cachedArtistsData == null || lastModified != artistsFileLastModified) {
+                val fileContent = context.contentResolver.openInputStream(artistsFile.uri)?.use {
+                    InputStreamReader(it).readText()
+                } ?: ""
 
-            if (fileContent.isBlank()) return emptyList()
-            val root = JSONObject(fileContent)
+                if (fileContent.isBlank()) return emptyList()
+                val root = JSONObject(fileContent)
 
-            val targetArtistData = root.optJSONObject(artistName) ?: return emptyList()
-            val targetStylesArray = targetArtistData.optJSONArray("styles") ?: return emptyList()
-
-            val targetStyles = mutableSetOf<String>()
-            for (i in 0 until targetStylesArray.length()) {
-                targetStylesArray.optString(i)?.lowercase()?.trim()?.let { targetStyles.add(it) }
+                val newCache = mutableMapOf<String, Pair<Set<String>, String>>()
+                val iterator = root.keys()
+                while (iterator.hasNext()) {
+                    val keyObj = iterator.next()
+                    val keyStr = keyObj as? String ?: keyObj?.toString()
+                    if (keyStr != null) {
+                        val obj = root.optJSONObject(keyStr)
+                        if (obj != null) {
+                            val arr = obj.optJSONArray("styles")
+                            val styles = mutableSetOf<String>()
+                            if (arr != null) {
+                                for (i in 0 until arr.length()) {
+                                    val str = arr.optString(i)
+                                    if (str != null && str.isNotBlank()) {
+                                        styles.add(str.lowercase().trim())
+                                    }
+                                }
+                            }
+                            val mood = obj.optString("mood", "")
+                            newCache[keyStr] = Pair(styles, mood)
+                        }
+                    }
+                }
+                cachedArtistsData = newCache
+                artistsFileLastModified = lastModified
             }
+
+            val cache = cachedArtistsData ?: return emptyList()
+
+            val targetData = cache[artistName] ?: return emptyList()
+            val targetStyles = targetData.first
             if (targetStyles.isEmpty()) return emptyList()
 
-            val targetMood = targetArtistData.optString("mood")
+            val targetMood = targetData.second
 
             val libraryArtists = getLibrary(outputFolderUriString)
             val candidates = mutableListOf<Pair<ArtistInfo, Pair<Double, Boolean>>>()
@@ -877,13 +936,8 @@ open class LibraryRepository(private val context: Context) {
             for (artist in libraryArtists) {
                 if (artist.name.equals(artistName, ignoreCase = true)) continue
 
-                val candidateData = root.optJSONObject(artist.name) ?: continue
-                val candidateStylesArray = candidateData.optJSONArray("styles") ?: continue
-
-                val candidateStyles = mutableSetOf<String>()
-                for (i in 0 until candidateStylesArray.length()) {
-                    candidateStylesArray.optString(i)?.lowercase()?.trim()?.let { candidateStyles.add(it) }
-                }
+                val candidateData = cache[artist.name] ?: continue
+                val candidateStyles = candidateData.first
 
                 if (candidateStyles.isEmpty()) continue
 
@@ -892,7 +946,7 @@ open class LibraryRepository(private val context: Context) {
                 val score = intersectionSize.toDouble() / unionSize
 
                 if (score > 0.0) {
-                    val candidateMood = candidateData.optString("mood")
+                    val candidateMood = candidateData.second
                     val moodMatch = candidateMood.isNotBlank() && candidateMood.equals(targetMood, ignoreCase = true)
                     candidates.add(Pair(artist, Pair(score, moodMatch)))
                 }

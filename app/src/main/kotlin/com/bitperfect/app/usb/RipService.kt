@@ -257,8 +257,7 @@ class RipService : Service() {
             .setContentTitle(title)
             .setContentText(text)
             .setSubText(subText)
-            // TODO: Replace with a monochrome R.drawable.ic_notification once created
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .addAction(0, getString(R.string.notif_cancel), cancelIntent)
             .setOngoing(true)

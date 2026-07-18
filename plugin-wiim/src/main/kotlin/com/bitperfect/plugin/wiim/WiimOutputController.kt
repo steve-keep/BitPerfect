@@ -32,12 +32,6 @@ class WiimOutputController(
     private val target: OutputDevice.Upnp
 ) {
 
-    // DIAGNOSTIC: set to false to send empty <Metadata> and test whether
-    // populated DIDL-Lite metadata is what blocks WiiM queue playback.
-    // See: forum.wiimhome.com/threads/wiim-mini-cant-resume-queue.5839
-    // TODO: remove this flag once the experiment result is known.
-    private val SEND_DIDL_METADATA = false
-
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var httpServer: com.bitperfect.plugin.wiim.FlacHttpServer? = null
     internal var wifiLock: WifiManager.WifiLock? = null
@@ -587,7 +581,6 @@ class WiimOutputController(
         wifiIp: String,
         port: Int
     ): String {
-        WiimDebugLogger.log("buildQueueXml: SEND_DIDL_METADATA=$SEND_DIDL_METADATA")
         val sb = StringBuilder()
         sb.append("&lt;?xml version=&quot;1.0&quot;?&gt;")
         sb.append("&lt;PlayList&gt;")
@@ -609,12 +602,8 @@ class WiimOutputController(
             val s = durationSec % 60
             val duration = String.format("%d:%02d:%02d", h, m, s)
 
-            val metadataField = if (SEND_DIDL_METADATA) {
-                val didl = buildDIDL(track, trackUrl, duration)
-                didl.escapeXml().escapeXml()
-            } else {
-                ""
-            }
+            val didl = buildDIDL(track, trackUrl, duration)
+            val metadataField = didl.escapeXml().escapeXml()
 
             sb.append("&lt;Track${i + 1}&gt;")
             sb.append("&lt;URL&gt;${trackUrl.escapeXml()}&lt;/URL&gt;")

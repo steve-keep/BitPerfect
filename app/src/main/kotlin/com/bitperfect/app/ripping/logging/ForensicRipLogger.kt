@@ -167,8 +167,9 @@ class DefaultForensicRipLogger : ForensicRipLogger {
             for (speedEvent in speedChangeEvents) {
                 if (speedEvent.reason.startsWith("persistent_chunk_failure")) {
                     val lbaMatch = "lba=(\\d+)".toRegex().find(speedEvent.reason)
-                    val lba = lbaMatch?.groupValues?.get(1) ?: "XXXX"
-                    sb.append("Drive speed             : ${if (speedEvent.speed.kbps == 352) "2x" else "4x"} (reduced due to persistent read failure at LBA $lba)\n")
+                    val lba = lbaMatch?.groupValues?.get(1)
+                    val lbaString = if (lba != null) "LBA $lba" else "unknown LBA"
+                    sb.append("Drive speed             : ${if (speedEvent.speed.kbps == 352) "2x" else "4x"} (reduced due to persistent read failure at $lbaString)\n")
                 }
             }
             if (speedChangeEvents.isNotEmpty()) {

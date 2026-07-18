@@ -52,4 +52,20 @@ class LibraryRepositoryTest {
         val stats = repository.getListeningStatistics("content://com.android.externalstorage.documents/tree/primary%3AMusic")
         assertNull(stats)
     }
+
+
+    @Test
+    fun escapeSqlLike_escapesSpecialCharactersCorrectly() {
+        val input = "Music\\Album_Name%100"
+        val expected = "Music\\\\Album\\_Name\\%100"
+        val actual = repository.escapeSqlLike(input)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun escapeSqlLike_noSpecialCharacters_returnsSameString() {
+        val input = "Music/Normal/Path"
+        val actual = repository.escapeSqlLike(input)
+        assertEquals(input, actual)
+    }
 }
