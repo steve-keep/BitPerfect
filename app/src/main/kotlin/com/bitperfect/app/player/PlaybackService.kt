@@ -198,116 +198,124 @@ class PlaybackService : MediaLibraryService() {
         val session = mediaLibrarySession ?: return
 
         when (target) {
-            is OutputDevice.Upnp -> {
-                stopObservingSystemVolume()
-                val wasPlaying = player?.isPlaying ?: false
-                val handoff = buildHandoffState()
-                WiimDebugLogger.log("1. handleDeviceSwitch Upnp START: wasPlaying=$wasPlaying, handoff.tracks=${handoff.tracks.size}, handoff.currentIndex=${handoff.currentIndex}, firstTrack=${handoff.tracks.getOrNull(handoff.currentIndex)?.title}")
-                player?.pause()
-                activeProvider?.release()
-                activeProvider = null
-
-                val registry = (application as com.bitperfect.app.BitPerfectApplication).outputPluginRegistry
-                val plugin = registry.pluginFor(target)
-                if (plugin != null) {
-                    val handoffWithPlay = handoff.copy(playWhenReady = wasPlaying)
-                    val provider = plugin.createPlayerProvider(this, target, handoffWithPlay)
-                    activeProvider = provider
-                    // Set session.player FIRST so Media3 can reset the session state,
-                    // then activate the provider to populate the queue afterwards.
-                    session.player = provider.player
-                    WiimDebugLogger.log("2. session.player assigned")
-
-                    (provider as? com.bitperfect.plugin.wiim.WiimPlayerProvider)?.activate()
-                    WiimDebugLogger.log("3. activate() returned")
-
-                    // Re-emit metadata so NowPlaying doesn't go blank while WiimCastPlayer
-                    // propagates state back through the session asynchronously.
-                    val firstTrack = handoffWithPlay.tracks.getOrNull(handoffWithPlay.currentIndex)
-                    val artUri = if ((firstTrack?.albumId ?: -1L) != -1L) {
-                        android.content.ContentUris.withAppendedId(
-                            android.net.Uri.parse("content://media/external/audio/albumart"),
-                            firstTrack!!.albumId
-                        )
-                    } else null
-                    val playerRepo = (application as com.bitperfect.app.BitPerfectApplication).playerRepository
-                    playerRepo.overrideMetadataFromHandoff(
-                        mediaId     = firstTrack?.id?.toString(),
-                        trackTitle  = firstTrack?.title,
-                        artist      = firstTrack?.artist,
-                        albumTitle  = firstTrack?.albumTitle,
-                        albumArtUri = artUri,
-                        isPlaying   = wasPlaying
-                    )
-                    WiimDebugLogger.log("4. overrideMetadataFromHandoff done: mediaId=${firstTrack?.id}, title=${firstTrack?.title}")
-                } else {
-                    session.player = player ?: return
-                }
-            }
-            is OutputDevice.UsbDac -> {
-                activeProvider?.release()
-                activeProvider = null
-
-                val registry = (application as com.bitperfect.app.BitPerfectApplication)
-                    .outputPluginRegistry
-                val plugin = registry.pluginFor(target)
-                if (plugin != null) {
-                    val handoff = buildHandoffState()
-                    val provider = plugin.createPlayerProvider(this, target, handoff)
-                    activeProvider = provider
-                    session.player = provider.player
-                    val audioManager = getSystemService(AudioManager::class.java)
-                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                    val currentDacVolume = (application as BitPerfectApplication).usbDacVolumeFlow.value
-                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (currentDacVolume * maxVolume).toInt(), 0)
-                    startObservingSystemVolume()
-                    (provider as? ExoPlayerProvider)?.setVolume(
-                        (application as BitPerfectApplication).usbDacVolumeFlow.value
-                    )
-                    UsbDacDebugLogger.log("PlaybackService: UsbDac provider created, applied initial volume=${(application as BitPerfectApplication).usbDacVolumeFlow.value}, activeProvider=${activeProvider?.javaClass?.simpleName}")
-
-                } else {
-                    // Fallback: no plugin registered, build manually
-                    val currentPosition = player?.currentPosition ?: 0L
-                    val wasPlaying = player?.isPlaying ?: false
-                    val currentMediaItem = player?.currentMediaItem
-                    player?.release()
-                    val newPlayer = buildExoPlayer(useUsbAudioSink = true)
-                    player = newPlayer
-                    currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
-                    newPlayer.prepare()
-                    if (wasPlaying) newPlayer.play()
-                    session.player = newPlayer
-                }
-            }
-            else -> {
-                stopObservingSystemVolume()
-                // Switching back to local — rebuild with DefaultRenderersFactory
-                // if we were previously on UsbDac
-                activeProvider?.release()
-        activeProvider = null
-
-                if (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth) {
-                    if (isUsingUsbAudioSink) {
-                        val currentPosition = player?.currentPosition ?: 0L
-                        val wasPlaying = player?.isPlaying ?: false
-                        val currentMediaItem = player?.currentMediaItem
-
-                        player?.release()
-                        val newPlayer = buildExoPlayer(useUsbAudioSink = false)
-                        player = newPlayer
-
-                        // Restore state
-                        currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
-                        newPlayer.prepare()
-                        if (wasPlaying) newPlayer.play()
-                    }
-                }
-
-                session.player = player ?: return
-            }
+            is OutputDevice.Upnp -> switchToUpnp(target, session)
+            is OutputDevice.UsbDac -> switchToUsbDac(target, session)
+            else -> switchToLocalDevice(target, session)
         }
     }
+
+    private fun switchToUpnp(target: OutputDevice.Upnp, session: MediaLibrarySession) {
+        stopObservingSystemVolume()
+        val wasPlaying = player?.isPlaying ?: false
+        val handoff = buildHandoffState()
+        WiimDebugLogger.log("1. handleDeviceSwitch Upnp START: wasPlaying=$wasPlaying, handoff.tracks=${handoff.tracks.size}, handoff.currentIndex=${handoff.currentIndex}, firstTrack=${handoff.tracks.getOrNull(handoff.currentIndex)?.title}")
+        player?.pause()
+        activeProvider?.release()
+        activeProvider = null
+
+        val registry = (application as com.bitperfect.app.BitPerfectApplication).outputPluginRegistry
+        val plugin = registry.pluginFor(target)
+        if (plugin != null) {
+            val handoffWithPlay = handoff.copy(playWhenReady = wasPlaying)
+            val provider = plugin.createPlayerProvider(this, target, handoffWithPlay)
+            activeProvider = provider
+            // Set session.player FIRST so Media3 can reset the session state,
+            // then activate the provider to populate the queue afterwards.
+            session.player = provider.player
+            WiimDebugLogger.log("2. session.player assigned")
+
+            (provider as? com.bitperfect.plugin.wiim.WiimPlayerProvider)?.activate()
+            WiimDebugLogger.log("3. activate() returned")
+
+            // Re-emit metadata so NowPlaying doesn't go blank while WiimCastPlayer
+            // propagates state back through the session asynchronously.
+            val firstTrack = handoffWithPlay.tracks.getOrNull(handoffWithPlay.currentIndex)
+            val artUri = if ((firstTrack?.albumId ?: -1L) != -1L) {
+                android.content.ContentUris.withAppendedId(
+                    android.net.Uri.parse("content://media/external/audio/albumart"),
+                    firstTrack!!.albumId
+                )
+            } else null
+            val playerRepo = (application as com.bitperfect.app.BitPerfectApplication).playerRepository
+            playerRepo.overrideMetadataFromHandoff(
+                mediaId     = firstTrack?.id?.toString(),
+                trackTitle  = firstTrack?.title,
+                artist      = firstTrack?.artist,
+                albumTitle  = firstTrack?.albumTitle,
+                albumArtUri = artUri,
+                isPlaying   = wasPlaying
+            )
+            WiimDebugLogger.log("4. overrideMetadataFromHandoff done: mediaId=${firstTrack?.id}, title=${firstTrack?.title}")
+        } else {
+            session.player = player ?: return
+        }
+    }
+
+    private fun switchToUsbDac(target: OutputDevice.UsbDac, session: MediaLibrarySession) {
+        activeProvider?.release()
+        activeProvider = null
+
+        val registry = (application as com.bitperfect.app.BitPerfectApplication)
+            .outputPluginRegistry
+        val plugin = registry.pluginFor(target)
+        if (plugin != null) {
+            val handoff = buildHandoffState()
+            val provider = plugin.createPlayerProvider(this, target, handoff)
+            activeProvider = provider
+            session.player = provider.player
+            val audioManager = getSystemService(AudioManager::class.java)
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val currentDacVolume = (application as BitPerfectApplication).usbDacVolumeFlow.value
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (currentDacVolume * maxVolume).toInt(), 0)
+            startObservingSystemVolume()
+            (provider as? ExoPlayerProvider)?.setVolume(
+                (application as BitPerfectApplication).usbDacVolumeFlow.value
+            )
+            UsbDacDebugLogger.log("PlaybackService: UsbDac provider created, applied initial volume=${(application as BitPerfectApplication).usbDacVolumeFlow.value}, activeProvider=${activeProvider?.javaClass?.simpleName}")
+
+        } else {
+            // Fallback: no plugin registered, build manually
+            val currentPosition = player?.currentPosition ?: 0L
+            val wasPlaying = player?.isPlaying ?: false
+            val currentMediaItem = player?.currentMediaItem
+            player?.release()
+            val newPlayer = buildExoPlayer(useUsbAudioSink = true)
+            player = newPlayer
+            currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
+            newPlayer.prepare()
+            if (wasPlaying) newPlayer.play()
+            session.player = newPlayer
+        }
+    }
+
+    private fun switchToLocalDevice(target: OutputDevice, session: MediaLibrarySession) {
+        stopObservingSystemVolume()
+        // Switching back to local — rebuild with DefaultRenderersFactory
+        // if we were previously on UsbDac
+        activeProvider?.release()
+        activeProvider = null
+
+        if (target is OutputDevice.ThisPhone || target is OutputDevice.Bluetooth) {
+            if (isUsingUsbAudioSink) {
+                val currentPosition = player?.currentPosition ?: 0L
+                val wasPlaying = player?.isPlaying ?: false
+                val currentMediaItem = player?.currentMediaItem
+
+                player?.release()
+                val newPlayer = buildExoPlayer(useUsbAudioSink = false)
+                player = newPlayer
+
+                // Restore state
+                currentMediaItem?.let { newPlayer.setMediaItem(it, currentPosition) }
+                newPlayer.prepare()
+                if (wasPlaying) newPlayer.play()
+            }
+        }
+
+        session.player = player ?: return
+    }
+
+
 
     private inner class BrowseCallback : MediaLibrarySession.Callback {
 
