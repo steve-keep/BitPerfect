@@ -99,6 +99,18 @@ class ForensicRipLoggerTest {
             summary = RipLogEvent.TrackRipSummary(10, 10, 0, 10, 0, 0, 0, 10)
         ))
 
+        logger.record(RipLogEvent.DriveSpeedChanged(
+            trackNumber = 2,
+            speed = com.bitperfect.app.usb.DriveSpeed.SPEED_2X,
+            reason = "persistent_chunk_failure at lba=12345"
+        ))
+
+        logger.record(RipLogEvent.DriveSpeedChanged(
+            trackNumber = 2,
+            speed = com.bitperfect.app.usb.DriveSpeed.SPEED_4X,
+            reason = "persistent_chunk_failure at unknown location"
+        ))
+
         logger.record(RipLogEvent.TrackCompleted(
             trackNumber = 2,
             confidence = RipConfidence.MEDIUM,
@@ -167,5 +179,7 @@ class ForensicRipLoggerTest {
         assertTrue(output.contains("Confidence: MEDIUM"))
         assertTrue(output.contains("Rereads: 4"))
         assertTrue(output.contains("AccurateRip: MISMATCH"))
+        assertTrue(output.contains("Drive speed             : 2x (reduced due to persistent read failure at LBA 12345)"))
+        assertTrue(output.contains("Drive speed             : 4x (reduced due to persistent read failure at unknown LBA)"))
     }
 }
