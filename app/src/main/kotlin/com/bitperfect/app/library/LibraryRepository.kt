@@ -14,7 +14,6 @@ import org.json.JSONArray
 import kotlinx.coroutines.sync.Mutex
 import java.io.InputStreamReader
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.runBlocking
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
@@ -180,7 +179,7 @@ open class LibraryRepository(private val context: Context) {
         return readFlacTags(dataPath)
     }
 
-    open fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String, trackId: Long? = null) {
+    open suspend fun appendNewRelease(outputFolderUriString: String?, albumId: Long, albumTitle: String, artist: String, trackId: Long? = null) {
         if (outputFolderUriString.isNullOrBlank()) return
 
         val parentDir = DocumentFile.fromTreeUri(context, Uri.parse(outputFolderUriString))
@@ -228,11 +227,7 @@ open class LibraryRepository(private val context: Context) {
 
                         }
 
-                        runBlocking {
-
                             mergeArtistData(outputFolderUriString, artist, updatesObj)
-
-                        }
                     }
 
                 }
