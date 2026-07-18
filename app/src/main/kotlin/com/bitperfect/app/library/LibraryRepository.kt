@@ -813,28 +813,51 @@ open class LibraryRepository(private val context: Context) {
             if (parentDir != null) {
                 parentDir.findFile("artists.json")?.delete()
             }
-            val artists = getLibrary(outputFolderUriString)
-            artists.forEach { artist ->
-                val styleTags = mutableSetOf<String>()
-                artist.albums.forEach { album ->
-                    val tracksPair = getTracksForAlbum(album.id, outputFolderUriString)
-                    tracksPair.first.forEach { track ->
-                        val dataPath = track.dataPath ?: return@forEach
-                        val tags = readFlacTags(dataPath)
-                        tags.forEach { (key, value) ->
-                            if (key == "STYLE" || key == "GENRE") {
-                                styleTags.add(value)
-                            }
+
+            val relativePath = getRelativePathFromUri(outputFolderUriString) ?: return
+
+            val projection = arrayOf(
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.DATA
+            )
+            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            val selectionArgs = arrayOf("$relativePath/%")
+
+            val artistStyles = mutableMapOf<String, MutableSet<String>>()
+
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+
+                while (cursor.moveToNext()) {
+                    val artistName = cursor.getString(artistCol) ?: continue
+                    val dataPath = cursor.getString(dataCol) ?: continue
+
+                    val tags = readFlacTags(dataPath)
+                    val styleTags = artistStyles.getOrPut(artistName) { mutableSetOf() }
+
+                    tags.forEach { (key, value) ->
+                        if (key == "STYLE" || key == "GENRE") {
+                            styleTags.add(value)
                         }
                     }
                 }
+            }
+
+            artistStyles.forEach { (artistName, styleTags) ->
                 if (styleTags.isNotEmpty()) {
                     val updatesObj = JSONObject().apply {
                         val arr = JSONArray()
                         styleTags.distinct().forEach { arr.put(it.lowercase().trim()) }
                         put("styles", arr)
                     }
-                    mergeArtistData(outputFolderUriString, artist.name, updatesObj)
+                    mergeArtistData(outputFolderUriString, artistName, updatesObj)
                 }
             }
         } catch (e: Exception) {
