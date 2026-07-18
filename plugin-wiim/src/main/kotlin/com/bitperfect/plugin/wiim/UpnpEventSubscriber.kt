@@ -223,6 +223,7 @@ class UpnpEventSubscriber(
         try {
             val factory = XmlPullParserFactory.newInstance()
             factory.isNamespaceAware = true
+            factory.setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false)
             val parser = factory.newPullParser()
             parser.setInput(StringReader(body))
 
@@ -245,6 +246,7 @@ class UpnpEventSubscriber(
         try {
             val factory = XmlPullParserFactory.newInstance()
             factory.isNamespaceAware = true
+            factory.setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false)
             val parser = factory.newPullParser()
             parser.setInput(StringReader(xml))
 
@@ -352,6 +354,7 @@ class UpnpEventSubscriber(
         try {
             val factory = XmlPullParserFactory.newInstance()
             factory.isNamespaceAware = true
+            factory.setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false)
             val parser = factory.newPullParser()
             parser.setInput(StringReader(xml))
 

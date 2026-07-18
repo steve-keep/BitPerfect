@@ -41,7 +41,45 @@ class UpnpEventSubscriberTest {
         """.trimIndent()
 
         // Use reflection to call the private parseLastChange method
-        val subscriber = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) {}
+        val subscriber = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) {
+    @Test
+    fun testParseLastChangeWithXXE() = runTest {
+        val xxePayload = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <!DOCTYPE foo [
+            <!ELEMENT foo ANY >
+            <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/">
+              <InstanceID val="0">
+                <TransportState val="PLAYING &xxe;"/>
+              </InstanceID>
+            </Event>
+        """.trimIndent()
+
+        var emittedState: UpnpStateChange? = null
+        val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
+            emittedState = state
+        }
+
+        val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
+        parseMethod.isAccessible = true
+
+        try {
+            parseMethod.invoke(subscriberWithCallback, xxePayload)
+        } catch (e: Exception) {
+            // Depending on the exact exception, it might be caught by the try-catch block inside parseLastChange,
+            // or bubble up as an InvocationTargetException.
+        }
+
+        // Wait for coroutine to process
+        Thread.sleep(500)
+
+        // The parser should fail parsing the DTD entity, and the exception should be caught silently by the
+        // try-catch block inside parseLastChange. Thus, no state should be emitted.
+        assertNull(emittedState)
+    }
+}
+
 
         val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
         parseMethod.isAccessible = true
@@ -49,7 +87,45 @@ class UpnpEventSubscriberTest {
         var emittedState: UpnpStateChange? = null
         val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
             emittedState = state
+
+    @Test
+    fun testParseLastChangeWithXXE() = runTest {
+        val xxePayload = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <!DOCTYPE foo [
+            <!ELEMENT foo ANY >
+            <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/">
+              <InstanceID val="0">
+                <TransportState val="PLAYING &xxe;"/>
+              </InstanceID>
+            </Event>
+        """.trimIndent()
+
+        var emittedState: UpnpStateChange? = null
+        val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
+            emittedState = state
         }
+
+        val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
+        parseMethod.isAccessible = true
+
+        try {
+            parseMethod.invoke(subscriberWithCallback, xxePayload)
+        } catch (e: Exception) {
+            // Depending on the exact exception, it might be caught by the try-catch block inside parseLastChange,
+            // or bubble up as an InvocationTargetException.
+        }
+
+        // Wait for coroutine to process
+        Thread.sleep(500)
+
+        // The parser should fail parsing the DTD entity, and the exception should be caught silently by the
+        // try-catch block inside parseLastChange. Thus, no state should be emitted.
+        assertNull(emittedState)
+    }
+}
+
 
         parseMethod.invoke(subscriberWithCallback, lastChangeXml)
 
@@ -65,7 +141,45 @@ class UpnpEventSubscriberTest {
         assertEquals("Test Artist", state?.artist)
         assertEquals("Test Album", state?.album)
         assertEquals("http://example.com/art.jpg", state?.albumArtUrl)
+
+    @Test
+    fun testParseLastChangeWithXXE() = runTest {
+        val xxePayload = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <!DOCTYPE foo [
+            <!ELEMENT foo ANY >
+            <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/">
+              <InstanceID val="0">
+                <TransportState val="PLAYING &xxe;"/>
+              </InstanceID>
+            </Event>
+        """.trimIndent()
+
+        var emittedState: UpnpStateChange? = null
+        val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
+            emittedState = state
+        }
+
+        val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
+        parseMethod.isAccessible = true
+
+        try {
+            parseMethod.invoke(subscriberWithCallback, xxePayload)
+        } catch (e: Exception) {
+            // Depending on the exact exception, it might be caught by the try-catch block inside parseLastChange,
+            // or bubble up as an InvocationTargetException.
+        }
+
+        // Wait for coroutine to process
+        Thread.sleep(500)
+
+        // The parser should fail parsing the DTD entity, and the exception should be caught silently by the
+        // try-catch block inside parseLastChange. Thus, no state should be emitted.
+        assertNull(emittedState)
     }
+}
+
 
     @Test
     fun testParseRenderingControlLastChange() = runTest {
@@ -81,7 +195,45 @@ class UpnpEventSubscriberTest {
         var emittedState: UpnpStateChange? = null
         val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
             emittedState = state
+
+    @Test
+    fun testParseLastChangeWithXXE() = runTest {
+        val xxePayload = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <!DOCTYPE foo [
+            <!ELEMENT foo ANY >
+            <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/">
+              <InstanceID val="0">
+                <TransportState val="PLAYING &xxe;"/>
+              </InstanceID>
+            </Event>
+        """.trimIndent()
+
+        var emittedState: UpnpStateChange? = null
+        val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
+            emittedState = state
         }
+
+        val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
+        parseMethod.isAccessible = true
+
+        try {
+            parseMethod.invoke(subscriberWithCallback, xxePayload)
+        } catch (e: Exception) {
+            // Depending on the exact exception, it might be caught by the try-catch block inside parseLastChange,
+            // or bubble up as an InvocationTargetException.
+        }
+
+        // Wait for coroutine to process
+        Thread.sleep(500)
+
+        // The parser should fail parsing the DTD entity, and the exception should be caught silently by the
+        // try-catch block inside parseLastChange. Thus, no state should be emitted.
+        assertNull(emittedState)
+    }
+}
+
 
         val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
         parseMethod.isAccessible = true
@@ -96,5 +248,80 @@ class UpnpEventSubscriberTest {
         assertEquals(75, state?.volume)
         assertEquals(true, state?.isMuted)
         assertNull(state?.isPlaying)
+
+    @Test
+    fun testParseLastChangeWithXXE() = runTest {
+        val xxePayload = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <!DOCTYPE foo [
+            <!ELEMENT foo ANY >
+            <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/">
+              <InstanceID val="0">
+                <TransportState val="PLAYING &xxe;"/>
+              </InstanceID>
+            </Event>
+        """.trimIndent()
+
+        var emittedState: UpnpStateChange? = null
+        val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
+            emittedState = state
+        }
+
+        val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
+        parseMethod.isAccessible = true
+
+        try {
+            parseMethod.invoke(subscriberWithCallback, xxePayload)
+        } catch (e: Exception) {
+            // Depending on the exact exception, it might be caught by the try-catch block inside parseLastChange,
+            // or bubble up as an InvocationTargetException.
+        }
+
+        // Wait for coroutine to process
+        Thread.sleep(500)
+
+        // The parser should fail parsing the DTD entity, and the exception should be caught silently by the
+        // try-catch block inside parseLastChange. Thus, no state should be emitted.
+        assertNull(emittedState)
+    }
+}
+
+
+    @Test
+    fun testParseLastChangeWithXXE() = runTest {
+        val xxePayload = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <!DOCTYPE foo [
+            <!ELEMENT foo ANY >
+            <!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
+            <Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/">
+              <InstanceID val="0">
+                <TransportState val="PLAYING &xxe;"/>
+              </InstanceID>
+            </Event>
+        """.trimIndent()
+
+        var emittedState: UpnpStateChange? = null
+        val subscriberWithCallback = UpnpEventSubscriber(testTarget, "192.168.1.10", CoroutineScope(Dispatchers.Unconfined)) { state ->
+            emittedState = state
+        }
+
+        val parseMethod = UpnpEventSubscriber::class.java.getDeclaredMethod("parseLastChange", String::class.java)
+        parseMethod.isAccessible = true
+
+        try {
+            parseMethod.invoke(subscriberWithCallback, xxePayload)
+        } catch (e: Exception) {
+            // Depending on the exact exception, it might be caught by the try-catch block inside parseLastChange,
+            // or bubble up as an InvocationTargetException.
+        }
+
+        // Wait for coroutine to process
+        Thread.sleep(500)
+
+        // The parser should fail parsing the DTD entity, and the exception should be caught silently by the
+        // try-catch block inside parseLastChange. Thus, no state should be emitted.
+        assertNull(emittedState)
     }
 }
