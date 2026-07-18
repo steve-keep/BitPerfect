@@ -28,6 +28,12 @@ import com.bitperfect.app.usb.MediaScannerHelper
 
 open class LibraryRepository(private val context: Context) {
 
+    internal fun escapeSqlLike(value: String): String {
+        return value.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+    }
+
     internal val artistsJsonMutex = Mutex()
 
     open val onLibraryUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -268,8 +274,8 @@ open class LibraryRepository(private val context: Context) {
         val relativePath = getRelativePathFromUri(outputFolderUriString) ?: return 0
 
         val projection = arrayOf(MediaStore.Audio.Media._ID)
-        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-        val selectionArgs = arrayOf("$relativePath/%")
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
+        val selectionArgs = arrayOf("${escapeSqlLike(relativePath)}/%")
 
         var total = 0
         context.contentResolver.query(
@@ -432,9 +438,9 @@ open class LibraryRepository(private val context: Context) {
         )
 
         // Add trailing % for LIKE query
-        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
         // Need a trailing slash to match a directory and everything under it
-        val selectionArgs = arrayOf("$relativePath/%")
+        val selectionArgs = arrayOf("${escapeSqlLike(relativePath)}/%")
 
         val sortOrder = "${MediaStore.Audio.Media.ARTIST} ASC, ${MediaStore.Audio.Media.ALBUM} ASC"
 
@@ -557,12 +563,12 @@ open class LibraryRepository(private val context: Context) {
         val relativePath = getRelativePathFromUri(outputFolderUriString)
 
         val selection = if (relativePath != null) {
-            "${MediaStore.Audio.Media.ALBUM_ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            "${MediaStore.Audio.Media.ALBUM_ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
         } else {
             "${MediaStore.Audio.Media.ALBUM_ID} = ?"
         }
         val selectionArgs = if (relativePath != null) {
-            arrayOf(albumId.toString(), "$relativePath/%")
+            arrayOf(albumId.toString(), "${escapeSqlLike(relativePath)}/%")
         } else {
             arrayOf(albumId.toString())
         }
@@ -680,12 +686,12 @@ open class LibraryRepository(private val context: Context) {
         val relativePath = getRelativePathFromUri(outputFolderUriString)
 
         val selection = if (relativePath != null) {
-            "${MediaStore.Audio.Media._ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            "${MediaStore.Audio.Media._ID} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? ESCAPE '\\'"
         } else {
             "${MediaStore.Audio.Media._ID} = ?"
         }
         val selectionArgs = if (relativePath != null) {
-            arrayOf(trackId.toString(), "$relativePath/%")
+            arrayOf(trackId.toString(), "${escapeSqlLike(relativePath)}/%")
         } else {
             arrayOf(trackId.toString())
         }

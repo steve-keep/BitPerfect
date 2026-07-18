@@ -1,0 +1,5 @@
+🔒 Fix potential SQL injection in LibraryRepository LIKE clauses
+
+🎯 What: The application used 'LIKE ?' clauses in LibraryRepository with unescaped user-provided strings (relativePath). Characters like '%' or '_' could have acted as SQL wildcards.
+⚠️ Risk: If unescaped strings contain wildcard characters, it might allow attackers or unintended user inputs to bypass query constraints, potentially exposing a larger subset of media files.
+🛡️ Solution: Implemented a utility function 'escapeSqlLike' to manually escape '\', '%', and '_' characters using a backslash, and appended the 'ESCAPE \'\' clause to the affected SQL statements.
